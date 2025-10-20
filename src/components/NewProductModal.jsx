@@ -1,0 +1,553 @@
+import React, { useState, useEffect } from 'react'
+import { addProduct, updateProduct } from '../services/products'
+import VariationsModal from './VariationsModal'
+import NewCategoryModal from './NewCategoryModal'
+import NewSupplierModal from './NewSupplierModal'
+
+export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[] }){
+  const [name, setName] = useState('')
+  const [priceMin, setPriceMin] = useState('0')
+  const [priceMax, setPriceMax] = useState('0')
+  const [stock, setStock] = useState('0')
+  const [variations, setVariations] = useState('0')
+  // Novos campos do pop-up
+  const [tab, setTab] = useState('cadastro')
+  const [categoryId, setCategoryId] = useState('')
+  const [supplier, setSupplier] = useState('')
+  const [cost, setCost] = useState('0')
+  const [salePrice, setSalePrice] = useState('0')
+  const [promoPrice, setPromoPrice] = useState('')
+  const [barcode, setBarcode] = useState('')
+  const [reference, setReference] = useState('')
+  const [validityDate, setValidityDate] = useState('')
+  const [controlStock, setControlStock] = useState(true)
+  const [stockMin, setStockMin] = useState('0')
+  const [showInCatalog, setShowInCatalog] = useState(false)
+  const [featured, setFeatured] = useState(false)
+  const [description, setDescription] = useState('')
+  const [commissionPercent, setCommissionPercent] = useState('0')
+  const [unit, setUnit] = useState('Unidade')
+  const [allowFraction, setAllowFraction] = useState(false)
+  const [notes, setNotes] = useState('')
+  const [origin, setOrigin] = useState('')
+  const [ncm, setNcm] = useState('')
+  const [cest, setCest] = useState('')
+  const [variationsData, setVariationsData] = useState([])
+  const [varModalOpen, setVarModalOpen] = useState(false)
+  const [active, setActive] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [catSelectOpen, setCatSelectOpen] = useState(false)
+  const [catQuery, setCatQuery] = useState('')
+  const [newCatOpen, setNewCatOpen] = useState(false)
+  // Fornecedor: estados do seletor e modal
+  const [supSelectOpen, setSupSelectOpen] = useState(false)
+  const [supQuery, setSupQuery] = useState('')
+  const [newSupOpen, setNewSupOpen] = useState(false)
+
+  // Pré-carregar dados ao editar um produto
+  useEffect(() => {
+    if(open && isEdit && product){
+      setTab('cadastro')
+      setName(product.name || '')
+      setCategoryId(product.categoryId || '')
+      setSupplier(product.supplier || '')
+      setCost(String(product.cost ?? 0))
+      setSalePrice(String(product.salePrice ?? 0))
+      setPromoPrice(product.promoPrice != null ? String(product.promoPrice) : '')
+      setBarcode(product.barcode || '')
+      setReference(product.reference || '')
+      setValidityDate(product.validityDate || '')
+      setControlStock(!!product.controlStock)
+      setStock(String(product.stock ?? 0))
+      setStockMin(String(product.stockMin ?? 0))
+      setShowInCatalog(!!product.showInCatalog)
+      setFeatured(!!product.featured)
+      setVariations(String(product.variations ?? 0))
+      setVariationsData(Array.isArray(product.variationsData) ? product.variationsData : [])
+      setDescription(product.description || '')
+      setCommissionPercent(String(product.commissionPercent ?? 0))
+      setUnit(product.unit || 'Unidade')
+      setAllowFraction(!!product.allowFraction)
+      setNotes(product.notes || '')
+      setOrigin(product.origin || '')
+      setNcm(product.ncm || '')
+      setCest(product.cest || '')
+      setActive(!!product.active)
+      setError('')
+    }
+  }, [open, isEdit, product])
+
+  const makeVarFromProduct = () => ({
+    name: 'var 1',
+    cost: parseFloat(cost) || 0,
+    salePrice: parseFloat(salePrice) || 0,
+    promoPrice: promoPrice ? (parseFloat(promoPrice) || 0) : null,
+    barcode: barcode.trim(),
+    reference: reference.trim(),
+    validityDate: validityDate || null,
+    stockInitial: parseInt(stock, 10) || 0,
+    stockMin: parseInt(stockMin, 10) || 0,
+    stock: parseInt(stock, 10) || 0,
+    active: !!active,
+  })
+
+  if(!open) return null
+
+  const close = () => {
+    if (saving) return
+    onClose && onClose()
+    // reset state when closing
+    setTab('cadastro')
+    setName('')
+    setCategoryId('')
+    setSupplier('')
+    setCost('0')
+    setSalePrice('0')
+    setPromoPrice('')
+    setBarcode('')
+    setReference('')
+    setValidityDate('')
+    setControlStock(true)
+    setStock('0')
+    setStockMin('0')
+    setShowInCatalog(false)
+    setFeatured(false)
+    setVariations('0')
+    setVariationsData([])
+    setDescription('')
+    setCommissionPercent('0')
+    setUnit('Unidade')
+    setAllowFraction(false)
+    setNotes('')
+    setOrigin('')
+    setNcm('')
+    setCest('')
+    setActive(true)
+    setError('')
+    setCatSelectOpen(false)
+    setCatQuery('')
+    setNewCatOpen(false)
+    setSupSelectOpen(false)
+    setSupQuery('')
+    setNewSupOpen(false)
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    if(!name.trim()){
+      setError('Informe o nome do produto.')
+      return
+    }
+    setSaving(true)
+    try{
+      const sale = parseFloat(salePrice) || 0
+      const promo = promoPrice ? (parseFloat(promoPrice) || 0) : null
+
+      const hasVars = variationsData.length > 0
+      const priceCandidates = hasVars
+        ? variationsData.map(v => (v.promoPrice != null ? (parseFloat(v.promoPrice) || 0) : (parseFloat(v.salePrice) || 0)))
+        : [promo ?? sale]
+      const salePrices = hasVars
+        ? variationsData.map(v => parseFloat(v.salePrice) || 0)
+        : [sale]
+      const priceMinAgg = Math.min(...priceCandidates)
+      const priceMaxAgg = Math.max(...salePrices)
+      const stockAgg = hasVars
+        ? variationsData.reduce((s, v)=> s + (parseInt(v.stock, 10) || 0), 0)
+        : (parseInt(stock, 10) || 0)
+      const stockInitialAgg = hasVars
+        ? variationsData.reduce((s, v)=> s + ((parseInt(v.stockInitial, 10) || (parseInt(v.stock, 10) || 0))), 0)
+        : (parseInt(stock, 10) || 0)
+      const variationsCount = hasVars ? variationsData.length : (parseInt(variations) || 0)
+
+      const data = {
+        name: name.trim(),
+        categoryId: categoryId || null,
+        supplier: supplier.trim(),
+        cost: parseFloat(cost) || 0,
+        salePrice: hasVars ? priceMaxAgg : sale,
+        promoPrice: hasVars ? null : promo,
+        priceMin: hasVars ? priceMinAgg : (promo ?? sale),
+        priceMax: hasVars ? priceMaxAgg : sale,
+        barcode: barcode.trim(),
+        reference: reference.trim(),
+        validityDate: validityDate || null,
+        controlStock: !!controlStock,
+        stockInitial: stockInitialAgg,
+        stockMin: parseInt(stockMin, 10) || 0,
+        stock: stockAgg,
+        showInCatalog: !!showInCatalog,
+        featured: !!featured,
+        variations: variationsCount,
+        variationsData,
+        description: description.trim(),
+        commissionPercent: parseFloat(commissionPercent) || 0,
+        unit,
+        allowFraction: !!allowFraction,
+        notes: notes.trim(),
+        origin,
+        ncm: ncm.trim(),
+        cest: cest.trim(),
+        active: !!active,
+      }
+      if(isEdit && product?.id){
+        await updateProduct(product.id, data)
+      } else {
+        await addProduct(data)
+      }
+      close()
+    }catch(err){
+      console.error(err)
+      const code = err?.code || 'unknown'
+      const msg = err?.message || 'Sem detalhes.'
+      setError(`Erro ao salvar: ${code}. ${msg}`)
+    }finally{
+      setSaving(false)
+    }
+  }
+
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[980px] max-w-[98vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">{isEdit ? 'Editar produto' : 'Novo produto'}</h3>
+          <button onClick={close} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="px-4 pt-3 border-b flex items-center gap-6 text-sm">
+          <button onClick={()=>setTab('cadastro')} className={`pb-2 ${tab==='cadastro' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Cadastro</button>
+          <button onClick={isEdit ? ()=>setTab('estoque') : undefined} className={`pb-2 ${tab==='estoque' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'} ${isEdit ? '' : 'opacity-50 cursor-not-allowed'}`}>Estoque</button>
+        </div>
+        <form onSubmit={handleSubmit}><div className="p-4"><div className="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
+          {error && <div className="text-sm text-red-600">{error}</div>}
+
+{tab==='cadastro' ? (
+  <>
+    <div>
+      <div className="font-semibold mb-2">Dados do produto</div>
+      <div className="grid grid-cols-3 gap-4">
+        <div className="col-span-2">
+          <input value={name} onChange={e=>setName(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome do produto" />
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-600">Categoria</label>
+              <button type="button" onClick={()=>setCatSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left">
+                {categories.find(c=>c.id===categoryId)?.name || 'Selecionar categoria'}
+              </button>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600">Fornecedor</label>
+              <button type="button" onClick={()=>setSupSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left">
+                {supplier || 'Selecionar fornecedor'}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="h-32 border rounded flex items-center justify-center text-gray-400 text-sm">Sem imagem</div>
+          <button type="button" disabled className="mt-2 px-3 py-2 border rounded text-xs text-gray-400">Adicionar fotos</button>
+        </div>
+      </div>
+    </div>
+
+    <div className={`${variationsData.length >= 2 ? 'hidden' : ''}`}>
+      <div className="font-semibold mb-2">Preço e estoque</div>
+      <div className="grid grid-cols-3 gap-4">
+        <div>
+          <label className="text-xs text-gray-600">Custo</label>
+          <input type="number" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600">Preço de venda</label>
+          <input type="number" step="0.01" value={salePrice} onChange={e=>setSalePrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600">Preço promocional</label>
+          <input type="number" step="0.01" value={promoPrice} onChange={e=>setPromoPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div className="mt-2">
+        <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-4">
+        <div>
+          <label className="text-xs text-gray-600">Código de barras</label>
+          <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600">Referência</label>
+          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600">Validade</label>
+          <input type="date" value={validityDate} onChange={e=>setValidityDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-4">
+        <div>
+          <label className="text-xs text-gray-600">Estoque inicial</label>
+          <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
+          <input type="number" value={stockMin} onChange={e=>setStockMin(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div className="flex items-end">
+          <label className="flex items-center gap-2 text-sm mt-1">
+            {/* Switch: Cadastro Ativo */}
+            <span>Cadastro Ativo</span>
+            <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+            </button>
+          </label>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-8 text-sm">
+        {/* Switches: Controlar estoque / Exibir no catálogo / Destacar produto */}
+        <div className="flex items-center gap-2">
+          <span>Controlar estoque</span>
+          <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${controlStock ? 'translate-x-4' : 'translate-x-1'}`}></span>
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Exibir no catálogo</span>
+          <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
+          </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Destacar produto</span>
+          <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="font-semibold">Variações</div>
+        <button type="button" onClick={()=> setVarModalOpen(true)} className="px-3 py-2 border rounded text-sm">Gerenciar variações</button>
+      </div>
+      <div className="text-xs text-gray-600">{variationsData.length} variações</div>
+      <div className="mt-2 border rounded overflow-hidden">
+        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 border-b">
+          <div>Nome</div>
+          <div className="text-right">Custo</div>
+          <div className="text-right">Preço</div>
+          <div className="text-right">Estoque Min.</div>
+          <div className="text-right">Estoque</div>
+        </div>
+        {variationsData.map((v, idx) => (
+          <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 border-b last:border-0 text-sm">
+            <div className="truncate" title={v.name}>{v.name || '-'}</div>
+            <div className="text-right">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+            <div className="text-right">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+            <div className="text-right">{v.stockMin ?? 0}</div>
+            <div className={`text-right ${(v.stock ?? 0) > 0 ? '' : 'text-red-600'}`}>{v.stock ?? 0}</div>
+          </div>
+        ))}
+        {variationsData.length === 0 && (
+          <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+        )}
+      </div>
+
+      <div className="font-semibold mb-2">Dados adicionais</div>
+      <textarea value={description} onChange={e=>setDescription(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Descrição do produto" rows={3} />
+      <div className="mt-3 grid grid-cols-3 gap-4">
+        <div>
+          <label className="text-xs text-gray-600">Comissão (%)</label>
+          <input type="number" step="0.01" value={commissionPercent} onChange={e=>setCommissionPercent(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
+        <div>
+          <label className="text-xs text-gray-600">Unidade de venda</label>
+          <select value={unit} onChange={e=>setUnit(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm">
+            <option>Unidade</option>
+            <option>Caixa</option>
+            <option>Pacote</option>
+            <option>Metro</option>
+          </select>
+        </div>
+        <div className="flex items-end">
+          {/* Switch: Permite vender fracionado */}
+          <div className="flex items-center gap-2 text-sm">
+            <span>Permite vender fracionado</span>
+            <button type="button" onClick={()=>setAllowFraction(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${allowFraction ? 'bg-green-500' : 'bg-gray-300'}`}>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${allowFraction ? 'translate-x-4' : 'translate-x-1'}`}></span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="mt-3">
+        <label className="text-xs text-gray-600">Observações internas</label>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" rows={2} />
+      </div>
+      <div className="mt-3">
+        <div className="font-semibold mb-2">Dados Fiscais</div>
+        <div className="grid grid-cols-3 gap-4">
+          <div>
+            <label className="text-xs text-gray-600">Origem da mercadoria</label>
+            <select value={origin} onChange={e=>setOrigin(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm">
+              <option value="">Selecionar...</option>
+              <option value="0">0 - Nacional</option>
+              <option value="1">1 - Estrangeira - Importação direta</option>
+              <option value="2">2 - Estrangeira - Adquirida no mercado interno</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">NCM</label>
+            <input value={ncm} onChange={e=>setNcm(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">CEST</label>
+            <input value={cest} onChange={e=>setCest(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </>
+) : (
+  <>
+    <div className="font-semibold mb-2">Estoque</div>
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <label className="text-xs text-gray-600">Estoque inicial</label>
+        <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+      </div>
+      <div>
+        <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
+        <input type="number" value={stockMin} onChange={e=>setStockMin(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+      </div>
+    </div>
+    <div className="mt-3 flex items-center gap-8 text-sm">
+      <div className="flex items-center gap-2">
+        <span>Controlar estoque</span>
+        <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300'}`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${controlStock ? 'translate-x-4' : 'translate-x-1'}`}></span>
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <span>Exibir no catálogo</span>
+        <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300'}`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
+        </button>
+      </div>
+      <div className="flex items-center gap-2">
+        <span>Destacar produto</span>
+        <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
+        </button>
+      </div>
+    </div>
+  </>
+)}
+</div>
+</div>
+
+<div className="flex items-center justify-end gap-3 pt-2 px-6">
+  <button type="button" onClick={close} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+  <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Confirmar</button>
+</div>
+        </form>
+        {varModalOpen && (
+            <VariationsModal
+              open={varModalOpen}
+              commissionPercent={commissionPercent}
+              initialItems={variationsData.length ? variationsData : [makeVarFromProduct()]}
+              onClose={()=> setVarModalOpen(false)}
+              onConfirm={(items) => {
+                setVariationsData(items)
+                setVariations(String(items.length))
+                if(items.length >= 1){
+                  const v1 = items[0]
+                  setCost(String(v1.cost ?? 0))
+                  setSalePrice(String(v1.salePrice ?? 0))
+                  setPromoPrice(v1.promoPrice != null ? String(v1.promoPrice) : '')
+                  setBarcode(v1.barcode ?? '')
+                  setReference(v1.reference ?? '')
+                  setValidityDate(v1.validityDate ?? null)
+                  const s = v1.stock ?? v1.stockInitial ?? 0
+                  setStock(String(s))
+                  setStockMin(String(v1.stockMin ?? 0))
+                  setActive(!!v1.active)
+                }
+                setVarModalOpen(false)
+              }}
+            />
+          )}
+          {catSelectOpen && (
+            <div className="fixed inset-0 z-[60] bg-black/30 flex items-center justify-center">
+              <div className="bg-white w-[520px] max-w-[90vw] rounded-lg shadow-lg">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <div className="font-semibold">Selecionar categoria</div>
+                  <button type="button" onClick={()=>setNewCatOpen(true)} className="px-2 py-1 text-sm rounded bg-green-600 text-white">+ Nova</button>
+                </div>
+                <div className="p-3">
+                  <input value={catQuery} onChange={e=>setCatQuery(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Pesquisar..." />
+                  <div className="mt-3 max-h-[50vh] overflow-y-auto divide-y">
+                    {categories.filter(c => (c.name || '').toLowerCase().includes(catQuery.trim().toLowerCase())).map(c => (
+                      <button key={c.id} type="button" onClick={()=>{ setCategoryId(c.id); setCatSelectOpen(false); }} className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between">
+                        <span className="truncate">{c.name}</span>
+                        <span className="text-gray-400">›</span>
+                      </button>
+                    ))}
+                    {categories.length === 0 && (
+                      <div className="px-3 py-3 text-sm text-gray-500">Nenhuma categoria cadastrada.</div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-3">
+                    <button type="button" onClick={()=>setCatSelectOpen(false)} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+                    <button type="button" onClick={()=>setCatSelectOpen(false)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {newCatOpen && (
+            <NewCategoryModal
+              open={newCatOpen}
+              onClose={()=> setNewCatOpen(false)}
+            />
+          )}
+          {supSelectOpen && (
+            <div className="fixed inset-0 z-[60] bg-black/30 flex items-center justify-center">
+              <div className="bg-white w-[520px] max-w-[90vw] rounded-lg shadow-lg">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <div className="font-semibold">Selecionar fornecedor</div>
+                  <button type="button" onClick={()=>setNewSupOpen(true)} className="px-2 py-1 text-sm rounded bg-green-600 text-white">+ Nova</button>
+                </div>
+                <div className="p-3">
+                  <input value={supQuery} onChange={e=>setSupQuery(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Pesquisar..." />
+                  <div className="mt-3 max-h-[50vh] overflow-y-auto divide-y">
+                    {suppliers.filter(s => (s.name || '').toLowerCase().includes(supQuery.trim().toLowerCase())).map((s, idx) => (
+                      <button key={s.id ?? idx} type="button" onClick={()=>{ setSupplier(s.name || ''); setSupSelectOpen(false); }} className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between">
+                        <span className="truncate">{s.name || '-'}</span>
+                        <span className="text-gray-400">›</span>
+                      </button>
+                    ))}
+                    {suppliers.length === 0 && (
+                      <div className="px-3 py-3 text-sm text-gray-500">Nenhum fornecedor cadastrado.</div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-3">
+                    <button type="button" onClick={()=>setSupSelectOpen(false)} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+                    <button type="button" onClick={()=>setSupSelectOpen(false)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          {newSupOpen && (
+            <NewSupplierModal
+              open={newSupOpen}
+              onClose={()=> setNewSupOpen(false)}
+            />
+          )}
+      </div>
+    </div>
+  )
+}

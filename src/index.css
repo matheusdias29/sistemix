@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+:root{
+--green: #00a65a;
+}
+
+
+body{font-family: 'Montserrat', sans-serif}
+
+
+/* small utility to mimic small green dot */
+.green-dot{width:10px;height:10px;border-radius:9999px;background:var(--green)}
