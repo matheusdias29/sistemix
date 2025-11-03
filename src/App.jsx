@@ -1,10 +1,13 @@
 import React, {useState} from 'react'
+import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import SummaryCard from './components/SummaryCard'
+import ProductsPage from './components/ProductsPage'
+import ServiceOrdersPage from './components/ServiceOrdersPage'
 import IntegrationsCard from './components/IntegrationsCard'
 import NotificationsCard from './components/NotificationsCard'
-import Sidebar from './components/Sidebar'
-import ProductsPage from './components/ProductsPage'
+import ClientsPage from './components/ClientsPage'
+import SalesPage from './components/SalesPage'
 
 export default function App(){
   const [view, setView] = useState('inicio')
@@ -69,9 +72,21 @@ export default function App(){
                 </div>
               </div>
             </>
+          ) : view === 'vendas' ? (
+            <div className="mt-6">
+              <SalesPage />
+            </div>
           ) : view === 'produtos' ? (
             <div className="mt-6">
               <ProductsPage />
+            </div>
+          ) : view === 'os' ? (
+            <div className="mt-6">
+              <ServiceOrdersPage />
+            </div>
+          ) : view === 'clientes' ? (
+            <div className="mt-6">
+              <ClientsPage />
             </div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
