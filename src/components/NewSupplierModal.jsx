@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { addSupplier, updateSupplier } from '../services/suppliers'
 
-export default function NewSupplierModal({ open, onClose, isEdit=false, supplier=null }){
+export default function NewSupplierModal({ open, onClose, isEdit=false, supplier=null, storeId }){
   const [name, setName] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [phone, setPhone] = useState('')
@@ -113,7 +113,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
       if (isEdit && supplier?.id){
         await updateSupplier(supplier.id, payload)
       } else {
-        await addSupplier(payload)
+        await addSupplier(payload, storeId)
       }
       close()
     }catch(err){

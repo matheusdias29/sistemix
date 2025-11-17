@@ -16,7 +16,7 @@ const items = [
 ]
 
 
-export default function Sidebar({onNavigate, active}){
+export default function Sidebar({onNavigate, active, onLogout}){
 return (
 <aside className="w-64 bg-white min-h-screen border-r">
 <div className="p-6">
@@ -43,8 +43,8 @@ return (
 
 <div className="mt-8 border-t pt-4 text-sm text-gray-600">
 <div className="p-2 cursor-pointer hover:bg-gray-100 rounded">Suporte</div>
-<div className="p-2 cursor-pointer hover:bg-gray-100 rounded">Configurações</div>
-<div className="p-2 cursor-pointer hover:bg-gray-100 rounded">Sair</div>
+<div className="p-2 cursor-pointer hover:bg-gray-100 rounded" onClick={() => onNavigate('configuracoes')}>Configurações</div>
+<div className="p-2 cursor-pointer hover:bg-gray-100 rounded" onClick={() => onLogout && onLogout()}>Sair</div>
 </div>
 </div>
 </aside>

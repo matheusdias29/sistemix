@@ -1,37 +1,58 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, limit } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'orders')
 
 // Gera número sequencial de 6 dígitos no formato #000001
-async function getNextOrderNumber(){
+async function getNextOrderNumber(storeId){
   try {
-    const q = query(colRef, orderBy('createdAt', 'desc'), limit(1))
-    const snap = await getDocs(q)
-    let next = 1
-    if (!snap.empty) {
-      const last = snap.docs[0].data()
-      const digits = String(last?.number || '').replace(/^#/, '')
-      const n = parseInt(digits, 10)
-      if (!isNaN(n)) next = n + 1
+    if (storeId) {
+      // Evita índice composto: filtra por storeId e calcula o maior número no cliente
+      const q = query(colRef, where('storeId','==',storeId))
+      const snap = await getDocs(q)
+      let max = 0
+      snap.docs.forEach(d => {
+        const digits = String(d.data()?.number || '').replace(/^#/, '')
+        const n = parseInt(digits, 10)
+        if (!isNaN(n) && n > max) max = n
+      })
+      const next = max + 1
+      return `#${String(next).padStart(6, '0')}`
+    } else {
+      // Fallback (não usado na criação, apenas por segurança)
+      const q = query(colRef, orderBy('createdAt', 'desc'))
+      const snap = await getDocs(q)
+      let next = 1
+      if (!snap.empty) {
+        const last = snap.docs[0].data()
+        const digits = String(last?.number || '').replace(/^#/, '')
+        const n = parseInt(digits, 10)
+        if (!isNaN(n)) next = n + 1
+      }
+      return `#${String(next).padStart(6, '0')}`
     }
-    return `#${String(next).padStart(6, '0')}`
   } catch (e) {
     return `#${String(1).padStart(6, '0')}`
   }
 }
 
-export function listenOrders(callback){
-  const q = query(colRef, orderBy('createdAt', 'desc'))
+export function listenOrders(callback, storeId){
+  const q = storeId
+    ? query(colRef, where('storeId','==',storeId))
+    : query(colRef, orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const items = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))
     callback(items)
   })
 }
 
-export async function addOrder(order){
-  const number = await getNextOrderNumber()
+export async function addOrder(order, storeId){
+  if (!storeId) throw new Error('storeId é obrigatório ao criar OS')
+  const number = await getNextOrderNumber(storeId)
   const data = {
+    storeId,
     // Identificação
     client: order.client || '',
     technician: order.technician || '',

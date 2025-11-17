@@ -1,18 +1,28 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'products')
 
-export function listenProducts(callback){
-  const q = query(colRef, orderBy('createdAt', 'desc'))
+export function listenProducts(callback, storeId){
+  const q = storeId 
+    ? query(colRef, where('storeId','==',storeId))
+    : query(colRef, orderBy('createdAt', 'desc'))
   return onSnapshot(q, (snap) => {
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const items = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .sort((a,b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))
     callback(items)
+  }, (err) => {
+    console.error('listenProducts error', err)
   })
 }
 
-export async function addProduct(product){
+export async function addProduct(product, storeId){
+  if (!storeId) throw new Error('storeId é obrigatório ao criar produto')
   const data = {
+    // Identificação da loja
+    storeId,
+
     // Básico
     name: product.name ?? 'Novo Produto',
     active: product.active ?? true,

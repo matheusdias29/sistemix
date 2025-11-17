@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { addClient, updateClient } from '../services/clients'
 
-export default function NewClientModal({ open, onClose, isEdit=false, client=null }){
+export default function NewClientModal({ open, onClose, isEdit=false, client=null, storeId }){
   const [name, setName] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [phone, setPhone] = useState('')
@@ -123,7 +123,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
       if(isEdit && client?.id){
         await updateClient(client.id, payload)
       } else {
-        await addClient(payload)
+        await addClient(payload, storeId)
       }
       close()
     } catch(err){

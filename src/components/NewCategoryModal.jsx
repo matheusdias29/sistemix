@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { addCategory, updateCategory } from '../services/categories'
 
-export default function NewCategoryModal({ open, onClose, isEdit=false, category=null }){
+export default function NewCategoryModal({ open, onClose, isEdit=false, category=null, storeId }){
   const [name, setName] = useState('')
   const [commissionRate, setCommissionRate] = useState('0')
   const [active, setActive] = useState(true)
@@ -37,23 +37,22 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
     }
     setSaving(true)
     try{
+      const data = {
+        name: name.trim(),
+        commissionRate: parseFloat(commissionRate) || 0,
+        active,
+      }
       if(isEdit && category?.id){
-        await updateCategory(category.id, {
-          name: name.trim(),
-          commissionRate: parseFloat(commissionRate) || 0,
-          active: !!active,
-        })
+        await updateCategory(category.id, data)
       } else {
-        await addCategory({
-          name: name.trim(),
-          commissionRate: parseFloat(commissionRate) || 0,
-          active: !!active,
-        })
+        await addCategory(data, storeId)
       }
       close()
     }catch(err){
-      console.error(err)
-      setError('Não foi possível salvar. Verifique sua conexão e regras do Firestore.')
+      console.error('addCategory error:', err)
+      const code = err?.code || 'unknown'
+      const msg = err?.message || 'Sem detalhes.'
+      setError(`Erro ao salvar: ${code}. ${msg}`)
     }finally{
       setSaving(false)
     }

@@ -8,7 +8,7 @@ import { listenClients } from '../services/clients'
 import NewClientModal from './NewClientModal'
 import SelectClientModal from './SelectClientModal'
 
-export default function ServiceOrdersPage(){
+export default function ServiceOrdersPage({ storeId }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [query, setQuery] = useState('')
   const [periodOpen, setPeriodOpen] = useState(false)
@@ -16,9 +16,9 @@ export default function ServiceOrdersPage(){
 
   const [orders, setOrders] = useState([])
   useEffect(() => {
-    const unsub = listenOrders(items => setOrders(items))
+    const unsub = listenOrders(items => setOrders(items), storeId)
     return () => unsub && unsub()
-  }, [])
+  }, [storeId])
 
   // Filtros simples
   const filtered = useMemo(() => {
@@ -91,12 +91,12 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   }, [selectedProduct, selectedVariation])
 
   useEffect(() => {
-    const unsubP = listenProducts(items => setProductsAll(items))
-    const unsubC = listenCategories(items => setCategories(items))
-    const unsubS = listenSuppliers(items => setSuppliers(items))
-    const unsubClients = listenClients(items => setClientsAll(items))
+    const unsubP = listenProducts(items => setProductsAll(items), storeId)
+    const unsubC = listenCategories(items => setCategories(items), storeId)
+    const unsubS = listenSuppliers(items => setSuppliers(items), storeId)
+    const unsubClients = listenClients(items => setClientsAll(items), storeId)
     return () => { unsubP && unsubP(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients() }
-  }, [])
+  }, [storeId])
 
   const totalProductsAgg = useMemo(() => {
     return osProducts.reduce((s, p) => s + ((parseFloat(p.price)||0) * (parseFloat(p.quantity)||0)), 0)
@@ -194,7 +194,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       if (editingOrderId) {
         await updateOrder(editingOrderId, basePayload)
       } else {
-        await addOrder({ ...basePayload })
+        await addOrder({ ...basePayload }, storeId)
       }
       resetForm()
       setView('list')
@@ -532,7 +532,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               }}
             />
           )}
-          <NewProductModal open={newProductOpen} onClose={()=>setNewProductOpen(false)} categories={categories} suppliers={suppliers} />
+          <NewProductModal open={newProductOpen} onClose={()=>setNewProductOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} />
           {clientSelectOpen && (
             <SelectClientModal
               open={clientSelectOpen}
@@ -542,7 +542,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               onNew={()=>{ setClientSelectOpen(false); setNewClientOpen(true) }}
             />
           )}
-          <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} />
+          <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} storeId={storeId} />
           {statusModalOpen && (
             <UpdateStatusModal
               open={statusModalOpen}
@@ -678,7 +678,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               }}
             />
           )}
-          <NewProductModal open={newProductOpen} onClose={()=>setNewProductOpen(false)} categories={categories} suppliers={suppliers} />
+          <NewProductModal open={newProductOpen} onClose={()=>setNewProductOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} />
           {clientSelectOpen && (
             <SelectClientModal
               open={clientSelectOpen}
@@ -688,7 +688,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               onNew={()=>{ setClientSelectOpen(false); setNewClientOpen(true) }}
             />
           )}
-          <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} />
+          <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} storeId={storeId} />
         </div>
       )}
     </div>

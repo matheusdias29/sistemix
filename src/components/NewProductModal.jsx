@@ -4,7 +4,7 @@ import VariationsModal from './VariationsModal'
 import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
 
-export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[] }){
+export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId }){
   const [name, setName] = useState('')
   const [priceMin, setPriceMin] = useState('0')
   const [priceMax, setPriceMax] = useState('0')
@@ -195,7 +195,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       if(isEdit && product?.id){
         await updateProduct(product.id, data)
       } else {
-        await addProduct(data)
+        await addProduct(data, storeId)
       }
       close()
     }catch(err){
@@ -511,6 +511,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             <NewCategoryModal
               open={newCatOpen}
               onClose={()=> setNewCatOpen(false)}
+              storeId={storeId}
             />
           )}
           {supSelectOpen && (
@@ -545,6 +546,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             <NewSupplierModal
               open={newSupOpen}
               onClose={()=> setNewSupOpen(false)}
+              storeId={storeId}
             />
           )}
       </div>

@@ -14,7 +14,7 @@ const tabs = [
   { key: 'compras', label: 'Compras' },
 ]
 
-export default function ProductsPage(){
+export default function ProductsPage({ storeId }){
   const [tab, setTab] = useState('produto')
   const [products, setProducts] = useState([])
   const [selected, setSelected] = useState(() => new Set())
@@ -42,15 +42,15 @@ export default function ProductsPage(){
   const [supSelected, setSupSelected] = useState(() => new Set())
 
   useEffect(() => {
-    const unsubProd = listenProducts(items => setProducts(items))
-    const unsubCat = listenCategories(items => setCategories(items))
-    const unsubSup = listenSuppliers(items => setSuppliers(items))
+    const unsubProd = listenProducts(items => setProducts(items), storeId)
+    const unsubCat = listenCategories(items => setCategories(items), storeId)
+    const unsubSup = listenSuppliers(items => setSuppliers(items), storeId)
     return () => {
       unsubProd && unsubProd()
       unsubCat && unsubCat()
       unsubSup && unsubSup()
     }
-  }, [])
+  }, [storeId])
 
   const filtered = useMemo(()=>{
     const q = query.trim().toLowerCase()
@@ -76,18 +76,6 @@ export default function ProductsPage(){
     setCatSelected(next)
   }
 
-  const toggleSupSelect = (id) => {
-    const next = new Set(supSelected)
-    if(next.has(id)) next.delete(id); else next.add(id)
-    setSupSelected(next)
-  }
-
-  const toggleActive = async (id) => {
-    const p = products.find(x=>x.id===id)
-    if(!p) return
-    await updateProduct(id, { active: !p.active })
-  }
-
   const toggleCategoryActive = async (id) => {
     const c = categories.find(x=>x.id===id)
     if(!c) return
@@ -104,133 +92,108 @@ export default function ProductsPage(){
     }
   }
 
-  const startEdit = (p) => {
-    setEditingProduct(p)
+  const startEdit = (product) => {
+    setEditingProduct(product)
     setEditModalOpen(true)
   }
 
-  const startCategoryEdit = (c) => {
-    setEditingCategory(c)
+  const startCategoryEdit = (category) => {
+    setEditingCategory(category)
     setCatEditOpen(true)
   }
 
-  const startSupplierEdit = (s) => {
-    setEditingSupplier(s)
+  const startSupplierEdit = (supplier) => {
+    setEditingSupplier(supplier)
     setSupplierEditOpen(true)
   }
 
   return (
-    <div className="">
-      {/* Tabs header */}
-      <div className="bg-white rounded-lg p-4 shadow">
-        <div className="flex items-center gap-6 text-sm">
-          {tabs.map(t => (
-            <button key={t.key} onClick={()=>setTab(t.key)} className={`pb-2 ${tab===t.key ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>{t.label}</button>
-          ))}
+    <div>
+      {/* Tabs no topo como no print */}
+      <div className="flex items-center gap-4 text-sm mb-3">
+        {tabs.map(t => (
+          <button
+            key={t.key}
+            className={`px-2 py-1 ${tab===t.key ? 'text-green-700 font-medium border-b-2 border-green-600' : 'text-gray-600'}`}
+            onClick={()=>setTab(t.key)}
+          >{t.label}</button>
+        ))}
+      </div>
+
+      {/* Toolbar de busca com botões à direita */}
+      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
+        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="px-3 py-2 border rounded" />
+        <div className="flex gap-2 items-center">
+          <button className="px-3 py-2 rounded border text-sm" onClick={()=>setShowFilters(x=>!x)}>Filtros</button>
+          <button className="px-3 py-2 rounded border text-sm" onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}>≡</button>
+          <button className="px-3 py-2 rounded border text-sm">Opções</button>
+          <button className="px-3 py-2 rounded bg-green-600 text-white text-sm" onClick={addNew}>+ Novo</button>
         </div>
-        {/* Controls */}
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1">
-            <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border rounded px-3 py-2 text-sm" />
-          </div>
-          {tab==='produto' && (
-            <>
-              <button onClick={()=>setShowFilters(v=>!v)} className="px-3 py-2 border rounded text-sm">Filtros</button>
-              <div className="flex items-center gap-1">
-                <button onClick={()=>setViewMode('list')} className={`px-2 py-2 border rounded text-sm ${viewMode==='list'?'bg-gray-100':''}`}>☰</button>
-                <button onClick={()=>setViewMode('grid')} className={`px-2 py-2 border rounded text-sm ${viewMode==='grid'?'bg-gray-100':''}`}>⬚</button>
-              </div>
-              <button className="px-3 py-2 border rounded text-sm">Opções</button>
-            </>
-          )}
-          <button onClick={addNew} className="px-3 py-2 rounded text-sm bg-green-600 text-white">+ Novo</button>
-        </div>
-        {tab==='produto' && showFilters && (
-          <div className="mt-3 p-3 border rounded text-sm text-gray-600">
-            <div>Filtros rápidos (exemplo):</div>
-            <div className="mt-2 flex gap-2">
-              <button className="px-2 py-1 border rounded">Ativos</button>
-              <button className="px-2 py-1 border rounded">Sem estoque</button>
-              <button className="px-2 py-1 border rounded">Com variações</button>
-            </div>
+      </div>
+
+      {/* Barra fina de cabeçalho da listagem */}
+      <div className="mt-2 px-3 py-2 rounded bg-gray-100 text-xs text-gray-600">
+        {tab==='produto' && (
+          <div className="grid grid-cols-[1.5rem_1fr_12rem_6rem_6rem_2rem]">
+            <div></div>
+            <div>Produto ({filtered.length})</div>
+            <div className="text-right">Preço</div>
+            <div className="text-right">Estoque</div>
+            <div className="text-right">Status</div>
+            <div></div>
           </div>
         )}
         {tab==='categorias' && (
-          <div className="mt-3 text-sm">
-            <div className="flex gap-2">
-              <button onClick={()=>setCatShowActive(v=>!v)} className={`px-2 py-1 border rounded-full flex items-center gap-2 ${catShowActive ? 'bg-green-50 border-green-200 text-green-700' : ''}`}>
-                <span>✔</span>
-                <span>Ativo</span>
-              </button>
-              <button onClick={()=>setCatShowInactive(v=>!v)} className={`px-2 py-1 border rounded-full ${catShowInactive ? 'bg-gray-100 border-gray-300 text-gray-700' : ''}`}>Inativo</button>
-            </div>
+          <div className="grid grid-cols-[1fr_8rem_6rem]">
+            <div>Categorias ({filteredCategories.length})</div>
+            <div className="text-right">Status</div>
+            <div></div>
+          </div>
+        )}
+        {tab==='fornecedores' && (
+          <div className="grid grid-cols-[1fr_8rem_6rem]">
+            <div>Fornecedores ({suppliers.length})</div>
+            <div className="text-right">Status</div>
+            <div></div>
           </div>
         )}
       </div>
 
-      {/* Content */}
       <div className="mt-4">
-        {tab==='produto' ? (
-          viewMode==='list' ? (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="grid grid-cols-[1.5rem_1fr_12rem_8rem_8rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
-                <div></div>
-                <div>Produto ({filtered.length})</div>
-                <div className="text-right">Preço</div>
-                <div className="text-right">Estoque</div>
-                <div className="text-right">Status</div>
-              </div>
-              {filtered.map(p => (
-                <div key={p.id} className="grid grid-cols-[1.5rem_1fr_12rem_8rem_8rem] items-center px-4 py-3 border-b last:border-0">
+        {(tab==='produto') ? (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            {filtered.map(p => {
+              const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
+              const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
+              const priceText = priceMin !== priceMax
+                ? `De ${priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} a ${priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
+                : `${priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
+              const stock = Number(p.stock ?? 0)
+              return (
+                <div key={p.id} className="grid grid-cols-[1.5rem_1fr_12rem_6rem_6rem_2rem] items-center px-4 py-3 border-b last:border-0">
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
                   <div className="text-sm">
-                    <div className="font-medium cursor-pointer" onClick={()=>startEdit(p)}>{p.name} <span className="text-xs text-gray-500 ml-2">{(p.variations ?? 0)} variações</span></div>
-                    <div className="mt-1 text-xs text-gray-500 flex items-center gap-2">
-                      <span className="cursor-pointer">☆</span>
-                      <span className="cursor-pointer">⋯</span>
-                    </div>
-                  </div>
-                  <div className="text-sm text-right">
-                    {(p.priceMin ?? 0)===(p.priceMax ?? 0) ? (
-                      <span>{(p.priceMax ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                    ) : (
-                      <span>De {(p.priceMin ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})} a {(p.priceMax ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
+                    <div className="font-medium cursor-pointer" onClick={()=>startEdit(p)}>{p.name}</div>
+                    {(p.variations ?? 0) > 0 && (
+                      <div className="text-xs text-gray-500">{p.variations} variações</div>
                     )}
+                    </div>
+                    <div className="text-right text-sm">{priceText}</div>
+                    <div className={`text-right text-sm ${stock === 0 ? 'text-red-500' : ''}`}>{stock.toLocaleString('pt-BR')}</div>
+                    <div className="text-right text-sm">
+                      <div className={`px-2 py-1 rounded text-xs ${(p.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                    </div>
+                    <div className="text-right text-sm">⋯</div>
                   </div>
-                  <div className="text-sm text-right">
-                    <span className={`${(p.stock ?? 0)>0 ? 'text-gray-800' : 'text-red-600'}`}>{p.stock ?? 0}</span>
-                  </div>
-                  <div className="text-sm text-right">
-                    <div className={`px-2 py-1 rounded text-xs ${(p.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
-          ) : (
-            <div className="grid grid-cols-2 gap-4">
-              {filtered.map(p => (
-                <div key={p.id} className="bg-white rounded-lg shadow p-4">
-                  <div className="font-medium cursor-pointer" onClick={()=>startEdit(p)}>{p.name}</div>
-                  <div className="mt-2 text-xs text-gray-500">{(p.variations ?? 0)} variações</div>
-                  <div className="mt-2 text-sm">{(p.priceMin ?? 0)===(p.priceMax ?? 0) ? (
-                    <span>{(p.priceMax ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                  ) : (
-                    <span>De {(p.priceMin ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})} a {(p.priceMax ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</span>
-                  )}</div>
-                  <div className="mt-2 text-sm">Estoque: <span className={`${(p.stock ?? 0)>0 ? '' : 'text-red-600'}`}>{p.stock ?? 0}</span></div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className={`px-2 py-1 rounded text-xs ${(p.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
-                    <div className="text-sm flex items-center gap-2"><span className="cursor-pointer">☆</span><span className="cursor-pointer">⋯</span></div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
         ) : (
           tab==='categorias' ? (
             <div className="bg-white rounded-lg shadow overflow-hidden">
+              {/* Mantém listagem de categorias */}
               <div className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
                 <div></div>
                 <div>Nome</div>
@@ -274,12 +237,12 @@ export default function ProductsPage(){
           ) : null)
         }
       </div>
-      <NewProductModal open={modalOpen} onClose={()=>setModalOpen(false)} categories={categories} suppliers={suppliers} />
-      <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} />
-      <NewCategoryModal open={catModalOpen} onClose={()=>setCatModalOpen(false)} />
-      <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} />
-      <NewSupplierModal open={supplierModalOpen} onClose={()=>setSupplierModalOpen(false)} />
-      <NewSupplierModal open={supplierEditOpen} onClose={()=>setSupplierEditOpen(false)} isEdit={true} supplier={editingSupplier} />
+      <NewProductModal open={modalOpen} onClose={()=>setModalOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} />
+      <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} storeId={storeId} />
+      <NewCategoryModal open={catModalOpen} onClose={()=>setCatModalOpen(false)} storeId={storeId} />
+      <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} storeId={storeId} />
+      <NewSupplierModal open={supplierModalOpen} onClose={()=>setSupplierModalOpen(false)} storeId={storeId} />
+      <NewSupplierModal open={supplierEditOpen} onClose={()=>setSupplierEditOpen(false)} isEdit={true} supplier={editingSupplier} storeId={storeId} />
     </div>
   )
 }

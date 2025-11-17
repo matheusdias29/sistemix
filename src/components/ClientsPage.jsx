@@ -2,17 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { listenClients } from '../services/clients'
 import NewClientModal from './NewClientModal'
 
-export default function ClientsPage(){
+export default function ClientsPage({ storeId }){
   const [clients, setClients] = useState([])
   const [query, setQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [editingClient, setEditingClient] = useState(null)
 
-  useEffect(() => {
-    const unsub = listenClients(items => setClients(items))
-    return () => { unsub && unsub() }
-  }, [])
+  useEffect(()=>{
+    const unsub = listenClients(items=> setClients(items), storeId)
+    return () => unsub && unsub()
+  }, [storeId])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -57,8 +57,8 @@ export default function ClientsPage(){
       </div>
 
       {/* Modais */}
-      <NewClientModal open={modalOpen} onClose={()=>setModalOpen(false)} />
-      <NewClientModal open={editOpen} onClose={()=>setEditOpen(false)} isEdit={true} client={editingClient} />
+      <NewClientModal open={modalOpen} onClose={()=>setModalOpen(false)} storeId={storeId} />
+      <NewClientModal open={editOpen} onClose={()=>setEditOpen(false)} isEdit={true} client={editingClient} storeId={storeId} />
     </div>
   )
 }
