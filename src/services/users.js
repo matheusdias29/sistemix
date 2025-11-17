@@ -61,12 +61,29 @@ export function listenSubUsers(ownerUserId, callback){
   })
 }
 
+// Busca membro por email em subcoleções users/{ownerId}/members
+export async function findMemberByEmail(email){
+  const ownersSnap = await getDocs(usersCol)
+  for (const d of ownersSnap.docs){
+    const ownerId = d.id
+    const membersCol = collection(db, 'users', ownerId, 'members')
+    const q = query(membersCol, where('email', '==', email))
+    const snap = await getDocs(q)
+    if (!snap.empty){
+      const md = snap.docs[0]
+      return { id: md.id, ownerId, ...md.data() }
+    }
+  }
+  return null
+}
+
 export async function addSubUser(ownerUserId, user){
   const membersCol = collection(db, 'users', ownerUserId, 'members')
   const role = user.role ?? (user.isAdmin ? 'admin' : (user.isSeller ? 'manager' : 'staff'))
   const data = {
     name: user.name ?? 'Usuário',
     email: user.email ?? '',
+    password: user.password ?? '', // apenas para criação
     whatsapp: user.whatsapp ?? '',
     isSeller: !!user.isSeller,
     isTech: !!user.isTech,
@@ -86,15 +103,35 @@ export async function addSubUser(ownerUserId, user){
 }
 
 export async function updateSubUser(ownerUserId, id, partial){
+  const { password, ...rest } = partial || {}
   const ref = doc(db, 'users', ownerUserId, 'members', id)
-  await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+  await updateDoc(ref, { ...rest, updatedAt: serverTimestamp() })
 }
 
 export async function login(email, password){
-  const user = await findUserByEmail(email)
-  if (!user) throw new Error('Usuário não encontrado')
-  if (user.password !== password) throw new Error('Senha incorreta')
-  return user
+  // Tenta dono primeiro
+  const owner = await findUserByEmail(email)
+  if (owner){
+    if ((owner.password || '') !== password) throw new Error('Senha incorreta')
+    return owner
+  }
+  // Tenta membro (subusuário)
+  const member = await findMemberByEmail(email)
+  if (!member) throw new Error('Usuário não encontrado')
+  if ((member.password || '') !== password) throw new Error('Senha incorreta')
+  // Para sessão e seleção de loja, usamos o ownerId como id
+  return {
+    id: member.ownerId,
+    ownerId: member.ownerId,
+    memberId: member.id,
+    name: member.name || 'Usuário',
+    email: member.email || '',
+    role: member.role || 'staff',
+    isSeller: !!member.isSeller,
+    isTech: !!member.isTech,
+    isAdmin: !!member.isAdmin,
+    active: member.active !== false,
+  }
 }
 
 // Semente de dados: cria vários usuários e uma loja para cada novo usuário
@@ -148,3 +185,4 @@ export async function ensureSecondStoreForOwners(){
 }
 
 // duplicata removida: a função seedDemoUsersAndStores consolidada acima cria o dono Bob e seus membros.
+// Funções duplicadas removidas; usamos Firestore para subusuários.

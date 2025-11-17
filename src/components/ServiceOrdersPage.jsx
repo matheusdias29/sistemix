@@ -7,8 +7,9 @@ import { listenSuppliers } from '../services/suppliers'
 import { listenClients } from '../services/clients'
 import NewClientModal from './NewClientModal'
 import SelectClientModal from './SelectClientModal'
+import { listenSubUsers } from '../services/users'
 
-export default function ServiceOrdersPage({ storeId }){
+export default function ServiceOrdersPage({ storeId, ownerId }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [query, setQuery] = useState('')
   const [periodOpen, setPeriodOpen] = useState(false)
@@ -48,6 +49,10 @@ export default function ServiceOrdersPage({ storeId }){
   const [newClientOpen, setNewClientOpen] = useState(false)
   const [clientsAll, setClientsAll] = useState([])
   const [technician, setTechnician] = useState('')
+  const [attendant, setAttendant] = useState('')
+  const [members, setMembers] = useState([])
+  const [techSelectOpen, setTechSelectOpen] = useState(false)
+  const [attendantSelectOpen, setAttendantSelectOpen] = useState(false)
   const [dateIn, setDateIn] = useState('')
   const [expectedDate, setExpectedDate] = useState('')
   const [brand, setBrand] = useState('')
@@ -95,8 +100,12 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     const unsubC = listenCategories(items => setCategories(items), storeId)
     const unsubS = listenSuppliers(items => setSuppliers(items), storeId)
     const unsubClients = listenClients(items => setClientsAll(items), storeId)
-    return () => { unsubP && unsubP(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients() }
-  }, [storeId])
+    let unsubMembers
+    if (ownerId) {
+      unsubMembers = listenSubUsers(ownerId, (list) => setMembers(list.filter(u => (u.active ?? true))))
+    }
+    return () => { unsubP && unsubP(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers() }
+  }, [storeId, ownerId])
 
   const totalProductsAgg = useMemo(() => {
     return osProducts.reduce((s, p) => s + ((parseFloat(p.price)||0) * (parseFloat(p.quantity)||0)), 0)
@@ -121,8 +130,16 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     return r > 0 ? r : 0
   }, [totalProductsAgg, totalPaidAgg])
 
+  const techniciansList = useMemo(() => {
+    return members.filter(u => (u.isTech ?? false) || /t[eé]cnico/i.test(String(u.name||'')))
+  }, [members])
+  const attendantsList = useMemo(() => {
+    const role = (u) => String(u.role || '').toLowerCase()
+    return members.filter(u => (u.isSeller ?? false) || /atendente|vendedor/i.test(String(u.name||'')) || role(u).includes('attendant') || role(u).includes('seller'))
+  }, [members])
+
   const resetForm = () => {
-    setClient(''); setTechnician(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo('Garantia de produtos e serviços.\n90 dias para defeito de fabricação.\nNão cobre produto quebrado.\nNão cobre riscos na tela\nNão cobre trincos na tela.')
+    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo('Garantia de produtos e serviços.\n90 dias para defeito de fabricação.\nNão cobre produto quebrado.\nNão cobre riscos na tela\nNão cobre trincos na tela.')
     setOsProducts([])
     setOsPayments([])
     setEditingOrderId(null)
@@ -145,6 +162,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   const openEdit = (o) => {
     setClient(o.client || '')
     setTechnician(o.technician || '')
+    setAttendant(o.attendant || '')
     setDateIn(toInputDateTime(o.dateIn) || '')
     setExpectedDate(toInputDateTime(o.expectedDate) || '')
     setBrand(o.brand || '')
@@ -169,6 +187,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       const basePayload = {
         client,
         technician,
+        attendant,
         dateIn: dateIn ? new Date(dateIn) : null,
         expectedDate: expectedDate ? new Date(expectedDate) : null,
         brand,
@@ -318,7 +337,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   </div>
                   <div>
                     <label className="text-xs text-gray-600">Técnico</label>
-                    <input value={technician} onChange={e=>setTechnician(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Selecionar técnico" />
+                    <input readOnly value={technician} onClick={()=>setTechSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50" placeholder="Selecionar técnico" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Atendente</label>
+                    <input readOnly value={attendant} onClick={()=>setAttendantSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50" placeholder="Selecionar atendente" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600">Data Entrada</label>
@@ -543,6 +566,22 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             />
           )}
           <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} storeId={storeId} />
+          {techSelectOpen && (
+            <SelectClientModal
+              open={techSelectOpen}
+              onClose={()=>setTechSelectOpen(false)}
+              clients={techniciansList}
+              onChoose={(u)=>{ setTechnician(u.name||''); setTechSelectOpen(false) }}
+            />
+          )}
+          {attendantSelectOpen && (
+            <SelectClientModal
+              open={attendantSelectOpen}
+              onClose={()=>setAttendantSelectOpen(false)}
+              clients={attendantsList}
+              onChoose={(u)=>{ setAttendant(u.name||''); setAttendantSelectOpen(false) }}
+            />
+          )}
           {statusModalOpen && (
             <UpdateStatusModal
               open={statusModalOpen}

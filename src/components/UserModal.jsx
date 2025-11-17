@@ -22,6 +22,10 @@ export default function UserModal({ user, onClose, onSave }){
   // Permissões avançadas
   const [permissions, setPermissions] = useState(user?.permissions || {})
   const [permissionsModalOpen, setPermissionsModalOpen] = useState(false)
+  // Campos de senha apenas para novo usuário
+  const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     setName(user?.name || '')
@@ -35,6 +39,10 @@ export default function UserModal({ user, onClose, onSave }){
     setUnlimitedDiscount(!!user?.unlimitedDiscount)
     setActive(user?.active !== false)
     setPermissions(user?.permissions || {})
+    // Limpa credenciais ao carregar/alternar edição
+    setError('')
+    setPassword('')
+    setPasswordConfirm('')
   }, [user])
 
   const deriveRole = () => {
@@ -45,6 +53,13 @@ export default function UserModal({ user, onClose, onSave }){
 
   function handleSubmit(e) {
     e?.preventDefault?.()
+    // Validação de senha apenas no cadastro (user inexistente)
+    if (!user) {
+      const pass = String(password || '')
+      if (pass.length < 6) { setError('A senha deve ter pelo menos 6 caracteres.'); return }
+      if (pass !== String(passwordConfirm || '')) { setError('As senhas não coincidem.'); return }
+    }
+    setError('')
     const payload = {
       name: name.trim(),
       email: email.trim(),
@@ -61,6 +76,8 @@ export default function UserModal({ user, onClose, onSave }){
       active,
       role: deriveRole(),
       permissions,
+      // Inclui senha apenas na criação
+      ...(user ? {} : { password: String(password) })
     }
     onSave(payload)
   }
@@ -106,6 +123,36 @@ export default function UserModal({ user, onClose, onSave }){
               </div>
             </div>
           </div>
+
+          {/* Credenciais (somente cadastro) */}
+          {!user && (
+            <div>
+              <div className="font-semibold text-sm mb-2">Credenciais</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-700">Senha</label>
+                  <input
+                    className="input w-full"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-700">Confirmar senha</label>
+                  <input
+                    className="input w-full"
+                    type="password"
+                    value={passwordConfirm}
+                    onChange={(e) => setPasswordConfirm(e.target.value)}
+                    placeholder="Repita a senha"
+                  />
+                </div>
+              </div>
+              {error && <div className="mt-2 text-xs text-red-600">{error}</div>}
+            </div>
+          )}
 
           {/* Funções e permissões */}
           <div>

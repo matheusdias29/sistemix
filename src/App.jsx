@@ -129,12 +129,12 @@ export default function App(){
       <div className="flex">
         <Sidebar onNavigate={onNavigate} active={view} onLogout={handleLogout} />
         <div className="flex-1 p-6">
-          <Header user={headerUser} title={labels[view] || 'Início'} />
+          <Header user={headerUser} title={labels[view] || 'Início'} onUserClick={() => setStore(null)} />
 
           {view === 'inicio' ? (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <h2 className="text-lg font-semibold">Bem-vindo</h2>
-              <p className="text-sm text-gray-600 mt-1">Loja selecionada: {store?.name}</p>
+              <p className="text-sm text-gray-600 mt-1">Loja selecionada: <span className="underline cursor-pointer" onClick={() => setStore(null)}>{store?.name}</span></p>
               <div className="mt-4 flex gap-3">
                 <button className="btn btn-primary" onClick={() => onNavigate('vendas')}>Nova venda</button>
                 <button className="btn btn-light" onClick={() => onNavigate('clientes')}>Clientes</button>
@@ -146,7 +146,7 @@ export default function App(){
           ) : view === 'produtos' ? (
             <div className="mt-6"><ProductsPage storeId={store?.id} /></div>
           ) : view === 'os' ? (
-            <div className="mt-6"><ServiceOrdersPage storeId={store?.id} /></div>
+            <div className="mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} /></div>
           ) : view === 'clientes' ? (
             <div className="mt-6"><ClientsPage storeId={store?.id} /></div>
           ) : view === 'configuracoes' ? (
