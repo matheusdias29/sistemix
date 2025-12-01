@@ -2,6 +2,8 @@ import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot,
 import { db } from '../lib/firebase'
 import { addStore } from './stores'
 import { listStoresByOwner } from './stores'
+// import { signInWithEmailAndPassword } from 'firebase/auth'
+// import { auth } from '../lib/firebase'
 
 const usersCol = collection(db, 'users')
 
@@ -108,24 +110,57 @@ export async function updateSubUser(ownerUserId, id, partial){
   await updateDoc(ref, { ...rest, updatedAt: serverTimestamp() })
 }
 
+// Alteração de senha para usuário dono
+export async function changeOwnerPassword(userId, currentPassword, newPassword){
+  if (!userId) throw new Error('Usuário inválido')
+  const q = query(usersCol, where('__name__','==', userId))
+  const snap = await getDocs(q)
+  if (snap.empty) throw new Error('Usuário não encontrado')
+  const d = snap.docs[0]
+  const data = d.data()
+  const cur = String(data?.password || '')
+  if (cur !== String(currentPassword || '')) throw new Error('Senha atual incorreta')
+  const ref = doc(db, 'users', userId)
+  await updateDoc(ref, { password: String(newPassword || ''), updatedAt: serverTimestamp() })
+}
+
+// Alteração de senha para subusuário (member)
+export async function changeMemberPassword(ownerUserId, memberId, currentPassword, newPassword){
+  if (!ownerUserId || !memberId) throw new Error('Usuário inválido')
+  const membersCol = collection(db, 'users', ownerUserId, 'members')
+  const q = query(membersCol, where('__name__','==', memberId))
+  const snap = await getDocs(q)
+  if (snap.empty) throw new Error('Usuário não encontrado')
+  const d = snap.docs[0]
+  const data = d.data()
+  const cur = String(data?.password || '')
+  if (cur !== String(currentPassword || '')) throw new Error('Senha atual incorreta')
+  const ref = doc(db, 'users', ownerUserId, 'members', memberId)
+  await updateDoc(ref, { password: String(newPassword || ''), updatedAt: serverTimestamp() })
+}
+
+// Login baseado em dados no Firestore, com autenticação anônima já ativa
 export async function login(email, password){
-  // Tenta dono primeiro
+  // 1) Tenta carregar perfil de dono (users)
   const owner = await findUserByEmail(email)
   if (owner){
-    if ((owner.password || '') !== password) throw new Error('Senha incorreta')
+    const ok = String(owner.password || '') === String(password || '')
+    if (!ok) throw new Error('Senha incorreta')
     return owner
   }
-  // Tenta membro (subusuário)
+
+  // 2) Se não for dono, tenta membro
   const member = await findMemberByEmail(email)
-  if (!member) throw new Error('Usuário não encontrado')
-  if ((member.password || '') !== password) throw new Error('Senha incorreta')
-  // Para sessão e seleção de loja, usamos o ownerId como id
+  if (!member) throw new Error('Usuário não encontrado no banco de dados')
+  const ok = String(member.password || '') === String(password || '')
+  if (!ok) throw new Error('Senha incorreta')
+
   return {
     id: member.ownerId,
     ownerId: member.ownerId,
     memberId: member.id,
     name: member.name || 'Usuário',
-    email: member.email || '',
+    email: member.email || email,
     role: member.role || 'staff',
     isSeller: !!member.isSeller,
     isTech: !!member.isTech,

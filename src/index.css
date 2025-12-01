@@ -8,8 +8,48 @@
 }
 
 
+html, body, #root{max-width:100%; overflow-x:hidden}
 body{font-family: 'Montserrat', sans-serif}
+
+/* Tema escuro global */
+.dark body{ background-color: #0b1320 }
+.dark .bg-white{ background-color: #111827 !important }
+.dark .text-gray-800{ color: #e5e7eb !important }
+.dark .text-gray-700{ color: #e5e7eb !important }
+.dark .text-gray-600{ color: #d1d5db !important }
+.dark .text-gray-500{ color: #9ca3af !important }
+.dark .border{ border-color: #1f2937 !important }
+.dark .border-b{ border-color: #1f2937 !important }
+.dark .border-t{ border-color: #1f2937 !important }
+.dark .hover\:bg-gray-50:hover{ background-color: #1f2937 !important }
+.dark .bg-gray-200{ background-color: #374151 !important }
+.dark .bg-green-50{ background-color: rgba(5,46,27,0.35) !important }
+.dark .text-green-700{ color: #10b981 !important }
+.dark .bg-black\/40{ background-color: rgba(0,0,0,0.5) !important }
+.dark .bg-white\/30{ background-color: rgba(255,255,255,0.12) !important }
 
 
 /* small utility to mimic small green dot */
 .green-dot{width:10px;height:10px;border-radius:9999px;background:var(--green)}
+/* small utility red dot for warnings/stock */
+.red-dot{width:10px;height:10px;border-radius:9999px;background:#ef4444}
+
+/* Modal animations to match reference (soft fade + scale) */
+.modal-overlay{background-color: rgba(0,0,0,0.35); animation: fadeIn 120ms ease-out}
+.modal-card{animation: scaleIn 140ms ease-out}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0; transform: scale(0.98)}to{opacity:1; transform: scale(1)}}
+
+/* Sidebar mobile drawer animation */
+.mobile-sidebar{will-change: transform}
+.mobile-sidebar.open{transform: translateX(0)}
+.mobile-sidebar.close{transform: translateX(-100%)}
+
+/* Responsive helpers */
+@media (max-width: 767px){
+  .content-padding{padding: 1rem}
+}
+
+/* Hide scrollbar for horizontal tab scrollers on mobile */
+.scrollbar-none{ -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar{ display: none; }

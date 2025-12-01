@@ -138,14 +138,18 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70]">
       <div className="bg-white rounded-lg shadow-lg w-[840px] max-w-[98vw]">
         <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">{isEdit ? 'Editar Cliente' : 'Novo Cliente'}</h3>
+          <h3 className="font-semibold text-lg">
+            <span className="text-gray-500">Clientes</span>
+            <span className="mx-2 text-gray-300">•</span>
+            <span>{isEdit ? 'Editar Cliente' : 'Novo Cliente'}</span>
+          </h3>
           <button onClick={close} className="text-gray-500 hover:text-gray-700">✕</button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="p-4">
             {error && <div className="text-sm text-red-600">{error}</div>}
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs text-gray-600">Nome</label>
                 <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -160,7 +164,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-[1fr_auto_auto] gap-3 items-end">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
               <div>
                 <label className="text-xs text-gray-600">{isCompany ? 'CNPJ' : 'CPF'}</label>
                 <div className="mt-1 flex items-center gap-2">
@@ -190,7 +194,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
               </button>
               {addrOpen && (
                 <div className="px-3 pt-2 pb-3 space-y-3">
-                  <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
                     <div>
                       <label className="text-xs text-gray-600">CEP</label>
                       <div className="mt-1 flex items-center gap-2">
@@ -199,7 +203,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Endereço</label>
                       <input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -213,7 +217,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
                       <input value={complement} onChange={e=>setComplement(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Bairro</label>
                       <input value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -239,7 +243,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
               </button>
               {infoOpen && (
                 <div className="px-3 pt-2 pb-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Código</label>
                       <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -258,7 +262,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
             </div>
 
             {/* Cadastro ativo + ações */}
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
               <label className="flex items-center gap-3 text-sm">
                 <span>Cadastro Ativo</span>
                 <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>

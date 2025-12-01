@@ -227,8 +227,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   <>
     <div>
       <div className="font-semibold mb-2">Dados do produto</div>
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2 order-2 md:order-none">
           <input value={name} onChange={e=>setName(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome do produto" />
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
@@ -245,7 +245,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             </div>
           </div>
         </div>
-        <div>
+        <div className="order-first md:order-none">
           <div className="h-32 border rounded flex items-center justify-center text-gray-400 text-sm">Sem imagem</div>
           <button type="button" disabled className="mt-2 px-3 py-2 border rounded text-xs text-gray-400">Adicionar fotos</button>
         </div>
@@ -254,7 +254,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
     <div className={`${variationsData.length >= 2 ? 'hidden' : ''}`}>
       <div className="font-semibold mb-2">Preço e estoque</div>
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="text-xs text-gray-600">Custo</label>
           <input type="number" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -271,7 +271,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       <div className="mt-2">
         <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-4">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="text-xs text-gray-600">Código de barras</label>
           <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -285,7 +285,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <input type="date" value={validityDate} onChange={e=>setValidityDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-4">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="text-xs text-gray-600">Estoque inicial</label>
           <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -304,7 +304,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           </label>
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-8 text-sm">
+      <div className="mt-3 flex flex-col md:flex-row gap-4 md:gap-8 text-sm">
         {/* Switches: Controlar estoque / Exibir no catálogo / Destacar produto */}
         <div className="flex items-center gap-2">
           <span>Controlar estoque</span>
@@ -333,32 +333,62 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         <div className="font-semibold">Variações</div>
         <button type="button" onClick={()=> setVarModalOpen(true)} className="px-3 py-2 border rounded text-sm">Gerenciar variações</button>
       </div>
-      <div className="text-xs text-gray-600">{variationsData.length} variações</div>
-      <div className="mt-2 border rounded overflow-hidden">
-        <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 border-b">
-          <div>Nome</div>
-          <div className="text-right">Custo</div>
-          <div className="text-right">Preço</div>
-          <div className="text-right">Estoque Min.</div>
-          <div className="text-right">Estoque</div>
+      {/* Mobile list */}
+      <div className="md:hidden">
+        <div className="text-xs text-gray-600">{variationsData.length} variações</div>
+        <div className="mt-2 border rounded overflow-hidden">
+          {variationsData.map((v, idx) => (
+            <div key={idx} className="px-3 py-3 border-b last:border-0">
+              <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3">
+                <div>
+                  <div className="text-sm font-medium leading-tight truncate" title={v.name}>{v.name || '-'}</div>
+                  <div className="mt-1 text-xs text-gray-600">
+                    <span>Estoque: {v.stock ?? 0}</span>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-500 pt-[1px]">{(v.reference || '').trim() ? v.reference : ''}</div>
+                <div className="text-right">
+                  <div className="text-base font-semibold leading-tight">{((v.promoPrice ?? v.salePrice) ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+                  <div className="text-xs text-gray-600">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {variationsData.length === 0 && (
+            <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+          )}
         </div>
-        {variationsData.map((v, idx) => (
-          <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 border-b last:border-0 text-sm">
-            <div className="truncate" title={v.name}>{v.name || '-'}</div>
-            <div className="text-right">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-            <div className="text-right">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-            <div className="text-right">{v.stockMin ?? 0}</div>
-            <div className={`text-right ${(v.stock ?? 0) > 0 ? '' : 'text-red-600'}`}>{v.stock ?? 0}</div>
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block">
+        <div className="text-xs text-gray-600">{variationsData.length} variações</div>
+        <div className="mt-2 border rounded overflow-hidden">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 border-b">
+            <div>Nome</div>
+            <div className="text-right">Custo</div>
+            <div className="text-right">Preço</div>
+            <div className="text-right">Estoque Min.</div>
+            <div className="text-right">Estoque</div>
           </div>
-        ))}
-        {variationsData.length === 0 && (
-          <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
-        )}
+          {variationsData.map((v, idx) => (
+            <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 border-b last:border-0 text-sm">
+              <div className="truncate" title={v.name}>{v.name || '-'}</div>
+              <div className="text-right">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+              <div className="text-right">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+              <div className="text-right">{v.stockMin ?? 0}</div>
+              <div className={`text-right ${(v.stock ?? 0) > 0 ? '' : 'text-red-600'}`}>{v.stock ?? 0}</div>
+            </div>
+          ))}
+          {variationsData.length === 0 && (
+            <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+          )}
+        </div>
       </div>
 
       <div className="font-semibold mb-2">Dados adicionais</div>
       <textarea value={description} onChange={e=>setDescription(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Descrição do produto" rows={3} />
-      <div className="mt-3 grid grid-cols-3 gap-4">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="text-xs text-gray-600">Comissão (%)</label>
           <input type="number" step="0.01" value={commissionPercent} onChange={e=>setCommissionPercent(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -388,7 +418,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       </div>
       <div className="mt-3">
         <div className="font-semibold mb-2">Dados Fiscais</div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="text-xs text-gray-600">Origem da mercadoria</label>
             <select value={origin} onChange={e=>setOrigin(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm">
@@ -413,7 +443,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 ) : (
   <>
     <div className="font-semibold mb-2">Estoque</div>
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label className="text-xs text-gray-600">Estoque inicial</label>
         <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />

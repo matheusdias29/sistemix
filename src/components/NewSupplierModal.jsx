@@ -135,7 +135,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
           <div className="p-4">
             {error && <div className="text-sm text-red-600">{error}</div>}
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-xs text-gray-600">Nome</label>
                 <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -150,7 +150,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
               </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-[1fr_auto] gap-3 items-end">
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-start md:items-end">
               <div>
                 <label className="text-xs text-gray-600">CNPJ</label>
                 <div className="mt-1 flex items-center gap-2">
@@ -174,7 +174,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
               </button>
               {addrOpen && (
                 <div className="px-3 pt-2 pb-3 space-y-3">
-                  <div className="grid grid-cols-[1fr_auto] gap-3 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-start md:items-end">
                     <div>
                       <label className="text-xs text-gray-600">CEP</label>
                       <div className="mt-1 flex items-center gap-2">
@@ -183,7 +183,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Endereço</label>
                       <input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -197,7 +197,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
                       <input value={complement} onChange={e=>setComplement(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Bairro</label>
                       <input value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -223,7 +223,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
               </button>
               {infoOpen && (
                 <div className="px-3 pt-2 pb-3 space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Código</label>
                       <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -246,14 +246,14 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
             </div>
 
             {/* Switch de Cadastro Ativo */}
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <label className="flex items-center gap-3 text-sm">
                 <span>Cadastro Ativo</span>
                 <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </label>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 md:justify-end">
                 <button type="button" onClick={close} className="px-3 py-2 border rounded text-sm">Cancelar</button>
                 <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Salvar</button>
               </div>

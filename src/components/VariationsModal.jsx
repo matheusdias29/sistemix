@@ -14,6 +14,11 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     active: it.active ?? true,
   })
   const [items, setItems] = useState([toEditable()])
+  const [expandedIdx, setExpandedIdx] = useState(null)
+  const fmtBRL = (v) => {
+    const n = parseFloat(v)
+    return (isNaN(n) ? 0 : n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  }
 
   useEffect(() => {
     if(open){
@@ -71,76 +76,167 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
         </div>
         <form onSubmit={e=>{e.preventDefault(); confirm();}}>
           <div className="p-4">
-            <div className="max-h-[70vh] overflow-y-auto space-y-6 pr-1">
-              {items.map((it, idx)=> (
-                <div key={idx} className="border rounded p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-sm font-medium">Variação {idx+1} {items[idx]?.createdAt ? '' : <span className="ml-2 text-xs text-gray-500">Nova</span>}</div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="col-span-3">
-                      <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da variação" />
+            <div className="max-h-[70vh] overflow-y-auto pr-1">
+              {/* Mobile list */}
+              <div className="md:hidden">
+                <div>
+                  <div className="font-semibold mb-1">Variações</div>
+                  <div className="text-xs text-gray-600 mb-2">{items.length} variações</div>
+                </div>
+                <div className="border rounded overflow-hidden">
+                  {items.map((it, idx)=> (
+                    <div key={idx} className="border-b last:border-0">
+                      <button type="button" onClick={()=> setExpandedIdx(prev => prev === idx ? null : idx)} className="w-full text-left px-3 py-3">
+                        <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3">
+                          <div>
+                            <div className="text-sm font-medium leading-tight truncate">{it.name || '-'}</div>
+                            <div className="mt-1 text-xs text-gray-600">
+                              <span>Estoque: {parseInt(it.stockInitial || '0', 10) || 0}</span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-500 pt-[1px]">{(it.reference || '').trim() ? it.reference : ''}</div>
+                          <div className="text-right">
+                            <div className="text-base font-semibold leading-tight">{fmtBRL(it.promoPrice || it.salePrice)}</div>
+                            <div className="text-xs text-gray-600">Custo: {fmtBRL(it.cost)}</div>
+                          </div>
+                        </div>
+                      </button>
+                      {expandedIdx === idx && (
+                        <div className="px-3 pb-3">
+                          <div className="grid grid-cols-1 gap-3">
+                            <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da variação" />
+                          </div>
+                          <div className="mt-3 grid grid-cols-1 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-600">Custo</label>
+                              <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Preço de venda</label>
+                              <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Preço promocional</label>
+                              <input type="number" step="0.01" value={it.promoPrice ?? ''} onChange={e=>updateItem(idx,'promoPrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                          </div>
+                          <div className="mt-2">
+                            <button type="button" onClick={()=>calcSale(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
+                          </div>
+                          <div className="mt-3 grid grid-cols-1 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-600">Código de barras</label>
+                              <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Referência</label>
+                              <input value={it.reference} onChange={e=>updateItem(idx,'reference', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Validade</label>
+                              <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                          </div>
+                          <div className="mt-3 grid grid-cols-1 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-600">Estoque inicial</label>
+                              <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
+                              <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                            </div>
+                            <div className="flex items-end">
+                              <div className="flex items-center gap-2 text-sm">
+                                <span>Ativa</span>
+                                <button type="button" onClick={()=>updateItem(idx,'active', !(it.active))} className={`relative inline-flex h-5 w-9 items-center rounded-full ${it.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${it.active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs text-gray-600">Custo</label>
-                      <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  ))}
+                  {items.length === 0 && (
+                    <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+                  )}
+                </div>
+              </div>
+
+              {/* Desktop form */}
+              <div className="hidden md:block space-y-6">
+                {items.map((it, idx)=> (
+                  <div key={idx} className="border rounded p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium">Variação {idx+1} {items[idx]?.createdAt ? '' : <span className="ml-2 text-xs text-gray-500">Nova</span>}</div>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-600">Preço de venda</label>
-                      <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="col-span-3">
+                        <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da variação" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-600">Preço promocional</label>
-                      <input type="number" step="0.01" value={it.promoPrice ?? ''} onChange={e=>updateItem(idx,'promoPrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <div className="mt-3 grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-600">Custo</label>
+                        <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Preço de venda</label>
+                        <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Preço promocional</label>
+                        <input type="number" step="0.01" value={it.promoPrice ?? ''} onChange={e=>updateItem(idx,'promoPrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
                     </div>
-                  </div>
-                  <div className="mt-2">
-                    <button type="button" onClick={()=>calcSale(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs text-gray-600">Código de barras</label>
-                      <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <div className="mt-2">
+                      <button type="button" onClick={()=>calcSale(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-600">Referência</label>
-                      <input value={it.reference} onChange={e=>updateItem(idx,'reference', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <div className="mt-3 grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-600">Código de barras</label>
+                        <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Referência</label>
+                        <input value={it.reference} onChange={e=>updateItem(idx,'reference', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Validade</label>
+                        <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="text-xs text-gray-600">Validade</label>
-                      <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                    </div>
-                  </div>
-                  <div className="mt-3 grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="text-xs text-gray-600">Estoque inicial</label>
-                      <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
-                      <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                    </div>
-                    <div className="flex items-end">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span>Ativa</span>
-                        <button type="button" onClick={()=>updateItem(idx,'active', !(it.active))} className={`relative inline-flex h-5 w-9 items-center rounded-full ${it.active ? 'bg-green-500' : 'bg-gray-300'}`}>
-                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${it.active ? 'translate-x-4' : 'translate-x-1'}`}></span>
-                        </button>
+                    <div className="mt-3 grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-600">Estoque inicial</label>
+                        <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
+                        <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      </div>
+                      <div className="flex items-end">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span>Ativa</span>
+                          <button type="button" onClick={()=>updateItem(idx,'active', !(it.active))} className={`relative inline-flex h-5 w-9 items-center rounded-full ${it.active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${it.active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 px-6 flex items-center justify-between">
-              <button type="button" onClick={addItem} className="px-3 py-2 border rounded text-sm">Adicionar nova variação</button>
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-                <button type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+                ))}
               </div>
             </div>
+          <div className="mt-3 px-6 flex items-center justify-between">
+            <button type="button" onClick={addItem} className="px-3 py-2 border rounded text-sm">Adicionar nova variação</button>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+              <button type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+            </div>
+          </div>
           </div>
         </form>
       </div>

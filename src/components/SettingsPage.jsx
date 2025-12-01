@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React from 'react'
 import clsx from 'clsx'
 
 function Section({ title, children }) {
@@ -27,23 +27,19 @@ function Item({ label, onClick, rightSlot }) {
   )
 }
 
-export default function SettingsPage({ user, store, onNavigate, onLogout }) {
-  const [darkMode, setDarkMode] = useState(false)
+export default function SettingsPage({ user, store, onNavigate, onLogout, darkMode=false, onToggleDark }) {
 
   const handleSoon = (name) => () => {
     window.alert(`${name} — em breve`)
   }
 
-  const toggleDark = () => {
-    setDarkMode((v) => !v)
-    // Aqui apenas guardamos localmente; integração global do tema pode ser feita depois.
-  }
+  const toggleDark = () => { onToggleDark && onToggleDark() }
 
   return (
     <div className="grid grid-cols-2 gap-6">
       {/* Configurações de empresa */}
       <Section title="Configurações de empresa">
-        <Item label="Dados da empresa" onClick={handleSoon('Dados da empresa')} />
+        <Item label="Dados da empresa" onClick={() => onNavigate && onNavigate('dadosEmpresa')} />
         <Item label="Usuários" onClick={() => onNavigate && onNavigate('usuarios')} />
         <Item label="Assistente" onClick={handleSoon('Assistente')} />
       </Section>
@@ -51,7 +47,7 @@ export default function SettingsPage({ user, store, onNavigate, onLogout }) {
       {/* Configurações de venda */}
       <Section title="Configurações de venda">
         <Item label="Formas de pagamento" onClick={handleSoon('Formas de pagamento')} />
-        <Item label="Taxas adicionais" onClick={handleSoon('Taxas adicionais')} />
+        <Item label="Taxas adicionais" onClick={() => onNavigate && onNavigate('taxas')} />
         <Item label="Recibo" onClick={handleSoon('Recibo')} />
         <Item label="Crediário" onClick={handleSoon('Crediário')} />
         <Item label="Comissão" onClick={handleSoon('Comissão')} />
@@ -74,7 +70,7 @@ export default function SettingsPage({ user, store, onNavigate, onLogout }) {
 
       {/* Outras configurações */}
       <Section title="Outras configurações">
-        <Item label="Dados do usuário" onClick={handleSoon('Dados do usuário')} />
+        <Item label="Dados do usuário" onClick={() => onNavigate && onNavigate('dadosUsuario')} />
         <Item
           label="Modo escuro"
           onClick={toggleDark}

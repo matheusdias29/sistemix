@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder } from '../services/orders'
 import { listenProducts } from '../services/products'
 import NewProductModal from './NewProductModal'
@@ -9,7 +9,7 @@ import NewClientModal from './NewClientModal'
 import SelectClientModal from './SelectClientModal'
 import { listenSubUsers } from '../services/users'
 
-export default function ServiceOrdersPage({ storeId, ownerId }){
+export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [query, setQuery] = useState('')
   const [periodOpen, setPeriodOpen] = useState(false)
@@ -20,6 +20,9 @@ export default function ServiceOrdersPage({ storeId, ownerId }){
     const unsub = listenOrders(items => setOrders(items), storeId)
     return () => unsub && unsub()
   }, [storeId])
+
+  // Abrir formulário Nova OS somente quando o sinal mudar (ignora montagem inicial)
+  const initialAddSignal = useRef(addNewSignal)
 
   // Filtros simples
   const filtered = useMemo(() => {
@@ -147,6 +150,14 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setStatus('Iniciado')
   }
 
+  useEffect(() => {
+    // Ignora o primeiro render para não abrir automaticamente ao acessar a página
+    if (initialAddSignal.current === addNewSignal) return
+    resetForm()
+    setView('new')
+    initialAddSignal.current = addNewSignal
+  }, [addNewSignal])
+
   const toInputDateTime = (v) => {
     if (!v) return ''
     const d = v?.seconds ? new Date(v.seconds * 1000) : new Date(v)
@@ -246,14 +257,27 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               <button className="pb-2 text-gray-600">Serviços</button>
             </div>
             <div className="mt-4 flex items-center gap-3">
-              <div className="flex-1">
-                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border rounded px-3 py-2 text-sm" />
+              <div className="flex-1 flex items-center gap-2">
+                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
+                {/* Ícones ao lado direito da busca (mobile) */}
+                <button type="button" onClick={()=>setPeriodOpen(v=>!v)}
+                  className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
+                  aria-label="Período"
+                  title="Período">
+                  <span className="md:hidden">📅</span>
+                  <span className="hidden md:inline">📅 Período</span>
+                </button>
+                <button type="button" onClick={()=>setFiltersOpen(v=>!v)}
+                  className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
+                  aria-label="Filtros"
+                  title="Filtros">
+                  <span className="md:hidden">⚙️</span>
+                  <span className="hidden md:inline">⚙️ Filtros</span>
+                </button>
               </div>
-              <button type="button" onClick={()=>setPeriodOpen(v=>!v)} className="px-3 py-2 border rounded text-sm flex items-center gap-2">📅 Período</button>
-              <button type="button" onClick={()=>setFiltersOpen(v=>!v)} className="px-3 py-2 border rounded text-sm flex items-center gap-2">⚙️ Filtros</button>
-              <div className="flex-1"></div>
-              <button className="px-3 py-2 border rounded text-sm">Opções</button>
-              <button onClick={()=>{ resetForm(); setView('new') }} className="px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
+              <div className="hidden md:block flex-1"></div>
+              <button className="hidden md:inline-block px-3 py-2 border rounded text-sm">Opções</button>
+              <button onClick={()=>{ resetForm(); setView('new') }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
             </div>
           </div>
 
@@ -275,9 +299,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
 
           {/* Tabela de OS */}
           <div className="mt-4 bg-white rounded-lg shadow overflow-hidden">
-            <div className="grid grid-cols-[4rem_1fr_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 text-xs text-gray-500 border-b gap-3">
+            <div className="overflow-x-auto">
+            <div className="min-w-[1200px] grid grid-cols-[4rem_1fr_8rem_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 text-xs text-gray-500 border-b gap-3">
               <div>O.S.</div>
               <div>Cliente</div>
+              <div>Atendente</div>
               <div>Técnico</div>
               <div>Modelo</div>
               <div>Nº de Série</div>
@@ -286,32 +312,36 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               <div className="text-right">Valor</div>
               <div>Status</div>
             </div>
-            {filtered.map(o => (
-              <div key={o.id} onClick={()=>openEdit(o)} className="grid grid-cols-[4rem_1fr_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 border-b last:border-0 text-sm cursor-pointer hover:bg-gray-50 gap-3">
-                <div>{o.number || o.id}</div>
-                <div className="leading-tight">
-                  <div className="font-medium">{o.client}</div>
+            <div className="min-w-[1200px] divide-y divide-gray-200">
+              {filtered.map(o => (
+                <div key={o.id} onClick={()=>openEdit(o)} className="grid grid-cols-[4rem_1fr_8rem_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 gap-3">
+                  <div>{o.number || o.id}</div>
+                  <div className="leading-tight">
+                    <div className="font-medium">{o.client}</div>
+                  </div>
+                  <div>{o.attendant}</div>
+                  <div>{o.technician}</div>
+                  <div>{o.model}</div>
+                  <div>{o.serialNumber}</div>
+                  <div>{o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn).toLocaleDateString('pt-BR') : '-'}</div>
+                  <div>{o.expectedDate ? new Date(o.expectedDate.seconds ? o.expectedDate.seconds*1000 : o.expectedDate).toLocaleDateString('pt-BR') : '-'}</div>
+                  <div className="text-right">{((o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  <div>
+                    {(() => {
+                      const s = String(o.status||'').trim()
+                      const l = s.toLowerCase()
+                      let cls = 'bg-gray-200 text-gray-700'
+                      if (l.includes('finaliz')) cls = 'bg-green-100 text-green-700'
+                      else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
+                      else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
+                      else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
+                      return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
+                    })()}
+                  </div>
                 </div>
-                <div>{o.technician}</div>
-                <div>{o.model}</div>
-                <div>{o.serialNumber}</div>
-                <div>{o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn).toLocaleDateString('pt-BR') : '-'}</div>
-                <div>{o.expectedDate ? new Date(o.expectedDate.seconds ? o.expectedDate.seconds*1000 : o.expectedDate).toLocaleDateString('pt-BR') : '-'}</div>
-                <div className="text-right">{((o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                <div>
-                  {(() => {
-                    const s = String(o.status||'').trim()
-                    const l = s.toLowerCase()
-                    let cls = 'bg-gray-200 text-gray-700'
-                    if (l.includes('finaliz')) cls = 'bg-green-100 text-green-700'
-                    else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
-                    else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
-                    else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
-                    return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
-                  })()}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
+            </div>
           </div>
         </>
       ) : (
@@ -325,12 +355,13 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-6">
+          {/* Layout responsivo: 1 coluna no mobile, 2 colunas no desktop */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Coluna esquerda */}
             <div className="space-y-6">
               <div className="rounded-lg bg-white p-6 shadow">
                 <div className="font-semibold text-lg">Dados Gerais</div>
-                <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-600">Cliente</label>
                     <input readOnly value={client} onClick={()=>setClientSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50" placeholder="Selecionar cliente" />
@@ -364,7 +395,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-600">Equipamento</label>
                     <textarea value={equipment} onChange={e=>setEquipment(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -374,7 +405,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     <textarea value={problem} onChange={e=>setProblem(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-600">Observações de recebimento</label>
                     <textarea value={receiptNotes} onChange={e=>setReceiptNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -428,7 +459,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             <div className="space-y-6">
               <div className="rounded-lg bg-white p-6 shadow">
                 <div className="font-semibold text-lg">Total</div>
-                <div className="mt-4 grid grid-cols-4 gap-4">
+                <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 border rounded">
                     <div className="text-xs text-gray-500">Total de serviços</div>
                     <div className="text-right">{(0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
@@ -986,7 +1017,7 @@ function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, onConfir
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg w-[600px] max-h-[80vh] overflow-hidden">
+      <div className="bg-white rounded-lg w-[600px] max-w-[95vw] md:max-w-[80vw] max-h-[90vh] md:max-h-[80vh] overflow-y-auto md:overflow-hidden">
         <div className="p-4 border-b">
           <div className="text-center">
             <div className="text-sm text-gray-600">Restante a pagar:</div>
@@ -1013,7 +1044,7 @@ function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, onConfir
           )}
           <h2 className="text-sm font-medium mt-2 text-center">Selecionar forma de pagamento:</h2>
         </div>
-        <div className="p-4 max-h-96 overflow-y-auto">
+        <div className="p-4 max-h-[60vh] md:max-h-96 overflow-y-auto">
           <div className="grid grid-cols-3 gap-2">
             {paymentMethods.map((method) => (
               <button

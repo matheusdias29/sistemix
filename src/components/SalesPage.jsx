@@ -9,18 +9,26 @@ const tabs = [
   { key: 'cancelada', label: 'Canceladas' },
 ]
 
-export default function SalesPage(){
+export default function SalesPage({ initialDayFilter = null }){
   const [orders, setOrders] = useState([])
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('todos')
   const [monthOnly, setMonthOnly] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [newSaleOpen, setNewSaleOpen] = useState(false)
+  const [dayFilter, setDayFilter] = useState(initialDayFilter)
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items))
     return () => { unsub && unsub() }
   }, [])
+
+  useEffect(() => {
+    setDayFilter(initialDayFilter)
+  }, [initialDayFilter])
+
+  const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
+  const isSameDay = (a, b) => a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate()
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -35,10 +43,14 @@ export default function SalesPage(){
       })
       .filter(o => {
         if(!monthOnly) return true
-        const ts = o.createdAt?.toDate?.() || o.createdAt || null
-        if(!ts) return true
-        const d = new Date(ts)
+        const d = toDate(o.createdAt)
+        if(!d) return true
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+      })
+      .filter(o => {
+        if(!dayFilter) return true
+        const d = toDate(o.createdAt)
+        return d ? isSameDay(d, new Date(dayFilter)) : false
       })
       .filter(o => {
         if(tab==='todos') return true
@@ -74,6 +86,9 @@ export default function SalesPage(){
       <div className="bg-white rounded-lg p-4 shadow">
         <div className="flex items-center gap-3">
           <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
+          {dayFilter && (
+            <button onClick={()=>setDayFilter(null)} className="px-3 py-2 border rounded text-sm" title="Limpar filtro por dia">Limpar dia</button>
+          )}
           <button onClick={()=>setMonthOnly(v=>!v)} className="px-3 py-2 border rounded text-sm">{monthOnly ? 'Este Mês' : 'Todos'}</button>
           <button onClick={()=>setShowFilters(v=>!v)} className="px-3 py-2 border rounded text-sm">Filtros</button>
         </div>

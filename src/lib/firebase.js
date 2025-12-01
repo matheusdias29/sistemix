@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { initializeFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
+import { getAuth, signInAnonymously } from 'firebase/auth'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -20,3 +21,18 @@ export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
 })
 export const storage = getStorage(app)
+
+// Auth: realiza login anônimo automático para cumprir regras que exigem request.auth
+export const auth = getAuth(app)
+try {
+  signInAnonymously(auth)
+    .then(() => {
+      console.info('Autenticação anônima ativa')
+    })
+    .catch((err) => {
+      // Se o provedor Anonymous estiver desativado, não quebra o app; apenas avisa
+      console.warn('Falha no login anônimo:', err?.code || err?.message)
+    })
+} catch (e) {
+  console.warn('Erro inesperado ao iniciar login anônimo:', e?.message)
+}
