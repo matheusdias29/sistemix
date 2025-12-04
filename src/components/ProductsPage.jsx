@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react'
-import { listenProducts, updateProduct } from '../services/products'
+import { listenProducts, updateProduct, addProduct, removeProduct } from '../services/products'
 import NewProductModal from './NewProductModal'
 import { listenCategories, updateCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
@@ -26,6 +26,16 @@ export default function ProductsPage({ storeId, addNewSignal }){
   const [editingProduct, setEditingProduct] = useState(null)
   // Mobile: controle de sanfona por linha (produtos abertos)
   const [mobileOpenRows, setMobileOpenRows] = useState(() => new Set())
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [stockModalOpen, setStockModalOpen] = useState(false)
+  const [stockTargetProduct, setStockTargetProduct] = useState(null)
+  const [selectedVarIdx, setSelectedVarIdx] = useState(0)
+  const [stockType, setStockType] = useState('entrada')
+  const [stockQty, setStockQty] = useState('0')
+  const [stockDesc, setStockDesc] = useState('')
+  const [savingAction, setSavingAction] = useState(false)
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
+  const [confirmRemoveProduct, setConfirmRemoveProduct] = useState(null)
 
   // Categorias
   const [categories, setCategories] = useState([])
@@ -111,6 +121,84 @@ export default function ProductsPage({ storeId, addNewSignal }){
   const startEdit = (product) => {
     setEditingProduct(product)
     setEditModalOpen(true)
+  }
+
+  const handleClone = async (product) => {
+    if (!storeId) return
+    try {
+      setSavingAction(true)
+      const { id, createdAt, updatedAt, number, ...rest } = product || {}
+      const data = { ...rest, name: product?.name || 'Produto' }
+      await addProduct(data, storeId)
+      setOpenMenuId(null)
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const handleToggleActive = async (product) => {
+    try {
+      setSavingAction(true)
+      const next = !(product.active ?? true)
+      await updateProduct(product.id, { active: next })
+      setOpenMenuId(null)
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const openStockModal = (product) => {
+    setStockTargetProduct(product)
+    const hasVars = Array.isArray(product?.variationsData) && product.variationsData.length > 0
+    setSelectedVarIdx(hasVars ? 0 : -1)
+    setStockType('entrada')
+    setStockQty('0')
+    setStockDesc('')
+    setStockModalOpen(true)
+    setOpenMenuId(null)
+  }
+
+  const openConfirmRemove = (product) => {
+    setConfirmRemoveProduct(product)
+    setConfirmRemoveOpen(true)
+    setOpenMenuId(null)
+  }
+
+  const confirmRemoveFromCatalog = async () => {
+    const p = confirmRemoveProduct
+    if (!p) return setConfirmRemoveOpen(false)
+    try {
+      setSavingAction(true)
+      await removeProduct(p.id)
+      setConfirmRemoveOpen(false)
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const confirmStockAdjust = async () => {
+    const p = stockTargetProduct
+    if (!p) return setStockModalOpen(false)
+    const q = Math.max(0, parseInt(String(stockQty), 10) || 0)
+    const delta = stockType === 'entrada' ? q : -q
+    const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+    try {
+      setSavingAction(true)
+      if (hasVars && selectedVarIdx >= 0) {
+        const items = p.variationsData.map((v) => ({ ...v }))
+        const cur = Number(items[selectedVarIdx]?.stock ?? 0)
+        items[selectedVarIdx].stock = Math.max(0, cur + delta)
+        const total = items.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
+        await updateProduct(p.id, { variationsData: items, stock: total })
+      } else {
+        const cur = Number(p.stock ?? 0)
+        const next = Math.max(0, cur + delta)
+        await updateProduct(p.id, { stock: next })
+      }
+      setStockModalOpen(false)
+    } finally {
+      setSavingAction(false)
+    }
   }
 
   const startCategoryEdit = (category) => {
@@ -210,7 +298,7 @@ export default function ProductsPage({ storeId, addNewSignal }){
               const stock = Number(p.stock ?? 0)
               return (
                 <>
-                <div key={p.id} className="grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_1fr_12rem_6rem_6rem_2rem] items-center px-4 py-3 border-b last:border-0">
+                <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_1fr_12rem_6rem_6rem_2rem] items-center px-4 py-3 border-b last:border-0">
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
@@ -289,7 +377,47 @@ export default function ProductsPage({ storeId, addNewSignal }){
                   <div className="hidden md:block text-right text-sm">
                     <div className={`px-2 py-1 rounded text-xs ${(p.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
-                  <div className="hidden md:block text-right text-sm">⋯</div>
+                  <div className="hidden md:block text-right text-sm">
+                    <button
+                      type="button"
+                      aria-label="Mais ações"
+                      title="Mais ações"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border"
+                      onClick={() => setOpenMenuId(openMenuId===p.id ? null : p.id)}
+                    >
+                      ⋯
+                    </button>
+                    {openMenuId === p.id && (
+                      <div className="absolute z-50 right-4 top-12 w-56 bg-white border rounded-lg shadow">
+                        <div className="py-2">
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> handleClone(p)}>
+                            <span>📄</span>
+                            <span>Clonar</span>
+                          </button>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> handleToggleActive(p)}>
+                            <span>{(p.active ?? true) ? '✖️' : '✔️'}</span>
+                            <span>{(p.active ?? true) ? 'Inativar' : 'Ativar'}</span>
+                          </button>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openStockModal(p)}>
+                            <span>📦</span>
+                            <span>Alterar estoque</span>
+                          </button>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('destacar', p.id) }}>
+                            <span>⭐</span>
+                            <span>Destacar</span>
+                          </button>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openConfirmRemove(p)}>
+                            <span>🗂️</span>
+                            <span>Remover do catálogo</span>
+                          </button>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('sincronizar', p.id) }}>
+                            <span>🔁</span>
+                            <span>Sincronizar entre empresas</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   </div>
                   {/* Painel sanfona com variações (somente mobile) com animação */}
                   <div className={`md:hidden px-4 ${mobileOpenRows.has(p.id) ? 'py-2 bg-gray-50 border-b' : 'py-0'} last:border-0`}
@@ -401,12 +529,99 @@ export default function ProductsPage({ storeId, addNewSignal }){
           ) : null)
         }
       </div>
+      {openMenuId && (
+        <div className="fixed inset-0 z-40" onClick={()=>setOpenMenuId(null)} />
+      )}
       <NewProductModal open={modalOpen} onClose={()=>setModalOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} />
       <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} storeId={storeId} />
       <NewCategoryModal open={catModalOpen} onClose={()=>setCatModalOpen(false)} storeId={storeId} />
       <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} storeId={storeId} />
       <NewSupplierModal open={supplierModalOpen} onClose={()=>setSupplierModalOpen(false)} storeId={storeId} />
       <NewSupplierModal open={supplierEditOpen} onClose={()=>setSupplierEditOpen(false)} isEdit={true} supplier={editingSupplier} storeId={storeId} />
+      {confirmRemoveOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={()=>setConfirmRemoveOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-base font-medium">Remover do catálogo</h3>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div>
+                Tem certeza que deseja remover “{confirmRemoveProduct?.name}” do catálogo?
+              </div>
+              <div>
+                Esta ação também zera o estoque do produto{Array.isArray(confirmRemoveProduct?.variationsData) && (confirmRemoveProduct?.variationsData?.length||0) > 0 ? ' e de todas as variações' : ''}.
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemoveFromCatalog} disabled={savingAction}>Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {stockModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={()=>setStockModalOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[560px]">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-base font-medium">Adicionar / Remover Estoque</h3>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Selecionar variação</div>
+                {Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length || 0) > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <button type="button" className="h-8 w-8 rounded border" onClick={()=>setSelectedVarIdx(i=> Math.max(0, i-1))}>‹</button>
+                    <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+                      {(stockTargetProduct?.variationsData||[]).map((v, idx) => (
+                        <button key={idx} type="button" className={`px-3 py-1 rounded border text-sm ${selectedVarIdx===idx ? 'bg-gray-200' : ''}`} onClick={()=>setSelectedVarIdx(idx)}>
+                          {v?.name || v?.label || `Variação ${idx+1}`}
+                        </button>
+                      ))}
+                    </div>
+                    <button type="button" className="h-8 w-8 rounded border" onClick={()=>setSelectedVarIdx(i=> Math.min((stockTargetProduct?.variationsData?.length||1)-1, i+1))}>›</button>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-700">Produto sem variações</div>
+                )}
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Tipo</div>
+                <div className="flex items-center gap-2">
+                  <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='entrada' ? 'bg-green-50 border-green-300 text-green-700' : ''}`} onClick={()=>setStockType('entrada')}>Entrada</button>
+                  <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='saida' ? 'bg-red-50 border-red-300 text-red-700' : ''}`} onClick={()=>setStockType('saida')}>Saida</button>
+                </div>
+              </div>
+              <div className="text-sm text-gray-800">
+                {stockTargetProduct?.name} {Array.isArray(stockTargetProduct?.variationsData) && selectedVarIdx>=0 ? ` - ${(stockTargetProduct?.variationsData?.[selectedVarIdx]?.name || stockTargetProduct?.variationsData?.[selectedVarIdx]?.label || '')}` : ''}
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Quantidade</div>
+                <input type="number" value={stockQty} onChange={e=>setStockQty(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              </div>
+              <div className="text-sm text-gray-700">
+                {(() => {
+                  const hasVars = Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length||0) > 0
+                  const base = hasVars && selectedVarIdx>=0 ? Number(stockTargetProduct?.variationsData?.[selectedVarIdx]?.stock ?? 0) : Number(stockTargetProduct?.stock ?? 0)
+                  const qty = Math.max(0, parseInt(String(stockQty), 10) || 0)
+                  const sign = stockType==='entrada' ? '+' : '-'
+                  const total = Math.max(0, base + (stockType==='entrada' ? qty : -qty))
+                  return `Estoque: ${base} ${sign} ${qty} = ${total}`
+                })()}
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Descrição (opcional)</div>
+                <input value={stockDesc} onChange={e=>setStockDesc(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setStockModalOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-green-600 text-white" onClick={confirmStockAdjust} disabled={savingAction}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

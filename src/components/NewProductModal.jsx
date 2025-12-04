@@ -44,6 +44,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [supSelectOpen, setSupSelectOpen] = useState(false)
   const [supQuery, setSupQuery] = useState('')
   const [newSupOpen, setNewSupOpen] = useState(false)
+  const [isSmartphone, setIsSmartphone] = useState(false)
+  const [phoneBrand, setPhoneBrand] = useState('')
+  const [phoneColor, setPhoneColor] = useState('')
+  const [imei1, setImei1] = useState('')
+  const [imei2, setImei2] = useState('')
+  const [serialNumber, setSerialNumber] = useState('')
+  const [condition, setCondition] = useState('')
+  const [warrantyMonths, setWarrantyMonths] = useState(null)
 
   // Pré-carregar dados ao editar um produto
   useEffect(() => {
@@ -75,6 +83,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       setCest(product.cest || '')
       setActive(!!product.active)
       setError('')
+      setIsSmartphone(!!product.isSmartphone)
+      setPhoneBrand(product.phoneBrand || '')
+      setPhoneColor(product.phoneColor || '')
+      setImei1(product.imei1 || '')
+      setImei2(product.imei2 || '')
+      setSerialNumber(product.serialNumber || '')
+      setCondition(product.condition || '')
+      setWarrantyMonths(product.warrantyMonths ?? null)
     }
   }, [open, isEdit, product])
 
@@ -131,6 +147,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     setSupSelectOpen(false)
     setSupQuery('')
     setNewSupOpen(false)
+    setIsSmartphone(false)
+    setPhoneBrand('')
+    setPhoneColor('')
+    setImei1('')
+    setImei2('')
+    setSerialNumber('')
+    setCondition('')
+    setWarrantyMonths(null)
   }
 
   const handleSubmit = async (e) => {
@@ -191,6 +215,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         ncm: ncm.trim(),
         cest: cest.trim(),
         active: !!active,
+        isSmartphone: !!isSmartphone,
+        phoneBrand: phoneBrand.trim(),
+        phoneColor: phoneColor.trim(),
+        imei1: imei1.trim(),
+        imei2: imei2.trim(),
+        serialNumber: serialNumber.trim(),
+        condition: condition || '',
+        warrantyMonths: warrantyMonths != null ? Number(warrantyMonths) : null,
       }
       if(isEdit && product?.id){
         await updateProduct(product.id, data)
@@ -243,6 +275,76 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 {supplier || 'Selecionar fornecedor'}
               </button>
             </div>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm">Smarthphone</span>
+              <button type="button" onClick={()=>setIsSmartphone(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSmartphone ? 'bg-green-500' : 'bg-gray-300'}`}>
+                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isSmartphone ? 'translate-x-4' : 'translate-x-1'}`}></span>
+              </button>
+            </div>
+            {isSmartphone && (
+              <div className="mt-3 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600">Marca do celular</label>
+                    <input value={phoneBrand} onChange={e=>setPhoneBrand(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Ex.: Samsung" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Cor</label>
+                    <input value={phoneColor} onChange={e=>setPhoneColor(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Ex.: Preto" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Número de série</label>
+                    <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600">IMEI 1</label>
+                    <input value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">IMEI 2</label>
+                    <input value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Condição</div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="condicao" checked={condition==='novo'} onChange={()=>setCondition('novo')} />
+                      <span>Novo</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="condicao" checked={condition==='vitrine'} onChange={()=>setCondition('vitrine')} />
+                      <span>Vitrine</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="condicao" checked={condition==='usado'} onChange={()=>setCondition('usado')} />
+                      <span>Usado</span>
+                    </label>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-600 mb-1">Garantia</div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="garantia" checked={warrantyMonths===3} onChange={()=>setWarrantyMonths(3)} />
+                      <span>3m</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="garantia" checked={warrantyMonths===6} onChange={()=>setWarrantyMonths(6)} />
+                      <span>6m</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input type="radio" name="garantia" checked={warrantyMonths===12} onChange={()=>setWarrantyMonths(12)} />
+                      <span>12m</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="order-first md:order-none">
@@ -477,6 +579,15 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 )}
 </div>
 </div>
+
+<div className="px-6 py-3 border-t">
+  <label className="flex items-center gap-2 text-sm">
+    <span>Cadastro Ativo</span>
+    <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>
+      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+    </button>
+  </label>
+ </div>
 
 <div className="flex items-center justify-end gap-3 pt-2 px-6">
   <button type="button" onClick={close} className="px-3 py-2 border rounded text-sm">Cancelar</button>

@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'products')
@@ -66,6 +66,16 @@ export async function addProduct(product, storeId){
     ncm: product.ncm ?? '',
     cest: product.cest ?? '',
 
+    // Smartphone
+    isSmartphone: !!product.isSmartphone,
+    phoneBrand: product.phoneBrand ?? '',
+    phoneColor: product.phoneColor ?? '',
+    imei1: product.imei1 ?? '',
+    imei2: product.imei2 ?? '',
+    serialNumber: product.serialNumber ?? '',
+    condition: product.condition ?? '',
+    warrantyMonths: product.warrantyMonths ?? null,
+
     // Mídia (desabilitado por enquanto)
     imageUrl: product.imageUrl ?? null,
 
@@ -79,4 +89,9 @@ export async function addProduct(product, storeId){
 export async function updateProduct(id, partial){
   const ref = doc(db, 'products', id)
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+}
+
+export async function removeProduct(id){
+  const ref = doc(db, 'products', id)
+  await deleteDoc(ref)
 }
