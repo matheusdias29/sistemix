@@ -4,7 +4,7 @@ import { db } from '../lib/firebase'
 const colRef = collection(db, 'orders')
 
 // Gera número sequencial de 6 dígitos no formato #000001
-async function getNextOrderNumber(storeId){
+async function getNextOrderNumber(storeId, type){
   try {
     if (storeId) {
       // Evita índice composto: filtra por storeId e calcula o maior número no cliente
@@ -12,24 +12,26 @@ async function getNextOrderNumber(storeId){
       const snap = await getDocs(q)
       let max = 0
       snap.docs.forEach(d => {
-        const digits = String(d.data()?.number || '').replace(/^#/, '')
-        const n = parseInt(digits, 10)
-        if (!isNaN(n) && n > max) max = n
+        const data = d.data()
+        // Filter by type:
+        // If type is 'sale', only consider 'sale'.
+        // If type is 'service_order', consider 'service_order' OR undefined (legacy).
+        const dType = data.type
+        const isMatch = (type === 'sale') 
+          ? (dType === 'sale')
+          : (dType === 'service_order' || !dType)
+        
+        if (isMatch) {
+          const digits = String(data.number || '').replace(/^#/, '')
+          const n = parseInt(digits, 10)
+          if (!isNaN(n) && n > max) max = n
+        }
       })
       const next = max + 1
       return `#${String(next).padStart(6, '0')}`
     } else {
-      // Fallback (não usado na criação, apenas por segurança)
-      const q = query(colRef, orderBy('createdAt', 'desc'))
-      const snap = await getDocs(q)
-      let next = 1
-      if (!snap.empty) {
-        const last = snap.docs[0].data()
-        const digits = String(last?.number || '').replace(/^#/, '')
-        const n = parseInt(digits, 10)
-        if (!isNaN(n)) next = n + 1
-      }
-      return `#${String(next).padStart(6, '0')}`
+      // Fallback
+      return `#${String(1).padStart(6, '0')}`
     }
   } catch (e) {
     return `#${String(1).padStart(6, '0')}`
@@ -50,11 +52,15 @@ export function listenOrders(callback, storeId){
 
 export async function addOrder(order, storeId){
   if (!storeId) throw new Error('storeId é obrigatório ao criar OS')
-  const number = await getNextOrderNumber(storeId)
+  const type = order.type || 'service_order'
+  const number = await getNextOrderNumber(storeId, type)
   const data = {
     storeId,
+    type,
     // Identificação
     client: order.client || '',
+    clientId: order.clientId || null,
+    attendant: order.attendant || '',
     technician: order.technician || '',
     // Datas
     dateIn: order.dateIn || null,

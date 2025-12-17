@@ -14,6 +14,7 @@ import SelectStorePage from './components/SelectStorePage'
 import UsersPage from './components/UsersPage'
 import LoginPage from './components/LoginPage'
 import UserDataPage from './components/UserDataPage'
+import POSPage from './components/POSPage'
 
 const labels = {
   inicio: 'Início',
@@ -221,7 +222,7 @@ export default function App(){
               />
             </div>
           ) : view === 'vendas' ? (
-            <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} /></div>
+            <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} user={user} /></div>
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} /></div>
           ) : view === 'os' ? (
@@ -240,6 +241,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><GoalsPage storeId={store?.id} owner={user} /></div>
           ) : view === 'dadosUsuario' ? (
             <div className="mt-4 md:mt-6"><UserDataPage user={user} onBack={() => onNavigate('configuracoes')} /></div>
+          ) : view === 'caixa' ? (
+            <div className="mt-4 md:mt-6"><POSPage storeId={store?.id} user={user} /></div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <p className="text-sm text-gray-600">Página em construção.</p>

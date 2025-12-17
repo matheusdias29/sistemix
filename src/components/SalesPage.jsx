@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
 import NewSaleModal from './NewSaleModal'
+import SaleDetailModal from './SaleDetailModal'
 
 const tabs = [
   { key: 'todos', label: 'Todos' },
@@ -9,19 +10,21 @@ const tabs = [
   { key: 'cancelada', label: 'Canceladas' },
 ]
 
-export default function SalesPage({ initialDayFilter = null }){
+export default function SalesPage({ initialDayFilter = null, storeId, user }){
   const [orders, setOrders] = useState([])
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('todos')
   const [monthOnly, setMonthOnly] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [newSaleOpen, setNewSaleOpen] = useState(false)
+  const [detailModalOpen, setDetailModalOpen] = useState(false)
+  const [selectedSale, setSelectedSale] = useState(null)
   const [dayFilter, setDayFilter] = useState(initialDayFilter)
 
   useEffect(() => {
-    const unsub = listenOrders(items => setOrders(items))
+    const unsub = listenOrders(items => setOrders(items), storeId)
     return () => { unsub && unsub() }
-  }, [])
+  }, [storeId])
 
   useEffect(() => {
     setDayFilter(initialDayFilter)
@@ -36,6 +39,20 @@ export default function SalesPage({ initialDayFilter = null }){
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
     return orders
+      .filter(o => {
+        // Exclude Service Orders
+        if (o.type === 'service_order') return false
+        // Heuristics for legacy data (if type is missing)
+        if (!o.type) {
+           // Fields present in OS but not in Sales
+           if (o.model || o.brand || o.problem || o.equipment || o.technician) return false
+           
+           // Statuses specific to OS
+           const s = (o.status || '').toLowerCase()
+           if (['iniciado', 'em andamento', 'aguardando', 'entregue'].some(st => s.includes(st))) return false
+        }
+        return true
+      })
       .filter(o => {
         const name = (o.client || '').toLowerCase()
         const idstr = (o.id || '').toLowerCase()
@@ -133,8 +150,15 @@ export default function SalesPage({ initialDayFilter = null }){
           <div className="text-center">Status</div>
         </div>
         {filtered.map(o => (
-          <div key={o.id} className="grid grid-cols-[6rem_1fr_8rem_10rem_8rem_8rem_8rem] items-center px-4 py-3 border-b last:border-0">
-            <div className="text-sm">#{String(o.id).slice(-4)}</div>
+          <div 
+            key={o.id} 
+            onClick={() => {
+              setSelectedSale(o)
+              setDetailModalOpen(true)
+            }}
+            className="grid grid-cols-[6rem_1fr_8rem_10rem_8rem_8rem_8rem] items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+          >
+            <div className="text-sm">{o.number || `#${String(o.id).slice(-4)}`}</div>
             <div className="text-sm">{o.client || '-'}</div>
             <div className="text-sm text-center">{o.fiscal ? '📄' : '-'}</div>
             <div className="text-sm text-center">{firstPaymentMethod(o)}</div>
@@ -151,7 +175,14 @@ export default function SalesPage({ initialDayFilter = null }){
       </div>
 
       {/* Modal Nova Venda */}
-      <NewSaleModal open={newSaleOpen} onClose={()=>setNewSaleOpen(false)} />
+      <NewSaleModal open={newSaleOpen} onClose={()=>setNewSaleOpen(false)} storeId={storeId} user={user} />
+      
+      {/* Modal Detalhes da Venda */}
+      <SaleDetailModal 
+        open={detailModalOpen} 
+        onClose={() => setDetailModalOpen(false)} 
+        sale={selectedSale} 
+      />
     </div>
   )
 }
