@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { login, findUserByEmail, findMemberByEmail } from '../services/users'
 import { auth } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
+import iPhoneImg from '../assets/17pm.webp'
 
 export default function LoginPage({ onLoggedIn }){
   const [email, setEmail] = useState('')
@@ -247,7 +248,7 @@ export default function LoginPage({ onLoggedIn }){
               
               <div className="flex gap-3">
                  <div className="w-12 h-16 bg-white rounded-md flex-shrink-0 relative overflow-hidden shadow-sm ring-1 ring-gray-100">
-                    <img src="/imagens/17pm.webp" alt="iPhone 17 Pro Max" className="w-full h-full object-cover" />
+                    <img src={iPhoneImg} alt="iPhone 17 Pro Max" className="w-full h-full object-cover" />
                  </div>
                  <div className="flex flex-col justify-between py-0.5 w-full">
                     <div>
