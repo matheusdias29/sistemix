@@ -231,6 +231,7 @@ export default function LoginPage({ onLoggedIn }){
            <div className="absolute left-1/2 top-1/2 -translate-x-[280px] translate-y-[60px] bg-white p-4 rounded-xl shadow-lg z-20 w-48">
               <div className="text-xs text-gray-500 mb-1">A Receber</div>
               <div className="text-xl font-bold text-gray-900 mb-2">R$ 15.549,00</div>
+              <div className="text-[10px] text-green-500">+25%</div>
               <div className="flex items-end justify-between h-8 gap-1">
                  {[20, 40, 60, 50, 30, 70].map((h, i) => (
                     <div key={i} style={{height: `${h}%`}} className="w-1.5 bg-green-500 rounded-t-sm"></div>
@@ -258,24 +259,34 @@ export default function LoginPage({ onLoggedIn }){
                           <span className="text-[8px] bg-gray-50 text-gray-500 px-1 rounded border border-gray-100">30W</span>
                        </div>
                     </div>
-                    <div className="text-sm font-bold text-green-600 text-right">R$ 7.999,99</div>
+                    <div className="text-right">
+                       <div className="text-sm font-bold text-green-600">R$ 7.999,99</div>
+                       <div className="text-[10px] font-bold text-blue-600 hover:underline">Comprar agora &rarr;</div>
+                    </div>
                  </div>
               </div>
            </div>
 
            <div className="absolute left-1/2 top-1/2 translate-x-[100px] -translate-y-[120px] bg-white p-3 rounded-xl shadow-lg z-20 w-40">
               <div className="flex items-center gap-2 mb-2">
-                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">79</div>
-                 <div className="text-xs font-bold text-gray-700">Clientes</div>
+                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">+500</div>
+                 <div className="text-xs font-bold text-gray-700">Clientes Ativos</div>
+                
               </div>
-              <div className="text-lg font-bold text-gray-900">119,90</div>
-              <div className="text-[10px] text-green-500">+5%</div>
+               <div className="text-[10px] text-green-500">+55%</div>
+              <div className="flex items-end justify-between h-8 gap-1">
+                 {[20, 40, 30, 50, 80, 60].map((h, i) => (
+                    <div key={i} style={{height: `${h}%`}} className="w-1.5 bg-green-500 rounded-t-sm"></div>
+                 ))}
+              </div>
+              
            </div>
 
            {/* Card Inferior Direito */}
            <div className="absolute left-1/2 top-1/2 translate-x-[110px] translate-y-[80px] bg-white p-4 rounded-xl shadow-lg z-20 w-48 animate-pulse">
               <div className="text-xs text-gray-500 mb-1">Vendas este mês</div>
               <div className="text-xl font-bold text-gray-900 mb-2">R$ 45.000,00</div>
+              <div className="text-[10px] text-green-500">Meta +15%</div>
               <div className="flex items-end justify-between h-8 gap-1">
                  {[20, 40, 30, 50, 80, 60].map((h, i) => (
                     <div key={i} style={{height: `${h}%`}} className="w-1.5 bg-green-500 rounded-t-sm"></div>
