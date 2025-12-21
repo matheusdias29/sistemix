@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { login, findUserByEmail, findMemberByEmail } from '../services/users'
+import { login, findUserByEmail, findMemberByEmail, addUser } from '../services/users'
+import { addStore } from '../services/stores'
 import { auth } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
 import iPhoneImg from '../assets/17pm.webp'
@@ -12,6 +13,14 @@ export default function LoginPage({ onLoggedIn }){
   const [info, setInfo] = useState('')
   const [useEmailLink, setUseEmailLink] = useState(false)
   const [emailForLinkPrompt, setEmailForLinkPrompt] = useState('')
+
+  // Estados para cadastro
+  const [isRegistering, setIsRegistering] = useState(false)
+  const [regName, setRegName] = useState('')
+  const [regWhatsapp, setRegWhatsapp] = useState('')
+  const [regEmail, setRegEmail] = useState('')
+  const [regPassword, setRegPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const mapAuthError = (err) => {
     const code = err?.code || ''
@@ -131,6 +140,59 @@ export default function LoginPage({ onLoggedIn }){
       setError(mapAuthError(err))
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleRegister(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    if(!regName || !regEmail || !regPassword) {
+      setError('Preencha todos os campos obrigatórios.')
+      setLoading(false)
+      return
+    }
+
+    try {
+        const existing = await findUserByEmail(regEmail)
+        if(existing) {
+            setError('Este e-mail já está em uso.')
+            setLoading(false)
+            return
+        }
+
+        const userId = await addUser({
+            name: regName,
+            email: regEmail,
+            password: regPassword,
+            whatsapp: regWhatsapp,
+            role: 'manager', 
+            isAdmin: true,
+            active: true
+        })
+
+        await addStore({
+            name: `Loja de ${regName}`,
+            ownerId: userId,
+            adminId: userId
+        })
+
+        onLoggedIn({
+            id: userId,
+            name: regName,
+            email: regEmail,
+            role: 'manager',
+            isAdmin: true,
+            active: true,
+            whatsapp: regWhatsapp
+        })
+
+    } catch (err) {
+        console.error(err)
+        setError('Erro ao criar conta. Tente novamente.')
+    } finally {
+        setLoading(false)
     }
   }
 
@@ -297,93 +359,175 @@ export default function LoginPage({ onLoggedIn }){
         </div>
       </div>
 
-      {/* Direita: Formulário de Login (Cinza Claro) */}
-      <div className="flex flex-col justify-center items-center p-8 bg-gray-300">
+      {/* Direita: Formulário de Login ou Cadastro (Cinza Claro) */}
+      <div className="flex flex-col justify-center items-center p-8 bg-gray-100">
         <div className="w-full max-w-md space-y-8">
-          <div className="text-left">
-            <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Login</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              Entre com seu e-mail e senha para acessar sua conta.
-            </p>
-          </div>
+          
+          {isRegistering ? (
+             // FORMULÁRIO DE CADASTRO
+             <>
+               <div className="text-left">
+                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Teste grátis por 7 dias!</h2>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Já possui conta? <button onClick={() => setIsRegistering(false)} className="text-green-500 font-bold hover:underline uppercase">FAÇA LOGIN</button>
+                  </p>
+               </div>
 
-          <div className="flex flex-col items-center justify-center py-6 md:hidden">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-green-600">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
-                </svg>
-              </div>
-              <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
-            </div>
-          </div>
-
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div>
-              <input 
-                className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
-                type="email" 
-                value={email} 
-                onChange={e=>setEmail(e.target.value)} 
-                placeholder="nome@email.com" 
-              />
-            </div>
-            
-            {!useEmailLink && (
-              <div>
-                <input 
-                  className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
-                  type="password" 
-                  value={password} 
-                  onChange={e=>setPassword(e.target.value)} 
-                  placeholder="••••••••" 
-                />
-              </div>
-            )}
-
-            {error && <div className="text-red-500 text-sm">{error}</div>}
-            {info && <div className="text-blue-500 text-sm">{info}</div>}
-
-            <div className="flex items-center justify-between text-sm">
-              <div className="text-gray-500">
-                Não possui conta? <a href="#" className="text-green-500 font-semibold hover:underline">Experimente Grátis</a>
-              </div>
-              <a href="#" className="text-green-500 font-semibold hover:underline">Esqueceu sua Senha?</a>
-            </div>
-
-            <button 
-              className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed" 
-              disabled={loading} 
-              type="submit"
-            >
-              {loading ? (useEmailLink ? 'Enviando link...' : 'Entrando...') : (useEmailLink ? 'Enviar link' : 'Faça Login')}
-            </button>
-          </form>
-
-          {/* Prompt para finalizar login por link quando aberto em outro dispositivo */}
-          {isSignInWithEmailLink(auth, window.location.href) && !window.localStorage.getItem('emailForSignIn') && (
-            <div className="mt-8 border-t border-gray-100 pt-6">
-              <div className="font-semibold text-gray-900 mb-4">Finalizar login por link</div>
-              <form className="space-y-4" onSubmit={handleCompleteWithPrompt}>
-                <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1 block">Confirme seu e-mail</label>
+               <form className="space-y-4" onSubmit={handleRegister}>
                   <input 
-                    className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3" 
-                    type="email" 
-                    value={emailForLinkPrompt} 
-                    onChange={e=>setEmailForLinkPrompt(e.target.value)} 
-                    placeholder="nome@email.com" 
+                    className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                    type="text" 
+                    value={regName} 
+                    onChange={e=>setRegName(e.target.value)} 
+                    placeholder="Seu NOME" 
+                    required
                   />
+                  <input 
+                    className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                    type="text" 
+                    value={regWhatsapp} 
+                    onChange={e=>setRegWhatsapp(e.target.value)} 
+                    placeholder="Seu WHATSAPP" 
+                  />
+                  <input 
+                    className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                    type="email" 
+                    value={regEmail} 
+                    onChange={e=>setRegEmail(e.target.value)} 
+                    placeholder="seuemail@exemplo.com" 
+                    required
+                  />
+                  <div className="relative">
+                    <input 
+                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors pr-10" 
+                      type={showPassword ? "text" : "password"}
+                      value={regPassword} 
+                      onChange={e=>setRegPassword(e.target.value)} 
+                      placeholder="Senha" 
+                      required
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                        </svg>
+                      ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {error && <div className="text-red-500 text-sm">{error}</div>}
+
+                  <button 
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed mt-4" 
+                    disabled={loading} 
+                    type="submit"
+                  >
+                    {loading ? 'Criando conta...' : 'Testar Gratuitamente'}
+                  </button>
+
+                  <p className="text-xs text-gray-500 mt-4 text-center">
+                    Ao criar sua conta você concorda com nossos <a href="#" className="text-green-600 hover:underline">Termos de Uso</a> e <a href="#" className="text-green-600 hover:underline">Política de Privacidade</a>
+                  </p>
+               </form>
+             </>
+          ) : (
+             // FORMULÁRIO DE LOGIN
+             <>
+                <div className="text-left">
+                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Login</h2>
+                  <p className="mt-2 text-sm text-gray-500">
+                    Entre com seu e-mail e senha para acessar sua conta.
+                  </p>
                 </div>
-                <button 
-                  className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md" 
-                  disabled={loading} 
-                  type="submit"
-                >
-                  {loading ? 'Finalizando...' : 'Finalizar login'}
-                </button>
-              </form>
-            </div>
+
+                <div className="flex flex-col items-center justify-center py-6 md:hidden">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="text-green-600">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
+                      </svg>
+                    </div>
+                    <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
+                  </div>
+                </div>
+
+                <form className="space-y-5" onSubmit={handleSubmit}>
+                  <div>
+                    <input 
+                      className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                      type="email" 
+                      value={email} 
+                      onChange={e=>setEmail(e.target.value)} 
+                      placeholder="nome@email.com" 
+                    />
+                  </div>
+                  
+                  {!useEmailLink && (
+                    <div>
+                      <input 
+                        className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                        type="password" 
+                        value={password} 
+                        onChange={e=>setPassword(e.target.value)} 
+                        placeholder="••••••••" 
+                      />
+                    </div>
+                  )}
+
+                  {error && <div className="text-red-500 text-sm">{error}</div>}
+                  {info && <div className="text-blue-500 text-sm">{info}</div>}
+
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="text-gray-500">
+                      Não possui conta? <button type="button" onClick={() => setIsRegistering(true)} className="text-green-500 font-semibold hover:underline">Experimente Grátis</button>
+                    </div>
+                    <a href="#" className="text-green-500 font-semibold hover:underline">Esqueceu sua Senha?</a>
+                  </div>
+
+                  <button 
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed" 
+                    disabled={loading} 
+                    type="submit"
+                  >
+                    {loading ? (useEmailLink ? 'Enviando link...' : 'Entrando...') : (useEmailLink ? 'Enviar link' : 'Faça Login')}
+                  </button>
+                </form>
+
+                {/* Prompt para finalizar login por link quando aberto em outro dispositivo */}
+                {isSignInWithEmailLink(auth, window.location.href) && !window.localStorage.getItem('emailForSignIn') && (
+                  <div className="mt-8 border-t border-gray-100 pt-6">
+                    <div className="font-semibold text-gray-900 mb-4">Finalizar login por link</div>
+                    <form className="space-y-4" onSubmit={handleCompleteWithPrompt}>
+                      <div>
+                        <label className="text-sm font-medium text-gray-700 mb-1 block">Confirme seu e-mail</label>
+                        <input 
+                          className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3" 
+                          type="email" 
+                          value={emailForLinkPrompt} 
+                          onChange={e=>setEmailForLinkPrompt(e.target.value)} 
+                          placeholder="nome@email.com" 
+                        />
+                      </div>
+                      <button 
+                        className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md" 
+                        disabled={loading} 
+                        type="submit"
+                      >
+                        {loading ? 'Finalizando...' : 'Finalizar login'}
+                      </button>
+                    </form>
+                  </div>
+                )}
+             </>
           )}
         </div>
       </div>
