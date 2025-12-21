@@ -134,20 +134,20 @@ export default function LoginPage({ onLoggedIn }){
   }
 
   return (
-    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 bg-white text-gray-800 font-sans">
-      {/* Esquerda: Branding e Ilustração */}
-      <div className="hidden md:flex flex-col justify-between p-10 lg:p-16 bg-white relative overflow-hidden">
+    <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 font-sans">
+      {/* Esquerda: Branding e Ilustração (Cinza Escuro) */}
+      <div className="hidden md:flex flex-col justify-between p-10 lg:p-16 bg-[#1a1c23] relative overflow-hidden border-r border-gray-700">
         <div>
           <div className="flex items-center gap-2 mb-6">
-            <div className="text-green-600">
+            <div className="text-green-500">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                 <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
               </svg>
             </div>
-            <div className="font-bold text-2xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
+            <div className="font-bold text-2xl tracking-tight text-white">Siste<span className="text-green-500">Mix</span> Comércio</div>
           </div>
-          <h1 className="text-green-500 font-medium text-lg max-w-md">
-            Transforme a gestão do seu negócio hoje mesmo com Sistemix Comércio!!
+          <h1 className="text-gray-300 font-medium text-lg max-w-md">
+            A gestão do seu negócio na palma da sua mão ou em qualquer lugar!!
           </h1>
         </div>
 
@@ -285,23 +285,25 @@ export default function LoginPage({ onLoggedIn }){
         </div>
       </div>
 
-      {/* Direita: Formulário de Login */}
-      <div className="flex flex-col justify-center px-8 md:px-20 lg:px-32 bg-white">
-        <div className="w-full max-w-md mx-auto">
-          
-          {/* Mobile Logo */}
-          <div className="flex md:hidden items-center gap-2 mb-8 justify-center">
-             <div className="text-green-600">
-               <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                 <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
-               </svg>
-             </div>
-             <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span></div>
+      {/* Direita: Formulário de Login (Cinza Claro) */}
+      <div className="flex flex-col justify-center items-center p-8 bg-gray-300">
+        <div className="w-full max-w-md space-y-8">
+          <div className="text-left">
+            <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Login</h2>
+            <p className="mt-2 text-sm text-gray-500">
+              Entre com seu e-mail e senha para acessar sua conta.
+            </p>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-4xl font-bold text-gray-900 mb-2">Login</h2>
-            <p className="text-gray-500">Entre com seu e-mail e senha para acessar sua conta.</p>
+          <div className="flex flex-col items-center justify-center py-6 md:hidden">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-green-600">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
+                </svg>
+              </div>
+              <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
+            </div>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
