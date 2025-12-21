@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { login, findUserByEmail, findMemberByEmail, addUser } from '../services/users'
 import { addStore } from '../services/stores'
+import { searchCep } from '../services/cep'
 import { auth } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
 import iPhoneImg from '../assets/17pm.webp'
@@ -21,6 +22,14 @@ export default function LoginPage({ onLoggedIn }){
   const [regEmail, setRegEmail] = useState('')
   const [regPassword, setRegPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
+  // Estados de endereço (Cadastro)
+  const [regCep, setRegCep] = useState('')
+  const [regAddress, setRegAddress] = useState('')
+  const [regNumber, setRegNumber] = useState('')
+  const [regNeighborhood, setRegNeighborhood] = useState('')
+  const [regCity, setRegCity] = useState('')
+  const [regState, setRegState] = useState('')
 
   const mapAuthError = (err) => {
     const code = err?.code || ''
@@ -143,6 +152,28 @@ export default function LoginPage({ onLoggedIn }){
     }
   }
 
+  async function handleSearchCep() {
+    if(!regCep) return
+    setLoading(true)
+    try {
+      const data = await searchCep(regCep)
+      if(data) {
+        setRegAddress(data.address)
+        setRegNeighborhood(data.neighborhood)
+        setRegCity(data.city)
+        setRegState(data.state)
+        // focar no número
+      } else {
+        setError('CEP não encontrado.')
+      }
+    } catch(err) {
+      console.error(err)
+      setError('Erro ao buscar CEP.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleRegister(e) {
     e.preventDefault()
     setLoading(true)
@@ -169,13 +200,27 @@ export default function LoginPage({ onLoggedIn }){
             whatsapp: regWhatsapp,
             role: 'manager', 
             isAdmin: true,
-            active: true
+            active: true,
+            // Endereço
+            cep: regCep,
+            address: regAddress,
+            number: regNumber,
+            neighborhood: regNeighborhood,
+            city: regCity,
+            state: regState
         })
 
         await addStore({
             name: `Loja de ${regName}`,
             ownerId: userId,
-            adminId: userId
+            adminId: userId,
+            // Endereço
+            cep: regCep,
+            address: regAddress,
+            number: regNumber,
+            neighborhood: regNeighborhood,
+            city: regCity,
+            state: regState
         })
 
         onLoggedIn({
@@ -185,7 +230,14 @@ export default function LoginPage({ onLoggedIn }){
             role: 'manager',
             isAdmin: true,
             active: true,
-            whatsapp: regWhatsapp
+            whatsapp: regWhatsapp,
+            // Endereço no objeto local também
+            cep: regCep,
+            address: regAddress,
+            number: regNumber,
+            neighborhood: regNeighborhood,
+            city: regCity,
+            state: regState
         })
 
     } catch (err) {
@@ -397,6 +449,67 @@ export default function LoginPage({ onLoggedIn }){
                     placeholder="seuemail@exemplo.com" 
                     required
                   />
+
+                  {/* Campos de Endereço */}
+                  <div className="grid grid-cols-[1fr_auto] gap-2">
+                     <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                        type="text" 
+                        value={regCep} 
+                        onChange={e=>setRegCep(e.target.value)} 
+                        placeholder="CEP (00000-000)" 
+                      />
+                      <button type="button" onClick={handleSearchCep} className="px-4 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center justify-center transition-colors">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8"></circle>
+                          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                      </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-[2fr_1fr] gap-2">
+                    <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                        type="text" 
+                        value={regAddress} 
+                        onChange={e=>setRegAddress(e.target.value)} 
+                        placeholder="Endereço" 
+                      />
+                      <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                        type="text" 
+                        value={regNumber} 
+                        onChange={e=>setRegNumber(e.target.value)} 
+                        placeholder="Nº" 
+                      />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2">
+                     <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                        type="text" 
+                        value={regNeighborhood} 
+                        onChange={e=>setRegNeighborhood(e.target.value)} 
+                        placeholder="Bairro" 
+                      />
+                      <div className="grid grid-cols-[2fr_1fr] gap-2">
+                        <input 
+                          className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                          type="text" 
+                          value={regCity} 
+                          onChange={e=>setRegCity(e.target.value)} 
+                          placeholder="Cidade" 
+                        />
+                         <input 
+                          className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                          type="text" 
+                          value={regState} 
+                          onChange={e=>setRegState(e.target.value)} 
+                          placeholder="UF" 
+                        />
+                      </div>
+                  </div>
+
                   <div className="relative">
                     <input 
                       className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors pr-10" 

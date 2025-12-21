@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { addSupplier, updateSupplier } from '../services/suppliers'
+import { searchCep } from '../services/cep'
 
 export default function NewSupplierModal({ open, onClose, isEdit=false, supplier=null, storeId }){
   const [name, setName] = useState('')
@@ -80,6 +81,21 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
     setNotes('')
     setActive(true)
     setError('')
+  }
+
+  const handleSearchCep = async () => {
+    if(!cep) return
+    try {
+      const data = await searchCep(cep)
+      if(data){
+        setAddress(data.address)
+        setNeighborhood(data.neighborhood)
+        setCity(data.city)
+        setState(data.state)
+      }
+    } catch(err){
+      console.error(err)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -179,7 +195,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
                       <label className="text-xs text-gray-600">CEP</label>
                       <div className="mt-1 flex items-center gap-2">
                         <input value={cep} onChange={e=>setCep(e.target.value)} className="flex-1 border rounded px-3 py-2 text-sm" />
-                        <button type="button" className="px-3 py-2 border rounded text-sm">🔎</button>
+                        <button type="button" onClick={handleSearchCep} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">🔎</button>
                       </div>
                     </div>
                   </div>

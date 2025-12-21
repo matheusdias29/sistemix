@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { addClient, updateClient } from '../services/clients'
+import { addClient, updateClient, getNextClientCode } from '../services/clients'
+import { searchCep } from '../services/cep'
 
 export default function NewClientModal({ open, onClose, isEdit=false, client=null, storeId }){
   const [name, setName] = useState('')
@@ -27,6 +28,10 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
   const [email, setEmail] = useState('')
   const [notes, setNotes] = useState('')
   const [code, setCode] = useState('')
+  const [identity, setIdentity] = useState('')
+  const [stateRegistrationIndicator, setStateRegistrationIndicator] = useState('')
+  const [motherName, setMotherName] = useState('')
+  const [birthDate, setBirthDate] = useState('')
 
   const [active, setActive] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -51,6 +56,10 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
       setEmail(client.email || '')
       setNotes(client.notes || '')
       setCode(client.code || '')
+      setIdentity(client.identity || '')
+      setStateRegistrationIndicator(client.stateRegistrationIndicator || '')
+      setMotherName(client.motherName || '')
+      setBirthDate(client.birthDate || '')
       setActive(client.active !== false)
       setError('')
     }
@@ -78,6 +87,10 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
     setEmail('')
     setNotes('')
     setCode('')
+    setIdentity('')
+    setStateRegistrationIndicator('')
+    setMotherName('')
+    setBirthDate('')
     setActive(true)
     setError('')
   }
@@ -86,6 +99,22 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
     if(saving) return
     onClose && onClose()
     reset()
+  }
+
+  const handleSearchCep = async () => {
+    if(!cep) return
+    try {
+      const data = await searchCep(cep)
+      if(data){
+        setAddress(data.address)
+        setNeighborhood(data.neighborhood)
+        setCity(data.city)
+        setState(data.state)
+        // setComplement(data.complement) // Opcional, se quiser sobrescrever
+      }
+    } catch(err){
+      console.error(err)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -97,6 +126,11 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
     }
     setSaving(true)
     try{
+      let finalCode = code.trim()
+      if (!finalCode) {
+         finalCode = await getNextClientCode(storeId)
+      }
+
       const payload = {
         name: name.trim(),
         whatsapp: whatsapp.trim(),
@@ -116,7 +150,11 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
         // Info adicional
         email: email.trim(),
         notes: notes.trim(),
-        code: code.trim(),
+        code: finalCode,
+        identity: identity.trim(),
+        stateRegistrationIndicator,
+        motherName: motherName.trim(),
+        birthDate,
         // Status
         active,
       }
@@ -199,7 +237,7 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
                       <label className="text-xs text-gray-600">CEP</label>
                       <div className="mt-1 flex items-center gap-2">
                         <input value={cep} onChange={e=>setCep(e.target.value)} className="flex-1 border rounded px-3 py-2 text-sm" />
-                        <button type="button" className="px-3 py-2 border rounded text-sm">🔎</button>
+                        <button type="button" onClick={handleSearchCep} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">🔎</button>
                       </div>
                     </div>
                   </div>
@@ -243,19 +281,46 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
               </button>
               {infoOpen && (
                 <div className="px-3 pt-2 pb-3 space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="text-xs text-gray-600">Código</label>
-                      <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Automático se vazio" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Email</label>
-                      <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600">Identidade</label>
+                      <input value={identity} onChange={e=>setIdentity(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-600">Email</label>
+                    <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+
+                  <div>
+                     <label className="text-xs text-gray-600">Indicador Inscrição Estadual</label>
+                     <select value={stateRegistrationIndicator} onChange={e=>setStateRegistrationIndicator(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white">
+                        <option value="">Selecione</option>
+                        <option value="Contribuinte">Contribuinte</option>
+                        <option value="Não Contribuinte">Não Contribuinte</option>
+                        <option value="Isento">Isento</option>
+                     </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600">Nome da mãe</label>
+                      <input value={motherName} onChange={e=>setMotherName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Observações</label>
-                      <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" rows={3} />
+                      <label className="text-xs text-gray-600">Data de nascimento</label>
+                      <input type="date" value={birthDate} onChange={e=>setBirthDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                     </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-600">Observações</label>
+                    <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" rows={3} />
                   </div>
                 </div>
               )}

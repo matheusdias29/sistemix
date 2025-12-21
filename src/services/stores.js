@@ -8,6 +8,15 @@ export async function addStore(store){
     name: store.name ?? 'Nova Loja',
     ownerId: store.ownerId, // dono da loja
     adminId: store.adminId ?? store.ownerId, // id do admin
+    
+    // Endereço da Loja
+    cep: store.cep ?? '',
+    address: store.address ?? '',
+    number: store.number ?? '',
+    neighborhood: store.neighborhood ?? '',
+    city: store.city ?? '',
+    state: store.state ?? '',
+
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }

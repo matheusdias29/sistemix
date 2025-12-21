@@ -32,6 +32,14 @@ export async function addUser(user){
     storeId: user.storeId ?? '',
     // Permissões avançadas
     permissions: user.permissions ?? {},
+    // Endereço
+    cep: user.cep ?? '',
+    address: user.address ?? '',
+    number: user.number ?? '',
+    neighborhood: user.neighborhood ?? '',
+    city: user.city ?? '',
+    state: user.state ?? '',
+    
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }

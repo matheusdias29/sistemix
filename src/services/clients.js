@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs, limit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'clients')
@@ -38,6 +38,10 @@ export async function addClient(client, storeId){
     email: client.email ?? '',
     notes: client.notes ?? '',
     code: client.code ?? '',
+    identity: client.identity ?? '',
+    stateRegistrationIndicator: client.stateRegistrationIndicator ?? '',
+    motherName: client.motherName ?? '',
+    birthDate: client.birthDate ?? '',
     // Status
     active: client.active ?? true,
     createdAt: serverTimestamp(),
@@ -50,4 +54,33 @@ export async function addClient(client, storeId){
 export async function updateClient(id, partial){
   const ref = doc(db, 'clients', id)
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+}
+
+export async function getNextClientCode(storeId) {
+  try {
+    // Busca todos os clientes da loja para calcular o maior código
+    // (Isso evita erros de índice composto no Firestore e problemas de ordenação de string)
+    const q = query(colRef, where('storeId', '==', storeId))
+    const snapshot = await getDocs(q)
+    
+    if (snapshot.empty) return '1'
+
+    let maxCode = 0
+
+    snapshot.docs.forEach(doc => {
+      const data = doc.data()
+      if (data.code) {
+        const num = parseInt(data.code, 10)
+        if (!isNaN(num) && num > maxCode) {
+          maxCode = num
+        }
+      }
+    })
+
+    return (maxCode + 1).toString()
+  } catch (error) {
+    console.error("Error getting next code:", error)
+    // Em caso de erro, tenta fallback seguro ou retorna 1
+    return '1'
+  }
 }
