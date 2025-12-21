@@ -165,14 +165,36 @@ export default function LoginPage({ onLoggedIn }){
                  <div className="w-3 h-1.5 bg-black rounded-sm"></div>
               </div>
               {/* Conteúdo do App Mock */}
-              <div className="p-4 flex flex-col h-full bg-gray-50">
-                 {/* Header App */}
-                 <div className="flex justify-between items-center mb-4">
-                    <div className="w-8 h-8 bg-green-100 rounded-full"></div>
-                    <div className="w-20 h-4 bg-gray-200 rounded"></div>
+              <div className="p-4 flex flex-col h-full bg-white relative">
+                 {/* Mensagem de Venda Concluída */}
+                  <div className="absolute inset-0 flex flex-col items-center justify-center z-10 bg-white/90">
+                     
+                     {/* Header Interno do Celular */}
+                     <div className="absolute top-4 w-full text-center">
+                        <div className="font-bold text-lg text-gray-800">Siste<span className="text-green-600">Mix</span> Comércio</div>
+                     </div>
+
+                     <div className="w-16 h-16 rounded-full border-4 border-green-500 flex items-center justify-center mb-4">
+                       <svg className="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
+                       </svg>
+                    </div>
+                    <div className="text-gray-500 text-sm font-medium mb-1">Venda concluída</div>
+                    <div className="text-3xl font-bold text-gray-900 mb-8">R$ 99,90</div>
+                    
+                    <div className="w-full px-8 space-y-3">
+                       <div className="w-full h-10 border border-green-500 rounded-lg flex items-center justify-center text-green-600 font-medium text-sm">Enviar Recibo</div>
+                       <div className="w-full h-10 bg-green-500 rounded-lg flex items-center justify-center text-white font-medium text-sm shadow-lg shadow-green-200">Nova Venda</div>
+                    </div>
                  </div>
-                 {/* Cards */}
-                 <div className="space-y-3">
+
+                 {/* Fundo desfocado (conteúdo anterior) */}
+                  <div className="flex justify-between items-center mb-4 opacity-20">
+                     <div className="w-8 h-8 bg-green-100 rounded-full"></div>
+                     <div className="font-bold text-lg text-gray-800">Siste<span className="text-green-600">Mix</span> Comércio</div>
+                  </div>
+                  {/* Cards */}
+                 <div className="space-y-3 opacity-20">
                     <div className="bg-white p-3 rounded-xl shadow-sm">
                        <div className="w-8 h-8 bg-green-50 rounded-lg mb-2 flex items-center justify-center text-green-600 text-xs">R$</div>
                        <div className="h-3 w-16 bg-gray-100 rounded mb-1"></div>
@@ -188,19 +210,14 @@ export default function LoginPage({ onLoggedIn }){
                           <div className="h-4 w-full bg-gray-200 rounded"></div>
                        </div>
                     </div>
-                    <div className="bg-white p-3 rounded-xl shadow-sm h-32 flex items-end justify-between px-2 pb-2">
-                       {[40, 60, 30, 80, 50, 70, 45].map((h, i) => (
-                          <div key={i} style={{height: `${h}%`}} className="w-2 bg-green-500 rounded-t-sm"></div>
-                       ))}
-                    </div>
                  </div>
-                 {/* Botão flutuante */}
-                 <div className="mt-auto mb-6 mx-auto w-32 h-10 bg-green-500 rounded-full shadow-lg"></div>
               </div>
            </div>
 
            {/* Elementos flutuantes decorativos (Cards laterais) */}
-           <div className="absolute left-0 top-1/3 -translate-x-12 bg-white p-3 rounded-xl shadow-lg transform rotate-[-5deg] z-20 w-40 animate-pulse">
+           
+           {/* Card Superior Esquerdo */}
+           <div className="absolute left-1/2 top-1/2 -translate-x-[260px] -translate-y-[180px] bg-white p-3 rounded-xl shadow-lg z-20 w-40 animate-pulse">
               <div className="flex items-center gap-2 mb-2">
                  <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">101</div>
                  <div className="text-xs font-bold text-gray-700">Vendas</div>
@@ -209,7 +226,53 @@ export default function LoginPage({ onLoggedIn }){
               <div className="text-[10px] text-green-500">+15%</div>
            </div>
 
-           <div className="absolute right-0 bottom-1/3 translate-x-8 bg-white p-4 rounded-xl shadow-lg transform rotate-[5deg] z-0 w-48">
+           {/* Card Inferior Esquerdo */}
+           <div className="absolute left-1/2 top-1/2 -translate-x-[280px] translate-y-[60px] bg-white p-4 rounded-xl shadow-lg z-20 w-48">
+              <div className="text-xs text-gray-500 mb-1">A Receber</div>
+              <div className="text-xl font-bold text-gray-900 mb-2">R$ 22.003,00</div>
+              <div className="flex items-end justify-between h-8 gap-1">
+                 {[20, 40, 60, 50, 30, 70].map((h, i) => (
+                    <div key={i} style={{height: `${h}%`}} className="w-1.5 bg-green-500 rounded-t-sm"></div>
+                 ))}
+              </div>
+           </div>
+
+           {/* Card Superior Direito */}
+           
+           {/* Novo Card Promocional iPhone (Acima do popup de Clientes) */}
+           <div className="absolute left-1/2 top-1/2 translate-x-[100px] -translate-y-[245px] bg-white/95 backdrop-blur-sm p-3 rounded-xl shadow-xl z-30 w-48 transition-all duration-300 hover:scale-105 cursor-pointer border border-gray-100 group">
+              <div className="absolute -right-2 -top-2 bg-white rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="text-gray-400 hover:text-red-500"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </div>
+              
+              <div className="flex gap-3">
+                 <div className="w-12 h-16 bg-white rounded-md flex-shrink-0 relative overflow-hidden shadow-sm ring-1 ring-gray-100">
+                    <img src="/imagens/17pm.webp" alt="iPhone 17 Pro Max" className="w-full h-full object-cover" />
+                 </div>
+                 <div className="flex flex-col justify-between py-0.5 w-full">
+                    <div>
+                       <div className="text-[10px] font-bold text-gray-800 leading-tight mb-1">iPhone 17 Pro Max</div>
+                       <div className="flex flex-wrap gap-1">
+                          <span className="text-[8px] bg-gray-50 text-gray-500 px-1 rounded border border-gray-100">Capa Premium</span>
+                          <span className="text-[8px] bg-gray-50 text-gray-500 px-1 rounded border border-gray-100">30W</span>
+                       </div>
+                    </div>
+                    <div className="text-sm font-bold text-green-600 text-right">R$ 7.999,99</div>
+                 </div>
+              </div>
+           </div>
+
+           <div className="absolute left-1/2 top-1/2 translate-x-[100px] -translate-y-[120px] bg-white p-3 rounded-xl shadow-lg z-20 w-40">
+              <div className="flex items-center gap-2 mb-2">
+                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">47</div>
+                 <div className="text-xs font-bold text-gray-700">Clientes</div>
+              </div>
+              <div className="text-lg font-bold text-gray-900">119,90</div>
+              <div className="text-[10px] text-green-500">+5%</div>
+           </div>
+
+           {/* Card Inferior Direito */}
+           <div className="absolute left-1/2 top-1/2 translate-x-[110px] translate-y-[80px] bg-white p-4 rounded-xl shadow-lg z-20 w-48 animate-pulse">
               <div className="text-xs text-gray-500 mb-1">Vendas este mês</div>
               <div className="text-xl font-bold text-gray-900 mb-2">R$ 32.000,00</div>
               <div className="flex items-end justify-between h-8 gap-1">
@@ -218,6 +281,7 @@ export default function LoginPage({ onLoggedIn }){
                  ))}
               </div>
            </div>
+
         </div>
       </div>
 
