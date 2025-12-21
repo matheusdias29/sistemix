@@ -220,17 +220,17 @@ export default function LoginPage({ onLoggedIn }){
            {/* Card Superior Esquerdo */}
            <div className="absolute left-1/2 top-1/2 -translate-x-[260px] -translate-y-[180px] bg-white p-3 rounded-xl shadow-lg z-20 w-40 animate-pulse">
               <div className="flex items-center gap-2 mb-2">
-                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">101</div>
+                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">139</div>
                  <div className="text-xs font-bold text-gray-700">Vendas</div>
               </div>
-              <div className="text-lg font-bold text-gray-900">R$ 7.002,92</div>
+              <div className="text-lg font-bold text-gray-900">R$ 14.999,90</div>
               <div className="text-[10px] text-green-500">+15%</div>
            </div>
 
            {/* Card Inferior Esquerdo */}
            <div className="absolute left-1/2 top-1/2 -translate-x-[280px] translate-y-[60px] bg-white p-4 rounded-xl shadow-lg z-20 w-48">
               <div className="text-xs text-gray-500 mb-1">A Receber</div>
-              <div className="text-xl font-bold text-gray-900 mb-2">R$ 22.003,00</div>
+              <div className="text-xl font-bold text-gray-900 mb-2">R$ 15.549,00</div>
               <div className="flex items-end justify-between h-8 gap-1">
                  {[20, 40, 60, 50, 30, 70].map((h, i) => (
                     <div key={i} style={{height: `${h}%`}} className="w-1.5 bg-green-500 rounded-t-sm"></div>
@@ -265,7 +265,7 @@ export default function LoginPage({ onLoggedIn }){
 
            <div className="absolute left-1/2 top-1/2 translate-x-[100px] -translate-y-[120px] bg-white p-3 rounded-xl shadow-lg z-20 w-40">
               <div className="flex items-center gap-2 mb-2">
-                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">47</div>
+                 <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-bold">79</div>
                  <div className="text-xs font-bold text-gray-700">Clientes</div>
               </div>
               <div className="text-lg font-bold text-gray-900">119,90</div>
@@ -275,7 +275,7 @@ export default function LoginPage({ onLoggedIn }){
            {/* Card Inferior Direito */}
            <div className="absolute left-1/2 top-1/2 translate-x-[110px] translate-y-[80px] bg-white p-4 rounded-xl shadow-lg z-20 w-48 animate-pulse">
               <div className="text-xs text-gray-500 mb-1">Vendas este mês</div>
-              <div className="text-xl font-bold text-gray-900 mb-2">R$ 32.000,00</div>
+              <div className="text-xl font-bold text-gray-900 mb-2">R$ 45.000,00</div>
               <div className="flex items-end justify-between h-8 gap-1">
                  {[20, 40, 30, 50, 80, 60].map((h, i) => (
                     <div key={i} style={{height: `${h}%`}} className="w-1.5 bg-green-500 rounded-t-sm"></div>
@@ -376,6 +376,21 @@ export default function LoginPage({ onLoggedIn }){
           )}
         </div>
       </div>
+      {/* Botão Flutuante do WhatsApp */}
+      <a 
+        href="https://wa.me/5518996003093" 
+        target="_blank" 
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 bg-green-500 hover:bg-green-600 text-white p-4 rounded-full shadow-lg transition-all duration-300 hover:scale-110 flex items-center justify-center group"
+        title="Fale conosco no WhatsApp"
+      >
+        <svg viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
+          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.463 1.065 2.876 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+        </svg>
+        <span className="absolute right-full mr-3 bg-white text-gray-800 px-3 py-1 rounded-lg text-sm font-medium shadow-md opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+          Fale conosco
+        </span>
+      </a>
     </div>
   )
 }
