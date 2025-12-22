@@ -179,7 +179,6 @@ export default function AccountsPayablePage({ storeId }) {
     <div className="w-full">
       {/* Header / Tabs */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 mb-4">Contas a Pagar</h1>
         
         <div className="flex gap-6 border-b border-gray-200">
           <button
