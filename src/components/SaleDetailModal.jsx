@@ -1,7 +1,9 @@
 import React from 'react'
 
-export default function SaleDetailModal({ open, onClose, sale }) {
+export default function SaleDetailModal({ open, onClose, sale, onEdit, onView }) {
   if (!open || !sale) return null
+
+  const isOS = sale.type === 'service_order' || (sale.status && sale.status.includes('Os Finalizada'))
 
   const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   
@@ -28,7 +30,7 @@ export default function SaleDetailModal({ open, onClose, sale }) {
         {/* Header */}
         <div className="p-6 border-b flex items-start justify-between bg-white">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">Venda {sale.number || `#${String(sale.id).slice(-4)}`}</h2>
+            <h2 className="text-xl font-bold text-gray-800">{isOS ? 'Ordem de Serviço' : 'Venda'} {sale.number || `#${String(sale.id).slice(-4)}`}</h2>
             <div className="text-4xl font-bold text-green-600 mt-2">
               {money(sale.total || sale.valor)}
             </div>
@@ -131,14 +133,32 @@ export default function SaleDetailModal({ open, onClose, sale }) {
 
         </div>
 
-        {/* Footer */}
-        <div className="p-4 border-t bg-gray-50 flex justify-end">
+        {/* Footer Buttons */}
+        <div className="p-4 border-t bg-gray-50 flex justify-between">
           <button 
             onClick={onClose}
             className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm flex items-center gap-1"
           >
             ← Voltar
           </button>
+          <div className="flex gap-2">
+            {isOS && onView && (
+              <button 
+                onClick={() => onView(sale)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded flex items-center gap-1"
+              >
+                👁️ Visualizar
+              </button>
+            )}
+            {onEdit && (
+              <button 
+                onClick={() => onEdit && onEdit(sale)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium text-sm rounded"
+              >
+                ✎ Editar
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

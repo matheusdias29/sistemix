@@ -22,6 +22,8 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
   const [newSaleOpen, setNewSaleOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState(null)
+  const [editSaleOpen, setEditSaleOpen] = useState(false)
+  const [editSale, setEditSale] = useState(null)
   
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [dateRange, setDateRange] = useState(() => {
@@ -273,7 +275,12 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
       <SaleDetailModal 
         open={detailModalOpen} 
         onClose={() => setDetailModalOpen(false)} 
-        sale={selectedSale} 
+        sale={selectedSale}
+        onEdit={(s) => { 
+          setDetailModalOpen(false)
+          setEditSale(s)
+          setEditSaleOpen(true)
+        }} 
       />
       <SalesDateFilterModal 
         open={dateFilterOpen} 
@@ -286,6 +293,14 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
         onClose={()=>setAdvFiltersOpen(false)}
         onApply={setAdvFilters}
         initialFilters={advFilters}
+      />
+      <NewSaleModal 
+        open={editSaleOpen} 
+        onClose={()=>setEditSaleOpen(false)} 
+        storeId={storeId} 
+        user={user} 
+        isEdit={true}
+        sale={editSale}
       />
     </div>
   )

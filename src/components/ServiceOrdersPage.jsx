@@ -11,7 +11,7 @@ import SelectVariationModal from './SelectVariationModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 import { listenSubUsers } from '../services/users'
 
-export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal }){
+export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [query, setQuery] = useState('')
   const [periodOpen, setPeriodOpen] = useState(false)
@@ -203,6 +203,16 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setStatus(o.status || 'Iniciado')
     setView('edit')
   }
+
+  useEffect(() => {
+    if (viewParams && viewParams.id && viewParams.type === 'os' && orders.length > 0) {
+      const order = orders.find(o => o.id === viewParams.id)
+      if (order) {
+        openEdit(order)
+        if (setViewParams) setViewParams({})
+      }
+    }
+  }, [viewParams, orders])
 
   const handleSave = async () => {
     if (saving) return

@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react'
-import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister } from '../services/cash'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction } from '../services/cash'
 import { listenOrders } from '../services/orders'
 import SaleDetailModal from './SaleDetailModal'
+import CloseCashModal from './CloseCashModal'
 
 export default function POSPage({ storeId, user }){
   const [currentCash, setCurrentCash] = useState(null) // null = loading or not exists
@@ -18,7 +19,35 @@ export default function POSPage({ storeId, user }){
   const [opening, setOpening] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState(null)
-  
+  const [selectedTransaction, setSelectedTransaction] = useState(null)
+  const [closeModalOpen, setCloseModalOpen] = useState(false)
+  const [withdrawalModalOpen, setWithdrawalModalOpen] = useState(false)
+  const [withdrawalValues, setWithdrawalValues] = useState({})
+
+  // Transaction Menu States
+  const [showNewTransactionMenu, setShowNewTransactionMenu] = useState(false)
+  const [transactionModalOpen, setTransactionModalOpen] = useState(false)
+  const [transactionType, setTransactionType] = useState('add') // 'add' | 'remove' | 'expense'
+  const menuRef = useRef(null)
+
+  // Transaction Form States
+  const [transDescription, setTransDescription] = useState('')
+  const [transValue, setTransValue] = useState('')
+  const [transSaving, setTransSaving] = useState(false)
+
+  // Click outside to close menu
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowNewTransactionMenu(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [menuRef]);
+
   // Listen to cash status
   useEffect(() => {
     const unsub = listenCurrentCash(storeId, (cash) => {
@@ -77,13 +106,20 @@ export default function POSPage({ storeId, user }){
     }
   }
 
-  const handleCloseCash = async () => {
+  const handleCloseCash = async (closingData) => {
     if(!currentCash) return
-    if(!window.confirm('Tem certeza que deseja fechar o caixa?')) return
     try {
       await closeCashRegister(currentCash.id, {
-        finalBalance: financials.cashBalance // Simplificado
+        finalBalance: financials.cashBalance, // Manter compatibilidade
+        sales: financials.sales,
+        os: financials.os,
+        totalIn: financials.totalIn,
+        totalOut: financials.totalOut,
+        moneyAdded: financials.moneyAdded,
+        moneyRemoved: financials.moneyRemoved,
+        ...closingData
       })
+      setCloseModalOpen(false)
     } catch (err) {
       alert('Erro ao fechar caixa')
     }
@@ -109,6 +145,101 @@ export default function POSPage({ storeId, user }){
     }
   }
 
+  const handleSaveWithdrawal = async (e) => {
+    e.preventDefault()
+    if (!currentCash) return
+
+    try {
+      setTransSaving(true)
+      
+      const methods = financials?.methods || {}
+      
+      // Process each method with a value > 0
+      for (const [method, valStr] of Object.entries(withdrawalValues)) {
+        const val = parseFloat(valStr.replace(',','.'))
+        if (!isNaN(val) && val > 0) {
+           await addCashTransaction(currentCash.id, {
+            description: 'Retirada de caixa',
+            notes: transDescription,
+            value: -val,
+            type: 'remove',
+            method: 'cash', // Although logically it might be Pix, the backend/model seems to track movements mostly as cash adjustments or we need a way to specify method label.
+            // The system seems to use 'method' for internal code and 'methodLabel' for display in some places.
+            // However, `addCashTransaction` uses `method: 'cash'` hardcoded in previous logic. 
+            // If we want to reflect "Retirada de Pix", we should probably adjust the method.
+            // But the user prompt shows "Retirada de caixa" generally.
+            // Let's assume for now we mark them all as manual withdrawals. 
+            // To make the summary correct ("Dinheiro", "Pix"), we need to store the method properly if the system supports it.
+            // The `processCash` function groups by `methodLabel`.
+            // But `addCashTransaction` in `cash.js` doesn't seem to take `methodLabel` explicitly unless we pass it.
+            // Let's pass it.
+            methodLabel: method,
+            methodCode: method.toLowerCase() === 'dinheiro' ? 'cash' : 'other',
+            date: new Date(),
+            userId: user?.id,
+            userName: user?.name
+          })
+        }
+      }
+
+      setWithdrawalModalOpen(false)
+      setWithdrawalValues({})
+      setTransDescription('')
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao salvar retirada')
+    } finally {
+      setTransSaving(false)
+    }
+  }
+
+  const handleSaveTransaction = async (e) => {
+    e.preventDefault()
+    if (!currentCash) return
+    
+    const val = parseFloat(transValue.replace(',','.'))
+    if (isNaN(val) || val <= 0) {
+      alert('Valor inválido')
+      return
+    }
+    // Descrição fixa baseada no tipo (solicitação do usuário: "mostar no caixa com o nome de reforço de caixa")
+    // O texto digitado entra como "notes" (detalhes)
+    let title = ''
+    if (transactionType === 'add') title = 'Reforço de caixa'
+    else if (transactionType === 'expense') title = 'Despesa'
+    else title = 'Sangria'
+
+    let userNotes = transDescription.trim()
+
+    try {
+      setTransSaving(true)
+      
+      const isNegative = transactionType !== 'add'
+      const finalValue = isNegative ? -val : val
+
+      await addCashTransaction(currentCash.id, {
+        description: title,
+        notes: userNotes,
+        value: finalValue,
+        type: transactionType, // add, remove, expense
+        method: 'cash', // Movimentação de caixa físico
+        methodCode: 'cash',
+        date: new Date(),
+        userId: user?.id,
+        userName: user?.name
+      })
+
+      setTransactionModalOpen(false)
+      setTransDescription('')
+      setTransValue('')
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao salvar movimentação')
+    } finally {
+      setTransSaving(false)
+    }
+  }
+
   // Helpers de formatação
   const money = (v) => Number(v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const dateStr = (ts) => {
@@ -121,7 +252,7 @@ export default function POSPage({ storeId, user }){
   const { transactions, financials } = useMemo(() => {
     // Helper para processar dados de um caixa
     const processCash = (cash) => {
-      if (!cash) return { transactions: [], financials: { opening: 0, sales: 0, os: 0, cashBalance: 0, methods: {}, totalIn: 0, totalOut: 0 } }
+      if (!cash) return { transactions: [], financials: { opening: 0, sales: 0, os: 0, cashBalance: 0, methods: {}, totalIn: 0, totalOut: 0, moneyAdded: 0 } }
   
       const openTime = cash.openedAt?.toDate ? cash.openedAt.toDate().getTime() : 0
       const closeTime = cash.closedAt?.toDate ? cash.closedAt.toDate().getTime() : (cash.status==='closed' ? Date.now() : Infinity)
@@ -144,11 +275,45 @@ export default function POSPage({ storeId, user }){
       let osTotal = 0
       let totalIn = 0
       let totalOut = 0 // Expenses placeholder
+      let moneyAdded = 0
+      let moneyRemoved = 0
       
       const methods = {
         'Dinheiro': Number(cash.initialValue || 0)
       }
   
+      // Movimentações manuais
+      if (cash.transactions && Array.isArray(cash.transactions)) {
+        cash.transactions.forEach(t => {
+          // Filter by time range if necessary (though they belong to this cash doc)
+          const tTime = t.date?.toDate ? t.date.toDate().getTime() : (new Date(t.date).getTime())
+          
+          list.push({
+            id: t.id || `trans_${tTime}`,
+            description: t.description || (t.value > 0 ? 'Suprimento' : 'Sangria'),
+            notes: t.notes || '',
+            date: t.date,
+            method: t.methodCode || 'cash',
+            methodLabel: t.methodLabel || 'Dinheiro',
+            value: t.value,
+            type: t.value > 0 ? 'in' : 'out',
+            isManual: true
+          })
+
+          const amount = Number(t.value || 0)
+          if (amount > 0) {
+            totalIn += amount
+            if (t.type === 'add') moneyAdded += amount
+          }
+          else {
+            totalOut += Math.abs(amount)
+            if (t.type === 'remove' || t.type === 'expense') moneyRemoved += Math.abs(amount)
+          }
+          
+          methods['Dinheiro'] = (methods['Dinheiro'] || 0) + amount
+        })
+      }
+
       orders.forEach(o => {
         if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
           o.payments.forEach((p, idx) => {
@@ -165,6 +330,12 @@ export default function POSPage({ storeId, user }){
             // Filter by time range
             if (pTime >= openTime && pTime <= closeTime) {
               const isSale = (o.type === 'sale' || !o.type)
+              
+              // Filter O.S. by status
+              if (!isSale && o.status !== 'Os Finalizada e Faturada Cliente Final') {
+                return // Skip this payment if it's an O.S. but not in the correct status
+              }
+
               const prefix = isSale ? 'Venda' : 'O.S.'
               const amount = Number(p.amount || 0)
 
@@ -184,7 +355,11 @@ export default function POSPage({ storeId, user }){
               
               totalIn += amount
               
-              const mLabel = p.method || 'Outros'
+              let mLabel = p.method || 'Outros'
+              // Normalize cash label to ensure balance calculation is correct
+              if (p.methodCode === 'cash' || mLabel.toLowerCase() === 'dinheiro') {
+                mLabel = 'Dinheiro'
+              }
               methods[mLabel] = (methods[mLabel] || 0) + amount
             }
           })
@@ -198,9 +373,10 @@ export default function POSPage({ storeId, user }){
       })
   
       const opening = Number(cash.initialValue || 0)
-      const cashBalance = methods['Dinheiro'] || 0
-  
-      return { transactions: list, financials: { opening, sales: salesTotal, os: osTotal, cashBalance, methods, totalIn, totalOut } }
+      // O Saldo do Caixa deve ser a soma de todos os valores registrados (Abertura + Vendas de todos os tipos)
+      const cashBalance = Object.values(methods).reduce((acc, v) => acc + v, 0)
+
+      return { transactions: list, financials: { opening, sales: salesTotal, os: osTotal, cashBalance, methods, totalIn, totalOut, moneyAdded, moneyRemoved } }
     }
 
     if (selectedPreviousCash) {
@@ -209,6 +385,15 @@ export default function POSPage({ storeId, user }){
     return processCash(currentCash)
 
   }, [currentCash, orders, selectedPreviousCash])
+
+  const handleViewOrder = (order) => {
+    if (setViewParams) {
+      setViewParams({ id: order.id, type: 'os' })
+    }
+    if (onView) {
+      onView('os')
+    }
+  }
 
   if (loading) return <div className="p-8 text-center text-gray-500">Carregando caixa...</div>
 
@@ -254,11 +439,74 @@ export default function POSPage({ storeId, user }){
               {/* Left Side: Movimentações (Placeholder for now as per instructions to focus on flow) */}
 
               <div className="flex-1 w-full bg-white rounded shadow-sm border p-4 min-h-[400px]">
-                 <div className="flex items-center justify-between mb-4">
+                   <div className="flex items-center justify-between mb-4 relative">
                    <h3 className="font-semibold text-gray-700">Movimentações</h3>
-                   <button disabled className="px-3 py-1.5 bg-green-500 text-white text-xs font-medium rounded opacity-50 cursor-not-allowed">
-                     Novo Lançamento
-                   </button>
+                   <div ref={menuRef} className="relative">
+                     <button 
+                       onClick={() => setShowNewTransactionMenu(!showNewTransactionMenu)}
+                       className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded shadow-sm flex items-center gap-1 transition-colors"
+                     >
+                       Novo Lançamento
+                     </button>
+                     
+                     {showNewTransactionMenu && (
+                      <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-xl border z-50 overflow-hidden origin-top-right">
+                        <div className="bg-green-500 text-white px-4 py-2 text-sm font-medium text-center">
+                          Novo Lançamento
+                        </div>
+                         <div className="py-1">
+                           <button 
+                             onClick={() => {
+                               setTransactionType('add')
+                               setTransDescription('')
+                               setTransValue('')
+                               setShowNewTransactionMenu(false)
+                               setTransactionModalOpen(true)
+                             }}
+                             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+                           >
+                             <div className="w-6 h-6 rounded-full border-2 border-green-500 flex items-center justify-center text-green-500 font-bold text-xs">
+                               +
+                             </div>
+                             Adicionar valores
+                           </button>
+                           <button 
+                             onClick={() => {
+                               setTransactionType('remove')
+                               setTransDescription('')
+                               setTransValue('')
+                               setWithdrawalValues({})
+                               setShowNewTransactionMenu(false)
+                               setWithdrawalModalOpen(true)
+                             }}
+                             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+                           >
+                             <div className="w-6 h-6 rounded-full border-2 border-red-500 flex items-center justify-center text-red-500 font-bold text-xs">
+                               -
+                             </div>
+                             Remover valores
+                           </button>
+                           <button 
+                             onClick={() => {
+                               setTransactionType('expense')
+                               setTransDescription('')
+                               setTransValue('')
+                               setShowNewTransactionMenu(false)
+                               setTransactionModalOpen(true)
+                             }}
+                             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+                           >
+                             <div className="w-6 h-6 flex items-center justify-center text-red-500">
+                               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                               </svg>
+                             </div>
+                             Pagar despesas
+                           </button>
+                         </div>
+                       </div>
+                     )}
+                   </div>
                  </div>
                  
                  <div className="border rounded-lg overflow-hidden">
@@ -278,19 +526,21 @@ export default function POSPage({ storeId, user }){
                            key={t.id} 
                            className="hover:bg-gray-50 cursor-pointer transition-colors"
                            onClick={() => {
-                             if (t.originalOrder) {
-                               setSelectedOrder(t.originalOrder)
-                               setDetailModalOpen(true)
-                             }
-                           }}
+                            if (t.originalOrder) {
+                              setSelectedOrder(t.originalOrder)
+                              setDetailModalOpen(true)
+                            } else if (t.isManual) {
+                              setSelectedTransaction(t)
+                            }
+                          }}
                          >
                            <td className="py-3 px-4 text-gray-800 font-medium">{t.description}</td>
                            <td className="py-3 px-4 text-gray-500">{dateStr(t.date)}</td>
                            <td className="py-3 px-4 text-center text-gray-500">
-                             {t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro') ? '💵' : '💳'}
-                           </td>
-                           <td className="py-3 px-4 text-right font-medium text-green-600">{money(t.value)}</td>
-                           <td className="py-3 px-4 text-center text-green-500">✔</td>
+                            {t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro') ? '💵' : '💳'}
+                          </td>
+                          <td className={`py-3 px-4 text-right font-medium ${t.value < 0 ? 'text-red-600' : 'text-green-600'}`}>{money(t.value)}</td>
+                          <td className="py-3 px-4 text-center text-green-500">✔</td>
                          </tr>
                        ))}
                        {transactions.length === 0 && (
@@ -321,6 +571,25 @@ export default function POSPage({ storeId, user }){
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-gray-600">Total Ordens de Serviço</span>
+                    <span className="font-medium text-gray-900">{money(financials.os)}</span>
+                  </div>
+
+                  {financials.moneyAdded > 0 && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                      <span className="text-gray-600">Dinheiro Adicionado</span>
+                      <span className="font-medium text-gray-900">{money(financials.moneyAdded)}</span>
+                    </div>
+                  )}
+
+                  {financials.moneyRemoved > 0 && (
+                    <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                      <span className="text-gray-600">Valores Retirados</span>
+                      <span className="font-medium text-gray-900">-{money(financials.moneyRemoved)}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600 font-medium">Saldo do Caixa</span>
                     <span className="font-bold text-lg text-green-600">{money(financials.cashBalance)}</span>
                   </div>
@@ -345,10 +614,236 @@ export default function POSPage({ storeId, user }){
 
                 <div className="mt-8">
                   <button 
-                    onClick={handleCloseCash}
+                    onClick={() => setCloseModalOpen(true)}
                     className="w-full py-2 bg-green-500 hover:bg-green-600 text-white rounded font-medium transition-colors"
                   >
                     Fechar Caixa
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Close Cash Modal */}
+          {closeModalOpen && (
+            <CloseCashModal
+              open={closeModalOpen}
+              onClose={() => setCloseModalOpen(false)}
+              onConfirm={handleCloseCash}
+              financials={financials}
+            />
+          )}
+
+          {/* Withdrawal Modal */}
+          {withdrawalModalOpen && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl animate-in fade-in zoom-in duration-200 overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b">
+                  <h3 className="text-lg font-bold text-gray-800">Retirada de Valores</h3>
+                  <button onClick={() => setWithdrawalModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                </div>
+                
+                <form onSubmit={handleSaveWithdrawal} className="p-6">
+                  <div className="mb-6 text-sm text-gray-600">
+                    Informe os valores por meio de pagamento a serem retirados do caixa:
+                  </div>
+
+                  <div className="space-y-4 mb-6">
+                    <div className="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase mb-2 px-2">
+                      <div className="col-span-4">Meio de pagamento</div>
+                      <div className="col-span-4 text-right">Valor em caixa</div>
+                      <div className="col-span-4">Valor da Retirada</div>
+                    </div>
+                    
+                    {Object.entries(financials.methods).map(([method, balance]) => (
+                      <div key={method} className="grid grid-cols-12 gap-4 items-center bg-gray-50 p-3 rounded-lg border">
+                        <div className="col-span-4 flex items-center gap-2 font-medium text-gray-700">
+                          <span>{method.toLowerCase().includes('dinheiro') ? '💵' : '💠'}</span>
+                          {method}
+                        </div>
+                        <div className="col-span-4 text-right font-medium text-gray-900">
+                          {money(balance)}
+                        </div>
+                        <div className="col-span-4">
+                          <input 
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            max={balance}
+                            value={withdrawalValues[method] || ''}
+                            onChange={e => setWithdrawalValues(prev => ({ ...prev, [method]: e.target.value }))}
+                            className="w-full bg-white border border-gray-300 rounded px-3 py-1.5 text-right text-sm focus:ring-green-500 focus:border-green-500"
+                            placeholder="0,00"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all mb-6">
+                    <input 
+                      type="text"
+                      value={transDescription}
+                      onChange={e => setTransDescription(e.target.value)}
+                      className="w-full bg-transparent border-none p-0 text-sm text-gray-700 focus:ring-0 placeholder-gray-400 outline-none"
+                      placeholder="Observações"
+                    />
+                  </div>
+                  
+                  <div className="flex gap-3 justify-end">
+                    <button 
+                      type="button"
+                      onClick={() => setWithdrawalModalOpen(false)}
+                      className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm font-medium transition-colors"
+                    >
+                      ✕ Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={transSaving}
+                      className="px-6 py-2 bg-green-500 hover:bg-green-600 rounded text-white text-sm font-bold transition-colors shadow-sm flex items-center gap-2"
+                    >
+                      {transSaving ? 'Salvando...' : (
+                        <>
+                          <span>✔</span> Salvar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* New Transaction Modal */}
+          {transactionModalOpen && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200 overflow-hidden">
+                <div className="flex items-center justify-between p-4 border-b">
+                  <h3 className="text-lg font-bold text-gray-800">
+                    {transactionType === 'add' ? 'Adicionar dinheiro' : (transactionType === 'expense' ? 'Pagar despesas' : 'Remover valores')}
+                  </h3>
+                  <button onClick={() => setTransactionModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                </div>
+                
+                <form onSubmit={handleSaveTransaction} className="p-6">
+                  <div className="space-y-4">
+                    <div className="bg-gray-100 rounded-lg p-4 flex flex-col items-end">
+                      <label className="text-xs text-gray-500 font-medium mb-1">Valor em dinheiro</label>
+                      <input 
+                        type="number"
+                        step="0.01"
+                        min="0.01"
+                        required
+                        autoFocus
+                        value={transValue}
+                        onChange={e => setTransValue(e.target.value)}
+                        className="w-full bg-transparent border-none p-0 text-right text-3xl font-bold text-gray-800 focus:ring-0 placeholder-gray-400 outline-none"
+                        placeholder="0,00"
+                      />
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-3 border focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all">
+                      <textarea 
+                        rows={3}
+                        value={transDescription}
+                        onChange={e => setTransDescription(e.target.value)}
+                        className="w-full bg-transparent border-none p-0 text-sm text-gray-700 focus:ring-0 placeholder-gray-400 resize-none outline-none"
+                        placeholder="Detalhes (opcional)"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-8 flex gap-3 justify-end">
+                    <button 
+                      type="button"
+                      onClick={() => setTransactionModalOpen(false)}
+                      className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm font-medium transition-colors"
+                    >
+                      ✕ Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={transSaving}
+                      className={`px-6 py-2 rounded text-white text-sm font-bold transition-colors shadow-sm flex items-center gap-2 ${
+                        transactionType === 'add' 
+                          ? 'bg-green-500 hover:bg-green-600' 
+                          : 'bg-red-500 hover:bg-red-600'
+                      }`}
+                    >
+                      {transSaving ? 'Salvando...' : (
+                        <>
+                          <span>✔</span> Confirmar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Transaction Detail Modal */}
+          {selectedTransaction && (
+            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200 overflow-hidden">
+                <div className="p-6">
+                  <h3 className="text-lg font-bold text-gray-800 mb-6">
+                    {selectedTransaction.value > 0 ? 'Valor adicionado' : 'Valor removido'}
+                  </h3>
+
+                  <div className={`text-4xl font-bold mb-2 ${selectedTransaction.value > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {money(selectedTransaction.value)}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {dateStr(selectedTransaction.date)}
+                  </div>
+
+                  <div className="flex gap-3 mb-8">
+                    <button className="flex items-center gap-2 px-4 py-2 border border-green-500 text-green-600 rounded bg-green-50 hover:bg-green-100 text-sm font-medium transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      Recibo
+                    </button>
+                    <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-500 rounded hover:bg-gray-50 text-sm font-medium transition-colors">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Cancelar
+                    </button>
+                  </div>
+
+                  <div className="space-y-4 border-t pt-4">
+                    <div>
+                      <div className="text-xs font-bold text-gray-800 mb-1">Detalhes:</div>
+                      <div className="text-sm text-gray-600">{selectedTransaction.notes || selectedTransaction.description}</div>
+                    </div>
+
+                    <div>
+                      <div className="text-xs font-bold text-gray-800 mb-1">Pagamento</div>
+                      <div className="flex justify-between items-center">
+                         <div className="flex items-center gap-2 text-gray-600">
+                           <span className="text-lg">💵</span>
+                           <span className="text-sm">Dinheiro</span>
+                         </div>
+                         <div className="font-medium text-gray-900">{money(selectedTransaction.value)}</div>
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">Taxa: R$ 0,00</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 flex justify-end border-t">
+                  <button 
+                    onClick={() => setSelectedTransaction(null)}
+                    className="flex items-center gap-2 text-gray-500 hover:text-gray-700 font-medium text-sm"
+                  >
+                    <span>&larr;</span> Voltar
                   </button>
                 </div>
               </div>
@@ -383,7 +878,53 @@ export default function POSPage({ storeId, user }){
                       previousList.map(c => {
                         const balance = c.closingValues?.finalBalance || 0
                         const initial = c.initialValue || 0
-                        const receipts = balance - initial // Aproximado
+                        
+                        let receipts = 0
+                        
+                        // Verificar se temos os dados detalhados salvos (novos registros)
+                        const hasDetailedStats = c.closingValues?.sales !== undefined || c.closingValues?.os !== undefined
+                        
+                        if (hasDetailedStats) {
+                          receipts = (c.closingValues?.sales || 0) + (c.closingValues?.os || 0)
+                        } else {
+                          // Fallback para registros antigos: calcular com base nos pedidos carregados
+                          // Reutiliza a lógica de processCash para encontrar vendas/OS do período
+                          const openTime = c.openedAt?.toDate ? c.openedAt.toDate().getTime() : 0
+                          const closeTime = c.closedAt?.toDate ? c.closedAt.toDate().getTime() : Date.now()
+                          
+                          let calculatedSales = 0
+                          let calculatedOS = 0
+                          
+                          orders.forEach(o => {
+                            if (o.payments && Array.isArray(o.payments)) {
+                              o.payments.forEach(p => {
+                                let pTime = 0
+                                if (p.date) {
+                                  pTime = p.date.toDate ? p.date.toDate().getTime() : new Date(p.date).getTime()
+                                } else {
+                                  pTime = o.createdAt?.toDate ? o.createdAt.toDate().getTime() : new Date(o.createdAt || 0).getTime()
+                                }
+                                
+                                if (pTime >= openTime && pTime <= closeTime) {
+                                  const amount = Number(p.amount || 0)
+                                  const isSale = (o.type === 'sale' || !o.type)
+                                  
+                                  if(isSale) {
+                                    calculatedSales += amount
+                                  } else {
+                                    // Check O.S. status
+                                    if (o.status === 'Os Finalizada e Faturada Cliente Final') {
+                                      calculatedOS += amount
+                                    }
+                                  }
+                                }
+                              })
+                            }
+                          })
+                          
+                          receipts = calculatedSales + calculatedOS
+                        }
+
                         return (
                           <tr key={c.id} onClick={()=>setSelectedPreviousCash(c)} className="hover:bg-gray-50 cursor-pointer">
                             <td className="py-3 px-4 text-gray-800 font-medium">{c.number || '-'}</td>
@@ -568,10 +1109,11 @@ export default function POSPage({ storeId, user }){
       )}
 
       {/* Modal Detalhes da Venda */}
-      <SaleDetailModal 
-        open={detailModalOpen} 
-        onClose={() => setDetailModalOpen(false)} 
-        sale={selectedOrder} 
+      <SaleDetailModal
+        open={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        sale={selectedOrder}
+        onView={handleViewOrder}
       />
     </div>
   )

@@ -34,6 +34,7 @@ const INACTIVITY_LIMIT_MS = 60 * 60 * 1000
 
 export default function App(){
   const [view, setView] = useState('inicio')
+  const [viewParams, setViewParams] = useState({})
   const [user, setUser] = useState(null)
   const [store, setStore] = useState(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
@@ -226,7 +227,7 @@ export default function App(){
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} /></div>
           ) : view === 'os' ? (
-            <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} addNewSignal={addNewOrderSignal} /></div>
+            <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
           ) : view === 'clientes' ? (
             <div className="mt-4 md:mt-6"><ClientsPage storeId={store?.id} addNewSignal={addNewClientSignal} /></div>
           ) : view === 'configuracoes' ? (
@@ -242,7 +243,7 @@ export default function App(){
           ) : view === 'dadosUsuario' ? (
             <div className="mt-4 md:mt-6"><UserDataPage user={user} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'caixa' ? (
-            <div className="mt-4 md:mt-6"><POSPage storeId={store?.id} user={user} /></div>
+            <div className="mt-4 md:mt-6"><POSPage storeId={store?.id} user={user} onView={onNavigate} setViewParams={setViewParams} /></div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <p className="text-sm text-gray-600">Página em construção.</p>

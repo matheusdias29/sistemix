@@ -3,13 +3,14 @@ import { listenProducts, updateProduct } from '../services/products'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
 import { listenClients } from '../services/clients'
-import { addOrder } from '../services/orders'
+import { addOrder, updateOrder } from '../services/orders'
+import { listenFees } from '../services/stores'
 import SelectClientModal from './SelectClientModal'
 import NewClientModal from './NewClientModal'
 import SelectVariationModal from './SelectVariationModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 
-export default function NewSaleModal({ open, onClose, storeId, user }) {
+export default function NewSaleModal({ open, onClose, storeId, user, isEdit = false, sale = null }) {
   // Data
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
@@ -30,6 +31,13 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
   const [varSelectOpen, setVarSelectOpen] = useState(false)
   const [targetProduct, setTargetProduct] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [notesText, setNotesText] = useState('')
+  const [feesModalOpen, setFeesModalOpen] = useState(false)
+  const [discountModalOpen, setDiscountModalOpen] = useState(false)
+  const [availableFees, setAvailableFees] = useState([])
+  const [appliedFees, setAppliedFees] = useState([]) // [{id,name,type,value}]
+  const [discount, setDiscount] = useState({ type: null, value: 0 }) // {type:'fixed'|'percent'|null, value:number}
 
   // Payment Flow State
   const [payMethodsOpen, setPayMethodsOpen] = useState(false)
@@ -55,19 +63,40 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
     const unsubP = listenProducts(setProducts, storeId)
     const unsubC = listenCategories(setCategories, storeId)
     const unsubCl = listenClients(setClients, storeId)
+    const unsubFees = listenFees(storeId, (rows) => {
+      setAvailableFees(rows.filter(r => r.active))
+    })
     const unsubCash = listenCurrentCash(storeId, (cash) => {
       setCurrentCash(cash)
       setLoadingCash(false)
     })
-    return () => { unsubP(); unsubC(); unsubCl(); unsubCash() }
+    return () => { unsubP(); unsubC(); unsubCl(); unsubFees(); unsubCash() }
   }, [open, storeId])
 
   // Reset when opening
   useEffect(() => {
     if (open) {
-      setCart([])
-      setPayments([])
-      setSelectedClient(null)
+      if (!isEdit) {
+        setCart([])
+        setPayments([])
+        setSelectedClient(null)
+        setNotesText('')
+        setAppliedFees([])
+        setDiscount({ type: null, value: 0 })
+      } else if (sale) {
+        const initialCart = Array.isArray(sale.products) ? sale.products.map(p => ({
+          product: { id: p.id, name: p.name, salePrice: p.price },
+          quantity: Number(p.quantity || 1),
+          price: Number(p.price || 0),
+          total: Number(p.total || (Number(p.price || 0) * Number(p.quantity || 1)))
+        })) : []
+        setCart(initialCart)
+        setPayments(Array.isArray(sale.payments) ? sale.payments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0) })) : [])
+        setSelectedClient(sale.clientId || sale.client ? { id: sale.clientId || null, name: sale.client || 'Consumidor Final' } : null)
+        setNotesText(sale.receiptNotes || '')
+        setAppliedFees(Array.isArray(sale.feesApplied) ? sale.feesApplied : [])
+        setDiscount(sale.discount && (sale.discount.type === 'fixed' || sale.discount.type === 'percent') ? sale.discount : { type: null, value: 0 })
+      }
       setSearch('')
       setClientSearch('')
       setSelectedCategory('todos')
@@ -165,9 +194,18 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
   }
 
   // Totals
-  const subtotal = cart.reduce((acc, item) => acc + item.total, 0)
-  const discount = 0 // Implement discount logic later if needed
-  const total = subtotal - discount
+  const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100
+  const subtotal = round2(cart.reduce((acc, item) => acc + item.total, 0))
+  const feesTotal = round2(appliedFees.reduce((acc, f) => {
+    if (f.type === 'percent') return acc + (subtotal * (Number(f.value || 0) / 100))
+    return acc + Number(f.value || 0)
+  }, 0))
+  const discountAmount = (() => {
+    if (discount.type === 'percent') return round2(subtotal * (Number(discount.value || 0) / 100))
+    if (discount.type === 'fixed') return round2(Number(discount.value || 0))
+    return 0
+  })()
+  const total = round2(subtotal + feesTotal - discountAmount)
   const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount||0), 0)
   const remainingToPay = Math.max(0, total - totalPaid)
 
@@ -228,9 +266,11 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
           total: item.total
         })),
         totalProducts: subtotal,
+        feesApplied: appliedFees,
         discount,
         total,
         valor: total,
+        receiptNotes: notesText,
         payments: payments.map(p => ({
           method: p.method,
           amount: p.amount,
@@ -240,10 +280,28 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
         createdAt: new Date()
       }
 
-      await addOrder(payload, storeId)
+      if (isEdit && sale?.id) {
+        const partial = { 
+          type: 'sale',
+          client: payload.client,
+          clientId: payload.clientId,
+          attendant: payload.attendant,
+          products: payload.products,
+          totalProducts: payload.totalProducts,
+          discount: payload.discount,
+          total: payload.total,
+          valor: payload.valor,
+          receiptNotes: payload.receiptNotes,
+          payments: payload.payments,
+          status: status
+        }
+        await updateOrder(sale.id, partial)
+      } else {
+        await addOrder(payload, storeId)
+      }
 
       // Update Stock
-      if (status === 'Venda') {
+      if (!isEdit && status === 'Venda') {
         for (const item of cart) {
           const qty = item.quantity
           const pId = item.product.originalId || item.product.id
@@ -503,20 +561,67 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
 
           {/* Footer Totals */}
           <div className="p-4 bg-gray-50 border-t space-y-2">
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>Subtotal</span>
-              <span>{money(subtotal)}</span>
-            </div>
-            {discount > 0 && (
-              <div className="flex justify-between text-sm text-green-600">
-                <span>Desconto</span>
-                <span>-{money(discount)}</span>
+            {notesText && (
+              <div className="text-sm text-gray-700 flex items-center gap-2">
+                <span>💬</span>
+                <button
+                  onClick={() => setNotesOpen(true)}
+                  className="underline hover:text-gray-900"
+                  title="Editar observações"
+                >
+                  {notesText}
+                </button>
               </div>
             )}
-            <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t">
-              <span>Total</span>
-              <span>{money(total)}</span>
+          <div className="flex justify-between text-sm text-gray-600">
+            <span>Subtotal</span>
+            <span>{money(subtotal)}</span>
+          </div>
+          {appliedFees.length > 0 && (
+            <div className="space-y-1">
+              {appliedFees.map((f, idx) => (
+                <div key={idx} className="flex justify-between text-sm text-gray-700">
+                  <span className="flex items-center gap-2">
+                    <span>📎</span>{f.name} {f.type==='percent' ? `(${Number(f.value)}%)` : ''}
+                  </span>
+                  <span>{money(f.type==='percent' ? round2(subtotal * (Number(f.value||0)/100)) : Number(f.value||0))}</span>
+                  <button className="ml-2 text-xs text-red-600" onClick={()=>setAppliedFees(appliedFees.filter((_,i)=>i!==idx))}>remover</button>
+                </div>
+              ))}
+              <div className="flex justify-between text-sm text-gray-800">
+                <span>Total de taxas</span>
+                <span>{money(feesTotal)}</span>
+              </div>
             </div>
+          )}
+          {discount.type && (
+            <div className="flex justify-between text-sm text-green-700">
+              <span className="flex items-center gap-2">
+                <span>🏷️</span>Desconto {discount.type==='percent' ? `(${Number(discount.value)}%)` : ''}
+                <button className="text-xs underline" onClick={()=>setDiscountModalOpen(true)}>editar</button>
+                <button className="text-xs text-red-600 ml-2" onClick={()=>setDiscount({ type:null, value:0 })}>remover</button>
+              </span>
+              <span>-{money(discountAmount)}</span>
+            </div>
+          )}
+          {discount > 0 && (
+            <div className="flex justify-between text-sm text-green-600">
+              <span>Desconto</span>
+              <span>-{money(discount)}</span>
+            </div>
+          )}
+          <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t">
+            <span>Total</span>
+            <span>{money(total)}</span>
+          </div>
+          <div className="flex justify-end gap-6 text-sm text-gray-600 mt-2">
+            <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setFeesModalOpen(true)}>
+              <span>🏷️</span>Adicionar Taxa
+            </button>
+            <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setDiscountModalOpen(true)}>
+              <span>🏷️</span>Adicionar Desconto
+            </button>
+          </div>
             
             <div className="flex gap-2 mt-4 relative">
               <button 
@@ -529,7 +634,7 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
               {/* Options Popup */}
               {optionsOpen && (
                 <div className="absolute bottom-full left-0 mb-2 w-48 bg-white shadow-xl rounded border z-30 overflow-hidden modal-card">
-                  <button onClick={() => { /* TODO */ setOptionsOpen(false) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Adicionar observações</button>
+                  <button onClick={() => { setOptionsOpen(false); setNotesOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Adicionar observações</button>
                   <button onClick={() => handleSave('Pedido')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Salvar pedido</button>
                   <button onClick={() => handleSave('Condicional')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Salvar condicional</button>
                   <button onClick={() => handleSave('Orçamento')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm text-gray-700">Salvar orçamento</button>
@@ -575,6 +680,173 @@ export default function NewSaleModal({ open, onClose, storeId, user }) {
         product={targetProduct}
         onChoose={handleVariationSelect}
       />
+
+      {notesOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b">
+              <div className="text-lg font-semibold text-gray-800 text-center">Observações</div>
+            </div>
+            <div className="p-4">
+              <textarea
+                value={notesText}
+                onChange={e => setNotesText(e.target.value)}
+                placeholder="digite suas observações..."
+                className="w-full h-32 border rounded px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
+              />
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+              <button
+                onClick={() => setNotesOpen(false)}
+                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+              >
+                × Cancelar
+              </button>
+              <button
+                onClick={() => setNotesOpen(false)}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {feesModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b">
+              <div className="text-lg font-semibold text-gray-800 text-center">Adicionar taxas</div>
+            </div>
+            <div className="p-4 space-y-2">
+              {availableFees.map(f => {
+                const selected = appliedFees.some(af => af.id === f.id)
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      if (selected) {
+                        setAppliedFees(prev => prev.filter(af => af.id !== f.id))
+                      } else {
+                        setAppliedFees(prev => [...prev, { id: f.id, name: f.name, type: f.type, value: Number(f.value||0) }])
+                      }
+                    }}
+                    className={`w-full px-4 py-3 rounded text-sm flex items-center justify-between ${selected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+                  >
+                    <span className="truncate">{f.name}</span>
+                    <span className="shrink-0">{f.type==='percent' ? `${Number(f.value||0)}%` : money(f.value)}</span>
+                  </button>
+                )
+              })}
+              {availableFees.length === 0 && (
+                <div className="text-sm text-gray-500">Nenhuma taxa configurada (Configurações → Taxas adicionais).</div>
+              )}
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+              <button
+                onClick={() => setFeesModalOpen(false)}
+                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+              >
+                ← Voltar
+              </button>
+              <button
+                onClick={() => setFeesModalOpen(false)}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {discountModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white w-full max-w-sm rounded-lg shadow-xl overflow-hidden modal-card">
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">Desconto geral</h3>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="flex justify-between items-center text-lg font-bold">
+                <span className="text-gray-600">Total</span>
+                <span className="text-green-600">{money(subtotal + feesTotal)}</span>
+              </div>
+              
+              {(() => {
+                 const totalBase = subtotal + feesTotal
+                 const fixedValue = discount.type === 'fixed' 
+                   ? discount.value 
+                   : (totalBase * discount.value / 100)
+                 
+                 const percentValue = discount.type === 'percent'
+                   ? discount.value
+                   : (totalBase > 0 ? (discount.value / totalBase * 100) : 0)
+
+                 return (
+                   <>
+                    <div className="relative">
+                      <label className="text-xs text-gray-600 mb-1 block">Desconto R$</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={discount.type === 'fixed' ? discount.value : (fixedValue ? round2(fixedValue) : '')}
+                        onChange={e => {
+                          const v = Math.max(0, Number(e.target.value))
+                          setDiscount({ type: 'fixed', value: v })
+                        }}
+                        className="w-full border rounded px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        placeholder="0,00"
+                      />
+                    </div>
+                    <div className="relative">
+                      <label className="text-xs text-gray-600 mb-1 block">Desconto (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={discount.type === 'percent' ? discount.value : (percentValue ? round2(percentValue) : '')}
+                        onChange={e => {
+                          const v = Math.max(0, Math.min(100, Number(e.target.value)))
+                          setDiscount({ type: 'percent', value: v })
+                        }}
+                        className="w-full border rounded px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        placeholder="0,00"
+                      />
+                    </div>
+                   </>
+                 )
+              })()}
+
+              <div className="grid grid-cols-4 gap-3">
+                {[5,10,15,20].map(p => (
+                  <button
+                    key={p}
+                    onClick={()=>setDiscount({ type:'percent', value:p })}
+                    className="px-3 py-2 rounded border text-sm hover:bg-green-50"
+                  >
+                    {p}%
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+              <button
+                onClick={() => setDiscountModalOpen(false)}
+                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+              >
+                × Cancelar
+              </button>
+              <button
+                onClick={() => setDiscountModalOpen(false)}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Payment Modals Flow */}
       {payMethodsOpen && (

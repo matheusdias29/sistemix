@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase'
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, runTransaction } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, runTransaction, arrayUnion } from 'firebase/firestore'
 
 // Escuta o caixa aberto atual da loja
 export function listenCurrentCash(storeId, callback) {
@@ -141,13 +141,25 @@ export async function closeCashRegister(cashId, closingData) {
   })
 }
 
-// Adiciona movimentação (opcional por enquanto, mas bom ter estrutura)
+// Adiciona movimentação
 export async function addCashTransaction(cashId, transaction) {
-  // transaction: { description, value, type, method, date }
-  // Em uma implementação real robusta, usaríamos subcollections. 
-  // Para simplificar e manter "local persistence" style, vamos atualizar o array e o saldo.
+  if (!cashId) throw new Error('Caixa não identificado')
   
-  // Nota: Isso requer update atômico ou transaction para ser 100% seguro em concorrência,
-  // mas para este MVP vamos simplificar.
-  // TODO: Implementar lógica de transação se necessário.
+  const ref = doc(db, 'cash_registers', cashId)
+  
+  // Adiciona ao array de transações
+  // Usamos arrayUnion para adicionar atomicamente ao array
+  // Mas como a transaction é um objeto, precisamos garantir que é único ou aceitar duplicação se o objeto for idêntico.
+  // Melhor gerar um ID para a transação antes se fosse um sistema complexo.
+  // Aqui vamos confiar que o objeto é novo.
+  
+  const newTrans = {
+    ...transaction,
+    id: transaction.id || Date.now().toString(), // Garante ID
+    date: transaction.date || new Date() // Garante Data
+  }
+
+  await updateDoc(ref, {
+    transactions: arrayUnion(newTrans)
+  })
 }
