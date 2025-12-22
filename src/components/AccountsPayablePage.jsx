@@ -1,0 +1,411 @@
+import React, { useState, useEffect, useMemo } from 'react'
+import FinancialCategoriesTab from './FinancialCategoriesTab'
+import NewAccountPayableModal from './NewAccountPayableModal'
+import { listenAccountsPayable, addAccountPayable, updateAccountPayable, removeAccountPayable } from '../services/accountsPayable'
+
+const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+const dateStr = (d) => {
+  if (!d) return '-'
+  // Se for string YYYY-MM-DD
+  if (typeof d === 'string' && d.includes('-')) {
+    const [y, m, day] = d.split('-')
+    return `${day}/${m}/${y}`
+  }
+  // Se for timestamp
+  if (d?.toDate) return d.toDate().toLocaleDateString('pt-BR')
+  return '-'
+}
+
+export default function AccountsPayablePage({ storeId }) {
+  const [activeTab, setActiveTab] = useState('accounts') // 'accounts' or 'categories'
+  const [accounts, setAccounts] = useState([])
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('pending') // 'pending' (A Pagar), 'paid' (Pago), 'cancelled' (Cancelado)
+  
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingAccount, setEditingAccount] = useState(null)
+  const [isLoading, setIsLoading] = useState(false)
+
+  // Seleção
+  const [selectedIds, setSelectedIds] = useState(new Set())
+
+  useEffect(() => {
+    if (!storeId) return
+    const unsub = listenAccountsPayable((items) => {
+      setAccounts(items)
+    }, storeId)
+    return () => unsub()
+  }, [storeId])
+
+  const filtered = useMemo(() => {
+    return accounts.filter(acc => {
+      // Filtro de status
+      if (statusFilter === 'pending' && acc.status !== 'pending') return false
+      if (statusFilter === 'paid' && acc.status !== 'paid') return false
+      if (statusFilter === 'cancelled' && acc.status !== 'cancelled') return false
+      
+      // Busca
+      const s = search.toLowerCase()
+      const match = (
+        (acc.description && acc.description.toLowerCase().includes(s)) ||
+        (acc.supplierName && acc.supplierName.toLowerCase().includes(s)) ||
+        (acc.categoryName && acc.categoryName.toLowerCase().includes(s))
+      )
+      return match
+    })
+  }, [accounts, search, statusFilter])
+
+  const totalValue = useMemo(() => {
+    return filtered.reduce((acc, curr) => acc + (curr.remainingValue || 0), 0)
+  }, [filtered])
+
+  const selectedTotal = useMemo(() => {
+    return filtered
+      .filter(f => selectedIds.has(f.id))
+      .reduce((acc, curr) => acc + (curr.remainingValue || 0), 0)
+  }, [filtered, selectedIds])
+
+  const handleSave = async (data) => {
+    try {
+      setIsLoading(true)
+      
+      if (data.id) {
+        // Atualizar
+        const existingAccount = accounts.find(a => a.id === data.id)
+        const newOriginalValue = Number(data.value || 0)
+        const paidValue = existingAccount ? existingAccount.paidValue : 0
+        const newRemainingValue = newOriginalValue - paidValue
+
+        const updateData = {
+          supplierId: data.supplierId,
+          supplierName: data.supplierName,
+          description: data.description,
+          categoryId: data.categoryId,
+          categoryName: data.categoryName,
+          details: data.details,
+          isRecurring: data.isRecurring,
+          originalValue: newOriginalValue,
+          remainingValue: newRemainingValue,
+          dueDate: data.dueDate
+        }
+
+        await updateAccountPayable(data.id, updateData)
+      } else {
+        // Criar
+        await addAccountPayable(data, storeId)
+      }
+
+      setIsModalOpen(false)
+      setEditingAccount(null)
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao salvar conta')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleDelete = async (id) => {
+    try {
+      setIsLoading(true)
+      await removeAccountPayable(id)
+      setIsModalOpen(false)
+      setEditingAccount(null)
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao excluir conta')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleEdit = (account) => {
+    setEditingAccount(account)
+    setIsModalOpen(true)
+  }
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false)
+    setEditingAccount(null)
+  }
+
+  const handlePaySelected = async () => {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Confirma o pagamento de ${selectedIds.size} conta(s) no total de ${money(selectedTotal)}?`)) return
+
+    try {
+      setIsLoading(true)
+      const ids = Array.from(selectedIds)
+      
+      // Processa pagamentos em paralelo
+      await Promise.all(ids.map(async (id) => {
+        const acc = accounts.find(a => a.id === id)
+        if (!acc) return
+        
+        await updateAccountPayable(id, {
+          status: 'paid',
+          paidValue: acc.originalValue, // Assume pagamento total por enquanto
+          remainingValue: 0,
+          paymentDate: new Date().toISOString().split('T')[0] // Data de hoje YYYY-MM-DD
+        })
+      }))
+
+      setSelectedIds(new Set()) // Limpa seleção
+      alert('Pagamentos realizados com sucesso!')
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao processar pagamentos')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const toggleSelect = (id) => {
+    const newSet = new Set(selectedIds)
+    if (newSet.has(id)) newSet.delete(id)
+    else newSet.add(id)
+    setSelectedIds(newSet)
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filtered.map(f => f.id)))
+    }
+  }
+
+  return (
+    <div className="w-full">
+      {/* Header / Tabs */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800 mb-4">Contas a Pagar</h1>
+        
+        <div className="flex gap-6 border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('accounts')}
+            className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
+              activeTab === 'accounts'
+                ? 'text-green-600 border-b-2 border-green-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Contas A Pagar
+          </button>
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`pb-3 px-1 text-sm font-medium transition-colors relative ${
+              activeTab === 'categories'
+                ? 'text-green-600 border-b-2 border-green-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Categorias
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="mt-4">
+        {activeTab === 'accounts' ? (
+          <div className="animate-fade-in space-y-4">
+            
+            {/* Toolbar */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1">
+                {/* Search */}
+                <div className="relative w-full md:max-w-xs bg-gray-100 rounded-lg">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <span className="text-gray-400">🔍</span>
+                  </div>
+                  <input
+                    type="text"
+                    className="block w-full pl-10 pr-3 py-2 bg-transparent border-none focus:ring-0 text-sm placeholder-gray-400"
+                    placeholder="Pesquisar..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                </div>
+
+                {/* Filtros Botões */}
+                <div className="flex gap-2">
+                   <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2">
+                     📄 Filtrar Vencimento
+                   </button>
+                   <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2">
+                     ⚙ Filtros
+                   </button>
+                   <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm">
+                     ⇅
+                   </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 w-full md:w-auto justify-end">
+                <button className="px-4 py-2 bg-white border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-50 shadow-sm">
+                  Exportar
+                </button>
+                <button 
+                  onClick={() => setIsModalOpen(true)}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm flex items-center gap-2"
+                >
+                  + Novo
+                </button>
+              </div>
+            </div>
+
+            {/* Tabs Status */}
+            <div className="flex gap-2 border-b border-transparent">
+              <button 
+                onClick={() => setStatusFilter('pending')}
+                className={`px-4 py-1 rounded-full text-xs font-bold transition-colors border ${statusFilter === 'pending' ? 'bg-orange-100 text-orange-600 border-orange-200' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
+              >
+                ✓ A Pagar
+              </button>
+              <button 
+                onClick={() => setStatusFilter('paid')}
+                className={`px-4 py-1 rounded-full text-xs font-bold transition-colors border ${statusFilter === 'paid' ? 'bg-green-100 text-green-600 border-green-200' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
+              >
+                ✓ Pago
+              </button>
+              <button 
+                onClick={() => setStatusFilter('cancelled')}
+                className={`px-4 py-1 rounded-full text-xs font-bold transition-colors border ${statusFilter === 'cancelled' ? 'bg-red-100 text-red-600 border-red-200' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
+              >
+                Cancelado
+              </button>
+            </div>
+
+            {/* Total Bar */}
+            <div className="bg-gray-50 rounded-lg p-4 flex justify-between items-center border border-gray-100">
+               <div>
+                 <span className="text-xs text-gray-500 font-medium block mb-1">Total</span>
+                 <span className={`text-xl font-bold ${statusFilter === 'pending' ? 'text-green-600' : 'text-gray-800'}`}>
+                   {money(totalValue)}
+                 </span>
+               </div>
+               
+               {statusFilter === 'pending' && selectedIds.size > 0 ? (
+                 <div className="flex items-center gap-4 animate-fade-in">
+                   <span className="text-sm text-gray-600">
+                     Valor a pagar: <span className="font-bold text-gray-800">{money(selectedTotal)}</span>
+                   </span>
+                   <button 
+                     onClick={handlePaySelected}
+                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded shadow-sm transition-colors"
+                   >
+                     Pagar
+                   </button>
+                 </div>
+               ) : (
+                 <span className="text-xs text-gray-400">Selecione as contas que deseja pagar</span>
+               )}
+            </div>
+
+            {/* Table */}
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th scope="col" className="px-4 py-3 text-left w-10">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        checked={filtered.length > 0 && selectedIds.size === filtered.length}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conta</th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Original</th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Pago</th>
+                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">A Pagar</th>
+                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimento</th>
+                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Pagamento</th>
+                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-4 py-3 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" className="px-6 py-10 text-center text-gray-500 text-sm">
+                        Nenhuma conta encontrada.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((acc) => (
+                      <tr 
+                        key={acc.id} 
+                        className="hover:bg-gray-50 transition-colors cursor-pointer"
+                        onClick={(e) => {
+                          if (e.target.type === 'checkbox') return
+                          handleEdit(acc)
+                        }}
+                      >
+                        <td className="px-4 py-4 whitespace-nowrap">
+                           <input 
+                             type="checkbox" 
+                             className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                             checked={selectedIds.has(acc.id)}
+                             onChange={() => toggleSelect(acc.id)}
+                           />
+                        </td>
+                        <td className="px-4 py-4">
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium text-gray-900 uppercase">{acc.supplierName || 'Fornecedor Desconhecido'}</span>
+                            <span className="text-xs text-gray-500">{acc.description} | {acc.categoryName}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                          {money(acc.originalValue)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900">
+                          {money(acc.paidValue)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                          {money(acc.remainingValue)}
+                        </td>
+                        <td className={`px-4 py-4 whitespace-nowrap text-center text-sm ${acc.status === 'pending' ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+                          {dateStr(acc.dueDate)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-gray-500">
+                          {dateStr(acc.paymentDate)}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            acc.status === 'pending' ? 'bg-orange-100 text-orange-600' :
+                            acc.status === 'paid' ? 'bg-green-100 text-green-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {acc.status === 'pending' ? 'A Pagar' : acc.status === 'paid' ? 'Pago' : 'Cancelado'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center text-gray-400 hover:text-gray-600 cursor-pointer">
+                          ⋮
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+          </div>
+        ) : (
+          <FinancialCategoriesTab storeId={storeId} />
+        )}
+      </div>
+
+      {isModalOpen && (
+        <NewAccountPayableModal
+          storeId={storeId}
+          initialData={editingAccount}
+          onClose={handleCloseModal}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          isLoading={isLoading}
+        />
+      )}
+    </div>
+  )
+}

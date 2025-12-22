@@ -15,6 +15,7 @@ import UsersPage from './components/UsersPage'
 import LoginPage from './components/LoginPage'
 import UserDataPage from './components/UserDataPage'
 import POSPage from './components/POSPage'
+import AccountsPayablePage from './components/AccountsPayablePage'
 
 const labels = {
   inicio: 'Início',
@@ -22,6 +23,7 @@ const labels = {
   produtos: 'Produtos',
   vendas: 'Vendas',
   os: 'Ordem de Serviço',
+  cpagar: 'Contas a Pagar',
   configuracoes: 'Configurações',
   usuarios: 'Usuários',
   taxas: 'Taxas adicionais',
@@ -244,6 +246,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><UserDataPage user={user} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'caixa' ? (
             <div className="mt-4 md:mt-6"><POSPage storeId={store?.id} user={user} onView={onNavigate} setViewParams={setViewParams} /></div>
+          ) : view === 'cpagar' ? (
+            <div className="mt-4 md:mt-6"><AccountsPayablePage storeId={store?.id} /></div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <p className="text-sm text-gray-600">Página em construção.</p>
