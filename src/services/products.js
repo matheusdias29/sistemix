@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'products')
@@ -94,4 +94,30 @@ export async function updateProduct(id, partial){
 export async function removeProduct(id){
   const ref = doc(db, 'products', id)
   await deleteDoc(ref)
+}
+
+export async function getNextProductReference(storeId) {
+  try {
+    const q = query(colRef, where('storeId', '==', storeId))
+    const snapshot = await getDocs(q)
+    
+    if (snapshot.empty) return '1'
+
+    let maxRef = 0
+
+    snapshot.docs.forEach(doc => {
+      const data = doc.data()
+      if (data.reference) {
+        const num = parseInt(data.reference, 10)
+        if (!isNaN(num) && num > maxRef) {
+          maxRef = num
+        }
+      }
+    })
+
+    return (maxRef + 1).toString()
+  } catch (error) {
+    console.error("Error getting next reference:", error)
+    return '1'
+  }
 }

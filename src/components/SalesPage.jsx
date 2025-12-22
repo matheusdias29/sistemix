@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
+import { listenProducts } from '../services/products'
 import NewSaleModal from './NewSaleModal'
 import SaleDetailModal from './SaleDetailModal'
+import SalesDateFilterModal from './SalesDateFilterModal'
+import SalesAdvancedFilterModal from './SalesAdvancedFilterModal'
 
 const tabs = [
   { key: 'todos', label: 'Todos' },
@@ -12,22 +15,52 @@ const tabs = [
 
 export default function SalesPage({ initialDayFilter = null, storeId, user }){
   const [orders, setOrders] = useState([])
+  const [products, setProducts] = useState([])
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState('todos')
-  const [monthOnly, setMonthOnly] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [newSaleOpen, setNewSaleOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedSale, setSelectedSale] = useState(null)
-  const [dayFilter, setDayFilter] = useState(initialDayFilter)
+  
+  const [dateFilterOpen, setDateFilterOpen] = useState(false)
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date()
+    return {
+      label: 'Este Mês',
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+    }
+  })
+
+  // Advanced Filters
+  const [advFiltersOpen, setAdvFiltersOpen] = useState(false)
+  const [advFilters, setAdvFilters] = useState({
+    client: '',
+    attendant: '',
+    supplier: '',
+    product: '',
+    paymentMethod: ''
+  })
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
-    return () => { unsub && unsub() }
+    const unsubP = listenProducts(items => setProducts(items), storeId)
+    return () => { 
+      unsub && unsub() 
+      unsubP && unsubP()
+    }
   }, [storeId])
 
   useEffect(() => {
-    setDayFilter(initialDayFilter)
+    if (initialDayFilter) {
+       const d = new Date(initialDayFilter)
+       setDateRange({
+         label: 'Dia Específico',
+         start: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0,0,0,0),
+         end: new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23,59,59,999)
+       })
+    }
   }, [initialDayFilter])
 
   const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
@@ -35,9 +68,13 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const now = new Date()
-    const currentMonth = now.getMonth()
-    const currentYear = now.getFullYear()
+    
+    // Map productId -> supplier
+    const productSupplierMap = {}
+    products.forEach(p => {
+      if (p.supplier) productSupplierMap[p.id] = p.supplier.toLowerCase()
+    })
+
     return orders
       .filter(o => {
         // Exclude Service Orders
@@ -54,22 +91,22 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
         return true
       })
       .filter(o => {
+        // Search Query (Text)
         const name = (o.client || '').toLowerCase()
         const idstr = (o.id || '').toLowerCase()
         return name.includes(q) || idstr.includes(q)
       })
       .filter(o => {
-        if(!monthOnly) return true
+        // Date Range
+        if (!dateRange.start && !dateRange.end) return true
         const d = toDate(o.createdAt)
-        if(!d) return true
-        return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+        if (!d) return false
+        if (dateRange.start && d < dateRange.start) return false
+        if (dateRange.end && d > dateRange.end) return false
+        return true
       })
       .filter(o => {
-        if(!dayFilter) return true
-        const d = toDate(o.createdAt)
-        return d ? isSameDay(d, new Date(dayFilter)) : false
-      })
-      .filter(o => {
+        // Status Tab
         if(tab==='todos') return true
         const s = (o.status || '').toLowerCase()
         if(tab==='pedido') return s==='pedido'
@@ -77,7 +114,55 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
         if(tab==='cancelada') return s==='cancelada'
         return true
       })
-  }, [orders, query, monthOnly, tab])
+      .filter(o => {
+        // Advanced Filters
+        
+        // Client
+        if (advFilters.client) {
+          if (!(o.client || '').toLowerCase().includes(advFilters.client.toLowerCase())) return false
+        }
+
+        // Attendant (Vendedor)
+        if (advFilters.attendant) {
+          if (!(o.attendant || '').toLowerCase().includes(advFilters.attendant.toLowerCase())) return false
+        }
+
+        // Payment Method
+        if (advFilters.paymentMethod) {
+          const pm = advFilters.paymentMethod.toLowerCase()
+          // Check if any payment method matches
+          const hasPayment = (o.payments || []).some(p => (p.method || '').toLowerCase() === pm)
+          if (!hasPayment) return false
+        }
+
+        // Product (Name) & Supplier
+        if (advFilters.product || advFilters.supplier) {
+           const oProducts = o.products || []
+           const prodNameFilter = advFilters.product ? advFilters.product.toLowerCase() : null
+           const supplierFilter = advFilters.supplier ? advFilters.supplier.toLowerCase() : null
+
+           const hasMatch = oProducts.some(op => {
+             // Check Product Name
+             if (prodNameFilter) {
+               if (!(op.name || '').toLowerCase().includes(prodNameFilter)) return false
+             }
+             
+             // Check Supplier
+             if (supplierFilter) {
+               // Try to find supplier from products map using ID
+               const pId = op.id
+               const sup = productSupplierMap[pId] || ''
+               if (!sup.includes(supplierFilter)) return false
+             }
+             return true
+           })
+           
+           if (!hasMatch) return false
+        }
+
+        return true
+      })
+  }, [orders, query, tab, dateRange, advFilters, products])
 
   const totalValor = useMemo(() => filtered.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0), [filtered])
   const vendasRealizadas = useMemo(() => filtered.filter(o => (o.status||'').toLowerCase() === 'venda').length, [filtered])
@@ -103,11 +188,18 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
       <div className="bg-white rounded-lg p-4 shadow">
         <div className="flex items-center gap-3">
           <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
-          {dayFilter && (
-            <button onClick={()=>setDayFilter(null)} className="px-3 py-2 border rounded text-sm" title="Limpar filtro por dia">Limpar dia</button>
-          )}
-          <button onClick={()=>setMonthOnly(v=>!v)} className="px-3 py-2 border rounded text-sm">{monthOnly ? 'Este Mês' : 'Todos'}</button>
-          <button onClick={()=>setShowFilters(v=>!v)} className="px-3 py-2 border rounded text-sm">Filtros</button>
+          <button 
+            onClick={()=>setDateFilterOpen(true)} 
+            className="px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-md text-sm font-medium flex items-center gap-2"
+          >
+            <span>📅</span> {dateRange.label}
+          </button>
+          <button 
+            onClick={()=>setAdvFiltersOpen(true)} 
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center gap-2"
+          >
+            <span>⚙️</span> Filtros
+          </button>
         </div>
         {/* métricas */}
         <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
@@ -182,6 +274,18 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
         open={detailModalOpen} 
         onClose={() => setDetailModalOpen(false)} 
         sale={selectedSale} 
+      />
+      <SalesDateFilterModal 
+        open={dateFilterOpen} 
+        onClose={()=>setDateFilterOpen(false)} 
+        onApply={setDateRange}
+        currentLabel={dateRange.label}
+      />
+      <SalesAdvancedFilterModal 
+        open={advFiltersOpen}
+        onClose={()=>setAdvFiltersOpen(false)}
+        onApply={setAdvFilters}
+        initialFilters={advFilters}
       />
     </div>
   )

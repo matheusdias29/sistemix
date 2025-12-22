@@ -303,7 +303,9 @@ export default function ProductsPage({ storeId, addNewSignal }){
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
                   <div className="text-xs md:text-sm">
-                    <div className="font-medium cursor-pointer" onClick={()=>startEdit(p)}>{p.name}</div>
+                    <div className="font-medium cursor-pointer" onClick={()=>startEdit(p)}>
+                      {p.name} {p.reference && <span className="text-gray-400 text-xs font-normal">#{p.reference}</span>}
+                    </div>
                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                       {(p.variations ?? 0) > 0 ? `${p.variations} variantes` : 'variantes'}
                       <span className="red-dot" />

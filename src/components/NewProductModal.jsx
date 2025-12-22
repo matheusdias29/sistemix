@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { addProduct, updateProduct } from '../services/products'
+import { addProduct, updateProduct, getNextProductReference } from '../services/products'
 import VariationsModal from './VariationsModal'
 import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
@@ -166,6 +166,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     }
     setSaving(true)
     try{
+      let finalReference = reference.trim()
+      if (!finalReference) {
+        finalReference = await getNextProductReference(storeId)
+      }
+
       const sale = parseFloat(salePrice) || 0
       const promo = promoPrice ? (parseFloat(promoPrice) || 0) : null
 
@@ -196,7 +201,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         priceMin: hasVars ? priceMinAgg : (promo ?? sale),
         priceMax: hasVars ? priceMaxAgg : sale,
         barcode: barcode.trim(),
-        reference: reference.trim(),
+        reference: finalReference,
         validityDate: validityDate || null,
         controlStock: !!controlStock,
         stockInitial: stockInitialAgg,
@@ -380,7 +385,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         </div>
         <div>
           <label className="text-xs text-gray-600">Referência</label>
-          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Automático se vazio" />
         </div>
         <div>
           <label className="text-xs text-gray-600">Validade</label>
