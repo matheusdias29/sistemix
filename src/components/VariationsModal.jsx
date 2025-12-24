@@ -141,14 +141,18 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             </div>
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3">
-                            <div>
-                              <label className="text-xs text-gray-600">Estoque inicial</label>
-                              <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                            </div>
-                            <div>
-                              <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
-                              <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                            </div>
+                            {(idx === 0 || idx === 4) && (
+                              <>
+                                <div>
+                                  <label className="text-xs text-gray-600">Estoque inicial</label>
+                                  <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                                </div>
+                                <div>
+                                  <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
+                                  <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                                </div>
+                              </>
+                            )}
                             <div className="flex items-end">
                               <div className="flex items-center gap-2 text-sm">
                                 <span>Ativa</span>
@@ -212,14 +216,18 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-xs text-gray-600">Estoque inicial</label>
-                        <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
-                        <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                      </div>
+                      {(idx === 0 || idx === 4) && (
+                        <>
+                          <div>
+                            <label className="text-xs text-gray-600">Estoque inicial</label>
+                            <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
+                            <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                          </div>
+                        </>
+                      )}
                       <div className="flex items-end">
                         <div className="flex items-center gap-2 text-sm">
                           <span>Ativa</span>

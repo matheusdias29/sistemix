@@ -395,7 +395,7 @@ export default function ProductsPage({ storeId, addNewSignal }){
           <div className="grid grid-cols-[1.5rem_1fr_1fr_12rem_6rem_6rem_2rem]">
             <div></div>
             <div>Produto ({filtered.length})</div>
-            <div className="text-center">Variações</div>
+            <div className="text-center">Atualizado </div>
             <div className="text-right">Preço</div>
             <div className="text-right">Estoque</div>
             <div className="text-right">Status</div>
@@ -424,9 +424,7 @@ export default function ProductsPage({ storeId, addNewSignal }){
             {filtered.map(p => {
               const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
               const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
-              const priceText = priceMin !== priceMax
-                ? `De ${priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} a ${priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
-                : `${priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
+              const priceText = priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
               return (
                 <>
@@ -435,83 +433,47 @@ export default function ProductsPage({ storeId, addNewSignal }){
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
                   <div className="text-xs md:text-sm">
-                    <div className="font-medium cursor-pointer" onClick={()=>startEdit(p)}>
+                    <div className="font-medium">
                       {p.name} {p.reference && <span className="text-gray-400 text-xs font-normal">#{p.reference}</span>}
                     </div>
                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
-                      {(p.variations ?? 0) > 0 ? `${p.variations} variantes` : 'variantes'}
-                      <span className="red-dot" />
-                    </div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1">
                       Estoque: {stock.toLocaleString('pt-BR')}
                       <span className="red-dot" />
                     </div>
                   </div>
-                  {/* Prévia de variações no desktop: centralizada entre nome e preço, até 2 linhas */}
-                  <div className="hidden md:block text-xs text-gray-700 md:text-center md:justify-self-center">
-                    {Array.isArray(p.variationsData) && p.variationsData.length > 0 ? (
-                      <div className="space-y-1">
-                        {p.variationsData.slice(0,2).map((v, idx) => {
-                          const sale = Number(v?.salePrice ?? 0)
-                          const promo = v?.promoPrice != null ? Number(v.promoPrice) : null
-                          const price = promo != null ? promo : sale
-                          return (
-                            <div key={idx} className="flex items-center justify-center gap-2">
-                              <span className="font-medium truncate">{v?.name || v?.label || `Variação ${idx+1}`}</span>
-                              {v?.reference ? (<span className="text-gray-500">({v.reference})</span>) : null}
-                              <span className="whitespace-nowrap">
-                                {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                              </span>
-                            </div>
-                          )
-                        })}
-                        {Array.isArray(p.variationsData) && p.variationsData.length > 2 ? (
-                          <div className="flex items-center justify-center pt-1">
-                            <button
-                              type="button"
-                              aria-label="Abrir todas as variações"
-                              title="Abrir todas as variações"
-                              className="inline-flex h-7 w-7 items-center justify-center rounded border"
-                              onClick={()=>toggleMobileRow(p.id)}
-                            >
-                              <svg
-                                className={`${mobileOpenRows.has(p.id) ? '' : 'rotate-180'} transition-transform`}
-                                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                              >
-                                <polyline points="18 15 12 9 6 15"></polyline>
-                              </svg>
-                            </button>
-                          </div>
-                        ) : null}
+                  {/* Data de atualização (substituindo prévia de variações) */}
+                  <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
+                     {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </div>
+                  <div className="text-right whitespace-nowrap md:whitespace-normal md:text-right md:pl-0 pl-4 justify-self-end flex flex-col items-end justify-center">
+                    <div className="text-xs md:text-sm">{priceText}</div>
+                    {/* Botão sanfona (mobile e desktop) abaixo do preço */}
+                    {(Array.isArray(p.variationsData) && p.variationsData.length > 0) && (
+                      <div className="mt-1">
+                        <button
+                          type="button"
+                          aria-label="Abrir variações"
+                          title="Abrir variações"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded border bg-white hover:bg-gray-50"
+                          onClick={()=>toggleMobileRow(p.id)}
+                        >
+                          <svg
+                            className={`${mobileOpenRows.has(p.id) ? '' : 'rotate-180'} transition-transform`}
+                            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                          >
+                            <polyline points="18 15 12 9 6 15"></polyline>
+                          </svg>
+                        </button>
                       </div>
-                    ) : (
-                      <div className="text-gray-500">—</div>
                     )}
                   </div>
-                  <div className="text-right text-xs md:text-sm whitespace-nowrap md:whitespace-normal md:text-right md:pl-0 pl-4 justify-self-end">{priceText}</div>
-                  {/* Botão sanfona (somente mobile) */}
-                  <div className="md:hidden text-right">
-                    <button
-                      type="button"
-                      aria-label="Abrir detalhes"
-                      title="Abrir detalhes"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border"
-                      onClick={()=>toggleMobileRow(p.id)}
-                    >
-                      {/* Chevron up; gira quando fechado */}
-                      <svg
-                        className={`${mobileOpenRows.has(p.id) ? '' : 'rotate-180'} transition-transform`}
-                        width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                      >
-                        <polyline points="18 15 12 9 6 15"></polyline>
-                      </svg>
-                    </button>
-                  </div>
+                  {/* Div anterior do botão sanfona removida/esvaziada para manter grid, ou ajustada */}
+                  <div className="md:hidden text-right hidden"></div>
                   <div className={`hidden md:block text-right text-sm ${stock === 0 ? 'text-red-500' : ''}`}>{stock.toLocaleString('pt-BR')}</div>
                   <div className="hidden md:block text-right text-sm">
                     <div className={`px-2 py-1 rounded text-xs ${(p.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
-                  <div className="hidden md:block text-right text-sm">
+                  <div className="text-right text-sm relative">
                     <button
                       type="button"
                       aria-label="Mais ações"
@@ -522,8 +484,12 @@ export default function ProductsPage({ storeId, addNewSignal }){
                       ⋯
                     </button>
                     {openMenuId === p.id && (
-                      <div className="absolute z-50 right-4 top-12 w-56 bg-white border rounded-lg shadow">
+                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow">
                         <div className="py-2">
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> { startEdit(p); setOpenMenuId(null); }}>
+                            <span>✏️</span>
+                            <span>Editar</span>
+                          </button>
                           <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> handleClone(p)}>
                             <span>📄</span>
                             <span>Clonar</span>
