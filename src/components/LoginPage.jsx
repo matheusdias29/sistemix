@@ -5,6 +5,7 @@ import { searchCep } from '../services/cep'
 import { auth } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
 import iPhoneImg from '../assets/17pm.webp'
+import logoWhite from '../assets/logofundobranco.png'
 
 export default function LoginPage({ onLoggedIn }){
   const [email, setEmail] = useState('')
@@ -253,12 +254,12 @@ export default function LoginPage({ onLoggedIn }){
       {/* Esquerda: Branding e Ilustração (Cinza Escuro) */}
       <div className="hidden md:flex flex-col justify-between p-10 lg:p-16 bg-[#1a1c23] relative overflow-hidden border-r border-gray-700">
         <div>
-          <div className="flex items-center gap-2 mb-6">
-            <div className="text-green-500">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
-              </svg>
-            </div>
+          <div className="flex items-center gap-1 mb-6">
+            <img 
+              src={logoWhite} 
+              alt="SisteMix" 
+              className="h-12 w-auto object-contain"
+            />
             <div className="font-bold text-2xl tracking-tight text-white">Siste<span className="text-green-500">Mix</span> Comércio</div>
           </div>
           <h1 className="text-gray-300 font-medium text-lg max-w-md">
@@ -563,12 +564,12 @@ export default function LoginPage({ onLoggedIn }){
                 </div>
 
                 <div className="flex flex-col items-center justify-center py-6 md:hidden">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="text-green-600">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M19 6h-2c0-2.76-2.24-5-5-5S7 3.24 7 6H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-7-3c1.66 0 3 1.34 3 3H9c0-1.66 1.34-3 3-3zm7 15H5V8h14v10z"/>
-                      </svg>
-                    </div>
+                  <div className="flex items-center gap-1 mb-2">
+                    <img 
+                      src={logoWhite} 
+                      alt="SisteMix" 
+                      className="h-10 w-auto object-contain"
+                    />
                     <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
                   </div>
                 </div>

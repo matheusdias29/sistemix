@@ -1,5 +1,6 @@
 import React from 'react'
 import clsx from 'clsx'
+import logoWhite from '../assets/logofundobranco.png'
 
 
 const items = [
@@ -16,7 +17,7 @@ const items = [
 ]
 
 
-export default function Sidebar({onNavigate, active, onLogout, mobileOpen=false, onMobileClose}){
+export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode}){
   const closeIfMobile = () => {
     onMobileClose && onMobileClose()
   }
@@ -35,18 +36,27 @@ export default function Sidebar({onNavigate, active, onLogout, mobileOpen=false,
       role="navigation"
     >
 <div className="p-4 md:p-6">
-<div className="flex items-center gap-3">
-<div className="rounded-full bg-green-100 p-2 text-green-700">🛍️</div>
-<div>
-<div className="font-bold text-lg text-gray-900 dark:text-white">Siste<span className="text-green-600">Mix</span></div>
-</div>
-</div>
+<div className="flex items-center gap-1 mb-1">
+  <img 
+    src={logoWhite} 
+    alt="SisteMix" 
+    className="h-12 w-auto object-contain"
+  />
+  <div className="font-bold text-2xl text-gray-900 dark:text-white">
+        Siste<span className="text-green-600">Mix</span>
+      </div>
+    </div>
 
 
-<button className="mt-4 md:mt-6 w-full bg-green-600 text-white py-2 rounded hover:opacity-95">Vender</button>
+    <button 
+      onClick={onOpenNewSale} 
+      className="mt-4 md:mt-6 w-full bg-green-600 text-white py-2 rounded hover:opacity-95"
+    >
+      Vender
+    </button>
 
 
-<nav className="mt-6">
+    <nav className="mt-6">
 {items.map(i=> (
 <div key={i.key} onClick={() => { onNavigate(i.key); closeIfMobile() }} className={clsx('mt-2 p-2 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-3', active===i.key && 'bg-gray-100 dark:bg-gray-800') }>
 <span className="w-6 text-gray-900 dark:text-white">{i.icon}</span>

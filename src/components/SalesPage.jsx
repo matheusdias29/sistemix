@@ -13,7 +13,7 @@ const tabs = [
   { key: 'cancelada', label: 'Canceladas' },
 ]
 
-export default function SalesPage({ initialDayFilter = null, storeId, user }){
+export default function SalesPage({ initialDayFilter = null, storeId, user, openNewSaleSignal = 0 }){
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
   const [query, setQuery] = useState('')
@@ -53,6 +53,12 @@ export default function SalesPage({ initialDayFilter = null, storeId, user }){
       unsubP && unsubP()
     }
   }, [storeId])
+
+  useEffect(() => {
+    if (openNewSaleSignal > 0) {
+      setNewSaleOpen(true)
+    }
+  }, [openNewSaleSignal])
 
   useEffect(() => {
     if (initialDayFilter) {

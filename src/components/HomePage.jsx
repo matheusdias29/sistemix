@@ -145,7 +145,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
   return (
     <div className="space-y-6">
       {/* Resumo do Dia */}
-      <section className="rounded-lg bg-white p-4 md:p-6 shadow">
+      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">🧾</span>
@@ -209,7 +209,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       </section>
 
       {/* Últimos dias */}
-      <section className="rounded-lg bg-white p-4 md:p-6 shadow">
+      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">📅</span>
           <h3 className="text-base md:text-lg font-semibold">Últimos dias</h3>
@@ -241,7 +241,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       </section>
 
       {/* Metas do Mês */}
-      <section className="rounded-lg bg-white p-4 md:p-6 shadow">
+      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">📈</span>
@@ -264,7 +264,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       </section>
 
       {/* Vendas x Lucro */}
-      <section className="rounded-lg bg-white p-4 md:p-6 shadow">
+      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
         <div className="flex items-center gap-2">
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">💹</span>
           <h3 className="text-base md:text-lg font-semibold">Vendas x Lucro</h3>

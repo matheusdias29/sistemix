@@ -43,6 +43,7 @@ export default function App(){
   const [store, setStore] = useState(null)
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [addNewSignal, setAddNewSignal] = useState(0)
+  const [openNewSaleSignal, setOpenNewSaleSignal] = useState(0)
   const [addNewOrderSignal, setAddNewOrderSignal] = useState(0)
   const [addNewClientSignal, setAddNewClientSignal] = useState(0)
   const [salesDayFilter, setSalesDayFilter] = useState(null)
@@ -147,6 +148,12 @@ export default function App(){
     setMobileSidebarOpen(false) // fecha sidebar no mobile ao navegar
   }
 
+  function handleOpenNewSale() {
+    setView('vendas')
+    setOpenNewSaleSignal(s => s + 1)
+    setMobileSidebarOpen(false)
+  }
+
   function handleLogout(){
     // Limpa estado de autenticação e volta ao login
     localStorage.removeItem('session')
@@ -167,6 +174,8 @@ export default function App(){
           onLogout={handleLogout}
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
+          darkMode={darkMode}
+          onOpenNewSale={handleOpenNewSale}
         />
         {/* Overlay para mobile */}
         {mobileSidebarOpen ? (
@@ -227,7 +236,7 @@ export default function App(){
               />
             </div>
           ) : view === 'vendas' ? (
-            <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} user={user} /></div>
+            <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} user={user} openNewSaleSignal={openNewSaleSignal} /></div>
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} /></div>
           ) : view === 'os' ? (
