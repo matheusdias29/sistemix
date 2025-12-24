@@ -420,7 +420,7 @@ export default function ProductsPage({ storeId, addNewSignal }){
 
       <div className="mt-4">
         {(tab==='produto') ? (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-lg shadow">
             {filtered.map(p => {
               const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
               const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
