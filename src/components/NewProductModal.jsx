@@ -3,6 +3,8 @@ import { addProduct, updateProduct, getNextProductReference } from '../services/
 import VariationsModal from './VariationsModal'
 import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
+import SelectCategoryModal from './SelectCategoryModal'
+import SelectSupplierModal from './SelectSupplierModal'
 
 export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId }){
   const [name, setName] = useState('')
@@ -38,11 +40,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [catSelectOpen, setCatSelectOpen] = useState(false)
-  const [catQuery, setCatQuery] = useState('')
   const [newCatOpen, setNewCatOpen] = useState(false)
   // Fornecedor: estados do seletor e modal
   const [supSelectOpen, setSupSelectOpen] = useState(false)
-  const [supQuery, setSupQuery] = useState('')
   const [newSupOpen, setNewSupOpen] = useState(false)
   const [isSmartphone, setIsSmartphone] = useState(false)
   const [phoneBrand, setPhoneBrand] = useState('')
@@ -142,10 +142,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     setActive(true)
     setError('')
     setCatSelectOpen(false)
-    setCatQuery('')
     setNewCatOpen(false)
     setSupSelectOpen(false)
-    setSupQuery('')
     setNewSupOpen(false)
     setIsSmartphone(false)
     setPhoneBrand('')
@@ -384,7 +382,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
         </div>
         <div>
-          <label className="text-xs text-gray-600">Referência</label>
+          <label className="text-xs text-gray-600">Código do produto</label>
           <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Automático se vazio" />
         </div>
         <div>
@@ -604,6 +602,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               open={varModalOpen}
               commissionPercent={commissionPercent}
               initialItems={variationsData.length ? variationsData : [makeVarFromProduct()]}
+              defaultReference={reference}
               onClose={()=> setVarModalOpen(false)}
               onConfirm={(items) => {
                 setVariationsData(items)
@@ -626,32 +625,16 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             />
           )}
           {catSelectOpen && (
-            <div className="fixed inset-0 z-[60] bg-black/30 flex items-center justify-center">
-              <div className="bg-white w-[520px] max-w-[90vw] rounded-lg shadow-lg">
-                <div className="flex items-center justify-between p-3 border-b">
-                  <div className="font-semibold">Selecionar categoria</div>
-                  <button type="button" onClick={()=>setNewCatOpen(true)} className="px-2 py-1 text-sm rounded bg-green-600 text-white">+ Nova</button>
-                </div>
-                <div className="p-3">
-                  <input value={catQuery} onChange={e=>setCatQuery(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Pesquisar..." />
-                  <div className="mt-3 max-h-[50vh] overflow-y-auto divide-y">
-                    {categories.filter(c => (c.name || '').toLowerCase().includes(catQuery.trim().toLowerCase())).map(c => (
-                      <button key={c.id} type="button" onClick={()=>{ setCategoryId(c.id); setCatSelectOpen(false); }} className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between">
-                        <span className="truncate">{c.name}</span>
-                        <span className="text-gray-400">›</span>
-                      </button>
-                    ))}
-                    {categories.length === 0 && (
-                      <div className="px-3 py-3 text-sm text-gray-500">Nenhuma categoria cadastrada.</div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-end gap-2 pt-3">
-                    <button type="button" onClick={()=>setCatSelectOpen(false)} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-                    <button type="button" onClick={()=>setCatSelectOpen(false)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <SelectCategoryModal
+              open={catSelectOpen}
+              onClose={() => setCatSelectOpen(false)}
+              onSelect={(c) => { 
+                setCategoryId(c ? c.id : ''); 
+                setCatSelectOpen(false); 
+              }}
+              categories={categories}
+              onNew={() => setNewCatOpen(true)}
+            />
           )}
           {newCatOpen && (
             <NewCategoryModal
@@ -661,32 +644,16 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             />
           )}
           {supSelectOpen && (
-            <div className="fixed inset-0 z-[60] bg-black/30 flex items-center justify-center">
-              <div className="bg-white w-[520px] max-w-[90vw] rounded-lg shadow-lg">
-                <div className="flex items-center justify-between p-3 border-b">
-                  <div className="font-semibold">Selecionar fornecedor</div>
-                  <button type="button" onClick={()=>setNewSupOpen(true)} className="px-2 py-1 text-sm rounded bg-green-600 text-white">+ Nova</button>
-                </div>
-                <div className="p-3">
-                  <input value={supQuery} onChange={e=>setSupQuery(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Pesquisar..." />
-                  <div className="mt-3 max-h-[50vh] overflow-y-auto divide-y">
-                    {suppliers.filter(s => (s.name || '').toLowerCase().includes(supQuery.trim().toLowerCase())).map((s, idx) => (
-                      <button key={s.id ?? idx} type="button" onClick={()=>{ setSupplier(s.name || ''); setSupSelectOpen(false); }} className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between">
-                        <span className="truncate">{s.name || '-'}</span>
-                        <span className="text-gray-400">›</span>
-                      </button>
-                    ))}
-                    {suppliers.length === 0 && (
-                      <div className="px-3 py-3 text-sm text-gray-500">Nenhum fornecedor cadastrado.</div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-end gap-2 pt-3">
-                    <button type="button" onClick={()=>setSupSelectOpen(false)} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-                    <button type="button" onClick={()=>setSupSelectOpen(false)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <SelectSupplierModal
+              open={supSelectOpen}
+              onClose={() => setSupSelectOpen(false)}
+              onSelect={(s) => { 
+                setSupplier(s ? (s.name || '') : ''); 
+                setSupSelectOpen(false); 
+              }}
+              suppliers={suppliers}
+              onNew={() => setNewSupOpen(true)}
+            />
           )}
           {newSupOpen && (
             <NewSupplierModal

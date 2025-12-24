@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [] }){
+export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultReference = '' }){
   const toEditable = (it = {}) => ({
     name: it.name ?? '',
     cost: String(it.cost ?? '0'),
@@ -30,7 +30,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
   if(!open) return null
 
   const addItem = () => {
-    setItems(prev => ([...prev, { name:'', cost:'0', salePrice:'0', promoPrice:'', barcode:'', reference:'', validityDate:'', stockInitial:'0', stockMin:'0', active:true }]))
+    setItems(prev => ([...prev, { name:'', cost:'0', salePrice:'0', promoPrice:'', barcode:'', reference: defaultReference, validityDate:'', stockInitial:'0', stockMin:'0', active:true }]))
   }
   const updateItem = (idx, field, value) => {
     setItems(prev => prev.map((it, i) => i===idx ? { ...it, [field]: value } : it))
@@ -94,7 +94,10 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                               <span>Estoque: {parseInt(it.stockInitial || '0', 10) || 0}</span>
                             </div>
                           </div>
-                          <div className="text-xs text-gray-500 pt-[1px]">{(it.reference || '').trim() ? it.reference : ''}</div>
+                            <div>
+                              <label className="text-xs text-gray-600">Código</label>
+                              <div className="text-xs text-gray-500 pt-[1px]">{it.reference || ''}</div>
+                            </div>
                           <div className="text-right">
                             <div className="text-base font-semibold leading-tight">{fmtBRL(it.promoPrice || it.salePrice)}</div>
                             <div className="text-xs text-gray-600">Custo: {fmtBRL(it.cost)}</div>
@@ -129,7 +132,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                               <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                             </div>
                             <div>
-                              <label className="text-xs text-gray-600">Referência</label>
+                              <label className="text-xs text-gray-600">Código do produto</label>
                               <input value={it.reference} onChange={e=>updateItem(idx,'reference', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                             </div>
                             <div>
@@ -200,7 +203,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                         <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-600">Referência</label>
+                        <label className="text-xs text-gray-600">Código do produto</label>
                         <input value={it.reference} onChange={e=>updateItem(idx,'reference', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                       </div>
                       <div>

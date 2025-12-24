@@ -5,6 +5,8 @@ import { listenCategories, updateCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
 import { listenSuppliers, updateSupplier } from '../services/suppliers'
 import NewSupplierModal from './NewSupplierModal'
+import ProductsFilterModal from './ProductsFilterModal'
+import ProductLabelsPage from './ProductLabelsPage'
 
 const tabs = [
   { key: 'produto', label: 'Produto' },
@@ -21,6 +23,7 @@ export default function ProductsPage({ storeId, addNewSignal }){
   const [query, setQuery] = useState('')
   const [viewMode, setViewMode] = useState('list')
   const [showFilters, setShowFilters] = useState(false)
+  const [activeFilters, setActiveFilters] = useState({})
   const [modalOpen, setModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
@@ -52,6 +55,10 @@ export default function ProductsPage({ storeId, addNewSignal }){
   const [supplierEditOpen, setSupplierEditOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState(null)
   const [supSelected, setSupSelected] = useState(() => new Set())
+  
+  // Opções menu
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [showLabelsScreen, setShowLabelsScreen] = useState(false)
 
   useEffect(() => {
     const unsubProd = listenProducts(items => setProducts(items), storeId)
@@ -66,8 +73,67 @@ export default function ProductsPage({ storeId, addNewSignal }){
 
   const filtered = useMemo(()=>{
     const q = query.trim().toLowerCase()
-    return products.filter(p => (p.name || '').toLowerCase().includes(q))
-  }, [products, query])
+    let res = products.filter(p => (p.name || '').toLowerCase().includes(q))
+
+    // Apply filters
+    if (activeFilters.categoryId) {
+       res = res.filter(p => p.categoryId === activeFilters.categoryId)
+    }
+    if (activeFilters.supplier) {
+       // Check if supplier is stored as name or ID. Usually name in this codebase based on previous context.
+       // But let's check strict match or includes.
+       // NewProductModal stores supplier name string.
+       res = res.filter(p => p.supplier === activeFilters.supplier)
+    }
+    if (activeFilters.origin) {
+       res = res.filter(p => String(p.origin) === String(activeFilters.origin))
+    }
+    if (activeFilters.ncm) {
+       res = res.filter(p => (p.ncm || '').includes(activeFilters.ncm))
+    }
+    if (activeFilters.cest) {
+       res = res.filter(p => (p.cest || '').includes(activeFilters.cest))
+    }
+    if (activeFilters.validityStart) {
+       res = res.filter(p => p.validityDate && p.validityDate >= activeFilters.validityStart)
+    }
+    if (activeFilters.validityEnd) {
+       res = res.filter(p => p.validityDate && p.validityDate <= activeFilters.validityEnd)
+    }
+    if (activeFilters.lowStock) {
+       res = res.filter(p => {
+          const s = Number(p.stock||0)
+          const m = Number(p.stockMin||0)
+          return s <= m
+       })
+    }
+    if (activeFilters.noStock) {
+       res = res.filter(p => Number(p.stock||0) === 0)
+    }
+
+    // Status
+    const fActive = activeFilters.filterActive ?? true // default true if not set
+    const fInactive = activeFilters.filterInactive ?? false // default false if not set? 
+    // Wait, earlier I decided default is All? 
+    // If activeFilters is empty, defaults are not set.
+    // If user opens modal and clicks filter, activeFilters will be populated.
+    // If activeFilters is empty, I show all.
+    // If activeFilters is NOT empty, I follow the logic.
+    // But how do I distinguish "empty" from "user selected Active only"?
+    // I can check if keys exist.
+    
+    if (Object.keys(activeFilters).length > 0) {
+        if (fActive && !fInactive) {
+           res = res.filter(p => (p.active ?? true) === true)
+        } else if (!fActive && fInactive) {
+           res = res.filter(p => (p.active ?? true) === false)
+        } else if (!fActive && !fInactive) {
+           res = []
+        }
+    }
+    
+    return res
+  }, [products, query, activeFilters])
 
   const filteredCategories = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -211,6 +277,17 @@ export default function ProductsPage({ storeId, addNewSignal }){
     setSupplierEditOpen(true)
   }
 
+  if (showLabelsScreen) {
+    return (
+      <ProductLabelsPage 
+        products={products}
+        categories={categories}
+        suppliers={suppliers}
+        onBack={() => setShowLabelsScreen(false)}
+      />
+    )
+  }
+
   return (
     <div>
       {/* Tabs no topo: rolável no mobile */}
@@ -227,12 +304,25 @@ export default function ProductsPage({ storeId, addNewSignal }){
       </div>
 
       {/* Toolbar de busca com botões à direita */}
-      <div className="grid grid-cols-[1fr_auto] gap-2 items-center">
-        <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="px-3 py-2 border rounded" />
-        <div className="flex gap-2 items-center">
-          {/* Filtros: ícone-only no mobile, texto no desktop */}
+      <div className="flex flex-col md:flex-row justify-between items-center gap-2">
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="relative w-full md:w-64">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input 
+              value={query} 
+              onChange={e=>setQuery(e.target.value)} 
+              placeholder="Pesquisar..." 
+              className="pl-10 pr-3 py-2 border rounded w-full bg-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 border-gray-200" 
+            />
+          </div>
+
+          {/* Filtros */}
           <button
-            className="md:hidden h-9 w-9 rounded border flex items-center justify-center"
+            className="md:hidden h-9 w-9 shrink-0 rounded border flex items-center justify-center bg-gray-50"
             aria-label="Filtros"
             title="Filtros"
             onClick={()=>setShowFilters(x=>!x)}
@@ -241,20 +331,62 @@ export default function ProductsPage({ storeId, addNewSignal }){
               <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </button>
-          <button className="hidden md:inline-flex px-3 py-2 rounded border text-sm" onClick={()=>setShowFilters(x=>!x)}>Filtros</button>
+          <button className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded border text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100" onClick={()=>setShowFilters(x=>!x)}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            Filtros
+          </button>
 
           {/* Alternador de visualização */}
-          <button className="px-3 py-2 rounded border text-sm" onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}>≡</button>
+          <button className="px-3 py-2 rounded border text-sm text-gray-500 bg-gray-50 hover:bg-gray-100" onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+          </button>
+        </div>
 
-          {/* Opções: oculto na aba Produto e no mobile */}
-          {(tab !== 'produto') && (
-            <button className="hidden md:inline-flex px-3 py-2 rounded border text-sm">Opções</button>
-          )}
-
-          {/* + Novo: aparece na toolbar somente no desktop */}
-          <button className="hidden md:inline-flex px-3 py-2 rounded bg-green-600 text-white text-sm" onClick={addNew}>+ Novo</button>
-
+        <div className="flex items-center gap-2">
+          {/* Opções */}
+          <div className="relative hidden md:inline-block">
+            <button 
+              className="px-4 py-2 rounded border border-green-500 text-green-600 text-sm font-medium hover:bg-green-50"
+              onClick={() => setOptionsOpen(!optionsOpen)}
+            >
+              Opções
+            </button>
+            {optionsOpen && (
+              <div className="absolute top-full left-0 mt-1 w-40 bg-white rounded-lg shadow-xl border z-50 py-1">
+                 <button 
+                  className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                  onClick={() => { setOptionsOpen(false); setShowLabelsScreen(true); }}
+                >
+                  <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                   </svg>
+                   Etiquetas
+                 </button>
+                 <button 
+                   className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                   onClick={() => { setOptionsOpen(false); /* TODO: Exportar */ }}
+                 >
+                   <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                   </svg>
+                   Exportar
+                 </button>
+              </div>
+            )}
           </div>
+
+          {/* + Novo */}
+          <button className="hidden md:inline-flex px-4 py-2 rounded bg-green-500 text-white text-sm font-medium hover:bg-green-600" onClick={addNew}>
+            + Novo
+          </button>
+        </div>
       </div>
 
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
@@ -624,6 +756,14 @@ export default function ProductsPage({ storeId, addNewSignal }){
           </div>
         </div>
       )}
+      <ProductsFilterModal 
+        open={showFilters} 
+        onClose={()=>setShowFilters(false)} 
+        onFilter={(filters) => { setActiveFilters(filters); }}
+        categories={categories}
+        suppliers={suppliers}
+        initialFilters={activeFilters}
+      />
     </div>
   )
 }
