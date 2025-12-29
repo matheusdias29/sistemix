@@ -66,7 +66,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
       <div className="bg-white rounded-lg shadow-lg w-[900px] max-w-[98vw]">
         <div className="flex items-center justify-between p-4 border-b">
           <div className="flex items-center gap-4 text-sm">
-            <span className="font-semibold">Gerenciar variações</span>
+            <span className="font-semibold">Gerenciar precificações</span>
             <div className="flex items-center gap-2">
               <button type="button" className="px-2 py-1 border rounded-full text-xs bg-green-50 border-green-200 text-green-700">Ativos</button>
               <button type="button" className="px-2 py-1 border rounded-full text-xs">Inativos</button>
@@ -107,7 +107,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                       {expandedIdx === idx && (
                         <div className="px-3 pb-3">
                           <div className="grid grid-cols-1 gap-3">
-                            <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da variação" />
+                            <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da precificação" />
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3">
                             <div>
@@ -167,7 +167,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                     </div>
                   ))}
                   {items.length === 0 && (
-                    <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+                    <div className="px-3 py-6 text-sm text-gray-500">Nenhuma precificação adicionada ainda.</div>
                   )}
                 </div>
               </div>
@@ -177,11 +177,11 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                 {items.map((it, idx)=> (
                   <div key={idx} className="border rounded p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <div className="text-sm font-medium">Variação {idx+1} {items[idx]?.createdAt ? '' : <span className="ml-2 text-xs text-gray-500">Nova</span>}</div>
+                      <div className="text-sm font-medium">Precificação {idx+1} {items[idx]?.createdAt ? '' : <span className="ml-2 text-xs text-gray-500">Nova</span>}</div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div className="col-span-3">
-                        <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da variação" />
+                        <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da precificação" />
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-4">
@@ -242,7 +242,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
               </div>
             </div>
           <div className="mt-3 px-6 flex items-center justify-between">
-            <button type="button" onClick={addItem} className="px-3 py-2 border rounded text-sm">Adicionar nova variação</button>
+            <button type="button" onClick={addItem} className="px-3 py-2 border rounded text-sm">Adicionar nova precificação</button>
             <div className="flex items-center gap-3">
               <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
               <button type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>

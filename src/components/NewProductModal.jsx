@@ -6,7 +6,7 @@ import NewSupplierModal from './NewSupplierModal'
 import SelectCategoryModal from './SelectCategoryModal'
 import SelectSupplierModal from './SelectSupplierModal'
 
-export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId }){
+export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user }){
   const [name, setName] = useState('')
   const [priceMin, setPriceMin] = useState('0')
   const [priceMax, setPriceMax] = useState('0')
@@ -60,6 +60,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
   // Variation Config
   const [variationMode, setVariationMode] = useState('4V')
+  const VAR_NAMES_3V = [
+    '1 - PREÇO P/ CLIENTE FINAL',
+    '2 - PREÇO P/ LOJISTA LEVAR',
+    '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA'
+  ]
   const VAR_NAMES_4V = [
     '1- VALOR DO PRODUTO',
     '2-VALOR PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
@@ -72,7 +77,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   ]
 
   const generateVariations = (mode, currentVars = []) => {
-    const targetNames = mode === '5V' ? VAR_NAMES_5V : VAR_NAMES_4V
+    let targetNames = VAR_NAMES_4V
+    if (mode === '5V') targetNames = VAR_NAMES_5V
+    else if (mode === '3V') targetNames = VAR_NAMES_3V
+    
     return targetNames.map(name => {
       const existing = currentVars.find(v => v.name === name)
       if (existing) return existing
@@ -114,8 +122,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         setVariations(String(product.variations ?? 0))
         
         const vData = Array.isArray(product.variationsData) ? product.variationsData : []
+        // Detecção do modo baseado nos nomes das variações
         const has5th = vData.some(v => v.name === '5-VALOR P/INSTALAR NA LOJA')
-        const initialMode = has5th ? '5V' : '4V'
+        const has3rd = vData.some(v => v.name === '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA')
+        
+        let initialMode = '4V'
+        if (has5th) initialMode = '5V'
+        else if (has3rd) initialMode = '3V'
+        
         setVariationMode(initialMode)
         setVariationsData(vData)
 
@@ -286,10 +300,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         isParts: !!isParts,
         isAccessories: !!isAccessories,
         isSundries: !!isSundries,
+        lastEditedBy: user?.name || 'Desconhecido',
       }
       if(isEdit && product?.id){
         await updateProduct(product.id, data)
       } else {
+        data.createdBy = user?.name || 'Desconhecido'
         await addProduct(data, storeId)
       }
       close()
@@ -519,8 +535,15 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
     <div>
       <div className="flex items-center gap-4 mb-3">
-        <span className="text-sm font-medium text-gray-700">Quantidade de variações:</span>
+        <span className="text-sm font-medium text-gray-700">Quantidade de Precificações:</span>
         <div className="flex items-center bg-gray-100 rounded-lg p-1 border">
+          <button 
+            type="button" 
+            onClick={() => { setVariationMode('3V'); setVariationsData(generateVariations('3V', variationsData)); }}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '3V' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+          >
+            3V
+          </button>
           <button 
             type="button" 
             onClick={() => { setVariationMode('4V'); setVariationsData(generateVariations('4V', variationsData)); }}
@@ -538,12 +561,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         </div>
       </div>
       <div className="flex items-center justify-between mb-2">
-        <div className="font-semibold">Variações</div>
-        <button type="button" onClick={()=> setVarModalOpen(true)} className="px-3 py-2 border rounded text-sm">Gerenciar variações</button>
+        <div className="font-semibold">Precificações</div>
+        <button type="button" onClick={()=> setVarModalOpen(true)} className="px-3 py-2 border rounded text-sm">Gerenciar precificações</button>
       </div>
       {/* Mobile list */}
       <div className="md:hidden">
-        <div className="text-xs text-gray-600">{variationsData.length} variações</div>
+        <div className="text-xs text-gray-600">{variationsData.length} precificações</div>
         <div className="mt-2 border rounded overflow-hidden">
           {variationsData.map((v, idx) => (
             <div key={idx} className="px-3 py-3 border-b last:border-0">
@@ -572,7 +595,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
       {/* Desktop table */}
       <div className="hidden md:block">
-        <div className="text-xs text-gray-600">{variationsData.length} variações</div>
+        <div className="text-xs text-gray-600">{variationsData.length} precificações</div>
         <div className="mt-2 border rounded overflow-hidden">
           <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 border-b">
             <div>Nome</div>

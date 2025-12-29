@@ -16,7 +16,7 @@ const tabs = [
   { key: 'compras', label: 'Compras' },
 ]
 
-export default function ProductsPage({ storeId, addNewSignal }){
+export default function ProductsPage({ storeId, addNewSignal, user }){
   const [tab, setTab] = useState('produto')
   const [products, setProducts] = useState([])
   const [selected, setSelected] = useState(() => new Set())
@@ -73,7 +73,10 @@ export default function ProductsPage({ storeId, addNewSignal }){
 
   const filtered = useMemo(()=>{
     const q = query.trim().toLowerCase()
-    let res = products.filter(p => (p.name || '').toLowerCase().includes(q))
+    let res = products.filter(p => 
+      (p.name || '').toLowerCase().includes(q) || 
+      (p.reference || '').toLowerCase().includes(q)
+    )
 
     // Apply filters
     if (activeFilters.categoryId) {
@@ -392,10 +395,12 @@ export default function ProductsPage({ storeId, addNewSignal }){
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
       <div className={`mt-2 px-3 py-2 rounded bg-gray-100 text-xs text-gray-600 ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
-          <div className="grid grid-cols-[1.5rem_1fr_1fr_12rem_6rem_6rem_2rem]">
+          <div className="grid grid-cols-[1.5rem_1fr_6rem_1fr_1fr_12rem_6rem_6rem_2rem] gap-x-4">
             <div></div>
             <div>Produto ({filtered.length})</div>
+            <div>Código</div>
             <div className="text-center">Atualizado </div>
+            <div className="text-center">Funcionário</div>
             <div className="text-right">Preço</div>
             <div className="text-right">Estoque</div>
             <div className="text-right">Status</div>
@@ -428,22 +433,28 @@ export default function ProductsPage({ storeId, addNewSignal }){
               const stock = Number(p.stock ?? 0)
               return (
                 <>
-                <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_1fr_12rem_6rem_6rem_2rem] items-center px-4 py-3 border-b last:border-0">
+                <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_6rem_1fr_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
                   <div className="text-xs md:text-sm">
                     <div className="font-medium">
-                      {p.name} {p.reference && <span className="text-gray-400 text-xs font-normal">#{p.reference}</span>}
+                      {p.name}
                     </div>
                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                       Estoque: {stock.toLocaleString('pt-BR')}
                       <span className="red-dot" />
                     </div>
                   </div>
+                  <div className="hidden md:block text-xs text-gray-500 font-mono">
+                    {p.reference || '-'}
+                  </div>
                   {/* Data de atualização (substituindo prévia de variações) */}
                   <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
                      {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                  </div>
+                  <div className="hidden md:flex text-xs text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
+                     {p.lastEditedBy || p.createdBy || '—'}
                   </div>
                   <div className="text-right whitespace-nowrap md:whitespace-normal md:text-right md:pl-0 pl-4 justify-self-end flex flex-col items-end justify-center">
                     <div className="text-xs md:text-sm">{priceText}</div>
@@ -452,8 +463,8 @@ export default function ProductsPage({ storeId, addNewSignal }){
                       <div className="mt-1">
                         <button
                           type="button"
-                          aria-label="Abrir variações"
-                          title="Abrir variações"
+                          aria-label="Abrir precificações"
+                          title="Abrir precificações"
                           className="inline-flex h-6 w-6 items-center justify-center rounded border bg-white hover:bg-gray-50"
                           onClick={()=>toggleMobileRow(p.id)}
                         >
@@ -471,7 +482,7 @@ export default function ProductsPage({ storeId, addNewSignal }){
                   <div className="md:hidden text-right hidden"></div>
                   <div className={`hidden md:block text-right text-sm ${stock === 0 ? 'text-red-500' : ''}`}>{stock.toLocaleString('pt-BR')}</div>
                   <div className="hidden md:block text-right text-sm">
-                    <div className={`px-2 py-1 rounded text-xs ${(p.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                    <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
                   <div className="text-right text-sm relative">
                     <button
@@ -632,8 +643,8 @@ export default function ProductsPage({ storeId, addNewSignal }){
       {openMenuId && (
         <div className="fixed inset-0 z-40" onClick={()=>setOpenMenuId(null)} />
       )}
-      <NewProductModal open={modalOpen} onClose={()=>setModalOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} />
-      <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} storeId={storeId} />
+      <NewProductModal open={modalOpen} onClose={()=>setModalOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} user={user} />
+      <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} storeId={storeId} user={user} />
       <NewCategoryModal open={catModalOpen} onClose={()=>setCatModalOpen(false)} storeId={storeId} />
       <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} storeId={storeId} />
       <NewSupplierModal open={supplierModalOpen} onClose={()=>setSupplierModalOpen(false)} storeId={storeId} />
