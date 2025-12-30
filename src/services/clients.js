@@ -56,6 +56,12 @@ export async function updateClient(id, partial){
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
 }
 
+export async function removeClient(id){
+  const ref = doc(db, 'clients', id)
+  const { deleteDoc } = await import('firebase/firestore')
+  await deleteDoc(ref)
+}
+
 export async function getNextClientCode(storeId) {
   try {
     // Busca todos os clientes da loja para calcular o maior código

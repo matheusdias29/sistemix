@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { listenClients } from '../services/clients'
+import { listenClients, removeClient } from '../services/clients'
 import NewClientModal from './NewClientModal'
 import ClientsFilterModal from './ClientsFilterModal'
 
@@ -9,6 +9,12 @@ export default function ClientsPage({ storeId, addNewSignal }){
   const [modalOpen, setModalOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [editingClient, setEditingClient] = useState(null)
+  
+  // Menu e Ações
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
+  const [confirmRemoveClient, setConfirmRemoveClient] = useState(null)
+  const [savingAction, setSavingAction] = useState(false)
   
   // Filtros
   const [filterOpen, setFilterOpen] = useState(false)
@@ -59,10 +65,40 @@ export default function ClientsPage({ storeId, addNewSignal }){
   const startEdit = (c) => {
     setEditingClient(c)
     setEditOpen(true)
+    setOpenMenuId(null)
+  }
+
+  const openConfirmRemove = (c) => {
+    setConfirmRemoveClient(c)
+    setConfirmRemoveOpen(true)
+    setOpenMenuId(null)
+  }
+
+  const confirmRemove = async () => {
+    if(!confirmRemoveClient) return
+    setSavingAction(true)
+    try {
+      await removeClient(confirmRemoveClient.id)
+      setConfirmRemoveOpen(false)
+      setConfirmRemoveClient(null)
+    } catch(e) {
+      console.error(e)
+      alert('Erro ao remover cliente')
+    } finally {
+      setSavingAction(false)
+    }
   }
 
   return (
     <div>
+      {/* Overlay para fechar menu ao clicar fora */}
+      {openMenuId && (
+        <div 
+          className="fixed inset-0 z-10" 
+          onClick={()=>setOpenMenuId(null)}
+        ></div>
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-lg p-4 shadow mb-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -108,24 +144,47 @@ export default function ClientsPage({ storeId, addNewSignal }){
           <div></div>
         </div>
 
-        {filtered.map(c => (
-          <>
+        {filtered.map((c, index) => {
+          const isLast = index >= filtered.length - 2
+          return (
+          <React.Fragment key={c.id}>
             {/* Linha mobile: apenas código + nome */}
             <div
-              key={c.id + '-m'}
-              className="md:hidden px-4 py-3 border-b last:border-0 cursor-pointer"
-              onClick={()=>startEdit(c)}
+              className="md:hidden px-4 py-3 border-b last:border-0"
             >
-              <div className="text-sm font-medium flex items-center justify-between gap-2">
-                <span className="truncate mr-2">{c.name}</span>
-                {c.code ? (<span className="text-gray-500 text-xs shrink-0">#{c.code}</span>) : null}
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-medium flex items-center gap-2 truncate">
+                  <span className="truncate">{c.name}</span>
+                  {c.code ? (<span className="text-gray-500 text-xs shrink-0">#{c.code}</span>) : null}
+                </div>
+                
+                <div className="relative">
+                   <button 
+                     className="p-1 rounded-full hover:bg-gray-100 relative z-20"
+                     onClick={(e)=>{ e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id) }}
+                   >
+                     <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
+                   </button>
+                   {openMenuId === c.id && (
+                     <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1`}>
+                       <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
+                         <span>✏️</span>
+                         <span>Editar</span>
+                       </button>
+                       <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
+                         <span>🗑️</span>
+                         <span>Remover cliente</span>
+                       </button>
+                     </div>
+                   )}
+                </div>
               </div>
             </div>
 
             {/* Linha desktop completa */}
-            <div key={c.id} className="hidden md:grid grid-cols-[1fr_10rem_1fr_8rem_2rem] items-center px-4 py-3 border-b last:border-0">
+            <div className="hidden md:grid grid-cols-[1fr_10rem_1fr_8rem_2rem] items-center px-4 py-3 border-b last:border-0">
               <div className="text-sm">
-                <div className="font-medium cursor-pointer uppercase" onClick={()=>startEdit(c)}>
+                <div className="font-medium uppercase">
                   {c.name} {c.code && <span className="text-gray-400 text-xs font-normal">#{c.code}</span>}
                 </div>
               </div>
@@ -143,17 +202,61 @@ export default function ClientsPage({ storeId, addNewSignal }){
               </div>
               <div></div>
               <div className="text-sm text-right">
-                <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.status!=='inactive') ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                  {(c.status!=='inactive') ? 'Ativo' : 'Inativo'}
+                <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active!==false) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                  {(c.active!==false) ? 'Ativo' : 'Inativo'}
                 </div>
               </div>
-              <div className="text-right text-sm">⋯</div>
+              
+              <div className="relative text-right">
+                 <button 
+                   className="p-1 rounded-full hover:bg-gray-100 relative z-20"
+                   onClick={(e)=>{ e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id) }}
+                 >
+                   <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
+                 </button>
+                 {openMenuId === c.id && (
+                   <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1 text-left`}>
+                     <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
+                       <span>✏️</span>
+                       <span>Editar</span>
+                     </button>
+                     <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
+                       <span>🗑️</span>
+                       <span>Remover cliente</span>
+                     </button>
+                   </div>
+                 )}
+              </div>
             </div>
-          </>
-        ))}
+          </React.Fragment>
+          )
+        })}
       </div>
 
       {/* Modais */}
+      {/* Modal Confirmar Exclusão */}
+      {confirmRemoveOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-base font-medium">Remover cliente</h3>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div>
+                Tem certeza que deseja remover “{confirmRemoveClient?.name}”?
+              </div>
+              <div>
+                Esta ação é irreversível.
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemove} disabled={savingAction}>Remover</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <NewClientModal open={modalOpen} onClose={()=>setModalOpen(false)} storeId={storeId} />
       <NewClientModal open={editOpen} onClose={()=>setEditOpen(false)} isEdit={true} client={editingClient} storeId={storeId} />
       <ClientsFilterModal 

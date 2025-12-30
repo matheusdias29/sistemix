@@ -575,15 +575,20 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             const price = promo != null ? promo : sale
                             const stockVar = Number(v?.stock ?? 0)
                             return (
-                              <div key={idx} className="grid grid-cols-[1fr_6rem] items-center gap-2 text-sm">
-                                <div className="truncate">
-                                  <span className="font-medium">{v?.name || v?.label || `Variação ${idx+1}`}</span>
+                              <div key={idx} className="grid grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center text-sm">
+                                <div></div>
+                                <div className="col-span-5 truncate">
+                                  <span className="font-medium text-gray-700">{v?.name || v?.label || `Variação ${idx+1}`}</span>
                                   {v?.reference ? (<span className="ml-1 text-gray-500">({v.reference})</span>) : null}
-                                  {stockVar ? (<span className="ml-2 text-gray-500">Estoque: {stockVar.toLocaleString('pt-BR')}</span>) : null}
                                 </div>
                                 <div className="text-right whitespace-nowrap">
                                   {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                                 </div>
+                                <div className="text-right text-gray-500">
+                                  {stockVar ? stockVar.toLocaleString('pt-BR') : '-'}
+                                </div>
+                                <div></div>
+                                <div></div>
                               </div>
                             )
                           })}
