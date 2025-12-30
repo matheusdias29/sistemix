@@ -134,18 +134,21 @@ export default function ClientsPage({ storeId, addNewSignal }){
       </div>
 
       {/* Lista */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow overflow-visible">
         {/* Cabeçalho (apenas desktop) */}
-        <div className="hidden md:grid grid-cols-[1fr_10rem_1fr_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
+        <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_6rem_2rem] gap-x-4 items-center px-4 py-3 text-xs text-gray-500 border-b bg-gray-50 rounded-t-lg">
           <div>Clientes ({filtered.length})</div>
+          <div>Código</div>
+          <div className="text-center">Atualizado</div>
+          <div className="text-center">Hora</div>
           <div className="text-left">Whatsapp</div>
-          <div></div>
           <div className="text-right">Status</div>
           <div></div>
         </div>
 
         {filtered.map((c, index) => {
-          const isLast = index >= filtered.length - 2
+          // Só abre para cima se estiver no final da lista E não for um dos primeiros itens (para não cortar no topo)
+          const isLast = index >= 2 && index >= filtered.length - 2
           return (
           <React.Fragment key={c.id}>
             {/* Linha mobile: apenas código + nome */}
@@ -167,11 +170,11 @@ export default function ClientsPage({ storeId, addNewSignal }){
                    </button>
                    {openMenuId === c.id && (
                      <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1`}>
-                       <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
-                         <span>✏️</span>
-                         <span>Editar</span>
-                       </button>
-                       <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
+                        <span>✏️</span>
+                        <span>Editar</span>
+                      </button>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
                          <span>🗑️</span>
                          <span>Remover cliente</span>
                        </button>
@@ -182,11 +185,20 @@ export default function ClientsPage({ storeId, addNewSignal }){
             </div>
 
             {/* Linha desktop completa */}
-            <div className="hidden md:grid grid-cols-[1fr_10rem_1fr_8rem_2rem] items-center px-4 py-3 border-b last:border-0">
+            <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
               <div className="text-sm">
                 <div className="font-medium uppercase">
-                  {c.name} {c.code && <span className="text-gray-400 text-xs font-normal">#{c.code}</span>}
+                  {c.name}
                 </div>
+              </div>
+              <div className="text-xs text-gray-500 font-mono">
+                {c.code || '-'}
+              </div>
+              <div className="text-xs text-gray-700 text-center">
+                 {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
+              </div>
+              <div className="text-xs text-gray-700 text-center">
+                 {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
               </div>
               <div className="text-sm text-left">
                 {c.whatsapp ? (
@@ -200,7 +212,6 @@ export default function ClientsPage({ storeId, addNewSignal }){
                   <span className="text-gray-400">-</span>
                 )}
               </div>
-              <div></div>
               <div className="text-sm text-right">
                 <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active!==false) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
                   {(c.active!==false) ? 'Ativo' : 'Inativo'}
@@ -215,12 +226,12 @@ export default function ClientsPage({ storeId, addNewSignal }){
                    <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
                  </button>
                  {openMenuId === c.id && (
-                   <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1 text-left`}>
-                     <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
-                       <span>✏️</span>
-                       <span>Editar</span>
-                     </button>
-                     <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
+                    <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1 text-left`}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
+                        <span>✏️</span>
+                        <span>Editar</span>
+                      </button>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
                        <span>🗑️</span>
                        <span>Remover cliente</span>
                      </button>
