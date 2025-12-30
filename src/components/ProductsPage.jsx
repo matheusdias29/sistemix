@@ -395,13 +395,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
       <div className={`mt-2 px-3 py-2 rounded bg-gray-100 text-xs text-gray-600 ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
-          <div className="grid grid-cols-[1.5rem_1fr_6rem_1fr_1fr_12rem_6rem_6rem_2rem] gap-x-4">
+          <div className="grid grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4">
             <div></div>
             <div>Produto ({filtered.length})</div>
             <div>Código</div>
             <div className="text-center">Atualizado </div>
+            <div className="text-center">Hora</div>
             <div className="text-center">Funcionário</div>
-            <div className="text-right">Preço</div>
+            <div className="text-right">PREÇO P/CLIENTE FINAL</div>
             <div className="text-right">Estoque</div>
             <div className="text-right">Status</div>
             <div></div>
@@ -433,7 +434,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               const stock = Number(p.stock ?? 0)
               return (
                 <>
-                <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_6rem_1fr_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
+                <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
@@ -451,7 +452,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   </div>
                   {/* Data de atualização (substituindo prévia de variações) */}
                   <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
-                     {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}
+                     {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
+                  </div>
+                  <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
+                     {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
                   </div>
                   <div className="hidden md:flex text-xs text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
                      {p.lastEditedBy || p.createdBy || '—'}

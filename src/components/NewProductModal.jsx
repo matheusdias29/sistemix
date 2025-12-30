@@ -59,30 +59,41 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [isSundries, setIsSundries] = useState(false)
 
   // Variation Config
-  const [variationMode, setVariationMode] = useState('4V')
-  const VAR_NAMES_3V = [
+  const [variationMode, setVariationMode] = useState('4P')
+  const VAR_NAMES_3P = [
     '1 - PREÇO P/ CLIENTE FINAL',
     '2 - PREÇO P/ LOJISTA LEVAR',
     '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA'
   ]
-  const VAR_NAMES_4V = [
-    '1- VALOR DO PRODUTO',
-    '2-VALOR PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
-    '3-VALOR PARCELADO 13X ATÉ 18X CARTÃO CREDITO',
-    '4-VALOR P/LOJISTA LEVAR Á VISTA'
+  const VAR_NAMES_4P = [
+    '1- PREÇO DO PRODUTO',
+    '2-PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
+    '3-PREÇO PARCELADO 13X ATÉ 18X CARTÃO CREDITO',
+    '4-PREÇO P/LOJISTA LEVAR Á VISTA'
   ]
-  const VAR_NAMES_5V = [
-    ...VAR_NAMES_4V,
-    '5-VALOR P/INSTALAR NA LOJA'
+  const VAR_NAMES_5P = [
+    ...VAR_NAMES_4P,
+    '5-PREÇO P/INSTALAR NA LOJA'
   ]
 
   const generateVariations = (mode, currentVars = []) => {
-    let targetNames = VAR_NAMES_4V
-    if (mode === '5V') targetNames = VAR_NAMES_5V
-    else if (mode === '3V') targetNames = VAR_NAMES_3V
+    let targetNames = VAR_NAMES_4P
+    if (mode === '5P') targetNames = VAR_NAMES_5P
+    else if (mode === '3P') targetNames = VAR_NAMES_3P
     
     return targetNames.map(name => {
-      const existing = currentVars.find(v => v.name === name)
+      // Try to find exact match
+      let existing = currentVars.find(v => v.name === name)
+      
+      // If not found, try to find legacy "VALOR" name and migrate it
+      if (!existing && name.includes('PREÇO')) {
+        const legacyName = name.replace('PREÇO', 'VALOR')
+        const legacy = currentVars.find(v => v.name === legacyName)
+        if (legacy) {
+          existing = { ...legacy, name: name }
+        }
+      }
+
       if (existing) return existing
       return {
         name,
@@ -123,12 +134,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         
         const vData = Array.isArray(product.variationsData) ? product.variationsData : []
         // Detecção do modo baseado nos nomes das variações
-        const has5th = vData.some(v => v.name === '5-VALOR P/INSTALAR NA LOJA')
+        const has5th = vData.some(v => v.name === '5-PREÇO P/INSTALAR NA LOJA' || v.name === '5-VALOR P/INSTALAR NA LOJA')
         const has3rd = vData.some(v => v.name === '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA')
         
-        let initialMode = '4V'
-        if (has5th) initialMode = '5V'
-        else if (has3rd) initialMode = '3V'
+        let initialMode = '4P'
+        if (has5th) initialMode = '5P'
+        else if (has3rd) initialMode = '3P'
         
         setVariationMode(initialMode)
         setVariationsData(vData)
@@ -156,8 +167,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         setIsSundries(!!product.isSundries)
       } else {
         // Modo Novo Produto
-        setVariationMode('4V')
-        setVariationsData(generateVariations('4V', []))
+        setVariationMode('4P')
+        setVariationsData(generateVariations('4P', []))
       }
     }
   }, [open, isEdit, product])
@@ -539,24 +550,24 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         <div className="flex items-center bg-gray-100 rounded-lg p-1 border">
           <button 
             type="button" 
-            onClick={() => { setVariationMode('3V'); setVariationsData(generateVariations('3V', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '3V' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => { setVariationMode('3P'); setVariationsData(generateVariations('3P', variationsData)); }}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '3P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            3V
+            3P
           </button>
           <button 
             type="button" 
-            onClick={() => { setVariationMode('4V'); setVariationsData(generateVariations('4V', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4V' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => { setVariationMode('4P'); setVariationsData(generateVariations('4P', variationsData)); }}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            4V
+            4P
           </button>
           <button 
             type="button" 
-            onClick={() => { setVariationMode('5V'); setVariationsData(generateVariations('5V', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5V' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+            onClick={() => { setVariationMode('5P'); setVariationsData(generateVariations('5P', variationsData)); }}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            5V
+            5P
           </button>
         </div>
       </div>

@@ -143,7 +143,9 @@ export default function ClientsPage({ storeId, addNewSignal }){
               </div>
               <div></div>
               <div className="text-sm text-right">
-                <div className={`px-2 py-1 rounded text-xs ${(c.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(c.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.status!=='inactive') ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                  {(c.status!=='inactive') ? 'Ativo' : 'Inativo'}
+                </div>
               </div>
               <div className="text-right text-sm">⋯</div>
             </div>
