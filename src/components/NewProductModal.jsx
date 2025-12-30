@@ -66,7 +66,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA'
   ]
   const VAR_NAMES_4P = [
-    '1- PREÇO DO PRODUTO',
+    '1 - PREÇO P/ CLIENTE FINAL',
     '2-PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
     '3-PREÇO PARCELADO 13X ATÉ 18X CARTÃO CREDITO',
     '4-PREÇO P/LOJISTA LEVAR Á VISTA'
@@ -85,6 +85,15 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       // Try to find exact match
       let existing = currentVars.find(v => v.name === name)
       
+      // Handle specific rename for item 1 in 4P/5P
+      if (!existing && name === '1 - PREÇO P/ CLIENTE FINAL') {
+         const possibleOldNames = ['1- PREÇO DO PRODUTO', '1- VALOR DO PRODUTO']
+         const oldVar = currentVars.find(v => possibleOldNames.includes(v.name))
+         if (oldVar) {
+             existing = { ...oldVar, name: name }
+         }
+      }
+
       // If not found, try to find legacy "VALOR" name and migrate it
       if (!existing && name.includes('PREÇO')) {
         const legacyName = name.replace('PREÇO', 'VALOR')
