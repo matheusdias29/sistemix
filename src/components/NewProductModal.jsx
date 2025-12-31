@@ -62,18 +62,19 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [variationMode, setVariationMode] = useState('4P')
   const VAR_NAMES_3P = [
     '1 - PREÇO P/ CLIENTE FINAL',
-    '2 - PREÇO P/ LOJISTA LEVAR',
-    '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA'
+    '2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X',
+    '3 - PREÇO P/ LOJISTA LEVAR',
+    '4 - PREÇO MAO DE OBRA P/ INSTALAR NA LOJA'
   ]
   const VAR_NAMES_4P = [
     '1 - PREÇO P/ CLIENTE FINAL',
-    '2-PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
-    '3-PREÇO PARCELADO 13X ATÉ 18X CARTÃO CREDITO',
-    '4-PREÇO P/LOJISTA LEVAR Á VISTA'
+    '2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
+    '3 - PREÇO PARCELADO 13X ATÉ 18X CARTÃO CREDITO',
+    '4 - PREÇO P/LOJISTA LEVAR Á VISTA'
   ]
   const VAR_NAMES_5P = [
     ...VAR_NAMES_4P,
-    '5-PREÇO P/INSTALAR NA LOJA'
+    '5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA'
   ]
 
   const generateVariations = (mode, currentVars = []) => {
@@ -101,6 +102,23 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         if (legacy) {
           existing = { ...legacy, name: name }
         }
+      }
+      
+      // Also check by index if possible (fragile but helpful for simple renames)
+      // Actually, let's just stick to name matching for now.
+      
+      // One more check: if we switched from 3P (P1) to 4P (P2) or 5P (P3)
+      // P1[1] is "2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X"
+      // P2[1] is "2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO"
+      // They are slightly different strings. We should try to map them.
+      if (!existing) {
+         if (name === '2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO') {
+            const old = currentVars.find(v => v.name === '2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X')
+            if (old) existing = { ...old, name }
+         }
+         // P1[3] is "4 - PREÇO P/ LOJISTA INSTALADO NA LOJA"
+         // P3[4] is "5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA"
+         // These seem distinct concepts, maybe shouldn't auto-migrate unless user wants to.
       }
 
       if (existing) return existing
@@ -562,21 +580,21 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             onClick={() => { setVariationMode('3P'); setVariationsData(generateVariations('3P', variationsData)); }}
             className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '3P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            3P
+            P1
           </button>
           <button 
             type="button" 
             onClick={() => { setVariationMode('4P'); setVariationsData(generateVariations('4P', variationsData)); }}
             className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            4P
+            P2
           </button>
           <button 
             type="button" 
             onClick={() => { setVariationMode('5P'); setVariationsData(generateVariations('5P', variationsData)); }}
             className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            5P
+            P3
           </button>
         </div>
       </div>
