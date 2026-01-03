@@ -270,6 +270,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setOsProducts(prev => prev.filter((_, i) => i !== idx))
   }
 
+  const formatOSNumber = (order) => {
+    if (order.number) {
+      const digits = String(order.number).replace(/\D/g, '')
+      const n = parseInt(digits, 10)
+      return `O.S:${String(n).padStart(4, '0')}`
+    }
+    return `O.S:${String(order.id).slice(-4)}`
+  }
+
   return (
     <div>
       {view === 'list' ? (
@@ -339,7 +348,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             <div className="min-w-[1200px] divide-y divide-gray-200">
               {filtered.map(o => (
                 <div key={o.id} onClick={()=>openEdit(o)} className="grid grid-cols-[4rem_1fr_8rem_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 gap-3">
-                  <div>{o.number || o.id}</div>
+                  <div>{formatOSNumber(o)}</div>
                   <div className="leading-tight">
                     <div className="font-medium">{o.client}</div>
                   </div>

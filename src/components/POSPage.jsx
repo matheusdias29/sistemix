@@ -252,6 +252,17 @@ export default function POSPage({ storeId, user }){
   const { transactions, financials } = useMemo(() => {
     // Helper para processar dados de um caixa
     const processCash = (cash) => {
+      const formatSaleNumber = (order) => {
+         const isOS = order.type === 'service_order' || (order.status && order.status.includes('Os Finalizada'))
+         const prefix = isOS ? 'O.S:' : 'PV:'
+         if (order.number) {
+           const digits = String(order.number).replace(/\D/g, '')
+           const n = parseInt(digits, 10)
+           return `${prefix}${String(n).padStart(4, '0')}`
+         }
+         return `${prefix}${String(order.id).slice(-4)}`
+      }
+
       if (!cash) return { transactions: [], financials: { opening: 0, sales: 0, os: 0, cashBalance: 0, methods: {}, totalIn: 0, totalOut: 0, moneyAdded: 0 } }
   
       const openTime = cash.openedAt?.toDate ? cash.openedAt.toDate().getTime() : 0
@@ -336,12 +347,12 @@ export default function POSPage({ storeId, user }){
                 return // Skip this payment if it's an O.S. but not in the correct status
               }
 
-              const prefix = isSale ? 'Venda' : 'O.S.'
-              const amount = Number(p.amount || 0)
+              const prefix = isSale ? '' : '' // Já incluído no formatSaleNumber
+                const amount = Number(p.amount || 0)
 
-              list.push({
-                id: `${o.id}_p${idx}`,
-                description: `${prefix} ${o.number || ''}`,
+                list.push({
+                  id: `${o.id}_p${idx}`,
+                  description: formatSaleNumber(o),
                 date: pDateObj,
                 method: p.methodCode,
                 methodLabel: p.method || 'Outros',

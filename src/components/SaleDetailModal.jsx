@@ -23,6 +23,16 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView })
   
   const totalProducts = sale.products?.length || 0
 
+  const formatSaleNumber = (order) => {
+    const prefix = isOS ? 'O.S:' : 'PV:'
+    if (order.number) {
+      const digits = String(order.number).replace(/\D/g, '')
+      const n = parseInt(digits, 10)
+      return `${prefix}${String(n).padStart(4, '0')}`
+    }
+    return `${prefix}${String(order.id).slice(-4)}`
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-2xl rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -30,7 +40,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView })
         {/* Header */}
         <div className="p-6 border-b flex items-start justify-between bg-white">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">{isOS ? 'Ordem de Serviço' : 'Venda'} {sale.number || `#${String(sale.id).slice(-4)}`}</h2>
+            <h2 className="text-xl font-bold text-gray-800">{isOS ? 'Ordem de Serviço' : 'Venda'} {formatSaleNumber(sale)}</h2>
             <div className="text-4xl font-bold text-green-600 mt-2">
               {money(sale.total || sale.valor)}
             </div>

@@ -5,12 +5,25 @@ import NewSaleModal from './NewSaleModal'
 import SaleDetailModal from './SaleDetailModal'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SalesAdvancedFilterModal from './SalesAdvancedFilterModal'
+import SelectColumnsModal from './SelectColumnsModal'
 
 const tabs = [
   { key: 'todos', label: 'Todos' },
   { key: 'pedido', label: 'Pedido' },
   { key: 'venda', label: 'Vendas' },
   { key: 'cancelada', label: 'Canceladas' },
+]
+
+const defaultColumns = [
+  { id: 'number', label: 'Venda', width: '5.5rem', visible: true, align: 'left' },
+  { id: 'client', label: 'Cliente', width: '1.5fr', visible: true, align: 'left' },
+  { id: 'fiscal', label: 'Fiscal', width: '4rem', visible: true, align: 'center' },
+  { id: 'payment', label: 'Meio de Pg.', width: '8rem', visible: true, align: 'center' },
+  { id: 'date', label: 'Data', width: '6rem', visible: true, align: 'center' },
+  { id: 'time', label: 'Hora', width: '4.5rem', visible: true, align: 'center' },
+  { id: 'attendant', label: 'Vendedor', width: '1fr', visible: true, align: 'left' },
+  { id: 'value', label: 'Valor', width: '7rem', visible: true, align: 'right' },
+  { id: 'status', label: 'Status', width: '7rem', visible: true, align: 'center' }
 ]
 
 export default function SalesPage({ initialDayFilter = null, storeId, user, openNewSaleSignal = 0 }){
@@ -25,6 +38,24 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
   const [editSaleOpen, setEditSaleOpen] = useState(false)
   const [editSale, setEditSale] = useState(null)
   
+  const [columns, setColumns] = useState(defaultColumns)
+  const [selectColumnsOpen, setSelectColumnsOpen] = useState(false)
+  
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const optionsRef = React.useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (optionsRef.current && !optionsRef.current.contains(event.target)) {
+        setOptionsOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date()
@@ -185,9 +216,43 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
     const mm = String(d.getMonth()+1).padStart(2,'0')
     return `${dia} - ${dd}/${mm}`
   }
+  const formatTime = (ts) => {
+    const d = ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : new Date())
+    const hh = String(d.getHours()).padStart(2,'0')
+    const mm = String(d.getMinutes()).padStart(2,'0')
+    return `${hh}:${mm}`
+  }
   const firstPaymentMethod = (o) => {
     const p = Array.isArray(o.payments) && o.payments.length ? o.payments[0] : null
     return p?.method || '-'
+  }
+
+  const formatSaleNumber = (order) => {
+    if (order.number) {
+      const digits = String(order.number).replace(/\D/g, '')
+      const n = parseInt(digits, 10)
+      return `PV:${String(n).padStart(4, '0')}`
+    }
+    return `PV:${String(order.id).slice(-4)}`
+  }
+
+  const renderCell = (o, col) => {
+    switch(col.id) {
+      case 'number': return <div className="text-sm">{formatSaleNumber(o)}</div>
+      case 'client': return <div className="text-sm">{o.client || '-'}</div>
+      case 'fiscal': return <div className="text-sm text-center">{o.fiscal ? '📄' : '-'}</div>
+      case 'payment': return <div className="text-sm text-center">{firstPaymentMethod(o)}</div>
+      case 'date': return <div className="text-sm text-center">{formatDate(o.createdAt)}</div>
+      case 'time': return <div className="text-sm text-center">{formatTime(o.createdAt)}</div>
+      case 'attendant': return <div className="text-sm text-left truncate" title={o.attendant || '-'}>{o.attendant || '-'}</div>
+      case 'value': return <div className="text-sm text-right">{formatCurrency(Number(o.valor || o.total || 0))}</div>
+      case 'status': return (
+        <div className="text-sm text-center">
+          <div className={`px-2 py-1 rounded text-xs ${((o.status ?? '').toLowerCase()==='venda') ? 'bg-green-100 text-green-700' : ( (o.status ?? '').toLowerCase()==='pedido' ? 'bg-yellow-100 text-yellow-700' : ( (o.status ?? '').toLowerCase()==='cancelada' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' ))}`}>{o.status || 'Indef.'}</div>
+        </div>
+      )
+      default: return null
+    }
   }
 
   return (
@@ -231,23 +296,65 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
               <button key={t.key} onClick={()=>setTab(t.key)} className={`pb-2 ${tab===t.key ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>{t.label}</button>
             ))}
           </div>
-          <div className="flex items-center gap-3">
-            <button className="px-3 py-2 border rounded text-sm">Opções</button>
-            <button onClick={()=>setNewSaleOpen(true)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova Venda</button>
+          <div className="flex items-center gap-3 relative" ref={optionsRef}>
+            <button 
+              onClick={() => setOptionsOpen(!optionsOpen)}
+              className={`px-3 py-2 rounded text-sm font-medium border transition-colors ${optionsOpen ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+            >
+              Opções
+            </button>
+            {optionsOpen && (
+              <div className="absolute top-full right-[calc(100%-5rem)] mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 z-50 py-1">
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  Devolução
+                </button>
+                <div className="h-px bg-gray-100 my-1"></div>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  Relatório Resumido
+                </button>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  Relatório Detalhado
+                </button>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  Relatório de Comissões
+                </button>
+                <div className="h-px bg-gray-100 my-1"></div>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  Meu link do catálogo
+                </button>
+              </div>
+            )}
+            <button onClick={()=>setNewSaleOpen(true)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 transition-colors">+ Nova Venda</button>
           </div>
         </div>
       </div>
 
       {/* Lista */}
       <div className="mt-4 bg-white rounded-lg shadow overflow-hidden">
-        <div className="grid grid-cols-[6rem_1fr_8rem_10rem_8rem_8rem_8rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
-          <div>Venda</div>
-          <div>Cliente</div>
-          <div className="text-center">Fiscal</div>
-          <div className="text-center">Meio de Pg.</div>
-          <div className="text-center">Data</div>
-          <div className="text-right">Valor</div>
-          <div className="text-center">Status</div>
+        <div 
+          className="grid items-center px-4 py-3 text-xs text-gray-500 border-b"
+          style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
+        >
+          {columns.filter(c => c.visible).map(col => (
+            <div key={col.id} className={`text-${col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left')}`}>
+              {col.label}
+            </div>
+          ))}
+          <div className="flex justify-center">
+            <button 
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectColumnsOpen(true)
+              }} 
+              className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+              title="Configurar colunas"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+          </div>
         </div>
         {filtered.map(o => (
           <div 
@@ -256,16 +363,18 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
               setSelectedSale(o)
               setDetailModalOpen(true)
             }}
-            className="grid grid-cols-[6rem_1fr_8rem_10rem_8rem_8rem_8rem] items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+            className="grid items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+            style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
           >
-            <div className="text-sm">{o.number || `#${String(o.id).slice(-4)}`}</div>
-            <div className="text-sm">{o.client || '-'}</div>
-            <div className="text-sm text-center">{o.fiscal ? '📄' : '-'}</div>
-            <div className="text-sm text-center">{firstPaymentMethod(o)}</div>
-            <div className="text-sm text-center">{formatDate(o.createdAt)}</div>
-            <div className="text-sm text-right">{formatCurrency(Number(o.valor || o.total || 0))}</div>
-            <div className="text-sm text-center">
-              <div className={`px-2 py-1 rounded text-xs ${((o.status ?? '').toLowerCase()==='venda') ? 'bg-green-100 text-green-700' : ( (o.status ?? '').toLowerCase()==='pedido' ? 'bg-yellow-100 text-yellow-700' : ( (o.status ?? '').toLowerCase()==='cancelada' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' ))}`}>{o.status || 'Indef.'}</div>
+            {columns.filter(c => c.visible).map(col => (
+              <React.Fragment key={col.id}>
+                {renderCell(o, col)}
+              </React.Fragment>
+            ))}
+            <div className="flex justify-center text-gray-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
             </div>
           </div>
         ))}
@@ -307,6 +416,16 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
         user={user} 
         isEdit={true}
         sale={editSale}
+      />
+      <SelectColumnsModal
+        open={selectColumnsOpen}
+        onClose={() => setSelectColumnsOpen(false)}
+        columns={columns}
+        onSave={(newCols) => {
+          setColumns(newCols)
+          setSelectColumnsOpen(false)
+        }}
+        onReset={() => setColumns(defaultColumns)}
       />
     </div>
   )
