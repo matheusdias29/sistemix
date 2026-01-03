@@ -35,6 +35,8 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [notesText, setNotesText] = useState('')
   const [feesModalOpen, setFeesModalOpen] = useState(false)
   const [discountModalOpen, setDiscountModalOpen] = useState(false)
+  const [addValueModalOpen, setAddValueModalOpen] = useState(false)
+  const [addValueInput, setAddValueInput] = useState('')
   const [availableFees, setAvailableFees] = useState([])
   const [appliedFees, setAppliedFees] = useState([]) // [{id,name,type,value}]
   const [discount, setDiscount] = useState({ type: null, value: 0 }) // {type:'fixed'|'percent'|null, value:number}
@@ -621,6 +623,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
             <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setDiscountModalOpen(true)}>
               <span>🏷️</span>Adicionar Desconto
             </button>
+            <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setAddValueModalOpen(true)}>
+              <span>➕</span>Adicionar
+            </button>
           </div>
             
             <div className="flex gap-2 mt-4 relative">
@@ -839,6 +844,55 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               </button>
               <button
                 onClick={() => setDiscountModalOpen(false)}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {addValueModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white w-full max-w-sm rounded-lg shadow-xl overflow-hidden modal-card">
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">Adicionar valor</h3>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="flex justify-between items-center text-lg font-bold">
+                <span className="text-gray-600">Total</span>
+                <span className="text-green-600">{money(subtotal + feesTotal)}</span>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 border focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all">
+                <label className="text-xs text-gray-500 font-medium mb-1 block">Valor a adicionar</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  autoFocus
+                  value={addValueInput}
+                  onChange={e => setAddValueInput(e.target.value)}
+                  className="w-full bg-transparent border-none p-0 text-right text-2xl font-bold text-gray-800 focus:ring-0 placeholder-gray-400 outline-none"
+                  placeholder="0,00"
+                />
+              </div>
+            </div>
+            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+              <button
+                onClick={() => { setAddValueModalOpen(false); setAddValueInput('') }}
+                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+              >
+                × Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  const val = parseFloat(String(addValueInput).replace(',','.'))
+                  if (isNaN(val) || val <= 0) return
+                  const id = `manual_add_${Date.now()}`
+                  setAppliedFees(prev => [...prev, { id, name: 'Adição', type: 'fixed', value: val }])
+                  setAddValueModalOpen(false)
+                  setAddValueInput('')
+                }}
                 className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
               >
                 Confirmar

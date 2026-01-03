@@ -10,12 +10,22 @@ import SelectClientModal from './SelectClientModal'
 import SelectVariationModal from './SelectVariationModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 import { listenSubUsers } from '../services/users'
+import SalesDateFilterModal from './SalesDateFilterModal'
 
 export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [query, setQuery] = useState('')
   const [periodOpen, setPeriodOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [dateFilterOpen, setDateFilterOpen] = useState(false)
+  const [dateRange, setDateRange] = useState(() => {
+    const now = new Date()
+    return {
+      label: 'Este Mês',
+      start: new Date(now.getFullYear(), now.getMonth(), 1),
+      end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
+    }
+  })
 
   const [orders, setOrders] = useState([])
   useEffect(() => {
@@ -26,28 +36,35 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   // Abrir formulário Nova OS somente quando o sinal mudar (ignora montagem inicial)
   const initialAddSignal = useRef(addNewSignal)
 
-  // Filtros simples
+  const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
   const filtered = useMemo(() => {
-    // Filter out Sales
     const onlyOS = orders.filter(o => {
       if (o.type === 'sale') return false
       if (!o.type) {
-         // Heuristics: status typically associated with Sales
          const s = (o.status || '').toLowerCase()
          if (['venda', 'pedido', 'condicional', 'orçamento', 'pago'].some(st => s === st)) return false
       }
       return true
     })
-
     const q = query.trim().toLowerCase()
-    if(!q) return onlyOS
-    return onlyOS.filter(o =>
+    let base = onlyOS
+    if (dateRange.start || dateRange.end) {
+      base = base.filter(o => {
+        const d = toDate(o.dateIn ?? o.createdAt)
+        if (!d) return false
+        if (dateRange.start && d < dateRange.start) return false
+        if (dateRange.end && d > dateRange.end) return false
+        return true
+      })
+    }
+    if(!q) return base
+    return base.filter(o =>
       String(o.id).includes(q) ||
       (o.client||'').toLowerCase().includes(q) ||
       (o.technician||'').toLowerCase().includes(q) ||
       (o.model||'').toLowerCase().includes(q)
     )
-  }, [orders, query])
+  }, [orders, query, dateRange])
 
   const totalFinalizadas = useMemo(() => {
     return orders.filter(o => (o.status||'').toLowerCase().includes('finalizada')).reduce((sum, o) => sum + (o.valor||0), 0)
@@ -293,12 +310,12 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               <div className="flex-1 flex items-center gap-2">
                 <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
                 {/* Ícones ao lado direito da busca (mobile) */}
-                <button type="button" onClick={()=>setPeriodOpen(v=>!v)}
+                <button type="button" onClick={()=>setDateFilterOpen(true)}
                   className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
                   aria-label="Período"
                   title="Período">
                   <span className="md:hidden">📅</span>
-                  <span className="hidden md:inline">📅 Período</span>
+                  <span className="hidden md:inline">📅 {dateRange.label}</span>
                 </button>
                 <button type="button" onClick={()=>setFiltersOpen(v=>!v)}
                   className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
@@ -311,14 +328,21 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               <div className="hidden md:block flex-1"></div>
               <button className="hidden md:inline-block px-3 py-2 border rounded text-sm">Opções</button>
               <button onClick={()=>{ resetForm(); setView('new') }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
-            </div>
           </div>
+        </div>
 
-          {/* Cards de resumo */}
-          <div className="mt-4 grid grid-cols-3 gap-4">
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-xs text-gray-500">Total</div>
-              <div className="text-green-700 font-semibold">{totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+        <SalesDateFilterModal 
+          open={dateFilterOpen} 
+          onClose={()=>setDateFilterOpen(false)} 
+          onApply={setDateRange}
+          currentLabel={dateRange.label}
+        />
+
+        {/* Cards de resumo */}
+        <div className="mt-4 grid grid-cols-3 gap-4">
+          <div className="bg-white p-4 rounded shadow">
+            <div className="text-xs text-gray-500">Total</div>
+            <div className="text-green-700 font-semibold">{totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
             </div>
             <div className="bg-white p-4 rounded shadow">
               <div className="text-xs text-gray-500">OS's realizadas</div>
