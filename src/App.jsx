@@ -19,6 +19,7 @@ import AccountsPayablePage from './components/AccountsPayablePage'
 import AccountsReceivablePage from './components/AccountsReceivablePage'
 import CatalogPage from './components/CatalogPage'
 import CatalogPreviewPage from './components/CatalogPreviewPage'
+import { getStoreBySlug } from './services/stores'
 
 const labels = {
   inicio: 'Início',
@@ -90,6 +91,21 @@ export default function App(){
       const root = document.documentElement
       if (enabled) root.classList.add('dark')
       else root.classList.remove('dark')
+    } catch {}
+  }, [])
+
+  useEffect(() => {
+    try {
+      const rawPath = typeof window !== 'undefined' ? window.location.pathname : '/'
+      const path = String(rawPath || '/').replace(/^\/+|\/+$/g, '')
+      if (path) {
+        setView('catalogoPreview')
+        getStoreBySlug(path).then(found => {
+          if (found) {
+            setStore(found)
+          }
+        }).catch(()=>{})
+      }
     } catch {}
   }, [])
 

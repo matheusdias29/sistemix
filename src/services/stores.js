@@ -1,4 +1,4 @@
-import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, orderBy, onSnapshot } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, orderBy, onSnapshot, limit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const storesCol = collection(db, 'stores')
@@ -37,6 +37,15 @@ export async function getStoreById(id){
   const snap = await getDoc(ref)
   if(!snap.exists()) return null
   return { id: snap.id, ...snap.data() }
+}
+
+export async function getStoreBySlug(slug){
+  if(!slug) return null
+  const q = query(storesCol, where('catalogSlug','==',slug), limit(1))
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const d = snap.docs[0]
+  return { id: d.id, ...d.data() }
 }
 
 // Atualiza dados da loja (dados da empresa)
