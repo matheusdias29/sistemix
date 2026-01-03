@@ -19,6 +19,7 @@ import AccountsPayablePage from './components/AccountsPayablePage'
 import AccountsReceivablePage from './components/AccountsReceivablePage'
 import CatalogPage from './components/CatalogPage'
 import CatalogPreviewPage from './components/CatalogPreviewPage'
+import PublicCatalogPage from './components/PublicCatalogPage'
 import { getStoreBySlug } from './services/stores'
 
 const labels = {
@@ -53,6 +54,7 @@ export default function App(){
   const [addNewClientSignal, setAddNewClientSignal] = useState(0)
   const [salesDayFilter, setSalesDayFilter] = useState(null)
   const [darkMode, setDarkMode] = useState(false)
+  const [publicMode, setPublicMode] = useState(false)
 
   // Restaura sessão se ainda estiver dentro da janela de inatividade
   useEffect(() => {
@@ -99,7 +101,8 @@ export default function App(){
       const rawPath = typeof window !== 'undefined' ? window.location.pathname : '/'
       const path = String(rawPath || '/').replace(/^\/+|\/+$/g, '')
       if (path) {
-        setView('catalogoPreview')
+        setPublicMode(true)
+        setView('publicCatalog')
         getStoreBySlug(path).then(found => {
           if (found) {
             setStore(found)
@@ -183,6 +186,12 @@ export default function App(){
   }
 
   const headerUser = { name: `${user.name} — ${store?.name || ''}`.trim() }
+
+  if (publicMode) {
+    return (
+      <PublicCatalogPage storeId={store?.id} store={store} />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#f7faf9] dark:bg-[#0b1320] overflow-x-hidden">
