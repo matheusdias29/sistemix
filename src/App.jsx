@@ -17,11 +17,15 @@ import UserDataPage from './components/UserDataPage'
 import POSPage from './components/POSPage'
 import AccountsPayablePage from './components/AccountsPayablePage'
 import AccountsReceivablePage from './components/AccountsReceivablePage'
+import CatalogPage from './components/CatalogPage'
+import CatalogPreviewPage from './components/CatalogPreviewPage'
 
 const labels = {
   inicio: 'Início',
   clientes: 'Clientes',
   produtos: 'Produtos',
+  catalogo: 'Catálogo',
+  catalogoPreview: 'Catálogo',
   vendas: 'Vendas',
   os: 'Ordem de Serviço',
   cpagar: 'Contas a Pagar',
@@ -239,6 +243,10 @@ export default function App(){
             <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} user={user} openNewSaleSignal={openNewSaleSignal} /></div>
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} user={user} /></div>
+          ) : view === 'catalogo' ? (
+            <div className="mt-4 md:mt-6"><CatalogPage storeId={store?.id} store={store} onNavigate={onNavigate} /></div>
+          ) : view === 'catalogoPreview' ? (
+            <div className="mt-4 md:mt-6"><CatalogPreviewPage storeId={store?.id} store={store} /></div>
           ) : view === 'os' ? (
             <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
           ) : view === 'clientes' ? (

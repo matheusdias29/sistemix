@@ -7,6 +7,7 @@ const items = [
 {key:'inicio',label:'Início', icon: '🏠'},
 {key:'clientes',label:'Clientes', icon: '👥'},
 {key:'produtos',label:'Produtos', icon: '📦'},
+{key:'catalogo',label:'Catálogo', icon: '🛍️'},
 {key:'vendas',label:'Vendas', icon: '💳'},
 {key:'caixa',label:'Caixa', icon: '💰'},
 {key:'notas',label:'Notas fiscais', icon: '📄'},
