@@ -7,6 +7,7 @@ import { listenSuppliers, updateSupplier } from '../services/suppliers'
 import NewSupplierModal from './NewSupplierModal'
 import ProductsFilterModal from './ProductsFilterModal'
 import ProductLabelsPage from './ProductLabelsPage'
+import { listenOrders } from '../services/orders'
 
 const tabs = [
   { key: 'produto', label: 'Produto' },
@@ -39,6 +40,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [savingAction, setSavingAction] = useState(false)
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
   const [confirmRemoveProduct, setConfirmRemoveProduct] = useState(null)
+  const [reservedOpen, setReservedOpen] = useState(false)
+  const [reservedProduct, setReservedProduct] = useState(null)
+  const [allOrders, setAllOrders] = useState([])
 
   // Categorias
   const [categories, setCategories] = useState([])
@@ -70,6 +74,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       unsubSup && unsubSup()
     }
   }, [storeId])
+
+  useEffect(() => {
+    if (!reservedOpen || !storeId) return
+    const unsub = listenOrders(items => setAllOrders(items), storeId)
+    return () => { unsub && unsub() }
+  }, [reservedOpen, storeId])
 
   const filtered = useMemo(()=>{
     const q = query.trim().toLowerCase()
@@ -513,27 +523,31 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             <span>{(p.active ?? true) ? '✖️' : '✔️'}</span>
                             <span>{(p.active ?? true) ? 'Inativar' : 'Ativar'}</span>
                           </button>
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openStockModal(p)}>
-                            <span>📦</span>
-                            <span>Alterar estoque</span>
-                          </button>
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('destacar', p.id) }}>
-                            <span>⭐</span>
-                            <span>Destacar</span>
-                          </button>
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openConfirmRemove(p)}>
-                            <span>🗂️</span>
-                            <span>Remover do catálogo</span>
-                          </button>
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('sincronizar', p.id) }}>
-                            <span>🔁</span>
-                            <span>Sincronizar entre empresas</span>
-                          </button>
-                        </div>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openStockModal(p)}>
+                          <span>📦</span>
+                          <span>Alterar estoque</span>
+                        </button>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ setReservedProduct(p); setReservedOpen(true); setOpenMenuId(null) }}>
+                          <span>🔖</span>
+                          <span>Reservados</span>
+                        </button>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('destacar', p.id) }}>
+                          <span>⭐</span>
+                          <span>Destacar</span>
+                        </button>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openConfirmRemove(p)}>
+                          <span>🗂️</span>
+                          <span>Remover do catálogo</span>
+                        </button>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('sincronizar', p.id) }}>
+                          <span>🔁</span>
+                          <span>Sincronizar entre empresas</span>
+                        </button>
                       </div>
-                    )}
-                  </div>
-                  </div>
+                    </div>
+                  )}
+                </div>
+                </div>
                   {/* Painel sanfona com variações (somente mobile) com animação */}
                   <div className={`md:hidden px-4 ${mobileOpenRows.has(p.id) ? 'py-2 bg-gray-50 border-b' : 'py-0'} last:border-0`}
                   >
@@ -738,6 +752,61 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
               <button className="px-3 py-2 text-sm rounded border" onClick={()=>setStockModalOpen(false)} disabled={savingAction}>Cancelar</button>
               <button className="px-3 py-2 text-sm rounded bg-green-600 text-white" onClick={confirmStockAdjust} disabled={savingAction}>Confirmar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {reservedOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={()=>setReservedOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[640px]">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-base font-medium">Reservados</h3>
+            </div>
+            <div className="p-4">
+              {(() => {
+                const baseId = String(reservedProduct?.id || '')
+                const list = (allOrders || []).filter(o => {
+                  const isSale = String(o.type || '') === 'sale'
+                  const isPedido = String(o.status || '').toLowerCase() === 'pedido'
+                  if (!isSale || !isPedido) return false
+                  const prods = Array.isArray(o.products) ? o.products : []
+                  return prods.some(op => {
+                    const opId = String(op.id || '')
+                    return opId === baseId || opId.startsWith(baseId + '-')
+                  })
+                })
+                return (
+                  <div className="space-y-2">
+                    {list.map(o => {
+                      const qty = (Array.isArray(o.products) ? o.products : []).filter(op => {
+                        const opId = String(op.id || '')
+                        return opId === baseId || opId.startsWith(baseId + '-')
+                      }).reduce((s, op) => s + (Number(op.quantity || 0)), 0)
+                      const d = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000) : (o.createdAt ? new Date(o.createdAt) : null)
+                      const ds = d ? d.toLocaleDateString('pt-BR') : '-'
+                      const digits = String(o.number || '').replace(/\D/g, '')
+                      const n = parseInt(digits, 10)
+                      const ref = isNaN(n) ? String(o.id).slice(-4) : String(n).padStart(4, '0')
+                      const label = `PV:${ref}`
+                      return (
+                        <div key={o.id} className="grid grid-cols-[6rem_1fr_6rem] items-center gap-3 text-sm border-b last:border-0 px-2 py-2">
+                          <div>{label}</div>
+                          <div className="leading-tight">
+                            <div className="font-medium">{o.client || 'Consumidor Final'}</div>
+                            <div className="text-xs text-gray-500">{ds}</div>
+                          </div>
+                          <div className="text-right">{qty}</div>
+                        </div>
+                      )
+                    })}
+                    {list.length === 0 && <div className="text-sm text-gray-600">Nenhum pedido encontrado.</div>}
+                  </div>
+                )
+              })()}
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end">
+              <button type="button" className="px-3 py-2 border rounded text-sm" onClick={()=>setReservedOpen(false)}>Fechar</button>
             </div>
           </div>
         </div>

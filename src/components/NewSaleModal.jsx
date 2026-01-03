@@ -302,8 +302,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         await addOrder(payload, storeId)
       }
 
-      // Update Stock
-      if (!isEdit && status === 'Venda') {
+      if (!isEdit && (status === 'Venda' || status === 'Pedido')) {
         for (const item of cart) {
           const qty = item.quantity
           const pId = item.product.originalId || item.product.id
