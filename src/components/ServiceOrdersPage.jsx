@@ -449,8 +449,67 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           initialStatus={statusTargetOrder ? (statusTargetOrder.status || 'Iniciado') : status}
           internalNotes={statusTargetOrder ? (statusTargetOrder.internalNotes || '') : internalNotes}
           receiptNotes={statusTargetOrder ? (statusTargetOrder.receiptNotes || '') : receiptNotes}
-          onConfirm={(v)=>{
+          onConfirm={async (v)=>{
             if (statusTargetOrder) {
+              // Lógica de retorno de estoque ao cancelar
+              const newStatus = String(v.status || '').toLowerCase()
+              const oldStatus = String(statusTargetOrder.status || '').toLowerCase()
+              
+              if (newStatus.includes('cancelad') && !oldStatus.includes('cancelad')) {
+                const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
+                for (const it of items) {
+                  const p = productsAll.find(pr => pr.id === it.productId)
+                  if (!p) continue
+                  const qty = Math.max(0, parseFloat(it.quantity) || 0)
+                  
+                  const vname = it.variationName ? String(it.variationName).trim() : ''
+                  const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+                  
+                  if (hasVars && vname) {
+                    const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
+                    if (idx >= 0) {
+                      const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                      const cur = Number(itemsVar[idx]?.stock ?? 0)
+                      itemsVar[idx].stock = cur + qty
+                      const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
+                      await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+                      continue
+                    }
+                  }
+                  
+                  const cur = Number(p.stock ?? 0)
+                  const next = cur + qty
+                  await updateProduct(p.id, { stock: next })
+                }
+              } else if (oldStatus.includes('cancelad') && newStatus.includes('iniciado')) {
+                // Lógica inversa: Cancelado -> Iniciado (baixa no estoque)
+                const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
+                for (const it of items) {
+                  const p = productsAll.find(pr => pr.id === it.productId)
+                  if (!p) continue
+                  const qty = Math.max(0, parseFloat(it.quantity) || 0)
+                  
+                  const vname = it.variationName ? String(it.variationName).trim() : ''
+                  const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+                  
+                  if (hasVars && vname) {
+                    const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
+                    if (idx >= 0) {
+                      const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                      const cur = Number(itemsVar[idx]?.stock ?? 0)
+                      itemsVar[idx].stock = Math.max(0, cur - qty)
+                      const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
+                      await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+                      continue
+                    }
+                  }
+                  
+                  const cur = Number(p.stock ?? 0)
+                  const next = Math.max(0, cur - qty)
+                  await updateProduct(p.id, { stock: next })
+                }
+              }
+
               updateOrder(statusTargetOrder.id, {
                 status: v.status,
                 dateIn: v.dateIn ? new Date(v.dateIn) : (statusTargetOrder.dateIn || null),
