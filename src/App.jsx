@@ -20,6 +20,7 @@ import AccountsReceivablePage from './components/AccountsReceivablePage'
 import CatalogPage from './components/CatalogPage'
 import CatalogPreviewPage from './components/CatalogPreviewPage'
 import PublicCatalogPage from './components/PublicCatalogPage'
+import FiscalNotesPage from './components/FiscalNotesPage'
 import { getStoreBySlug } from './services/stores'
 
 const labels = {
@@ -30,6 +31,7 @@ const labels = {
   catalogoPreview: 'Catálogo',
   vendas: 'Vendas',
   os: 'Ordem de Serviço',
+  notas: 'Notas Fiscais',
   cpagar: 'Contas a Pagar',
   creceber: 'Contas a Receber',
   configuracoes: 'Configurações',
@@ -276,6 +278,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
           ) : view === 'clientes' ? (
             <div className="mt-4 md:mt-6"><ClientsPage storeId={store?.id} addNewSignal={addNewClientSignal} /></div>
+          ) : view === 'notas' ? (
+            <div className="mt-4 md:mt-6"><FiscalNotesPage storeId={store?.id} /></div>
           ) : view === 'configuracoes' ? (
             <div className="mt-4 md:mt-6"><SettingsPage user={user} store={store} onNavigate={onNavigate} onLogout={handleLogout} darkMode={darkMode} onToggleDark={()=>setDarkMode(v=>!v)} /></div>
           ) : view === 'dadosEmpresa' ? (

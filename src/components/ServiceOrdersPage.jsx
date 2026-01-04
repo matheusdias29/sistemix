@@ -11,6 +11,7 @@ import SelectVariationModal from './SelectVariationModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 import { listenSubUsers } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
+import SelectColumnsModal from './SelectColumnsModal'
 
 export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
@@ -18,6 +19,13 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   const [periodOpen, setPeriodOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
+  const [filterClient, setFilterClient] = useState('')
+  const [filterTechnician, setFilterTechnician] = useState('')
+  const [filterAttendant, setFilterAttendant] = useState('')
+  const [filterStatuses, setFilterStatuses] = useState([])
+  const [filterClientSelectOpen, setFilterClientSelectOpen] = useState(false)
+  const [filterTechSelectOpen, setFilterTechSelectOpen] = useState(false)
+  const [filterAttendantSelectOpen, setFilterAttendantSelectOpen] = useState(false)
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date()
     return {
@@ -38,6 +46,7 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
 
   const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
   const filtered = useMemo(() => {
+    const normalize = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
     const onlyOS = orders.filter(o => {
       if (o.type === 'sale') return false
       if (!o.type) {
@@ -57,6 +66,25 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
         return true
       })
     }
+    if (filterClient) {
+      const sel = normalize(filterClient)
+      base = base.filter(o => normalize(o.client).includes(sel))
+    }
+    if (filterTechnician) {
+      const sel = normalize(filterTechnician)
+      base = base.filter(o => normalize(o.technician).includes(sel))
+    }
+    if (filterAttendant) {
+      const sel = normalize(filterAttendant)
+      base = base.filter(o => normalize(o.attendant).includes(sel))
+    }
+    if (Array.isArray(filterStatuses) && filterStatuses.length > 0) {
+      const sels = filterStatuses.map(s => normalize(s))
+      base = base.filter(o => {
+        const os = normalize(o.status)
+        return sels.some(s => os.includes(s))
+      })
+    }
     if(!q) return base
     return base.filter(o =>
       String(o.id).includes(q) ||
@@ -64,7 +92,7 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
       (o.technician||'').toLowerCase().includes(q) ||
       (o.model||'').toLowerCase().includes(q)
     )
-  }, [orders, query, dateRange])
+  }, [orders, query, dateRange, filterClient, filterTechnician, filterAttendant, filterStatuses])
 
   const totalFinalizadas = useMemo(() => {
     return orders.filter(o => (o.status||'').toLowerCase().includes('finalizada')).reduce((sum, o) => sum + (o.valor||0), 0)
@@ -76,6 +104,25 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
     return qtdFinalizadas > 0 ? (totalFinalizadas / qtdFinalizadas) : 0
   }, [qtdFinalizadas, totalFinalizadas])
 
+  
+
+  const osDefaultColumns = [
+    { id: 'number', label: 'O.S.', width: '4rem', visible: true, align: 'left' },
+    { id: 'client', label: 'Cliente', width: '1fr', visible: true, align: 'left' },
+    { id: 'attendant', label: 'Atendente', width: '8rem', visible: true, align: 'left' },
+    { id: 'technician', label: 'Técnico', width: '8rem', visible: true, align: 'left' },
+    { id: 'model', label: 'Modelo', width: '10rem', visible: true, align: 'left' },
+    { id: 'serial', label: 'Nº de Série', width: '10rem', visible: true, align: 'left' },
+    { id: 'dateIn', label: 'Data de abertura', width: '8rem', visible: true, align: 'left' },
+    { id: 'expected', label: 'Previsão de entrega', width: '10rem', visible: true, align: 'left' },
+    { id: 'value', label: 'Valor', width: '8rem', visible: true, align: 'right' },
+    { id: 'status', label: 'Status', width: '9rem', visible: true, align: 'left' },
+  ]
+  const [osColumns, setOsColumns] = useState(osDefaultColumns)
+  const [selectColumnsOpen, setSelectColumnsOpen] = useState(false)
+  const [rowMenuOpenId, setRowMenuOpenId] = useState(null)
+  const [rowMenuPos, setRowMenuPos] = useState({ left: 0, top: 0 })
+  const [statusTargetOrder, setStatusTargetOrder] = useState(null)
   // Estado do formulário Nova OS
   const [client, setClient] = useState('')
   const [clientSelectOpen, setClientSelectOpen] = useState(false)
@@ -97,6 +144,27 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   const [internalNotes, setInternalNotes] = useState('')
   const [warrantyInfo, setWarrantyInfo] = useState('Garantia de produtos e serviços.\n90 dias para defeito de fabricação.\nNão cobre produto quebrado.\nNão cobre riscos na tela\nNão cobre trincos na tela.')
   const [saving, setSaving] = useState(false)
+  const [unlockType, setUnlockType] = useState(null)
+  const [unlockPattern, setUnlockPattern] = useState([])
+  const [unlockPin, setUnlockPin] = useState('')
+  const [unlockPassword, setUnlockPassword] = useState('')
+  const [unlockTypeOpen, setUnlockTypeOpen] = useState(false)
+  const [patternModalOpen, setPatternModalOpen] = useState(false)
+  const [textUnlockOpen, setTextUnlockOpen] = useState(false)
+  useEffect(() => {
+    if (!rowMenuOpenId) return
+    const onScroll = () => setRowMenuOpenId(null)
+    const onResize = () => setRowMenuOpenId(null)
+    const onDocClick = () => setRowMenuOpenId(null)
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
+    document.addEventListener('click', onDocClick)
+    return () => {
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
+      document.removeEventListener('click', onDocClick)
+    }
+  }, [rowMenuOpenId])
   // Status da OS
   const [status, setStatus] = useState('Iniciado')
   const [statusModalOpen, setStatusModalOpen] = useState(false)
@@ -178,6 +246,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setEditingOrderId(null)
     setEditingOrderNumber('')
     setStatus('Iniciado')
+    setUnlockType(null); setUnlockPattern([]); setUnlockPin(''); setUnlockPassword('')
   }
 
   useEffect(() => {
@@ -218,6 +287,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setEditingOrderId(o.id)
     setEditingOrderNumber(o.number || o.id)
     setStatus(o.status || 'Iniciado')
+    const pw = o.password
+    if (pw && typeof pw === 'object') {
+      setUnlockType(pw.type || null)
+      setUnlockPattern(Array.isArray(pw.pattern) ? pw.pattern : [])
+      setUnlockPin(pw.type==='pin' ? (pw.value||'') : '')
+      setUnlockPassword(pw.type==='password' ? (pw.value||'') : '')
+    } else {
+      setUnlockType(null); setUnlockPattern([]); setUnlockPin(''); setUnlockPassword('')
+    }
     setView('edit')
   }
 
@@ -257,7 +335,13 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         total: totalProductsAgg,
         valor: totalProductsAgg,
         payments: osPayments,
-        password: '',
+        password: unlockType === 'pattern' 
+          ? { type: 'pattern', pattern: unlockPattern }
+          : unlockType === 'pin'
+          ? { type: 'pin', value: unlockPin }
+          : unlockType === 'password'
+          ? { type: 'password', value: unlockPassword }
+          : '',
         checklist: [],
         files: [],
         status,
@@ -360,6 +444,50 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           currentLabel={dateRange.label}
         />
 
+        {filtersOpen && (
+          <FiltersModal
+            open={filtersOpen}
+            onClose={()=>setFiltersOpen(false)}
+            clientName={filterClient}
+            technicianName={filterTechnician}
+            attendantName={filterAttendant}
+            statuses={filterStatuses}
+            onChooseClient={()=>setFilterClientSelectOpen(true)}
+            onChooseTechnician={()=>setFilterTechSelectOpen(true)}
+            onChooseAttendant={()=>setFilterAttendantSelectOpen(true)}
+            onToggleStatus={(s)=>{
+              setFilterStatuses(prev => prev.includes(s) ? prev.filter(x=>x!==s) : [...prev, s])
+            }}
+            onClear={()=>{ setFilterClient(''); setFilterTechnician(''); setFilterAttendant(''); setFilterStatuses([]) }}
+            onApply={()=>setFiltersOpen(false)}
+          />
+        )}
+
+        {filterClientSelectOpen && (
+          <SelectClientModal
+            open={filterClientSelectOpen}
+            onClose={()=>setFilterClientSelectOpen(false)}
+            clients={clientsAll}
+            onChoose={(c)=>{ setFilterClient(c.name||''); setFilterClientSelectOpen(false) }}
+          />
+        )}
+        {filterTechSelectOpen && (
+          <SelectClientModal
+            open={filterTechSelectOpen}
+            onClose={()=>setFilterTechSelectOpen(false)}
+            clients={techniciansList}
+            onChoose={(u)=>{ setFilterTechnician(u.name||''); setFilterTechSelectOpen(false) }}
+          />
+        )}
+        {filterAttendantSelectOpen && (
+          <SelectClientModal
+            open={filterAttendantSelectOpen}
+            onClose={()=>setFilterAttendantSelectOpen(false)}
+            clients={attendantsList}
+            onChoose={(u)=>{ setFilterAttendant(u.name||''); setFilterAttendantSelectOpen(false) }}
+          />
+        )}
+
         {/* Cards de resumo */}
         <div className="mt-4 grid grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded shadow">
@@ -377,45 +505,101 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           </div>
 
           {/* Tabela de OS */}
-          <div className="mt-4 bg-white rounded-lg shadow overflow-hidden">
+          <div className="mt-4 bg-white rounded-lg shadow overflow-visible">
             <div className="overflow-x-auto">
-            <div className="min-w-[1200px] grid grid-cols-[4rem_1fr_8rem_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 text-xs text-gray-500 border-b gap-3">
-              <div>O.S.</div>
-              <div>Cliente</div>
-              <div>Atendente</div>
-              <div>Técnico</div>
-              <div>Modelo</div>
-              <div>Nº de Série</div>
-              <div>Data de abertura</div>
-              <div>Previsão de entrega</div>
-              <div className="text-right">Valor</div>
-              <div>Status</div>
+            <div
+              className="min-w-[1200px] grid items-center px-4 py-3 text-xs text-gray-500 border-b gap-3"
+              style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
+            >
+              {osColumns.filter(c=>c.visible).map(col => (
+                <div key={col.id} className={`text-${col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left')}`}>
+                  {col.label}
+                </div>
+              ))}
+              <div className="flex justify-center">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setSelectColumnsOpen(true) }}
+                  className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+                  title="Configurar colunas"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </button>
+              </div>
             </div>
             <div className="min-w-[1200px] divide-y divide-gray-200">
               {filtered.map(o => (
-                <div key={o.id} onClick={()=>openEdit(o)} className="grid grid-cols-[4rem_1fr_8rem_8rem_10rem_10rem_8rem_10rem_8rem_14rem] items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 gap-3">
-                  <div>{formatOSNumber(o)}</div>
-                  <div className="leading-tight">
-                    <div className="font-medium">{o.client}</div>
-                  </div>
-                  <div>{o.attendant}</div>
-                  <div>{o.technician}</div>
-                  <div>{o.model}</div>
-                  <div>{o.serialNumber}</div>
-                  <div>{o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn).toLocaleDateString('pt-BR') : '-'}</div>
-                  <div>{o.expectedDate ? new Date(o.expectedDate.seconds ? o.expectedDate.seconds*1000 : o.expectedDate).toLocaleDateString('pt-BR') : '-'}</div>
-                  <div className="text-right">{((o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                  <div>
-                    {(() => {
-                      const s = String(o.status||'').trim()
-                      const l = s.toLowerCase()
-                      let cls = 'bg-gray-200 text-gray-700'
-                      if (l.includes('finaliz')) cls = 'bg-green-100 text-green-700'
-                      else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
-                      else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
-                      else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
-                      return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
-                    })()}
+                <div 
+                  key={o.id}
+                  onClick={()=>openEdit(o)}
+                  className="grid items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 gap-3"
+                  style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
+                >
+                  {osColumns.filter(c=>c.visible).map(col => {
+                    switch(col.id){
+                      case 'number': return <div key={`${o.id}-number`}>{formatOSNumber(o)}</div>
+                      case 'client': return (
+                        <div key={`${o.id}-client`} className="leading-tight">
+                          <div className="font-medium">{o.client}</div>
+                        </div>
+                      )
+                      case 'attendant': return <div key={`${o.id}-attendant`}>{o.attendant}</div>
+                      case 'technician': return <div key={`${o.id}-technician`}>{o.technician}</div>
+                      case 'model': return <div key={`${o.id}-model`}>{o.model}</div>
+                      case 'serial': return <div key={`${o.id}-serial`}>{o.serialNumber}</div>
+                      case 'dateIn': return <div key={`${o.id}-dateIn`}>{o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn).toLocaleDateString('pt-BR') : '-'}</div>
+                      case 'expected': return <div key={`${o.id}-expected`}>{o.expectedDate ? new Date(o.expectedDate.seconds ? o.expectedDate.seconds*1000 : o.expectedDate).toLocaleDateString('pt-BR') : '-'}</div>
+                      case 'value': return <div key={`${o.id}-value`} className="text-right">{((o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                      case 'status': return (
+                        <div key={`${o.id}-status`}>
+                          {(() => {
+                            const s = String(o.status||'').trim()
+                            const l = s.toLowerCase()
+                            let cls = 'bg-gray-200 text-gray-700'
+                            if (l.includes('finaliz')) cls = 'bg-green-100 text-green-700'
+                            else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
+                            else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
+                            else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
+                            return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
+                          })()}
+                        </div>
+                      )
+                      default: return null
+                    }
+                  })}
+                  <div className="flex justify-center">
+                    <button
+                      onClick={(e)=>{ 
+                        e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const left = Math.max(8, rect.right - 180)
+                        const top = rect.bottom + 4
+                        setRowMenuPos({ left, top })
+                        setRowMenuOpenId(rowMenuOpenId===o.id ? null : o.id)
+                      }}
+                      className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                      title="Ações"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4zm0 8a2 2 0 110-4 2 2 0 010 4z" />
+                      </svg>
+                    </button>
+                    {rowMenuOpenId === o.id && (
+                      <div 
+                        className="fixed bg-white border rounded shadow-lg text-sm z-[1000] min-w-[180px]"
+                        style={{ left: rowMenuPos.left, top: rowMenuPos.top }}
+                        onClick={(e)=>e.stopPropagation()}
+                      >
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Compartilhar</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>window.print()}>Imprimir</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Eventos</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) }}>Alterar Status</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Lançar estoque</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Lançar no caixa</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -499,11 +683,27 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               <div className="rounded-lg bg-white p-6 shadow">
                 <div className="font-semibold text-lg">Outros</div>
                 <div className="mt-4 flex gap-3">
-                  <button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Senha</button>
+                  <button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Senha</button>
                   <button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Checklist</button>
                   <button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Arquivo</button>
                 </div>
               </div>
+
+              {unlockType && (
+                <div className="rounded-lg bg-white p-6 shadow">
+                  <div className="font-semibold text-lg">Senha</div>
+                  {unlockType === 'pattern' ? (
+                    <div className="mt-3">
+                      <PatternPreview pattern={unlockPattern} />
+                    </div>
+                  ) : (
+                    <div className="mt-3">
+                      <div className="text-sm text-gray-700">{unlockType === 'pin' ? `PIN: ${unlockPin}` : `Senha: ${unlockPassword}`}</div>
+                    </div>
+                  )}
+                  <div className="mt-3"><button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm">Editar Senha</button></div>
+                </div>
+              )}
 
               <div className="rounded-lg bg-white p-6 shadow">
                 <div className="font-semibold text-lg">Serviços</div>
@@ -692,20 +892,62 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               onChoose={(u)=>{ setAttendant(u.name||''); setAttendantSelectOpen(false) }}
             />
           )}
+          {unlockTypeOpen && (
+            <UnlockTypeModal
+              open={unlockTypeOpen}
+              onClose={()=>setUnlockTypeOpen(false)}
+              onChoose={(t)=>{
+                setUnlockType(t)
+                setUnlockTypeOpen(false)
+                if (t === 'pattern') setPatternModalOpen(true)
+                else { setTextUnlockOpen(true) }
+              }}
+            />
+          )}
+          {patternModalOpen && (
+            <DrawPatternModal
+              open={patternModalOpen}
+              onClose={()=>setPatternModalOpen(false)}
+              initial={unlockPattern}
+              onConfirm={(p)=>{ setUnlockPattern(p); setPatternModalOpen(false) }}
+            />
+          )}
+          {textUnlockOpen && (
+            <TextUnlockModal
+              open={textUnlockOpen}
+              type={unlockType}
+              initialValue={unlockType==='pin' ? unlockPin : unlockPassword}
+              onClose={()=>setTextUnlockOpen(false)}
+              onConfirm={(v)=>{
+                if (unlockType==='pin') setUnlockPin(v)
+                else setUnlockPassword(v)
+                setTextUnlockOpen(false)
+              }}
+            />
+          )}
           {statusModalOpen && (
             <UpdateStatusModal
               open={statusModalOpen}
               onClose={()=>setStatusModalOpen(false)}
-              initialDate={dateIn}
-              initialStatus={status}
-              internalNotes={internalNotes}
-              receiptNotes={receiptNotes}
+              initialDate={statusTargetOrder ? (statusTargetOrder.dateIn || '') : dateIn}
+              initialStatus={statusTargetOrder ? (statusTargetOrder.status || 'Iniciado') : status}
+              internalNotes={statusTargetOrder ? (statusTargetOrder.internalNotes || '') : internalNotes}
+              receiptNotes={statusTargetOrder ? (statusTargetOrder.receiptNotes || '') : receiptNotes}
               onConfirm={(v)=>{
-                setStatus(v.status)
-                setDateIn(v.dateIn)
-                setInternalNotes(v.internalNotes)
-                setReceiptNotes(v.receiptNotes)
-                setStatusModalOpen(false)
+                if (statusTargetOrder) {
+                  updateOrder(statusTargetOrder.id, {
+                    status: v.status,
+                    dateIn: v.dateIn ? new Date(v.dateIn) : (statusTargetOrder.dateIn || null),
+                    internalNotes: v.internalNotes,
+                    receiptNotes: v.receiptNotes
+                  }).catch(()=>{}).finally(()=>{ setStatusTargetOrder(null); setStatusModalOpen(false) })
+                } else {
+                  setStatus(v.status)
+                  setDateIn(v.dateIn)
+                  setInternalNotes(v.internalNotes)
+                  setReceiptNotes(v.receiptNotes)
+                  setStatusModalOpen(false)
+                }
               }}
             />
           )}
@@ -840,6 +1082,97 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} storeId={storeId} />
         </div>
       )}
+      <SelectColumnsModal
+        open={selectColumnsOpen}
+        onClose={()=>setSelectColumnsOpen(false)}
+        columns={osColumns}
+        onSave={(cols)=>{ setOsColumns(cols); setSelectColumnsOpen(false) }}
+        onReset={()=>setOsColumns(osDefaultColumns)}
+      />
+    </div>
+  )
+}
+
+function FiltersModal({ open, onClose, clientName, technicianName, attendantName, statuses, onChooseClient, onChooseTechnician, onChooseAttendant, onToggleStatus, onClear, onApply }){
+  if (!open) return null
+  const allStatuses = [
+    'Iniciado',
+    'Finalizado',
+    'Os Finalizada E Faturada Cliente Final',
+    'Cancelado',
+    'Serviço Aprovado Em Procedimento Com Tecnico',
+    'Os Finalizada E Faturada Cliente lojista',
+    'Serviço Realizado Pronto Na Gaveta',
+    'Serviço Não Aprovado P/cliente Devoluçao Na Gaveta',
+    'Garantia De Peça E Serviço Cliente lojista',
+    'Devolução Cliente Lojista Já Na Gaveta',
+    'Peça Para Troca E Devolução Ao Fornecedor',
+    'Serviço Aguardando Peça Na Gaveta',
+    'Devolução Cliente Final Já Na Gaveta',
+    'Garantia De Peça E Serviço Cliente Final',
+    'Serviço Não Realizado Devolução Na Gaveta',
+    'Serviço Em Orçamento Com Tecnico',
+    'Os Já Devolvida Ao Lojista - Sem Conserto',
+    'Os Já Devolvido Ao Cliente Final - Sem Conserto',
+    'Devolução Já Entregue Ao Cliente',
+    'APARELHO LIBERADO AGUARDANDO PAGAMENTO'
+  ]
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[640px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">Filtrar</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="text-xs text-gray-600">Cliente</label>
+            <button type="button" onClick={onChooseClient} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+              <span>{clientName ? clientName : 'Selecionar'}</span>
+              <span>›</span>
+            </button>
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Técnico</label>
+            <button type="button" onClick={onChooseTechnician} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+              <span>{technicianName ? technicianName : 'Selecionar'}</span>
+              <span>›</span>
+            </button>
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Atendente</label>
+            <button type="button" onClick={onChooseAttendant} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+              <span>{attendantName ? attendantName : 'Selecionar'}</span>
+              <span>›</span>
+            </button>
+          </div>
+          <div>
+            <div className="text-xs text-gray-600 mb-2">Status:</div>
+            <div className="flex flex-wrap gap-2">
+              {allStatuses.map(s => {
+                const selected = (statuses || []).includes(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={()=>onToggleStatus && onToggleStatus(s)}
+                    className={`px-3 py-1 rounded-full text-xs border ${selected ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="mt-3">
+              <button type="button" onClick={onClear} className="text-sm text-green-600">Limpar Filtros</button>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 border-t flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+          <button type="button" onClick={onApply} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Filtrar</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -919,6 +1252,202 @@ function UpdateStatusModal({ open, onClose, initialDate, initialStatus, internal
   )
 }
 
+function UnlockTypeModal({ open, onClose, onChoose }){
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[420px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">Adicionar Senha</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-4 grid grid-cols-1 gap-3">
+          <button className="px-3 py-2 border rounded text-sm" onClick={()=>onChoose && onChoose('pattern')}>Padrão</button>
+          <button className="px-3 py-2 border rounded text-sm" onClick={()=>onChoose && onChoose('pin')}>PIN</button>
+          <button className="px-3 py-2 border rounded text-sm" onClick={()=>onChoose && onChoose('password')}>Senha</button>
+        </div>
+        <div className="p-4 border-t flex items-center justify-end">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function DrawPatternModal({ open, onClose, initial, onConfirm }){
+  const ref = React.useRef(null)
+  const [points, setPoints] = useState([])
+  const [centers, setCenters] = useState({})
+  const [drawing, setDrawing] = useState(false)
+  useEffect(()=>{ setPoints(Array.isArray(initial)?initial:[]) },[initial])
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const w = rect.width
+    const h = rect.height
+    const gapX = w/4
+    const gapY = h/4
+    const map = {}
+    let idx = 1
+    for(let r=1;r<=3;r++){
+      for(let c=1;c<=3;c++){
+        map[idx] = { x: gapX*c, y: gapY*r }
+        idx++
+      }
+    }
+    setCenters(map)
+  }, [ref.current])
+  const addPoint = (i) => {
+    if (!drawing) return
+    setPoints(prev => prev.includes(i) ? prev : [...prev, i])
+  }
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[520px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">Desenhe o padrão de desbloqueio</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-6 flex items-center justify-center">
+          <div
+            ref={ref}
+            className="relative w-[300px] h-[300px] select-none"
+            onMouseDown={()=>setDrawing(true)}
+            onMouseUp={()=>setDrawing(false)}
+            onMouseLeave={()=>setDrawing(false)}
+            onTouchStart={()=>setDrawing(true)}
+            onTouchEnd={()=>setDrawing(false)}
+          >
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              {points.map((p, idx) => {
+                const a = centers[p]
+                const b = centers[points[idx+1]]
+                if (!a || !b) return null
+                return <line key={`${p}-${idx}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#16a34a" strokeWidth="6" />
+              })}
+            </svg>
+            {[...Array(9)].map((_, i) => {
+              const id = i+1
+              const c = centers[id] || { x: 0, y: 0 }
+              const active = points.includes(id)
+              return (
+                <button
+                  key={id}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full ${active ? 'bg-green-600' : 'bg-green-100'}`}
+                  style={{ left: c.x, top: c.y }}
+                  onMouseEnter={()=>addPoint(id)}
+                  onTouchMove={(e)=>{
+                    const t = e.changedTouches?.[0]
+                    if (!t || !drawing) return
+                    const rect = ref.current.getBoundingClientRect()
+                    const x = t.clientX - rect.left
+                    const y = t.clientY - rect.top
+                    let near = null
+                    Object.entries(centers).forEach(([k, v]) => {
+                      const dx = v.x - x
+                      const dy = v.y - y
+                      const d = Math.sqrt(dx*dx + dy*dy)
+                      if (d < 24) near = parseInt(k,10)
+                    })
+                    if (near) addPoint(near)
+                  }}
+                  onMouseDown={()=>{ setDrawing(true); addPoint(id) }}
+                >
+                  {active && (
+                    <span className="text-white text-xs font-semibold">{points.indexOf(id)+1}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div className="p-4 border-t flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+          <button type="button" onClick={()=>onConfirm && onConfirm(points)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TextUnlockModal({ open, onClose, type, initialValue, onConfirm }){
+  const [val, setVal] = useState(initialValue || '')
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[520px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">{type==='pin' ? 'Digite o PIN' : 'Digite a senha'}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-6">
+          <input
+            value={val}
+            onChange={e=>setVal(e.target.value)}
+            className="w-full border rounded px-3 py-2 text-sm"
+            placeholder={type==='pin' ? 'PIN do aparelho' : 'Senha do aparelho'}
+            inputMode={type==='pin' ? 'numeric' : 'text'}
+          />
+        </div>
+        <div className="p-4 border-t flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+          <button type="button" onClick={()=>onConfirm && onConfirm(val)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PatternPreview({ pattern }){
+  const ref = React.useRef(null)
+  const [centers, setCenters] = useState({})
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const w = rect.width
+    const h = rect.height
+    const gapX = w/4
+    const gapY = h/4
+    const map = {}
+    let idx = 1
+    for(let r=1;r<=3;r++){
+      for(let c=1;c<=3;c++){
+        map[idx] = { x: gapX*c, y: gapY*r }
+        idx++
+      }
+    }
+    setCenters(map)
+  }, [ref.current])
+  return (
+    <div className="relative w-[220px] h-[220px]" ref={ref}>
+      <svg className="absolute inset-0 w-full h-full">
+        {pattern.map((p, idx) => {
+          const a = centers[p]
+          const b = centers[pattern[idx+1]]
+          if (!a || !b) return null
+          return <line key={`${p}-${idx}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#16a34a" strokeWidth="6" />
+        })}
+      </svg>
+      {[...Array(9)].map((_, i) => {
+        const id = i+1
+        const c = centers[id] || { x: 0, y: 0 }
+        const active = pattern.includes(id)
+        return (
+          <div
+            key={id}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full ${active ? 'bg-green-600' : 'bg-green-100'} flex items-center justify-center`}
+            style={{ left: c.x, top: c.y }}
+          >
+            {active && <span className="text-white text-xs font-semibold">{pattern.indexOf(id)+1}</span>}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 
 function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOpenVariation, qty, setQty, price, setPrice, onConfirm }){
