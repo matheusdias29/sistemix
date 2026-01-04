@@ -76,10 +76,37 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   }, [storeId])
 
   useEffect(() => {
-    if (!reservedOpen || !storeId) return
+    if (!storeId) return
     const unsub = listenOrders(items => setAllOrders(items), storeId)
     return () => { unsub && unsub() }
-  }, [reservedOpen, storeId])
+  }, [storeId])
+
+  const reservedMap = useMemo(() => {
+    const map = {}
+    allOrders.forEach(o => {
+      const st = (o.status || '').toLowerCase()
+      // Status que não reservam (liberam a reserva)
+      const isFree = 
+        st.includes('faturada') || 
+        st.includes('cancelado') || 
+        st.includes('sem conserto') ||
+        st.includes('devolução') ||
+        st.includes('devolucao') ||
+        st === 'finalizado'
+
+      if (!isFree) {
+        if (Array.isArray(o.products)) {
+          o.products.forEach(p => {
+             if (p.productId) {
+               const qty = Number(p.quantity || 0)
+               map[p.productId] = (map[p.productId] || 0) + qty
+             }
+          })
+        }
+      }
+    })
+    return map
+  }, [allOrders])
 
   const filtered = useMemo(()=>{
     const q = query.trim().toLowerCase()
@@ -442,6 +469,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
               const priceText = priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
+              const reserved = reservedMap[p.id] || 0
               return (
                 <>
                 <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
@@ -767,40 +795,79 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               {(() => {
                 const baseId = String(reservedProduct?.id || '')
                 const list = (allOrders || []).filter(o => {
-                  const isSale = String(o.type || '') === 'sale'
-                  const isPedido = String(o.status || '').toLowerCase() === 'pedido'
-                  if (!isSale || !isPedido) return false
+                  const type = String(o.type || '').toLowerCase()
+                  const st = String(o.status || '').toLowerCase().trim()
+
+                  // Regra 1: Vendas (PV) somente com status 'pedido'
+                  // Vendas geralmente têm type='sale'
+                  // Se não tiver type, assumimos venda se status for 'pedido', 'pago', etc.
+                  const isSaleType = type === 'sale'
+                  const isSaleStatus = ['pedido', 'venda', 'pago', 'finalizado'].includes(st)
+                  
+                  // Consideramos Venda se for type='sale' OU (sem type e status de venda)
+                  // Mas a regra específica do usuário é mostrar APENAS status 'pedido' para vendas
+                  const isSaleCandidate = isSaleType || (!type && isSaleStatus)
+                  
+                  // Aplicando o filtro específico: Venda deve ser 'pedido'
+                  const showSale = isSaleCandidate && st === 'pedido'
+                  
+                  // Regra 2: Ordens de Serviço (OS) somente com status 'Iniciado'
+                  // OS geralmente têm type='service_order' ou type='os'
+                  // Se não tiver type, assumimos OS se status NÃO for de venda e não for 'sale'
+                  const isOSType = type === 'os' || type === 'service_order'
+                  const isOSStatus = !isSaleStatus // Se não é status de venda, provável OS (ex: iniciado, aguardando, etc)
+                  
+                  const isOSCandidate = isOSType || (!type && isOSStatus)
+                  
+                  // Aplicando o filtro específico: OS deve ser 'Iniciado'
+                  const showOS = isOSCandidate && st === 'iniciado'
+
+                  // Se não atender a nenhum dos critérios de exibição, ignora
+                  if (!showSale && !showOS) return false
+
                   const prods = Array.isArray(o.products) ? o.products : []
                   return prods.some(op => {
-                    const opId = String(op.id || '')
+                    const opId = String(op.id || op.productId || '')
                     return opId === baseId || opId.startsWith(baseId + '-')
                   })
                 })
+                
                 return (
                   <div className="space-y-2">
                     {list.map(o => {
                       const qty = (Array.isArray(o.products) ? o.products : []).filter(op => {
-                        const opId = String(op.id || '')
+                        const opId = String(op.id || op.productId || '')
                         return opId === baseId || opId.startsWith(baseId + '-')
                       }).reduce((s, op) => s + (Number(op.quantity || 0)), 0)
+                      
                       const d = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000) : (o.createdAt ? new Date(o.createdAt) : null)
                       const ds = d ? d.toLocaleDateString('pt-BR') : '-'
+                      
                       const digits = String(o.number || '').replace(/\D/g, '')
                       const n = parseInt(digits, 10)
                       const ref = isNaN(n) ? String(o.id).slice(-4) : String(n).padStart(4, '0')
-                      const label = `PV:${ref}`
+                      
+                      // Define label
+                      // Recalcula se é OS para definir o label correto
+                      const type = String(o.type || '').toLowerCase()
+                      const st = String(o.status || '').toLowerCase().trim()
+                      const isSaleStatus = ['pedido', 'venda', 'pago', 'finalizado'].includes(st)
+                      const isOSCandidate = (type === 'os' || type === 'service_order') || (!type && !isSaleStatus)
+                      
+                      const label = isOSCandidate ? `O.S:${ref}` : `PV:${ref}`
+
                       return (
                         <div key={o.id} className="grid grid-cols-[6rem_1fr_6rem] items-center gap-3 text-sm border-b last:border-0 px-2 py-2">
                           <div>{label}</div>
                           <div className="leading-tight">
                             <div className="font-medium">{o.client || 'Consumidor Final'}</div>
-                            <div className="text-xs text-gray-500">{ds}</div>
+                            <div className="text-xs text-gray-500">{ds} • {o.status || (isOSCandidate ? 'Iniciado' : 'Pedido')}</div>
                           </div>
                           <div className="text-right">{qty}</div>
                         </div>
                       )
                     })}
-                    {list.length === 0 && <div className="text-sm text-gray-600">Nenhum pedido encontrado.</div>}
+                    {list.length === 0 && <div className="text-sm text-gray-600">Nenhum pedido ou ordem de serviço encontrado reservando este item.</div>}
                   </div>
                 )
               })()}
