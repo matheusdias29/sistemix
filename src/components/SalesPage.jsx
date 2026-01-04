@@ -6,6 +6,7 @@ import SaleDetailModal from './SaleDetailModal'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SalesAdvancedFilterModal from './SalesAdvancedFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
+import pixIcon from '../assets/pix.svg'
 
 const tabs = [
   { key: 'todos', label: 'Todos' },
@@ -203,7 +204,14 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
       })
   }, [orders, query, tab, dateRange, advFilters, products])
 
-  const totalValor = useMemo(() => filtered.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0), [filtered])
+  const totalValor = useMemo(() => {
+    return filtered
+      .filter(o => {
+        const s = (o.status || '').toLowerCase()
+        return s === 'venda' || s === 'pedido'
+      })
+      .reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0)
+  }, [filtered])
   const vendasRealizadas = useMemo(() => filtered.filter(o => (o.status||'').toLowerCase() === 'venda').length, [filtered])
   const ticketMedio = useMemo(() => filtered.length ? totalValor / filtered.length : 0, [filtered, totalValor])
 
@@ -222,9 +230,35 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
     const mm = String(d.getMinutes()).padStart(2,'0')
     return `${hh}:${mm}`
   }
-  const firstPaymentMethod = (o) => {
-    const p = Array.isArray(o.payments) && o.payments.length ? o.payments[0] : null
-    return p?.method || '-'
+  const paymentIcon = (label) => {
+    const m = String(label || '').toLowerCase()
+    if (m.includes('pix')) {
+      return <img src={pixIcon} alt="PIX" className="w-4 h-4 inline-block" />
+    }
+    if (m.includes('dinheiro')) {
+      return <span className="inline-block">💵</span>
+    }
+    if (m.includes('débito') || m.includes('debito') || m.includes('crédito') || m.includes('credito')) {
+      return (
+        <svg className="w-4 h-4 text-gray-700 inline-block" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6A2,2 0 0,0 20,4M20,8H4V6H20V8Z"/>
+        </svg>
+      )
+    }
+    if (m.includes('boleto')) {
+      return <span className="inline-block">🧾</span>
+    }
+    if (m.includes('transfer')) {
+      return <span className="inline-block">🔁</span>
+    }
+    if (m.includes('voucher')) {
+      return <span className="inline-block">🎟️</span>
+    }
+    return (
+      <svg className="w-4 h-4 text-gray-700 inline-block" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6A2,2 0 0,0 20,4M20,8H4V6H20V8Z"/>
+      </svg>
+    )
   }
 
   const formatSaleNumber = (order) => {
@@ -241,7 +275,12 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
       case 'number': return <div className="text-sm">{formatSaleNumber(o)}</div>
       case 'client': return <div className="text-sm">{o.client || '-'}</div>
       case 'fiscal': return <div className="text-sm text-center">{o.fiscal ? '📄' : '-'}</div>
-      case 'payment': return <div className="text-sm text-center">{firstPaymentMethod(o)}</div>
+      case 'payment': {
+        const icons = (Array.isArray(o.payments) ? o.payments : []).map((p, idx) => (
+          <span key={idx} className="mx-0.5">{paymentIcon(p.method)}</span>
+        ))
+        return <div className="text-sm text-center">{icons.length ? icons : '-'}</div>
+      }
       case 'date': return <div className="text-sm text-center">{formatDate(o.createdAt)}</div>
       case 'time': return <div className="text-sm text-center">{formatTime(o.createdAt)}</div>
       case 'attendant': return <div className="text-sm text-left truncate" title={o.attendant || '-'}>{o.attendant || '-'}</div>
@@ -391,6 +430,8 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
         open={detailModalOpen} 
         onClose={() => setDetailModalOpen(false)} 
         sale={selectedSale}
+        storeId={storeId}
+        products={products}
         onEdit={(s) => { 
           setDetailModalOpen(false)
           setEditSale(s)

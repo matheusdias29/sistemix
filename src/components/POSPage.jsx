@@ -3,6 +3,7 @@ import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRe
 import { listenOrders } from '../services/orders'
 import SaleDetailModal from './SaleDetailModal'
 import CloseCashModal from './CloseCashModal'
+import pixIcon from '../assets/pix.svg'
 
 export default function POSPage({ storeId, user }){
   const [currentCash, setCurrentCash] = useState(null) // null = loading or not exists
@@ -548,7 +549,11 @@ export default function POSPage({ storeId, user }){
                            <td className="py-3 px-4 text-gray-800 font-medium">{t.description}</td>
                            <td className="py-3 px-4 text-gray-500">{dateStr(t.date)}</td>
                            <td className="py-3 px-4 text-center text-gray-500">
-                            {t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro') ? '💵' : '💳'}
+                           {t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro')
+                             ? '💵'
+                             : (t.methodLabel?.toLowerCase().includes('pix')
+                               ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                               : '💳')}
                           </td>
                           <td className={`py-3 px-4 text-right font-medium ${t.value < 0 ? 'text-red-600' : 'text-green-600'}`}>{money(t.value)}</td>
                           <td className="py-3 px-4 text-center text-green-500">✔</td>
@@ -615,7 +620,11 @@ export default function POSPage({ storeId, user }){
                     {Object.entries(financials.methods).map(([method, val]) => (
                       <div key={method} className="flex items-center justify-between text-sm mb-1">
                         <span className="flex items-center gap-2 text-gray-600">
-                          <span>{method.toLowerCase().includes('dinheiro') ? '💵' : '💳'}</span> {method}
+                          <span>{method.toLowerCase().includes('dinheiro')
+                            ? '💵'
+                            : (method.toLowerCase().includes('pix')
+                              ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                              : '💳')}</span> {method}
                         </span>
                         <span className="font-medium text-gray-900">{money(val)}</span>
                       </div>
@@ -669,7 +678,11 @@ export default function POSPage({ storeId, user }){
                     {Object.entries(financials.methods).map(([method, balance]) => (
                       <div key={method} className="grid grid-cols-12 gap-4 items-center bg-gray-50 p-3 rounded-lg border">
                         <div className="col-span-4 flex items-center gap-2 font-medium text-gray-700">
-                          <span>{method.toLowerCase().includes('dinheiro') ? '💵' : '💠'}</span>
+                          <span>{method.toLowerCase().includes('dinheiro')
+                            ? '💵'
+                            : (method.toLowerCase().includes('pix')
+                              ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                              : '💠')}</span>
                           {method}
                         </div>
                         <div className="col-span-4 text-right font-medium text-gray-900">
@@ -839,8 +852,12 @@ export default function POSPage({ storeId, user }){
                       <div className="text-xs font-bold text-gray-800 mb-1">Pagamento</div>
                       <div className="flex justify-between items-center">
                          <div className="flex items-center gap-2 text-gray-600">
-                           <span className="text-lg">💵</span>
-                           <span className="text-sm">Dinheiro</span>
+                           {selectedTransaction?.method === 'cash' || selectedTransaction?.methodLabel?.toLowerCase().includes('dinheiro')
+                             ? <span className="text-lg">💵</span>
+                             : (selectedTransaction?.methodLabel?.toLowerCase().includes('pix')
+                               ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                               : <span className="text-lg">💳</span>)}
+                           <span className="text-sm">{selectedTransaction?.methodLabel || (selectedTransaction?.method === 'cash' ? 'Dinheiro' : 'Outros')}</span>
                          </div>
                          <div className="font-medium text-gray-900">{money(selectedTransaction.value)}</div>
                       </div>
@@ -1039,9 +1056,13 @@ export default function POSPage({ storeId, user }){
                      <div className="pt-6">
                        <div className="text-xs text-gray-500 mb-3">Total por meio de pagamento</div>
                        {Object.entries(financials.methods).map(([method, val]) => (
-                         <div key={method} className="flex items-center justify-between text-sm mb-2">
+                        <div key={method} className="flex items-center justify-between text-sm mb-2">
                            <span className="flex items-center gap-2 text-gray-600">
-                             <span>{method.toLowerCase().includes('dinheiro') ? '💵' : '💳'}</span> {method}
+                             <span>{method.toLowerCase().includes('dinheiro')
+                               ? '💵'
+                               : (method.toLowerCase().includes('pix')
+                                 ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                                 : '💳')}</span> {method}
                            </span>
                            <span className="font-medium text-gray-900">{money(val)}</span>
                          </div>

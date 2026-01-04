@@ -1,7 +1,8 @@
 import React from 'react'
 import { updateOrder } from '../services/orders'
+import { updateProduct } from '../services/products'
 
-export default function SaleDetailModal({ open, onClose, sale, onEdit, onView }) {
+export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, products = [] }) {
   if (!open || !sale) return null
 
   const isOS = sale.type === 'service_order' || (sale.status && sale.status.includes('Os Finalizada'))
@@ -76,6 +77,41 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView })
             className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm hover:bg-red-50 flex items-center gap-1"
             onClick={async () => {
               try {
+                if ((sale.status || '').toLowerCase() !== 'cancelada') {
+                  // Restock products
+                  const items = Array.isArray(sale.products) ? sale.products : []
+                  for (const it of items) {
+                    const qty = Math.max(0, parseFloat(it.quantity) || 0)
+                    if (qty <= 0) continue
+                    let prod = products.find(p => p.id === it.id)
+                    if (!prod) {
+                      // Try to find by name for variations: "Product Name - Variation"
+                      const parts = String(it.name || '').split(' - ')
+                      const baseName = parts.length > 1 ? parts[0] : String(it.name || '')
+                      const varName = parts.length > 1 ? parts.slice(1).join(' - ') : null
+                      const candidates = products.filter(p => String(p.name || '') === baseName)
+                      if (candidates.length > 0) {
+                        prod = candidates[0]
+                        if (varName && Array.isArray(prod.variationsData) && prod.variationsData.length > 0) {
+                          const idx = prod.variationsData.findIndex(v => String(v?.name || v?.label || '') === varName)
+                          if (idx >= 0) {
+                            const itemsVar = prod.variationsData.map(v => ({ ...v }))
+                            const cur = Number(itemsVar[idx]?.stock ?? 0)
+                            itemsVar[idx].stock = Math.max(0, cur + qty)
+                            const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
+                            await updateProduct(prod.id, { variationsData: itemsVar, stock: total })
+                            continue
+                          }
+                        }
+                      }
+                    }
+                    if (prod) {
+                      const cur = Number(prod.stock ?? 0)
+                      const next = Math.max(0, cur + qty)
+                      await updateProduct(prod.id, { stock: next })
+                    }
+                  }
+                }
                 await updateOrder(sale.id, { status: 'Cancelada' })
                 onClose && onClose()
               } catch (e) {
