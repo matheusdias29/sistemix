@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase'
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, runTransaction, arrayUnion } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, runTransaction, arrayUnion, getDoc } from 'firebase/firestore'
 
 // Escuta o caixa aberto atual da loja
 export function listenCurrentCash(storeId, callback) {
@@ -162,4 +162,16 @@ export async function addCashTransaction(cashId, transaction) {
   await updateDoc(ref, {
     transactions: arrayUnion(newTrans)
   })
+}
+
+// Remove todas as transações relacionadas a uma O.S específica
+export async function removeCashTransactionsByOrder(cashId, orderId) {
+  if (!cashId || !orderId) throw new Error('Parâmetros inválidos')
+  const ref = doc(db, 'cash_registers', cashId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const data = snap.data()
+  const list = Array.isArray(data.transactions) ? data.transactions : []
+  const filtered = list.filter(t => !(t?.originalOrder?.id === orderId))
+  await updateDoc(ref, { transactions: filtered })
 }

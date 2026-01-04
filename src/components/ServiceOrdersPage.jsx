@@ -12,6 +12,7 @@ import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, Payme
 import { listenSubUsers } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
+import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
 
 export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
@@ -222,6 +223,8 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   const [afterAboveAdjustedOpen, setAfterAboveAdjustedOpen] = useState(false)
   const [remainingInfoOpen, setRemainingInfoOpen] = useState(false)
   const [remainingSnapshot, setRemainingSnapshot] = useState(0)
+  const [currentCash, setCurrentCash] = useState(null)
+  const [cashTargetOrder, setCashTargetOrder] = useState(null)
 
   const totalPaidAgg = useMemo(() => {
     return osPayments.reduce((s, p) => s + (parseFloat(p.amount)||0), 0)
@@ -230,6 +233,19 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     const r = (parseFloat(totalProductsAgg)||0) - (parseFloat(totalPaidAgg)||0)
     return r > 0 ? r : 0
   }, [totalProductsAgg, totalPaidAgg])
+  const osLaunchRemaining = useMemo(() => {
+    if (!cashTargetOrder) return remainingToPay
+    const total = Number(
+      cashTargetOrder.total ??
+      cashTargetOrder.totalProducts ??
+      cashTargetOrder.valor ??
+      (Array.isArray(cashTargetOrder.products)
+        ? cashTargetOrder.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0)
+        : 0)
+    ) || 0
+    const paid = osPayments.reduce((s,p)=> s + (parseFloat(p.amount)||0), 0)
+    return Math.max(0, total - paid)
+  }, [cashTargetOrder, osPayments, remainingToPay])
 
   const techniciansList = useMemo(() => {
     return members.filter(u => (u.isTech ?? false) || /t[eé]cnico/i.test(String(u.name||'')))
@@ -308,6 +324,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       }
     }
   }, [viewParams, orders])
+  
+  useEffect(() => {
+    const unsub = listenCurrentCash(storeId, (c)=>setCurrentCash(c))
+    return () => unsub && unsub()
+  }, [storeId])
 
   const handleSave = async () => {
     if (saving) return
@@ -404,6 +425,154 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
 
   return (
     <div>
+      {statusModalOpen && (
+        <UpdateStatusModal
+          open={statusModalOpen}
+          onClose={()=>setStatusModalOpen(false)}
+          initialDate={statusTargetOrder ? (statusTargetOrder.dateIn || '') : dateIn}
+          initialStatus={statusTargetOrder ? (statusTargetOrder.status || 'Iniciado') : status}
+          internalNotes={statusTargetOrder ? (statusTargetOrder.internalNotes || '') : internalNotes}
+          receiptNotes={statusTargetOrder ? (statusTargetOrder.receiptNotes || '') : receiptNotes}
+          onConfirm={(v)=>{
+            if (statusTargetOrder) {
+              updateOrder(statusTargetOrder.id, {
+                status: v.status,
+                dateIn: v.dateIn ? new Date(v.dateIn) : (statusTargetOrder.dateIn || null),
+                internalNotes: v.internalNotes,
+                receiptNotes: v.receiptNotes
+              }).catch(()=>{}).finally(()=>{ setStatusTargetOrder(null); setStatusModalOpen(false) })
+            } else {
+              setStatus(v.status)
+              setDateIn(v.dateIn)
+              setInternalNotes(v.internalNotes)
+              setReceiptNotes(v.receiptNotes)
+              setStatusModalOpen(false)
+            }
+          }}
+        />
+      )}
+      {payMethodsOpen && (
+        <PaymentMethodsModal
+          open={payMethodsOpen}
+          onClose={()=>setPayMethodsOpen(false)}
+          remaining={osLaunchRemaining}
+          payments={osPayments}
+          onRemovePayment={(idx)=>setOsPayments(prev=>prev.filter((_,i)=>i!==idx))}
+          onChooseMethod={(m)=>{
+            setSelectedPayMethod(m)
+            setPayAmountInput(String(osLaunchRemaining))
+            setPayError('')
+            setPayAmountOpen(true)
+          }}
+          onConfirm={()=>setPayMethodsOpen(false)}
+        />
+      )}
+      {payAmountOpen && (
+        <PaymentAmountModal
+          open={payAmountOpen}
+          onClose={()=>setPayAmountOpen(false)}
+          method={selectedPayMethod}
+          remaining={osLaunchRemaining}
+          amount={payAmountInput}
+          setAmount={setPayAmountInput}
+          error={payError}
+          setError={setPayError}
+          onConfirm={()=>{
+            const amt = parseFloat(payAmountInput)||0
+            if(!selectedPayMethod) return
+            const remaining = osLaunchRemaining
+            if(selectedPayMethod.code === 'cash'){
+              const applied = Math.min(amt, remaining)
+              const change = Math.max(amt - remaining, 0)
+              const newRemaining = Math.max(remaining - applied, 0)
+              setOsPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: applied, change, date: new Date() }])
+              if (cashTargetOrder && currentCash) {
+                addCashTransaction(currentCash.id, {
+                  description: formatOSNumber(cashTargetOrder),
+                  method: selectedPayMethod.code,
+                  methodLabel: selectedPayMethod.label,
+                  value: applied,
+                  type: 'in',
+                  originalOrder: { id: cashTargetOrder.id, number: cashTargetOrder.number, type: 'service_order' }
+                }).catch(()=>{})
+              }
+              setPayAmountOpen(false)
+              setRemainingSnapshot(newRemaining)
+              if(newRemaining > 0){ 
+                setRemainingInfoOpen(true) 
+              } else { 
+                if (cashTargetOrder && currentCash) {
+                  updateOrder(cashTargetOrder.id, { status: 'Os Finalizada e Faturada Cliente Final', cashLaunched: true, cashLaunchCashId: currentCash.id }).catch(()=>{})
+                }
+                setCashTargetOrder(null) 
+              }
+            } else {
+              if(amt > remainingToPay){
+                setPayAmountOpen(false)
+                setPayAboveConfirmOpen(true)
+                return
+              }
+              const newRemaining = Math.max(remainingToPay - amt, 0)
+              setOsPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: amt, date: new Date() }])
+              if (cashTargetOrder && currentCash) {
+                addCashTransaction(currentCash.id, {
+                  description: formatOSNumber(cashTargetOrder),
+                  method: selectedPayMethod.code,
+                  methodLabel: selectedPayMethod.label,
+                  value: amt,
+                  type: 'in',
+                  originalOrder: { id: cashTargetOrder.id, number: cashTargetOrder.number, type: 'service_order' }
+                }).catch(()=>{})
+              }
+              setPayAmountOpen(false)
+              setRemainingSnapshot(newRemaining)
+              if(newRemaining > 0){ 
+                setRemainingInfoOpen(true) 
+              } else { 
+                if (cashTargetOrder && currentCash) {
+                  updateOrder(cashTargetOrder.id, { status: 'Os Finalizada e Faturada Cliente Final', cashLaunched: true, cashLaunchCashId: currentCash.id }).catch(()=>{})
+                }
+                setCashTargetOrder(null) 
+              }
+            }
+          }}
+        />
+      )}
+      {payAboveConfirmOpen && (
+        <AboveAmountConfirmModal
+          open={payAboveConfirmOpen}
+          amount={parseFloat(payAmountInput)||0}
+          remaining={remainingToPay}
+          method={selectedPayMethod}
+          onCancel={()=>{ setPayAboveConfirmOpen(false); setPayAmountOpen(true) }}
+          onConfirm={()=>{
+            const amt = parseFloat(payAmountInput)||0
+            const applied = Math.min(amt, remainingToPay)
+            const newRemaining = Math.max(remainingToPay - applied, 0)
+            setOsPayments(prev=>[...prev, { method: selectedPayMethod?.label, methodCode: selectedPayMethod?.code, amount: applied, date: new Date() }])
+            setPayAboveConfirmOpen(false)
+            setAfterAboveAdjustedOpen(true)
+            setRemainingSnapshot(newRemaining)
+            if(newRemaining > 0){ setRemainingInfoOpen(true) }
+          }}
+        />
+      )}
+      {remainingInfoOpen && (
+        <PaymentRemainingModal
+          open={remainingInfoOpen}
+          remaining={remainingSnapshot}
+          onClose={()=>setRemainingInfoOpen(false)}
+          onAddMore={()=>{ setRemainingInfoOpen(false); setPayMethodsOpen(true) }}
+        />
+      )}
+      {afterAboveAdjustedOpen && (
+        <AfterAboveAdjustedModal
+          open={afterAboveAdjustedOpen}
+          method={selectedPayMethod}
+          remaining={remainingSnapshot}
+          onClose={()=>setAfterAboveAdjustedOpen(false)}
+        />
+      )}
       {view === 'list' ? (
         <>
           {/* Cabeçalho e controles */}
@@ -596,8 +765,28 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>window.print()}>Imprimir</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Eventos</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) }}>Alterar Status</button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Lançar estoque</button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Lançar no caixa</button>
+                        {o.cashLaunched ? (
+                          <button
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                            onClick={()=>{
+                              if(!currentCash){ alert('Nenhum caixa aberto.'); return }
+                              removeCashTransactionsByOrder(currentCash.id, o.id)
+                                .then(()=>updateOrder(o.id, { cashLaunched: false, cashLaunchCashId: null }))
+                                .finally(()=>setRowMenuOpenId(null))
+                            }}
+                          >Cancelar mov. caixa</button>
+                        ) : (
+                          <button 
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                            onClick={()=>{
+                              if(!currentCash){ alert('Nenhum caixa aberto. Abra o caixa para lançar.'); return }
+                              setCashTargetOrder(o)
+                              setOsPayments([])
+                              setRowMenuOpenId(null)
+                              setPayMethodsOpen(true)
+                            }}
+                          >Lançar no caixa</button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -795,7 +984,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   <div className="text-sm text-gray-700">Status atual: <span className="inline-block px-2 py-1 rounded bg-gray-100 border text-gray-800">{status}</span></div>
                 </div>
                 <div className="mt-6 flex items-center justify-end gap-3">
-                  <button type="button" onClick={()=>setStatusModalOpen(true)} className="px-3 py-2 border rounded text-sm">Alterar Status</button>
+                  <button type="button" onClick={()=>{ setRowMenuOpenId(null); setStatusModalOpen(true) }} className="px-3 py-2 border rounded text-sm">Alterar Status</button>
                   <button type="button" className="px-3 py-2 border rounded text-sm">Salvar e Imprimir</button>
                   <button disabled={saving} type="button" onClick={handleSave} className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Salvar</button>
                 </div>
@@ -925,119 +1114,6 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               }}
             />
           )}
-          {statusModalOpen && (
-            <UpdateStatusModal
-              open={statusModalOpen}
-              onClose={()=>setStatusModalOpen(false)}
-              initialDate={statusTargetOrder ? (statusTargetOrder.dateIn || '') : dateIn}
-              initialStatus={statusTargetOrder ? (statusTargetOrder.status || 'Iniciado') : status}
-              internalNotes={statusTargetOrder ? (statusTargetOrder.internalNotes || '') : internalNotes}
-              receiptNotes={statusTargetOrder ? (statusTargetOrder.receiptNotes || '') : receiptNotes}
-              onConfirm={(v)=>{
-                if (statusTargetOrder) {
-                  updateOrder(statusTargetOrder.id, {
-                    status: v.status,
-                    dateIn: v.dateIn ? new Date(v.dateIn) : (statusTargetOrder.dateIn || null),
-                    internalNotes: v.internalNotes,
-                    receiptNotes: v.receiptNotes
-                  }).catch(()=>{}).finally(()=>{ setStatusTargetOrder(null); setStatusModalOpen(false) })
-                } else {
-                  setStatus(v.status)
-                  setDateIn(v.dateIn)
-                  setInternalNotes(v.internalNotes)
-                  setReceiptNotes(v.receiptNotes)
-                  setStatusModalOpen(false)
-                }
-              }}
-            />
-          )}
-          {payMethodsOpen && (
-            <PaymentMethodsModal
-              open={payMethodsOpen}
-              onClose={()=>setPayMethodsOpen(false)}
-              remaining={remainingToPay}
-              payments={osPayments}
-              onRemovePayment={(idx)=>setOsPayments(prev=>prev.filter((_,i)=>i!==idx))}
-              onChooseMethod={(m)=>{
-                setSelectedPayMethod(m)
-                setPayAmountInput(String(remainingToPay))
-                setPayError('')
-                setPayAmountOpen(true)
-              }}
-              onConfirm={()=>setPayMethodsOpen(false)}
-            />
-          )}
-          {payAmountOpen && (
-            <PaymentAmountModal
-              open={payAmountOpen}
-              onClose={()=>setPayAmountOpen(false)}
-              method={selectedPayMethod}
-              remaining={remainingToPay}
-              amount={payAmountInput}
-              setAmount={setPayAmountInput}
-              error={payError}
-              setError={setPayError}
-              onConfirm={()=>{
-                const amt = parseFloat(payAmountInput)||0
-                if(!selectedPayMethod) return
-                if(selectedPayMethod.code === 'cash'){
-                  const applied = Math.min(amt, remainingToPay)
-                  const change = Math.max(amt - remainingToPay, 0)
-                  const newRemaining = Math.max(remainingToPay - applied, 0)
-                  setOsPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: applied, change, date: new Date() }])
-                  setPayAmountOpen(false)
-                  setRemainingSnapshot(newRemaining)
-                  if(newRemaining > 0){ setRemainingInfoOpen(true) }
-                } else {
-                  if(amt > remainingToPay){
-                    setPayAmountOpen(false)
-                    setPayAboveConfirmOpen(true)
-                    return
-                  }
-                  const newRemaining = Math.max(remainingToPay - amt, 0)
-                  setOsPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: amt, date: new Date() }])
-                  setPayAmountOpen(false)
-                  setRemainingSnapshot(newRemaining)
-                  if(newRemaining > 0){ setRemainingInfoOpen(true) }
-                }
-              }}
-            />
-          )}
-          {payAboveConfirmOpen && (
-            <AboveAmountConfirmModal
-              open={payAboveConfirmOpen}
-              amount={parseFloat(payAmountInput)||0}
-              remaining={remainingToPay}
-              method={selectedPayMethod}
-              onCancel={()=>{ setPayAboveConfirmOpen(false); setPayAmountOpen(true) }}
-              onConfirm={()=>{
-                const amt = parseFloat(payAmountInput)||0
-                const applied = Math.min(amt, remainingToPay)
-                const newRemaining = Math.max(remainingToPay - applied, 0)
-                setOsPayments(prev=>[...prev, { method: selectedPayMethod?.label, methodCode: selectedPayMethod?.code, amount: applied, date: new Date() }])
-                setPayAboveConfirmOpen(false)
-                setAfterAboveAdjustedOpen(true)
-                setRemainingSnapshot(newRemaining)
-                if(newRemaining > 0){ setRemainingInfoOpen(true) }
-              }}
-            />
-          )}
-          {remainingInfoOpen && (
-            <PaymentRemainingModal
-              open={remainingInfoOpen}
-              remaining={remainingSnapshot}
-              onClose={()=>setRemainingInfoOpen(false)}
-              onAddMore={()=>{ setRemainingInfoOpen(false); setPayMethodsOpen(true) }}
-            />
-          )}
-          {afterAboveAdjustedOpen && (
-            <AfterAboveAdjustedModal
-              open={afterAboveAdjustedOpen}
-              method={selectedPayMethod}
-              remaining={remainingSnapshot}
-              onClose={()=>setAfterAboveAdjustedOpen(false)}
-            />
-          )}
           {prodSelectOpen && (
             <SelectProductModal
               open={prodSelectOpen}
@@ -1118,7 +1194,7 @@ function FiltersModal({ open, onClose, clientName, technicianName, attendantName
     'APARELHO LIBERADO AGUARDANDO PAGAMENTO'
   ]
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[2000]">
       <div className="bg-white rounded-lg shadow-lg w-[640px] max-w-[95vw]">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-semibold text-lg">Filtrar</h3>
