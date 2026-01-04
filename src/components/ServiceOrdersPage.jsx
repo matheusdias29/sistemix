@@ -568,6 +568,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   methodLabel: selectedPayMethod.label,
                   value: applied,
                   type: 'in',
+                  userName: cashTargetOrder.attendant || '',
                   originalOrder: { id: cashTargetOrder.id, number: cashTargetOrder.number, type: 'service_order' }
                 }).catch(()=>{})
               }
@@ -596,6 +597,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   methodLabel: selectedPayMethod.label,
                   value: amt,
                   type: 'in',
+                  userName: cashTargetOrder.attendant || '',
                   originalOrder: { id: cashTargetOrder.id, number: cashTargetOrder.number, type: 'service_order' }
                 }).catch(()=>{})
               }

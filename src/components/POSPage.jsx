@@ -250,6 +250,12 @@ export default function POSPage({ storeId, user }){
     return `${dias[d.getDay()]} - ${d.getDate()}/${d.getMonth()+1}`
   }
 
+  const timeStr = (ts) => {
+    if(!ts) return ''
+    const d = ts.toDate ? ts.toDate() : new Date(ts)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
   const { transactions, financials } = useMemo(() => {
     // Helper para processar dados de um caixa
     const processCash = (cash) => {
@@ -280,7 +286,8 @@ export default function POSPage({ storeId, user }){
         method: 'cash',
         methodLabel: 'Dinheiro',
         value: cash.initialValue,
-        type: 'in'
+        type: 'in',
+        seller: cash.openedByName || '—'
       })
   
       let salesTotal = 0
@@ -309,7 +316,8 @@ export default function POSPage({ storeId, user }){
             methodLabel: t.methodLabel || 'Dinheiro',
             value: t.value,
             type: t.value > 0 ? 'in' : 'out',
-            isManual: true
+            isManual: true,
+            seller: t.userName || '—'
           })
 
           const amount = Number(t.value || 0)
@@ -359,7 +367,8 @@ export default function POSPage({ storeId, user }){
                 methodLabel: p.method || 'Outros',
                 value: amount,
                 type: 'in',
-                originalOrder: o
+                originalOrder: o,
+                seller: o.attendant || o.userName || '—'
               })
               
               if(isSale) salesTotal += amount
@@ -527,6 +536,8 @@ export default function POSPage({ storeId, user }){
                        <tr>
                          <th className="py-3 px-4">Descrição</th>
                          <th className="py-3 px-4">Data</th>
+                         <th className="py-3 px-4">Hora</th>
+                         <th className="py-3 px-4">Vendedor</th>
                          <th className="py-3 px-4 text-center">Meio Pg.</th>
                          <th className="py-3 px-4 text-right">Valor</th>
                          <th className="py-3 px-4 text-center">Status</th>
@@ -547,7 +558,9 @@ export default function POSPage({ storeId, user }){
                           }}
                          >
                            <td className="py-3 px-4 text-gray-800 font-medium">{t.description}</td>
-                           <td className="py-3 px-4 text-gray-500">{dateStr(t.date)}</td>
+                           <td className="py-3 px-4 text-gray-500 text-xs">{dateStr(t.date)}</td>
+                           <td className="py-3 px-4 text-gray-500 text-xs">{timeStr(t.date)}</td>
+                           <td className="py-3 px-4 text-gray-500 text-xs truncate max-w-[100px]" title={t.seller}>{t.seller}</td>
                            <td className="py-3 px-4 text-center text-gray-500">
                            {t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro')
                              ? '💵'
@@ -560,7 +573,7 @@ export default function POSPage({ storeId, user }){
                          </tr>
                        ))}
                        {transactions.length === 0 && (
-                         <tr><td colSpan="5" className="py-8 text-center text-gray-400">Nenhuma movimentação</td></tr>
+                         <tr><td colSpan="6" className="py-8 text-center text-gray-400">Nenhuma movimentação</td></tr>
                        )}
                      </tbody>
                    </table>

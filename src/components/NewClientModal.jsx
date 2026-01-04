@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { addClient, updateClient, getNextClientCode } from '../services/clients'
 import { searchCep } from '../services/cep'
 
-export default function NewClientModal({ open, onClose, isEdit=false, client=null, storeId, onSuccess }){
+export default function NewClientModal({ open, onClose, isEdit=false, client=null, storeId, onSuccess, user }){
   const [name, setName] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [phone, setPhone] = useState('')
@@ -157,11 +157,13 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
         birthDate,
         // Status
         active,
+        lastEditedBy: user?.name || 'Sistema',
       }
       if(isEdit && client?.id){
         await updateClient(client.id, payload)
         if (onSuccess) onSuccess({ id: client.id, ...payload })
       } else {
+        payload.createdBy = user?.name || 'Sistema'
         const newId = await addClient(payload, storeId)
         if (onSuccess) onSuccess({ id: newId, ...payload })
       }

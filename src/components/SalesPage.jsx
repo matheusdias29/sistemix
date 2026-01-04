@@ -18,10 +18,10 @@ const tabs = [
 const defaultColumns = [
   { id: 'number', label: 'Venda', width: '5.5rem', visible: true, align: 'left' },
   { id: 'client', label: 'Cliente', width: '1.5fr', visible: true, align: 'left' },
-  { id: 'fiscal', label: 'Fiscal', width: '4rem', visible: true, align: 'center' },
-  { id: 'payment', label: 'Meio de Pg.', width: '8rem', visible: true, align: 'center' },
-  { id: 'date', label: 'Data', width: '6rem', visible: true, align: 'center' },
-  { id: 'time', label: 'Hora', width: '4.5rem', visible: true, align: 'center' },
+  { id: 'fiscal', label: 'Fiscal', width: '5rem', visible: true, align: 'center' },
+  { id: 'payment', label: 'Meio de Pg.', width: '9rem', visible: true, align: 'center' },
+  { id: 'date', label: 'Data', width: '7rem', visible: true, align: 'center' },
+  { id: 'time', label: 'Hora', width: '5.5rem', visible: true, align: 'center' },
   { id: 'attendant', label: 'Vendedor', width: '1fr', visible: true, align: 'left' },
   { id: 'value', label: 'Valor', width: '7rem', visible: true, align: 'right' },
   { id: 'status', label: 'Status', width: '7rem', visible: true, align: 'center' }
@@ -371,7 +371,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
       {/* Lista */}
       <div className="mt-4 bg-white rounded-lg shadow overflow-hidden">
         <div 
-          className="grid items-center px-4 py-3 text-xs text-gray-500 border-b"
+          className="grid items-center px-4 py-3 text-xs text-gray-500 border-b gap-3"
           style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
         >
           {columns.filter(c => c.visible).map(col => (
@@ -402,7 +402,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
               setSelectedSale(o)
               setDetailModalOpen(true)
             }}
-            className="grid items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors"
+            className="grid items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors gap-3"
             style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
           >
             {columns.filter(c => c.visible).map(col => (

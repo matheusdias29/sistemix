@@ -277,7 +277,7 @@ export default function App(){
           ) : view === 'os' ? (
             <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
           ) : view === 'clientes' ? (
-            <div className="mt-4 md:mt-6"><ClientsPage storeId={store?.id} addNewSignal={addNewClientSignal} /></div>
+            <div className="mt-4 md:mt-6"><ClientsPage storeId={store?.id} addNewSignal={addNewClientSignal} user={user} /></div>
           ) : view === 'notas' ? (
             <div className="mt-4 md:mt-6"><FiscalNotesPage storeId={store?.id} /></div>
           ) : view === 'configuracoes' ? (
