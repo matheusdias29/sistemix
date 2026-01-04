@@ -13,9 +13,11 @@ import { listenSubUsers } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
+import { listenServices, addService, updateService } from '../services/services'
 
 export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
+  const [listTab, setListTab] = useState('os') // 'os' | 'services'
   const [query, setQuery] = useState('')
   const [periodOpen, setPeriodOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -171,6 +173,8 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   const [statusModalOpen, setStatusModalOpen] = useState(false)
   // Produtos na OS e modais
   const [osProducts, setOsProducts] = useState([])
+  const [osServices, setOsServices] = useState([])
+  const [serviceSelectOpen, setServiceSelectOpen] = useState(false)
   const [addProdOpen, setAddProdOpen] = useState(false)
   const [prodSelectOpen, setProdSelectOpen] = useState(false)
   const [newProductOpen, setNewProductOpen] = useState(false)
@@ -178,11 +182,14 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   const [qtyInput, setQtyInput] = useState(1)
   const [priceInput, setPriceInput] = useState('0')
   const [productsAll, setProductsAll] = useState([])
+  const [servicesAll, setServicesAll] = useState([])
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
   // Estados para variações
   const [varSelectOpen, setVarSelectOpen] = useState(false)
   const [selectedVariation, setSelectedVariation] = useState(null)
+  const [serviceModalOpen, setServiceModalOpen] = useState(false)
+  const [serviceEditTarget, setServiceEditTarget] = useState(null)
 // Edição
 const [editingOrderId, setEditingOrderId] = useState(null)
 const [editingOrderNumber, setEditingOrderNumber] = useState('')
@@ -199,6 +206,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
 
   useEffect(() => {
     const unsubP = listenProducts(items => setProductsAll(items), storeId)
+    const unsubSv = listenServices(items => setServicesAll(items), storeId)
     const unsubC = listenCategories(items => setCategories(items), storeId)
     const unsubS = listenSuppliers(items => setSuppliers(items), storeId)
     const unsubClients = listenClients(items => setClientsAll(items), storeId)
@@ -206,12 +214,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     if (ownerId) {
       unsubMembers = listenSubUsers(ownerId, (list) => setMembers(list.filter(u => (u.active ?? true))))
     }
-    return () => { unsubP && unsubP(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers() }
+    return () => { unsubP && unsubP(); unsubSv && unsubSv(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers() }
   }, [storeId, ownerId])
 
   const totalProductsAgg = useMemo(() => {
     return osProducts.reduce((s, p) => s + ((parseFloat(p.price)||0) * (parseFloat(p.quantity)||0)), 0)
   }, [osProducts])
+  const totalServicesAgg = useMemo(() => {
+    return osServices.reduce((s, sv) => s + ((parseFloat(sv.price)||0) * (parseFloat(sv.quantity)||0)), 0)
+  }, [osServices])
 
   const [osPayments, setOsPayments] = useState([])
   const [payMethodsOpen, setPayMethodsOpen] = useState(false)
@@ -230,9 +241,9 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     return osPayments.reduce((s, p) => s + (parseFloat(p.amount)||0), 0)
   }, [osPayments])
   const remainingToPay = useMemo(() => {
-    const r = (parseFloat(totalProductsAgg)||0) - (parseFloat(totalPaidAgg)||0)
+    const r = ((parseFloat(totalProductsAgg)||0) + (parseFloat(totalServicesAgg)||0)) - (parseFloat(totalPaidAgg)||0)
     return r > 0 ? r : 0
-  }, [totalProductsAgg, totalPaidAgg])
+  }, [totalProductsAgg, totalServicesAgg, totalPaidAgg])
   const osLaunchRemaining = useMemo(() => {
     if (!cashTargetOrder) return remainingToPay
     const total = Number(
@@ -258,6 +269,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   const resetForm = () => {
     setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo('Garantia de produtos e serviços.\n90 dias para defeito de fabricação.\nNão cobre produto quebrado.\nNão cobre riscos na tela\nNão cobre trincos na tela.')
     setOsProducts([])
+    setOsServices([])
     setOsPayments([])
     setEditingOrderId(null)
     setEditingOrderNumber('')
@@ -299,6 +311,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setReceiptNotes(o.receiptNotes || '')
     setInternalNotes(o.internalNotes || '')
     setOsProducts(Array.isArray(o.products) ? o.products : [])
+    setOsServices(Array.isArray(o.services) ? o.services : [])
     setOsPayments(Array.isArray(o.payments) ? o.payments : [])
     setEditingOrderId(o.id)
     setEditingOrderNumber(o.number || o.id)
@@ -348,13 +361,13 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         problem,
         receiptNotes,
         internalNotes,
-        services: [],
+        services: osServices,
         products: osProducts,
-        totalServices: 0,
+        totalServices: totalServicesAgg,
         totalProducts: totalProductsAgg,
         discount: 0,
-        total: totalProductsAgg,
-        valor: totalProductsAgg,
+        total: (totalProductsAgg + totalServicesAgg),
+        valor: (totalProductsAgg + totalServicesAgg),
         payments: osPayments,
         password: unlockType === 'pattern' 
           ? { type: 'pattern', pattern: unlockPattern }
@@ -412,6 +425,9 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   }
   const removeProduct = (idx) => {
     setOsProducts(prev => prev.filter((_, i) => i !== idx))
+  }
+  const removeService = (idx) => {
+    setOsServices(prev => prev.filter((_, i) => i !== idx))
   }
 
   const formatOSNumber = (order) => {
@@ -573,14 +589,36 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           onClose={()=>setAfterAboveAdjustedOpen(false)}
         />
       )}
+      {serviceModalOpen && (
+        <NewServiceModal
+          open={serviceModalOpen}
+          onClose={()=>setServiceModalOpen(false)}
+          initial={serviceEditTarget}
+          onConfirm={async (data)=>{
+            try{
+              if (serviceEditTarget?.id) {
+                await updateService(serviceEditTarget.id, data)
+              } else {
+                await addService(data, storeId)
+              }
+              setServiceEditTarget(null)
+              setServiceModalOpen(false)
+            }catch(e){
+              console.error('Erro ao salvar serviço', e)
+              alert('Erro ao salvar serviço')
+            }
+          }}
+        />
+      )}
       {view === 'list' ? (
         <>
           {/* Cabeçalho e controles */}
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="flex items-center gap-6 text-sm">
-              <button className="pb-2 text-green-600 border-b-2 border-green-600 font-semibold">Ordens De Serviço</button>
-              <button className="pb-2 text-gray-600">Serviços</button>
+              <button onClick={()=>setListTab('os')} className={`pb-2 ${listTab==='os' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Ordens De Serviço</button>
+              <button onClick={()=>setListTab('services')} className={`pb-2 ${listTab==='services' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Serviços</button>
             </div>
+            {listTab==='os' ? (
             <div className="mt-4 flex items-center gap-3">
               <div className="flex-1 flex items-center gap-2">
                 <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
@@ -603,9 +641,51 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               <div className="hidden md:block flex-1"></div>
               <button className="hidden md:inline-block px-3 py-2 border rounded text-sm">Opções</button>
               <button onClick={()=>{ resetForm(); setView('new') }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
+            </div>
+            ) : (
+            <div className="mt-4 flex items-center gap-3">
+              <div className="flex-1 flex items-center gap-2">
+                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
+                <button type="button" className="px-2 py-1 text-xs rounded border bg-green-50 text-green-700">Ativo</button>
+                <button type="button" className="px-2 py-1 text-xs rounded border">Inativo</button>
+              </div>
+              <div className="hidden md:block flex-1"></div>
+              <button onClick={()=>{ setServiceEditTarget(null); setServiceModalOpen(true) }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white">+ Novo</button>
+            </div>
+            )}
           </div>
-        </div>
+          {/* Lista */}
+          {listTab==='os' ? (
+            <>
+            {/* Cards de resumo */}
+            
+            </>
+          ) : (
+            <div className="mt-4 bg-white rounded shadow">
+              <div className="min-w-[800px] divide-y divide-gray-200">
+                <div className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-2 text-xs text-gray-500">
+                  <div>Serviço</div>
+                  <div className="text-right">Preço</div>
+                  <div>Status</div>
+                  <div></div>
+                </div>
+                {(servicesAll||[]).filter(sv => {
+                  const ql = query.trim().toLowerCase()
+                  return (sv.name||'').toLowerCase().includes(ql)
+                }).map(sv => (
+                  <div key={sv.id} className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-3 text-sm hover:bg-gray-50">
+                    <div className="font-medium">{sv.name}</div>
+                    <div className="text-right">{Number(sv.price||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                    <div><span className={`inline-block px-2 py-1 rounded border ${sv.active ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'}`}>{sv.active ? 'Ativo' : 'Inativo'}</span></div>
+                    <button type="button" onClick={()=>{ setServiceEditTarget(sv); setServiceModalOpen(true) }} className="text-gray-500">›</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
+        {listTab==='os' && (
+          <>
         <SalesDateFilterModal 
           open={dateFilterOpen} 
           onClose={()=>setDateFilterOpen(false)} 
@@ -795,6 +875,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             </div>
             </div>
           </div>
+          </>)}
         </>
       ) : (
         // Formulário Nova OS
@@ -884,6 +965,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   {unlockType === 'pattern' ? (
                     <div className="mt-3">
                       <PatternPreview pattern={unlockPattern} />
+                      <div className="mt-3"><button type="button" onClick={()=>setUnlockPattern([])} className="px-3 py-2 border rounded text-sm">Redefinir</button></div>
                     </div>
                   ) : (
                     <div className="mt-3">
@@ -896,8 +978,22 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
 
               <div className="rounded-lg bg-white p-6 shadow">
                 <div className="font-semibold text-lg">Serviços</div>
-                <div className="mt-3 text-sm text-gray-600">Nenhum serviço adicionado...</div>
-                <div className="mt-3"><button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Serviço</button></div>
+                {osServices.length === 0 ? (
+                  <div className="mt-3 text-sm text-gray-600">Nenhum serviço adicionado...</div>
+                ) : (
+                  <div className="mt-3">
+                    {osServices.map((sv, idx) => (
+                      <div key={idx} className="grid grid-cols-[1fr_8rem_2rem] items-center gap-3 py-2 border-b last:border-0 text-sm">
+                        <div>
+                          <div className="font-medium">{sv.name}</div>
+                        </div>
+                        <div className="text-right">{(sv.price * (sv.quantity||1)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                        <button type="button" onClick={()=>removeService(idx)} className="text-gray-500">✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3"><button type="button" onClick={()=>setServiceSelectOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Serviço</button></div>
               </div>
 
               <div className="rounded-lg bg-white p-6 shadow">
@@ -930,7 +1026,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="p-3 border rounded">
                     <div className="text-xs text-gray-500">Total de serviços</div>
-                    <div className="text-right">{(0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                    <div className="text-right">{(totalServicesAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
                   <div className="p-3 border rounded">
                     <div className="text-xs text-gray-500">Total de produtos</div>
@@ -942,7 +1038,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   </div>
                   <div className="p-3 border rounded">
                     <div className="text-xs text-gray-500">Total da OS</div>
-                    <div className="text-right">{(totalProductsAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                    <div className="text-right">{(totalProductsAgg + totalServicesAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
                 </div>
               </div>
@@ -1156,6 +1252,17 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             />
           )}
           <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} storeId={storeId} />
+          {serviceSelectOpen && (
+            <SelectServiceModal
+              open={serviceSelectOpen}
+              onClose={()=>setServiceSelectOpen(false)}
+              services={servicesAll.filter(sv => sv.active)}
+              onChoose={(sv)=>{
+                setOsServices(prev => [...prev, { serviceId: sv.id, name: sv.name, price: Number(sv.price||0), quantity: 1 }])
+                setServiceSelectOpen(false)
+              }}
+            />
+          )}
         </div>
       )}
       <SelectColumnsModal
@@ -1525,6 +1632,90 @@ function PatternPreview({ pattern }){
   )
 }
 
+function NewServiceModal({ open, onClose, initial, onConfirm }){
+  const [name, setName] = useState(initial?.name || '')
+  const [cost, setCost] = useState(String(initial?.cost ?? 0))
+  const [price, setPrice] = useState(String(initial?.price ?? 0))
+  const [active, setActive] = useState(initial?.active ?? true)
+  useEffect(() => {
+    setName(initial?.name || '')
+    setCost(String(initial?.cost ?? 0))
+    setPrice(String(initial?.price ?? 0))
+    setActive(initial?.active ?? true)
+  }, [initial])
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[520px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">Serviço</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="text-xs text-gray-600">Nome</label>
+            <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-gray-600">Custo do serviço</label>
+              <input value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600">Preço</label>
+              <input value={price} onChange={e=>setPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <input id="sv-active" type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)} />
+            <label htmlFor="sv-active" className="text-sm">Ativo</label>
+          </div>
+        </div>
+        <div className="p-4 border-t flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+          <button
+            type="button"
+            onClick={()=>onConfirm && onConfirm({ name: name.trim(), cost: parseFloat(cost)||0, price: parseFloat(price)||0, active })}
+            className="px-3 py-2 rounded text-sm bg-green-600 text-white"
+          >Confirmar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SelectServiceModal({ open, onClose, services, onChoose }){
+  const [query, setQuery] = useState('')
+  if (!open) return null
+  const filtered = (services||[]).filter(sv => (sv.name||'').toLowerCase().includes(query.trim().toLowerCase()))
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg shadow-lg w-[680px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="font-semibold text-lg">Selecionar Serviço</h3>
+          <button onClick={()=>onClose && onClose()} className="text-gray-500 hover:text-gray-700">✕</button>
+        </div>
+        <div className="p-4">
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border rounded px-3 py-2 text-sm" />
+          <div className="mt-3 max-h-[60vh] overflow-y-auto">
+            {filtered.map(sv => (
+              <div key={sv.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b last:border-0 text-sm cursor-pointer" onClick={()=>onChoose && onChoose(sv)}>
+                <div>
+                  <div className="font-medium">{sv.name}</div>
+                </div>
+                <div className="text-right">{Number(sv.price||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+              </div>
+            ))}
+            {filtered.length===0 && (<div className="text-sm text-gray-600 px-2 py-3">Nenhum serviço encontrado.</div>)}
+          </div>
+        </div>
+        <div className="p-4 border-t flex items-center justify-end">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Voltar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOpenVariation, qty, setQty, price, setPrice, onConfirm }){
   if(!open) return null
