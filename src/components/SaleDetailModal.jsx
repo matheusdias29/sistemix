@@ -1,4 +1,5 @@
 import React from 'react'
+import { updateOrder } from '../services/orders'
 
 export default function SaleDetailModal({ open, onClose, sale, onEdit, onView }) {
   if (!open || !sale) return null
@@ -71,7 +72,18 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView })
           <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
             <span>📋</span> Criar NFe
           </button>
-          <button className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm hover:bg-red-50 flex items-center gap-1">
+          <button
+            className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm hover:bg-red-50 flex items-center gap-1"
+            onClick={async () => {
+              try {
+                await updateOrder(sale.id, { status: 'Cancelada' })
+                onClose && onClose()
+              } catch (e) {
+                console.error('Erro ao cancelar venda', e)
+                alert('Não foi possível cancelar a venda.')
+              }
+            }}
+          >
             <span>🗑️</span> Cancelar
           </button>
         </div>

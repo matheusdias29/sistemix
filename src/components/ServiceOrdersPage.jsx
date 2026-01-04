@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder } from '../services/orders'
-import { listenProducts } from '../services/products'
+import { listenProducts, updateProduct } from '../services/products'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
@@ -266,6 +266,28 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         await updateOrder(editingOrderId, basePayload)
       } else {
         await addOrder({ ...basePayload }, storeId)
+        const items = Array.isArray(osProducts) ? osProducts : []
+        for (const it of items) {
+          const p = productsAll.find(pr => pr.id === it.productId)
+          if (!p) continue
+          const qty = Math.max(0, parseFloat(it.quantity) || 0)
+          const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+          const vname = it.variationName ? String(it.variationName).trim() : ''
+          if (hasVars && vname) {
+            const idx = p.variationsData.findIndex(v => String(v?.name || v?.label || '').trim() === vname)
+            if (idx >= 0) {
+              const itemsVar = p.variationsData.map(v => ({ ...v }))
+              const cur = Number(itemsVar[idx]?.stock ?? 0)
+              itemsVar[idx].stock = Math.max(0, cur - qty)
+              const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
+              await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+              continue
+            }
+          }
+          const cur = Number(p.stock ?? 0)
+          const next = Math.max(0, cur - qty)
+          await updateProduct(p.id, { stock: next })
+        }
       }
       resetForm()
       setView('list')

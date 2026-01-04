@@ -61,8 +61,10 @@ export default function PublicCatalogPage({ storeId, store }) {
                 <div className="text-xs text-gray-500">{p.reference || ''}</div>
                 <div className="mt-auto">
                   <div className="text-green-700 font-semibold mb-2">{priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                  {stockZero && (
+                  {stockZero ? (
                     <div className="text-xs text-red-600 mb-2">Indisponível</div>
+                  ) : (
+                    <div className="text-xs text-gray-600 mb-2">{Number(p.stock||0).toLocaleString('pt-BR')} disponíveis</div>
                   )}
                   <button className="w-full px-3 py-2 rounded bg-green-600 text-white text-sm" disabled>
                     Comprar
