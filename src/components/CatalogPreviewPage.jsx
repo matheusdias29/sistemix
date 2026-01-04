@@ -58,8 +58,8 @@ export default function CatalogPreviewPage({ storeId, store }) {
               <div className="h-28 bg-gray-100 rounded mb-2 flex items-center justify-center text-xs text-gray-500">Imagem</div>
               <div className="text-sm font-medium">{p.name}</div>
               <div className="text-xs text-gray-500">{p.reference || ''}</div>
-              <div className="text-green-700 font-semibold mb-2">{priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
               <div className="mt-auto">
+                <div className="text-green-700 font-semibold mb-2">{priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                 {stockZero && outOfStock !== 'hide' && (
                   <div className="text-xs text-red-600 mb-2">Indisponível</div>
                 )}
