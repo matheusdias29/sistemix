@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder } from '../services/orders'
+import { recordStockMovement } from '../services/stockMovements'
 import { listenProducts, updateProduct } from '../services/products'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
@@ -383,7 +384,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       if (editingOrderId) {
         await updateOrder(editingOrderId, basePayload)
       } else {
-        await addOrder({ ...basePayload }, storeId)
+        const newOsId = await addOrder({ ...basePayload }, storeId)
         const items = Array.isArray(osProducts) ? osProducts : []
         for (const it of items) {
           const p = productsAll.find(pr => pr.id === it.productId)
@@ -391,20 +392,54 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           const qty = Math.max(0, parseFloat(it.quantity) || 0)
           const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
           const vname = it.variationName ? String(it.variationName).trim() : ''
+          
+          let variationId = null
+          let variationName = null
+
           if (hasVars && vname) {
             const idx = p.variationsData.findIndex(v => String(v?.name || v?.label || '').trim() === vname)
             if (idx >= 0) {
               const itemsVar = p.variationsData.map(v => ({ ...v }))
+              
+              variationId = itemsVar[idx].id || null
+              variationName = itemsVar[idx].name || itemsVar[idx].label || vname
+
               const cur = Number(itemsVar[idx]?.stock ?? 0)
               itemsVar[idx].stock = Math.max(0, cur - qty)
               const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
               await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+              
+              await recordStockMovement({
+                productId: p.id,
+                productName: p.name,
+                variationId,
+                variationName,
+                type: 'out',
+                quantity: qty,
+                reason: 'service_order',
+                referenceId: newOsId,
+                description: `OS para ${client}`,
+                userId: ownerId, // Assuming ownerId is available or pass user
+                userName: attendant
+              })
               continue
             }
           }
           const cur = Number(p.stock ?? 0)
           const next = Math.max(0, cur - qty)
           await updateProduct(p.id, { stock: next })
+          
+          await recordStockMovement({
+            productId: p.id,
+            productName: p.name,
+            type: 'out',
+            quantity: qty,
+            reason: 'service_order',
+            referenceId: newOsId,
+            description: `OS para ${client}`,
+            userId: ownerId,
+            userName: attendant
+          })
         }
       }
       resetForm()
@@ -473,6 +508,19 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                       itemsVar[idx].stock = cur + qty
                       const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                       await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+                      
+                      await recordStockMovement({
+                        productId: p.id,
+                        productName: p.name,
+                        variationId: itemsVar[idx].id || null,
+                        variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
+                        type: 'in',
+                        quantity: qty,
+                        reason: 'cancel',
+                        referenceId: statusTargetOrder.id,
+                        description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                        userId: ownerId
+                      })
                       continue
                     }
                   }
@@ -480,6 +528,17 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   const cur = Number(p.stock ?? 0)
                   const next = cur + qty
                   await updateProduct(p.id, { stock: next })
+                  
+                  await recordStockMovement({
+                    productId: p.id,
+                    productName: p.name,
+                    type: 'in',
+                    quantity: qty,
+                    reason: 'cancel',
+                    referenceId: statusTargetOrder.id,
+                    description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                    userId: ownerId
+                  })
                 }
               } else if (oldStatus.includes('cancelad') && newStatus.includes('iniciado')) {
                 // Lógica inversa: Cancelado -> Iniciado (baixa no estoque)
@@ -500,6 +559,19 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                       itemsVar[idx].stock = Math.max(0, cur - qty)
                       const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                       await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+                      
+                      await recordStockMovement({
+                        productId: p.id,
+                        productName: p.name,
+                        variationId: itemsVar[idx].id || null,
+                        variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
+                        type: 'out',
+                        quantity: qty,
+                        reason: 'service_order',
+                        referenceId: statusTargetOrder.id,
+                        description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                        userId: ownerId
+                      })
                       continue
                     }
                   }
@@ -507,6 +579,17 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   const cur = Number(p.stock ?? 0)
                   const next = Math.max(0, cur - qty)
                   await updateProduct(p.id, { stock: next })
+                  
+                  await recordStockMovement({
+                    productId: p.id,
+                    productName: p.name,
+                    type: 'out',
+                    quantity: qty,
+                    reason: 'service_order',
+                    referenceId: statusTargetOrder.id,
+                    description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                    userId: ownerId
+                  })
                 }
               }
 
@@ -724,7 +807,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           ) : (
             <div className="mt-4 bg-white rounded shadow">
               <div className="min-w-[800px] divide-y divide-gray-200">
-                <div className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-2 text-xs text-gray-500">
+                <div className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-3 text-sm font-medium text-gray-600 bg-gray-50">
                   <div>Serviço</div>
                   <div className="text-right">Preço</div>
                   <div>Status</div>
@@ -735,7 +818,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   return (sv.name||'').toLowerCase().includes(ql)
                 }).map(sv => (
                   <div key={sv.id} className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-3 text-sm hover:bg-gray-50">
-                    <div className="font-medium">{sv.name}</div>
+                    <div className="">{sv.name}</div>
                     <div className="text-right">{Number(sv.price||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                     <div><span className={`inline-block px-2 py-1 rounded border ${sv.active ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'}`}>{sv.active ? 'Ativo' : 'Inativo'}</span></div>
                     <button type="button" onClick={()=>{ setServiceEditTarget(sv); setServiceModalOpen(true) }} className="text-gray-500">›</button>
@@ -818,7 +901,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           <div className="mt-4 bg-white rounded-lg shadow overflow-visible">
             <div className="overflow-x-auto">
             <div
-              className="min-w-[1200px] grid items-center px-4 py-3 text-xs text-gray-500 border-b gap-3"
+              className="min-w-[1200px] grid items-center px-4 py-3 text-sm text-gray-600 font-bold bg-gray-50 border-b gap-3"
               style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
             >
               {osColumns.filter(c=>c.visible).map(col => (
@@ -852,7 +935,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                       case 'number': return <div key={`${o.id}-number`}>{formatOSNumber(o)}</div>
                       case 'client': return (
                         <div key={`${o.id}-client`} className="leading-tight">
-                          <div className="font-medium">{o.client}</div>
+                          <div className="">{o.client}</div>
                         </div>
                       )
                       case 'attendant': return <div key={`${o.id}-attendant`}>{o.attendant}</div>

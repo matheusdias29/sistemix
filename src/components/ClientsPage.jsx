@@ -136,7 +136,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       {/* Lista */}
       <div className="bg-white rounded-lg shadow overflow-visible">
         {/* Cabeçalho (apenas desktop) */}
-        <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 text-xs text-gray-500 border-b bg-gray-50 rounded-t-lg">
+        <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 text-sm text-gray-600 font-bold border-b bg-gray-50">
           <div>Clientes ({filtered.length})</div>
           <div>Código</div>
           <div className="text-center">Atualizado</div>
@@ -188,7 +188,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
             {/* Linha desktop completa */}
             <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
               <div className="text-sm">
-                <div className="font-medium uppercase">
+                <div className="uppercase">
                   {c.name}
                 </div>
               </div>

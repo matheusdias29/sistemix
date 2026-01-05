@@ -8,6 +8,8 @@ import NewSupplierModal from './NewSupplierModal'
 import ProductsFilterModal from './ProductsFilterModal'
 import ProductLabelsPage from './ProductLabelsPage'
 import { listenOrders } from '../services/orders'
+import { recordStockMovement } from '../services/stockMovements'
+import StockMovementsModal from './StockMovementsModal'
 
 const tabs = [
   { key: 'produto', label: 'Produto' },
@@ -42,6 +44,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [confirmRemoveProduct, setConfirmRemoveProduct] = useState(null)
   const [reservedOpen, setReservedOpen] = useState(false)
   const [reservedProduct, setReservedProduct] = useState(null)
+  const [movementsModalOpen, setMovementsModalOpen] = useState(false)
+  const [movementsTargetProduct, setMovementsTargetProduct] = useState(null)
   const [allOrders, setAllOrders] = useState([])
 
   // Categorias
@@ -264,6 +268,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     setOpenMenuId(null)
   }
 
+  const openMovementsModal = (product) => {
+    setMovementsTargetProduct(product)
+    setMovementsModalOpen(true)
+    setOpenMenuId(null)
+  }
+
   const openConfirmRemove = (product) => {
     setConfirmRemoveProduct(product)
     setConfirmRemoveOpen(true)
@@ -296,10 +306,37 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         items[selectedVarIdx].stock = Math.max(0, cur + delta)
         const total = items.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
         await updateProduct(p.id, { variationsData: items, stock: total })
+        
+        // Log movement
+        await recordStockMovement({
+          productId: p.id,
+          productName: p.name,
+          variationId: items[selectedVarIdx].id || null, // Assuming ID exists or just use name
+          variationName: items[selectedVarIdx].name || items[selectedVarIdx].label || `Variação ${selectedVarIdx+1}`,
+          type: stockType === 'entrada' ? 'in' : 'out',
+          quantity: q,
+          reason: 'manual_adjust',
+          description: stockDesc,
+          userId: user?.uid,
+          userName: user?.name
+        })
+
       } else {
         const cur = Number(p.stock ?? 0)
         const next = Math.max(0, cur + delta)
         await updateProduct(p.id, { stock: next })
+        
+        // Log movement
+        await recordStockMovement({
+          productId: p.id,
+          productName: p.name,
+          type: stockType === 'entrada' ? 'in' : 'out',
+          quantity: q,
+          reason: 'manual_adjust',
+          description: stockDesc,
+          userId: user?.uid,
+          userName: user?.name
+        })
       }
       setStockModalOpen(false)
     } finally {
@@ -430,7 +467,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       </div>
 
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
-      <div className={`mt-2 px-3 py-2 rounded bg-gray-100 text-xs text-gray-600 ${tab==='produto' ? 'hidden md:block' : ''}`}>
+      <div className={`mt-2 px-4 py-3 border-b bg-gray-50 text-sm text-gray-600 font-bold ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
           <div className="grid grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4">
             <div></div>
@@ -477,7 +514,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
                   <div className="text-xs md:text-sm">
-                    <div className="font-medium">
+                    <div className="">
                       {p.name}
                     </div>
                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
@@ -554,6 +591,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openStockModal(p)}>
                           <span>📦</span>
                           <span>Alterar estoque</span>
+                        </button>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openMovementsModal(p)}>
+                          <span>📊</span>
+                          <span>Movimentações</span>
                         </button>
                         <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ setReservedProduct(p); setReservedOpen(true); setOpenMenuId(null) }}>
                           <span>🔖</span>
@@ -700,6 +741,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} storeId={storeId} />
       <NewSupplierModal open={supplierModalOpen} onClose={()=>setSupplierModalOpen(false)} storeId={storeId} />
       <NewSupplierModal open={supplierEditOpen} onClose={()=>setSupplierEditOpen(false)} isEdit={true} supplier={editingSupplier} storeId={storeId} />
+      
+      <StockMovementsModal 
+        open={movementsModalOpen} 
+        onClose={() => setMovementsModalOpen(false)} 
+        product={movementsTargetProduct} 
+      />
+
       {confirmRemoveOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setConfirmRemoveOpen(false)} />

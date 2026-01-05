@@ -4,6 +4,7 @@ import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
 import { listenClients } from '../services/clients'
 import { addOrder, updateOrder } from '../services/orders'
+import { recordStockMovement } from '../services/stockMovements'
 import { listenFees } from '../services/stores'
 import SelectClientModal from './SelectClientModal'
 import NewClientModal from './NewClientModal'
@@ -282,6 +283,8 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         createdAt: new Date()
       }
 
+      let orderId = isEdit ? sale?.id : null
+
       if (isEdit && sale?.id) {
         const partial = { 
           type: 'sale',
@@ -299,7 +302,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         }
         await updateOrder(sale.id, partial)
       } else {
-        await addOrder(payload, storeId)
+        orderId = await addOrder(payload, storeId)
       }
 
       if (!isEdit && (status === 'Venda' || status === 'Pedido')) {
@@ -309,9 +312,18 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           const realProduct = products.find(p => p.id === pId)
           
           if (realProduct) {
+            let variationId = null
+            let variationName = null
+
             if (item.product.variationRawName) {
               // Variation
               if (realProduct.variationsData && Array.isArray(realProduct.variationsData)) {
+                const targetVar = realProduct.variationsData.find(v => v.name === item.product.variationRawName)
+                if (targetVar) {
+                   variationId = targetVar.id || null
+                   variationName = targetVar.name || targetVar.label || item.product.variationRawName
+                }
+
                 const newVars = realProduct.variationsData.map(v => {
                   if (v.name === item.product.variationRawName) {
                     return { ...v, stock: Number(v.stock || 0) - qty }
@@ -329,6 +341,21 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               const currentStock = Number(realProduct.stock || 0)
               await updateProduct(pId, { stock: currentStock - qty })
             }
+
+            // Log Movement
+            await recordStockMovement({
+              productId: pId,
+              productName: realProduct.name,
+              variationId,
+              variationName,
+              type: 'out',
+              quantity: qty,
+              reason: 'sale',
+              referenceId: orderId,
+              description: `Venda para ${payload.client}`,
+              userId: user?.id,
+              userName: user?.name
+            })
           }
         }
       }

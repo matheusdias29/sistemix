@@ -314,13 +314,13 @@ export default function AccountsPayablePage({ storeId }) {
                         onChange={toggleSelectAll}
                       />
                     </th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Conta</th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Original</th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Pago</th>
-                    <th scope="col" className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">A Pagar</th>
-                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Vencimento</th>
-                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Pagamento</th>
-                    <th scope="col" className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-4 py-3 text-left text-sm font-bold text-gray-600">Conta</th>
+                    <th scope="col" className="px-4 py-3 text-right text-sm font-bold text-gray-600">Valor Original</th>
+                    <th scope="col" className="px-4 py-3 text-right text-sm font-bold text-gray-600">Valor Pago</th>
+                    <th scope="col" className="px-4 py-3 text-right text-sm font-bold text-gray-600">A Pagar</th>
+                    <th scope="col" className="px-4 py-3 text-center text-sm font-bold text-gray-600">Vencimento</th>
+                    <th scope="col" className="px-4 py-3 text-center text-sm font-bold text-gray-600">Data de Pagamento</th>
+                    <th scope="col" className="px-4 py-3 text-center text-sm font-bold text-gray-600">Status</th>
                     <th scope="col" className="px-4 py-3 w-10"></th>
                   </tr>
                 </thead>
@@ -351,7 +351,7 @@ export default function AccountsPayablePage({ storeId }) {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-medium text-gray-900 uppercase">{acc.supplierName || 'Fornecedor Desconhecido'}</span>
+                            <span className="text-sm text-gray-900 uppercase">{acc.supplierName || 'Fornecedor Desconhecido'}</span>
                             <span className="text-xs text-gray-500">{acc.description} | {acc.categoryName}</span>
                           </div>
                         </td>
@@ -361,10 +361,10 @@ export default function AccountsPayablePage({ storeId }) {
                         <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900">
                           {money(acc.paidValue)}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm font-medium text-gray-900">
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-sm text-gray-900">
                           {money(acc.remainingValue)}
                         </td>
-                        <td className={`px-4 py-4 whitespace-nowrap text-center text-sm ${acc.status === 'pending' ? 'text-red-500 font-medium' : 'text-gray-500'}`}>
+                        <td className={`px-4 py-4 whitespace-nowrap text-center text-sm ${acc.status === 'pending' ? 'text-red-500' : 'text-gray-500'}`}>
                           {dateStr(acc.dueDate)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center text-sm text-gray-500">

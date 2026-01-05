@@ -302,11 +302,11 @@ export default function AccountsReceivablePage({ storeId }) {
            <table className="min-w-full divide-y divide-gray-100">
              <thead className="bg-gray-50">
                <tr>
-                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente / Descrição</th>
-                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Débito</th>
-                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Vencido</th>
-                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Valor Crédito</th>
-                 <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600">Cliente / Descrição</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Débito</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Vencido</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Crédito</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Status</th>
                </tr>
              </thead>
              <tbody className="bg-white divide-y divide-gray-100">
@@ -328,16 +328,16 @@ export default function AccountsReceivablePage({ storeId }) {
                           onClick={() => toggleExpand(groupKey)}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-bold text-gray-700 uppercase">{group.clientName}</div>
+                            <div className="text-sm text-gray-700 uppercase">{group.clientName}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm font-medium text-red-500">{money(group.totalDebit)}</div>
+                            <div className="text-sm text-red-500">{money(group.totalDebit)}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm font-medium text-red-500">{group.totalOverdue > 0 ? money(group.totalOverdue) : '-'}</div>
+                            <div className="text-sm text-red-500">{group.totalOverdue > 0 ? money(group.totalOverdue) : '-'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm font-medium text-green-600">{group.totalCredit > 0 ? money(group.totalCredit) : '-'}</div>
+                            <div className="text-sm text-green-600">{group.totalCredit > 0 ? money(group.totalCredit) : '-'}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                              <div className="flex gap-2 justify-end">
@@ -368,10 +368,10 @@ export default function AccountsReceivablePage({ storeId }) {
                                  <table className="min-w-full divide-y divide-gray-100">
                                    <thead className="bg-gray-100">
                                       <tr>
-                                        <th className="px-4 py-2 text-left text-xs text-gray-500">Descrição</th>
-                                        <th className="px-4 py-2 text-center text-xs text-gray-500">Vencimento</th>
-                                        <th className="px-4 py-2 text-right text-xs text-gray-500">Valor</th>
-                                        <th className="px-4 py-2 text-center text-xs text-gray-500">Status</th>
+                                        <th className="px-4 py-2 text-left text-sm font-bold text-gray-600">Descrição</th>
+                                        <th className="px-4 py-2 text-center text-sm font-bold text-gray-600">Vencimento</th>
+                                        <th className="px-4 py-2 text-right text-sm font-bold text-gray-600">Valor</th>
+                                        <th className="px-4 py-2 text-center text-sm font-bold text-gray-600">Status</th>
                                         <th className="px-4 py-2 w-10"></th>
                                       </tr>
                                    </thead>
@@ -383,7 +383,7 @@ export default function AccountsReceivablePage({ storeId }) {
                                               {item.description}
                                            </td>
                                            <td className="px-4 py-2 text-center text-sm text-gray-600">{dateStr(item.dueDate)}</td>
-                                           <td className="px-4 py-2 text-right text-sm font-medium text-gray-900">{money(item.remainingValue)}</td>
+                                           <td className="px-4 py-2 text-right text-sm text-gray-900">{money(item.remainingValue)}</td>
                                            <td className="px-4 py-2 text-center">
                                               {item.status === 'pending' ? (
                                                 item.type === 'credit' ? (

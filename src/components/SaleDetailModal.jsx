@@ -1,6 +1,7 @@
 import React from 'react'
 import { updateOrder } from '../services/orders'
 import { updateProduct } from '../services/products'
+import { recordStockMovement } from '../services/stockMovements'
 
 export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, products = [] }) {
   if (!open || !sale) return null
@@ -100,6 +101,19 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                             itemsVar[idx].stock = Math.max(0, cur + qty)
                             const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
                             await updateProduct(prod.id, { variationsData: itemsVar, stock: total })
+                            
+                            await recordStockMovement({
+                              productId: prod.id,
+                              productName: prod.name,
+                              variationId: itemsVar[idx].id || null,
+                              variationName: itemsVar[idx].name || itemsVar[idx].label || varName,
+                              type: 'in',
+                              quantity: qty,
+                              reason: 'cancel',
+                              referenceId: sale.id,
+                              description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
+                              userId: null
+                            })
                             continue
                           }
                         }
@@ -109,6 +123,17 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                       const cur = Number(prod.stock ?? 0)
                       const next = Math.max(0, cur + qty)
                       await updateProduct(prod.id, { stock: next })
+                      
+                      await recordStockMovement({
+                        productId: prod.id,
+                        productName: prod.name,
+                        type: 'in',
+                        quantity: qty,
+                        reason: 'cancel',
+                        referenceId: sale.id,
+                        description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
+                        userId: null
+                      })
                     }
                   }
                 }
