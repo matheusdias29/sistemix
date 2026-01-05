@@ -561,6 +561,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     userId: ownerId
                   })
                 }
+
+                if (currentCash) {
+                  await removeCashTransactionsByOrder(currentCash.id, statusTargetOrder.id)
+                  await updateOrder(statusTargetOrder.id, {
+                    cashLaunched: false,
+                    cashLaunchCashId: null,
+                    payments: []
+                  })
+                }
               } else if (oldStatus.includes('cancelad') && newStatus.includes('iniciado')) {
                 // Lógica inversa: Cancelado -> Iniciado (baixa no estoque)
                 const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
