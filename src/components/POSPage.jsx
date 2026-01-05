@@ -335,6 +335,7 @@ export default function POSPage({ storeId, user }){
       }
 
       orders.forEach(o => {
+        if (o.status && o.status.toLowerCase() === 'cancelada') return
         if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
           o.payments.forEach((p, idx) => {
             let pTime = 0
@@ -349,17 +350,19 @@ export default function POSPage({ storeId, user }){
   
             // Filter by time range
             if (pTime >= openTime && pTime <= closeTime) {
-              const isSale = (o.type === 'sale' || !o.type)
+              // Robust detection of OS vs Sale matching visual formatting logic
+              const isOS = o.type === 'service_order' || (o.status && o.status.includes('Os Finalizada'))
+              const isSale = !isOS
               
-              // Filter O.S. by status
-              if (!isSale && o.status !== 'Os Finalizada e Faturada Cliente Final') {
-                return // Skip this payment if it's an O.S. but not in the correct status
-              }
+              // Filter O.S. by status (REMOVED: User wants all payments to appear immediately)
+              // const validOsStatus = ['Os Finalizada e Faturada Cliente Final', 'Os Finalizada e Faturada Cliente lojista']
+              // if (isOS && !validOsStatus.includes(o.status)) {
+              //   return // Skip this payment if it's an O.S. but not in the correct status
+              // }
 
-              const prefix = isSale ? '' : '' // Já incluído no formatSaleNumber
-                const amount = Number(p.amount || 0)
+              const amount = Number(p.amount || 0)
 
-                list.push({
+              list.push({
                   id: `${o.id}_p${idx}`,
                   description: formatSaleNumber(o),
                 date: pDateObj,

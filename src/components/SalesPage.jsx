@@ -134,7 +134,22 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
         // Search Query (Text)
         const name = (o.client || '').toLowerCase()
         const idstr = (o.id || '').toLowerCase()
-        return name.includes(q) || idstr.includes(q)
+        const numDigits = String(o.number || '').replace(/\D/g, '')
+        const qDigits = q.replace(/\D/g, '')
+        const formattedNum = (() => {
+          if (numDigits) {
+            const n = parseInt(numDigits, 10)
+            return `pv:${String(n).padStart(4, '0')}`
+          }
+          const tail = String(o.id || '').slice(-4)
+          return `pv:${tail}`
+        })().toLowerCase()
+        return (
+          name.includes(q) ||
+          idstr.includes(q) ||
+          formattedNum.includes(q) ||
+          (qDigits ? numDigits.includes(qDigits) : false)
+        )
       })
       .filter(o => {
         // Date Range

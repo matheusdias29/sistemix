@@ -15,6 +15,7 @@ import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
 import { listenServices, addService, updateService } from '../services/services'
+import ChooseFinalStatusModal from './ChooseFinalStatusModal'
 
 export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
@@ -90,12 +91,30 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
       })
     }
     if(!q) return base
-    return base.filter(o =>
-      String(o.id).includes(q) ||
-      (o.client||'').toLowerCase().includes(q) ||
-      (o.technician||'').toLowerCase().includes(q) ||
-      (o.model||'').toLowerCase().includes(q)
-    )
+    return base.filter(o => {
+      const idstr = String(o.id || '').toLowerCase()
+      const client = String(o.client || '').toLowerCase()
+      const tech = String(o.technician || '').toLowerCase()
+      const model = String(o.model || '').toLowerCase()
+      const numDigits = String(o.number || '').replace(/\D/g, '')
+      const qDigits = q.replace(/\D/g, '')
+      const formattedNum = (() => {
+        if (numDigits) {
+          const n = parseInt(numDigits, 10)
+          return `o.s:${String(n).padStart(4, '0')}`
+        }
+        const tail = String(o.id || '').slice(-4)
+        return `o.s:${tail}`
+      })().toLowerCase()
+      return (
+        idstr.includes(q) ||
+        client.includes(q) ||
+        tech.includes(q) ||
+        model.includes(q) ||
+        formattedNum.includes(q) ||
+        (qDigits ? numDigits.includes(qDigits) : false)
+      )
+    })
   }, [orders, query, dateRange, filterClient, filterTechnician, filterAttendant, filterStatuses])
 
   const totalFinalizadas = useMemo(() => {
@@ -171,6 +190,8 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   }, [rowMenuOpenId])
   // Status da OS
   const [status, setStatus] = useState('Iniciado')
+  const [chooseFinalStatusOpen, setChooseFinalStatusOpen] = useState(false)
+  const [finalStatusTarget, setFinalStatusTarget] = useState(null)
   const [statusModalOpen, setStatusModalOpen] = useState(false)
   // Produtos na OS e modais
   const [osProducts, setOsProducts] = useState([])
@@ -643,25 +664,25 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               const applied = Math.min(amt, remaining)
               const change = Math.max(amt - remaining, 0)
               const newRemaining = Math.max(remaining - applied, 0)
-              setOsPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: applied, change, date: new Date() }])
-              if (cashTargetOrder && currentCash) {
-                addCashTransaction(currentCash.id, {
-                  description: formatOSNumber(cashTargetOrder),
-                  method: selectedPayMethod.code,
-                  methodLabel: selectedPayMethod.label,
-                  value: applied,
-                  type: 'in',
-                  userName: cashTargetOrder.attendant || '',
-                  originalOrder: { id: cashTargetOrder.id, number: cashTargetOrder.number, type: 'service_order' }
-                }).catch(()=>{})
+              const newPayment = { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: applied, change, date: new Date() }
+              const newPaymentsList = [...osPayments, newPayment]
+              setOsPayments(newPaymentsList)
+              
+              // Persist payments immediately
+              if (cashTargetOrder) {
+                 updateOrder(cashTargetOrder.id, { payments: newPaymentsList }).catch(()=>{})
               }
-              setPayAmountOpen(false)
-              setRemainingSnapshot(newRemaining)
+
+              setPayAmountOpen(false) // Close amount modal
+
               if(newRemaining > 0){ 
                 setRemainingInfoOpen(true) 
               } else { 
+                setPayMethodsOpen(false)
                 if (cashTargetOrder && currentCash) {
-                  updateOrder(cashTargetOrder.id, { status: 'Os Finalizada e Faturada Cliente Final', cashLaunched: true, cashLaunchCashId: currentCash.id }).catch(()=>{})
+                  // Antes de atualizar, abre modal para escolher o status final
+                  setFinalStatusTarget({ orderId: cashTargetOrder.id, cashId: currentCash.id, payments: newPaymentsList })
+                  setChooseFinalStatusOpen(true)
                 }
                 setCashTargetOrder(null) 
               }
@@ -672,25 +693,24 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                 return
               }
               const newRemaining = Math.max(remainingToPay - amt, 0)
-              setOsPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: amt, date: new Date() }])
-              if (cashTargetOrder && currentCash) {
-                addCashTransaction(currentCash.id, {
-                  description: formatOSNumber(cashTargetOrder),
-                  method: selectedPayMethod.code,
-                  methodLabel: selectedPayMethod.label,
-                  value: amt,
-                  type: 'in',
-                  userName: cashTargetOrder.attendant || '',
-                  originalOrder: { id: cashTargetOrder.id, number: cashTargetOrder.number, type: 'service_order' }
-                }).catch(()=>{})
+              const newPayment = { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: amt, date: new Date() }
+              const newPaymentsList = [...osPayments, newPayment]
+              setOsPayments(newPaymentsList)
+
+              // Persist payments immediately
+              if (cashTargetOrder) {
+                 updateOrder(cashTargetOrder.id, { payments: newPaymentsList }).catch(()=>{})
               }
+
               setPayAmountOpen(false)
               setRemainingSnapshot(newRemaining)
               if(newRemaining > 0){ 
                 setRemainingInfoOpen(true) 
               } else { 
                 if (cashTargetOrder && currentCash) {
-                  updateOrder(cashTargetOrder.id, { status: 'Os Finalizada e Faturada Cliente Final', cashLaunched: true, cashLaunchCashId: currentCash.id }).catch(()=>{})
+                  // Antes de atualizar, abre modal para escolher o status final
+                  setFinalStatusTarget({ orderId: cashTargetOrder.id, cashId: currentCash.id, payments: newPaymentsList })
+                  setChooseFinalStatusOpen(true)
                 }
                 setCashTargetOrder(null) 
               }
@@ -709,7 +729,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             const amt = parseFloat(payAmountInput)||0
             const applied = Math.min(amt, remainingToPay)
             const newRemaining = Math.max(remainingToPay - applied, 0)
-            setOsPayments(prev=>[...prev, { method: selectedPayMethod?.label, methodCode: selectedPayMethod?.code, amount: applied, date: new Date() }])
+            const newPayment = { method: selectedPayMethod?.label, methodCode: selectedPayMethod?.code, amount: applied, date: new Date() }
+            const newPaymentsList = [...osPayments, newPayment]
+            setOsPayments(newPaymentsList)
+
+            // Persist payments immediately
+            if (cashTargetOrder) {
+                updateOrder(cashTargetOrder.id, { payments: newPaymentsList }).catch(()=>{})
+            }
+            
             setPayAboveConfirmOpen(false)
             setAfterAboveAdjustedOpen(true)
             setRemainingSnapshot(newRemaining)
@@ -995,7 +1023,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                             onClick={()=>{
                               if(!currentCash){ alert('Nenhum caixa aberto.'); return }
                               removeCashTransactionsByOrder(currentCash.id, o.id)
-                                .then(()=>updateOrder(o.id, { cashLaunched: false, cashLaunchCashId: null }))
+                                .then(()=>updateOrder(o.id, { cashLaunched: false, cashLaunchCashId: null, status: 'Iniciado', payments: [] }))
                                 .finally(()=>setRowMenuOpenId(null))
                             }}
                           >Cancelar mov. caixa</button>
@@ -1009,7 +1037,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                               setRowMenuOpenId(null)
                               setPayMethodsOpen(true)
                             }}
-                          >Lançar no caixa</button>
+                          >Faturar no caixa</button>
                         )}
                       </div>
                     )}
@@ -1415,6 +1443,34 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         columns={osColumns}
         onSave={(cols)=>{ setOsColumns(cols); setSelectColumnsOpen(false) }}
         onReset={()=>setOsColumns(osDefaultColumns)}
+      />
+      <ChooseFinalStatusModal
+        open={chooseFinalStatusOpen}
+        onClose={() => {
+          setChooseFinalStatusOpen(false)
+          setFinalStatusTarget(null)
+          setCashTargetOrder(null)
+        }}
+        onChoose={(statusChosen) => {
+          // Close immediately for better UX
+          setChooseFinalStatusOpen(false)
+
+          if (!finalStatusTarget) return
+
+          updateOrder(finalStatusTarget.orderId, { 
+            status: statusChosen,
+            cashLaunched: true,
+            cashLaunchCashId: finalStatusTarget.cashId
+          })
+          .catch(e => {
+            console.error(e)
+            alert('Erro ao atualizar status da OS')
+          })
+          .finally(() => {
+            setFinalStatusTarget(null)
+            setCashTargetOrder(null)
+          })
+        }}
       />
     </div>
   )
