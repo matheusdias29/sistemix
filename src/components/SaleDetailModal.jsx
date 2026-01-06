@@ -6,7 +6,7 @@ import { recordStockMovement } from '../services/stockMovements'
 export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, products = [] }) {
   if (!open || !sale) return null
 
-  const isOS = sale.type === 'service_order' || (sale.status && sale.status.includes('Os Finalizada'))
+  const isOS = sale.type === 'service_order' || (sale.status && (sale.status.includes('Os Finalizada') || sale.status.includes('Os Faturada')))
 
   const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   

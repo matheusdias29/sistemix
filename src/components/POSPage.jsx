@@ -957,7 +957,8 @@ export default function POSPage({ storeId, user }){
                                     calculatedSales += amount
                                   } else {
                                     // Check O.S. status
-                                    if (o.status === 'Os Finalizada e Faturada Cliente Final') {
+                                    const s = o.status || ''
+                                    if (s === 'Os Finalizada e Faturada Cliente Final' || s === 'Os Faturada Cliente Final' || s === 'Os Faturada Cliente lojista') {
                                       calculatedOS += amount
                                     }
                                   }

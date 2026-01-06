@@ -16,7 +16,7 @@ export default function ChooseFinalStatusModal({ open, onClose, onChoose }) {
           
           <div className="space-y-3">
             <button
-              onClick={() => onChoose('Os Finalizada e Faturada Cliente Final')}
+              onClick={() => onChoose('Os Faturada Cliente Final')}
               className="w-full p-4 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 hover:border-green-300 transition-all group text-left flex items-center"
             >
               <div className="w-10 h-10 rounded-full bg-green-100 group-hover:bg-green-200 flex items-center justify-center text-green-600 mr-3">
@@ -31,7 +31,7 @@ export default function ChooseFinalStatusModal({ open, onClose, onChoose }) {
             </button>
 
             <button
-              onClick={() => onChoose('Os Finalizada e Faturada Cliente lojista')}
+              onClick={() => onChoose('Os Faturada Cliente lojista')}
               className="w-full p-4 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 hover:border-blue-300 transition-all group text-left flex items-center"
             >
               <div className="w-10 h-10 rounded-full bg-blue-100 group-hover:bg-blue-200 flex items-center justify-center text-blue-600 mr-3">

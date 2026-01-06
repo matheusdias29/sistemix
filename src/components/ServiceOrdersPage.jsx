@@ -988,7 +988,9 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                             const s = String(o.status||'').trim()
                             const l = s.toLowerCase()
                             let cls = 'bg-gray-200 text-gray-700'
-                            if (l.includes('finaliz')) cls = 'bg-green-100 text-green-700'
+                            
+                            if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700'
+                            else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700'
                             else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
                             else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
                             else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
@@ -1490,10 +1492,10 @@ function FiltersModal({ open, onClose, clientName, technicianName, attendantName
   const allStatuses = [
     'Iniciado',
     'Finalizado',
-    'Os Finalizada E Faturada Cliente Final',
+    'Os Faturada Cliente Final',
     'Cancelado',
     'Serviço Aprovado Em Procedimento Com Tecnico',
-    'Os Finalizada E Faturada Cliente lojista',
+    'Os Faturada Cliente lojista',
     'Serviço Realizado Pronto Na Gaveta',
     'Serviço Não Aprovado P/cliente Devoluçao Na Gaveta',
     'Garantia De Peça E Serviço Cliente lojista',
@@ -1579,10 +1581,10 @@ function UpdateStatusModal({ open, onClose, initialDate, initialStatus, internal
   const statuses = [
     'Iniciado',
     'Finalizado',
-    'Os Finalizada e Faturada Cliente Final',
+    'Os Faturada Cliente Final',
     'Cancelado',
     'Serviço Aprovado Em Procedimento Com tecnico',
-    'Os Finalizada e Faturada Cliente lojista',
+    'Os Faturada Cliente lojista',
     'Serviço Realizado Pronto Na gaveta',
     'Serviço Não Aprovado P/cliente Devoluçao na gaveta',
     'Garantia de Peça e Serviço Cliente lojista',

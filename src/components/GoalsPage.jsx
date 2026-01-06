@@ -25,9 +25,11 @@ function isOsFinalizadaFaturada(status){
   const exacts = [
     'os finalizada e faturada cliente final',
     'os finalizada e faturada cliente logista',
+    'os faturada cliente final',
+    'os faturada cliente lojista'
   ]
   if (exacts.includes(s)) return true
-  return s.includes('finalizada') && s.includes('faturada') && (s.includes('cliente final') || s.includes('cliente logista'))
+  return (s.includes('finalizada') || s.includes('faturada')) && (s.includes('cliente final') || s.includes('cliente logista') || s.includes('cliente lojista'))
 }
 
 export default function GoalsPage({ storeId, owner }){
