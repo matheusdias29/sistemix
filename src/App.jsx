@@ -20,6 +20,7 @@ import AccountsReceivablePage from './components/AccountsReceivablePage'
 import CatalogPage from './components/CatalogPage'
 import CatalogPreviewPage from './components/CatalogPreviewPage'
 import PublicCatalogPage from './components/PublicCatalogPage'
+import OrderTrackingPage from './components/OrderTrackingPage'
 import FiscalNotesPage from './components/FiscalNotesPage'
 import { getStoreBySlug } from './services/stores'
 
@@ -101,6 +102,16 @@ export default function App(){
   useEffect(() => {
     try {
       const rawPath = typeof window !== 'undefined' ? window.location.pathname : '/'
+      
+      // Check for OS tracking path
+      const trackingMatch = rawPath.match(/^\/comprovantes\/ordem-servico\/(.+)$/)
+      if (trackingMatch) {
+        setPublicMode(true)
+        setView('orderTracking')
+        setViewParams({ id: trackingMatch[1] })
+        return
+      }
+
       const path = String(rawPath || '/').replace(/^\/+|\/+$/g, '')
       if (path) {
         setPublicMode(true)
@@ -159,6 +170,16 @@ export default function App(){
     }
   }, [user, store])
 
+  // Fluxo público (Catálogo ou Rastreamento de OS)
+  if (publicMode) {
+    if (view === 'orderTracking') {
+      return <OrderTrackingPage orderId={viewParams.id} />
+    }
+    return (
+      <PublicCatalogPage storeId={store?.id} store={store} />
+    )
+  }
+
   // Fluxo original: Login -> Selecionar Loja
   if (!user) {
     return <LoginPage onLoggedIn={setUser} />
@@ -188,12 +209,6 @@ export default function App(){
   }
 
   const headerUser = { name: `${user.name} — ${store?.name || ''}`.trim() }
-
-  if (publicMode) {
-    return (
-      <PublicCatalogPage storeId={store?.id} store={store} />
-    )
-  }
 
   return (
     <div className="min-h-screen bg-[#f7faf9] dark:bg-[#0b1320] overflow-x-hidden">

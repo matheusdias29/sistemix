@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'orders')
@@ -99,6 +99,14 @@ export async function addOrder(order, storeId){
   }
   const res = await addDoc(colRef, data)
   return res.id
+}
+
+export async function getOrderById(id){
+  if (!id) return null
+  const ref = doc(db, 'orders', id)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() }
 }
 
 export async function updateOrder(id, partial){

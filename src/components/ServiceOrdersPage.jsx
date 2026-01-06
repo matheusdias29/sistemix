@@ -16,6 +16,7 @@ import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
 import { listenServices, addService, updateService } from '../services/services'
 import ChooseFinalStatusModal from './ChooseFinalStatusModal'
+import ShareOrderModal from './ShareOrderModal'
 
 export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
@@ -193,6 +194,8 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   const [chooseFinalStatusOpen, setChooseFinalStatusOpen] = useState(false)
   const [finalStatusTarget, setFinalStatusTarget] = useState(null)
   const [statusModalOpen, setStatusModalOpen] = useState(false)
+  const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [shareTargetOrder, setShareTargetOrder] = useState(null)
   // Produtos na OS e modais
   const [osProducts, setOsProducts] = useState([])
   const [osServices, setOsServices] = useState([])
@@ -1024,7 +1027,14 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                         style={{ left: rowMenuPos.left, top: rowMenuPos.top }}
                         onClick={(e)=>e.stopPropagation()}
                       >
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Compartilhar</button>
+                        <button 
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                          onClick={()=>{
+                            setShareTargetOrder(o)
+                            setShareModalOpen(true)
+                            setRowMenuOpenId(null)
+                          }}
+                        >Compartilhar</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>window.print()}>Imprimir</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Eventos</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) }}>Alterar Status</button>
@@ -1482,6 +1492,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             setCashTargetOrder(null)
           })
         }}
+      />
+      <ShareOrderModal
+        open={shareModalOpen}
+        onClose={()=>setShareModalOpen(false)}
+        order={shareTargetOrder}
       />
     </div>
   )
