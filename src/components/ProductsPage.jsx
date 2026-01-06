@@ -238,7 +238,73 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     try {
       setSavingAction(true)
       const { id, createdAt, updatedAt, number, ...rest } = product || {}
-      const data = { ...rest, name: product?.name || 'Produto' }
+      
+      // Lógica de sufixo alfabético (A, B, C...)
+      let newCode = String(product.reference || '').trim()
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+      // Encontrar todos os produtos que começam com o mesmo código base
+      // Ex: se o código é 12345, procura por 12345, 12345A, 12345B...
+      // Se o código já for 12345A, a base é 12345
+      
+      // Regex para identificar base e sufixo
+      // Captura grupo 1: parte numérica ou texto base
+      // Captura grupo 2: letra final opcional
+      const match = newCode.match(/^(.*)([A-Z])$/)
+      let baseCode = newCode
+      if (match) {
+        // Se já termina com letra (ex: 54860A), a base é 54860
+        baseCode = match[1]
+      }
+
+      // Filtrar produtos que tenham o código começando com a base
+      const similarProducts = products.filter(p => {
+        const c = String(p.reference || '').trim()
+        // Deve começar com a base E ter tamanho compatível (base + 0 ou 1 char)
+        return c.startsWith(baseCode)
+      })
+
+      // Encontrar o próximo sufixo disponível
+      let nextSuffix = 'A'
+      
+      // Coletar todos os sufixos existentes para essa base
+      const existingSuffixes = new Set()
+      similarProducts.forEach(p => {
+        const c = String(p.reference || '').trim()
+        
+        // Se for exatamente a base (ex: 54860), não tem sufixo
+        if (c === baseCode) return 
+
+        // Se tiver tamanho diferente de base + 1, ignora (ex: 54860123 não conta)
+        if (c.length !== baseCode.length + 1) return
+
+        const suffix = c.slice(baseCode.length)
+        if (alphabet.includes(suffix)) {
+          existingSuffixes.add(suffix)
+        }
+      })
+
+      // Procurar a primeira letra livre
+      for (let i = 0; i < alphabet.length; i++) {
+        if (!existingSuffixes.has(alphabet[i])) {
+          nextSuffix = alphabet[i]
+          break
+        }
+      }
+
+      const finalCode = `${baseCode}${nextSuffix}`
+
+      const data = { 
+        ...rest, 
+        name: product?.name || 'Produto',
+        reference: finalCode,
+        stock: 0 // Zera o estoque ao clonar, por segurança/padrão
+      }
+      
+      if (data.variationsData && Array.isArray(data.variationsData)) {
+        data.variationsData = data.variationsData.map(v => ({ ...v, stock: 0 }))
+      }
+
       await addProduct(data, storeId)
       setOpenMenuId(null)
     } finally {
@@ -606,7 +672,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         </button>
                         <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> openConfirmRemove(p)}>
                           <span>🗂️</span>
-                          <span>Remover do catálogo</span>
+                          <span>Excluir do catálogo</span>
                         </button>
                         <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('sincronizar', p.id) }}>
                           <span>🔁</span>
@@ -753,11 +819,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           <div className="absolute inset-0 bg-black/40" onClick={()=>setConfirmRemoveOpen(false)} />
           <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
             <div className="px-4 py-3 border-b">
-              <h3 className="text-base font-medium">Remover do catálogo</h3>
+              <h3 className="text-base font-medium">Excluir do catálogo</h3>
             </div>
             <div className="p-4 space-y-3 text-sm">
               <div>
-                Tem certeza que deseja remover “{confirmRemoveProduct?.name}” do catálogo?
+                Tem certeza que deseja excluir “{confirmRemoveProduct?.name}” do catálogo?
               </div>
               <div>
                 Esta ação também zera o estoque do produto{Array.isArray(confirmRemoveProduct?.variationsData) && (confirmRemoveProduct?.variationsData?.length||0) > 0 ? ' e de todas as variações' : ''}.
@@ -765,7 +831,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             </div>
             <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
               <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
-              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemoveFromCatalog} disabled={savingAction}>Remover</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemoveFromCatalog} disabled={savingAction}>Excluir</button>
             </div>
           </div>
         </div>

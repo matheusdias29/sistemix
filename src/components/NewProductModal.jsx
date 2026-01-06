@@ -196,9 +196,15 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         // Modo Novo Produto
         setVariationMode('4P')
         setVariationsData(generateVariations('4P', []))
+        
+        if (storeId) {
+          getNextProductReference(storeId).then(ref => {
+            if(ref) setReference(ref)
+          })
+        }
       }
     }
-  }, [open, isEdit, product])
+  }, [open, isEdit, product, storeId])
 
   const makeVarFromProduct = () => ({
     name: 'var 1',
@@ -659,7 +665,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
       <div className="font-semibold mb-2">Dados adicionais</div>
       <textarea value={description} onChange={e=>setDescription(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Descrição do produto" rows={3} />
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label className="text-xs text-gray-600">Código</label>
+          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        </div>
         <div>
           <label className="text-xs text-gray-600">Comissão (%)</label>
           <input type="number" step="0.01" value={commissionPercent} onChange={e=>setCommissionPercent(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
