@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { updateOrder } from '../services/orders'
 import { updateProduct } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
+import ShareSaleModal from './ShareSaleModal'
 
-export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, products = [] }) {
+export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, store, products = [] }) {
   if (!open || !sale) return null
+  const [shareModalOpen, setShareModalOpen] = useState(false)
 
   const isOS = sale.type === 'service_order' || (sale.status && (sale.status.includes('Os Finalizada') || sale.status.includes('Os Faturada')))
 
@@ -65,7 +67,10 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
           <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
             <span>📄</span> Recibo
           </button>
-          <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+          <button 
+            className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+            onClick={() => setShareModalOpen(true)}
+          >
             <span>📤</span> Compartilhar
           </button>
           <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
@@ -244,6 +249,13 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
           </div>
         </div>
       </div>
+
+      <ShareSaleModal 
+        open={shareModalOpen} 
+        onClose={() => setShareModalOpen(false)} 
+        sale={sale}
+        store={store}
+      />
     </div>
   )
 }

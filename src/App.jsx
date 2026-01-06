@@ -112,6 +112,15 @@ export default function App(){
         return
       }
 
+      // Check for Sale tracking path
+      const saleMatch = rawPath.match(/^\/comprovantes\/venda\/(.+)$/)
+      if (saleMatch) {
+        setPublicMode(true)
+        setView('saleTracking')
+        setViewParams({ id: saleMatch[1] })
+        return
+      }
+
       const path = String(rawPath || '/').replace(/^\/+|\/+$/g, '')
       if (path) {
         setPublicMode(true)
@@ -174,6 +183,9 @@ export default function App(){
   if (publicMode) {
     if (view === 'orderTracking') {
       return <OrderTrackingPage orderId={viewParams.id} />
+    }
+    if (view === 'saleTracking') {
+      return <OrderTrackingPage orderId={viewParams.id} isSale={true} />
     }
     return (
       <PublicCatalogPage storeId={store?.id} store={store} />
@@ -282,7 +294,7 @@ export default function App(){
               />
             </div>
           ) : view === 'vendas' ? (
-            <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} user={user} openNewSaleSignal={openNewSaleSignal} /></div>
+            <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} store={store} user={user} openNewSaleSignal={openNewSaleSignal} /></div>
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} user={user} /></div>
           ) : view === 'catalogo' ? (

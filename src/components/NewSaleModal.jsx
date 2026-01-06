@@ -48,6 +48,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [payAboveConfirmOpen, setPayAboveConfirmOpen] = useState(false)
   const [remainingInfoOpen, setRemainingInfoOpen] = useState(false)
   const [afterAboveAdjustedOpen, setAfterAboveAdjustedOpen] = useState(false)
+  const [chooseClientTypeOpen, setChooseClientTypeOpen] = useState(false)
   
   const [selectedPayMethod, setSelectedPayMethod] = useState(null)
   const [payAmountInput, setPayAmountInput] = useState('')
@@ -359,7 +360,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         orderId = await addOrder(payload, storeId)
       }
 
-      if (!isEdit && (status === 'Venda' || status === 'Pedido')) {
+      if (!isEdit && (status === 'Venda' || status === 'Pedido' || status === 'Cliente Final' || status === 'Cliente Lojista')) {
         for (const item of cart) {
           const qty = item.quantity
           const pId = item.product.originalId || item.product.id
@@ -999,7 +1000,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           onConfirm={()=>{
             setPayMethodsOpen(false)
             if(remainingToPay <= 0.01) {
-              handleSave('Venda')
+              setChooseClientTypeOpen(true)
             }
           }}
         />
@@ -1025,6 +1026,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               setPayAmountOpen(false)
               setRemainingSnapshot(newRemaining)
               if(newRemaining > 0){ setRemainingInfoOpen(true) }
+              else { setChooseClientTypeOpen(true) }
             } else {
               if(amt > remainingToPay){
                 setPayAmountOpen(false)
@@ -1036,6 +1038,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               setPayAmountOpen(false)
               setRemainingSnapshot(newRemaining)
               if(newRemaining > 0){ setRemainingInfoOpen(true) }
+              else { setChooseClientTypeOpen(true) }
             }
           }}
         />
@@ -1056,6 +1059,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
             setAfterAboveAdjustedOpen(true)
             setRemainingSnapshot(newRemaining)
             if(newRemaining > 0){ setRemainingInfoOpen(true) }
+            else { setChooseClientTypeOpen(true) }
           }}
         />
       )}
@@ -1095,6 +1099,49 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           </div>
         </div>
       )}
+
+      {chooseClientTypeOpen && (
+        <ChooseClientTypeModal
+          open={chooseClientTypeOpen}
+          onClose={() => setChooseClientTypeOpen(false)}
+          onChoose={(status) => {
+            setChooseClientTypeOpen(false)
+            handleSave(status)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+function ChooseClientTypeModal({ open, onClose, onChoose }) {
+  if (!open) return null
+  return (
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">Tipo de Cliente</h3>
+        <p className="text-sm text-gray-500 text-center mb-6">Selecione o tipo de cliente para finalizar a venda.</p>
+        <div className="flex flex-col gap-3">
+          <button 
+            onClick={() => onChoose('Cliente Final')} 
+            className="w-full py-3 bg-green-600 text-white rounded font-medium hover:bg-green-700 shadow-sm flex items-center justify-center gap-2"
+          >
+            <span>👤</span> Cliente Final
+          </button>
+          <button 
+            onClick={() => onChoose('Cliente Lojista')} 
+            className="w-full py-3 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 shadow-sm flex items-center justify-center gap-2"
+          >
+            <span>🏢</span> Lojista
+          </button>
+        </div>
+        <button 
+          onClick={onClose} 
+          className="mt-4 w-full py-2 text-gray-500 hover:text-gray-700 text-sm hover:underline"
+        >
+          Cancelar
+        </button>
+      </div>
     </div>
   )
 }

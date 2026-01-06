@@ -30,7 +30,10 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
     return d ? isSameDay(d, today) : false
   }), [orders])
 
-  const vendasHoje = useMemo(() => todayOrders.filter(o => (o.status || '').toLowerCase() === 'venda'), [todayOrders])
+  const vendasHoje = useMemo(() => todayOrders.filter(o => {
+    const s = (o.status || '').toLowerCase()
+    return s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
+  }), [todayOrders])
   function isOsFinalizadaFaturada(status){
     const s = (status || '').toLowerCase()
     const exacts = [
@@ -62,7 +65,8 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       d.setDate(today.getDate() - i)
       const vendasNoDia = orders.filter(o => {
         const created = toDate(o.createdAt)
-        const isVenda = (o.status || '').toLowerCase() === 'venda'
+        const s = (o.status || '').toLowerCase()
+        const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
         return !!created && isVenda && isSameDay(created, d)
       })
       const totalNoDia = vendasNoDia.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0)
@@ -88,7 +92,10 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
     return d ? d.getMonth()===today.getMonth() && d.getFullYear()===today.getFullYear() : false
   }), [orders])
   const monthSalesValue = useMemo(() => monthOrders
-    .filter(o => (o.status||'').toLowerCase()==='venda')
+    .filter(o => {
+      const s = (o.status||'').toLowerCase()
+      return s==='venda'||s==='cliente final'||s==='cliente lojista'
+    })
     .reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0), [monthOrders])
   const monthOsValue = useMemo(() => monthOrders
     .filter(o => isOsFinalizadaFaturada(o.status))
@@ -129,7 +136,8 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       d.setDate(today.getDate() - i)
       const daySales = orders.filter(o => {
         const created = toDate(o.createdAt)
-        const isVenda = (o.status || '').toLowerCase() === 'venda'
+        const s = (o.status || '').toLowerCase()
+        const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
         return !!created && isVenda && isSameDay(created, d)
       })
       const sales = daySales.reduce((acc, o) => acc + getOrderRevenue(o), 0)

@@ -27,7 +27,7 @@ const defaultColumns = [
   { id: 'status', label: 'Status', width: '7rem', visible: true, align: 'center' }
 ]
 
-export default function SalesPage({ initialDayFilter = null, storeId, user, openNewSaleSignal = 0 }){
+export default function SalesPage({ initialDayFilter = null, storeId, store, user, openNewSaleSignal = 0 }){
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
   const [query, setQuery] = useState('')
@@ -165,7 +165,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
         if(tab==='todos') return true
         const s = (o.status || '').toLowerCase()
         if(tab==='pedido') return s==='pedido'
-        if(tab==='venda') return s==='venda' || s==='finalizado' || s==='pago'
+        if(tab==='venda') return s==='venda' || s==='finalizado' || s==='pago' || s === 'cliente final' || s === 'cliente lojista'
         if(tab==='cancelada') return s==='cancelada'
         return true
       })
@@ -300,11 +300,20 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
       case 'time': return <div className="text-sm text-center">{formatTime(o.createdAt)}</div>
       case 'attendant': return <div className="text-sm text-left truncate" title={o.attendant || '-'}>{o.attendant || '-'}</div>
       case 'value': return <div className="text-sm text-right">{formatCurrency(Number(o.valor || o.total || 0))}</div>
-      case 'status': return (
-        <div className="text-sm text-center">
-          <div className={`px-2 py-1 rounded text-xs ${((o.status ?? '').toLowerCase()==='venda') ? 'bg-green-100 text-green-700' : ( (o.status ?? '').toLowerCase()==='pedido' ? 'bg-yellow-100 text-yellow-700' : ( (o.status ?? '').toLowerCase()==='cancelada' ? 'bg-red-100 text-red-700' : 'bg-gray-200 text-gray-700' ))}`}>{o.status || 'Indef.'}</div>
-        </div>
-      )
+      case 'status': {
+        const s = (o.status ?? '').toLowerCase()
+        let colorClass = 'bg-gray-200 text-gray-700'
+        if (s === 'venda' || s.includes('cliente final')) colorClass = 'bg-green-100 text-green-700'
+        else if (s.includes('lojista') || s.includes('logista')) colorClass = 'bg-blue-100 text-blue-700'
+        else if (s === 'pedido') colorClass = 'bg-yellow-100 text-yellow-700'
+        else if (s === 'cancelada') colorClass = 'bg-red-100 text-red-700'
+
+        return (
+          <div className="text-sm text-center">
+            <div className={`px-2 py-1 rounded text-xs ${colorClass}`}>{o.status || 'Indef.'}</div>
+          </div>
+        )
+      }
       default: return null
     }
   }
@@ -446,6 +455,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, user, open
         onClose={() => setDetailModalOpen(false)} 
         sale={selectedSale}
         storeId={storeId}
+        store={store}
         products={products}
         onEdit={(s) => { 
           setDetailModalOpen(false)

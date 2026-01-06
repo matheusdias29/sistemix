@@ -60,7 +60,7 @@ export default function GoalsPage({ storeId, owner }){
         const { month, year } = parsed
         const vendas = orders.filter(o => {
           const d = toDate(o.createdAt)
-          return !!d && isSameMonth(d, month, year) && (o.status||'').toLowerCase()==='venda'
+          return !!d && isSameMonth(d, month, year) && ((o.status||'').toLowerCase()==='venda' || (o.status||'').toLowerCase()==='cliente final' || (o.status||'').toLowerCase()==='cliente lojista')
         })
         const os = orders.filter(o => {
           const d = toDate(o.createdAt)
