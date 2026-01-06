@@ -18,7 +18,7 @@ import { listenServices, addService, updateService } from '../services/services'
 import ChooseFinalStatusModal from './ChooseFinalStatusModal'
 import ShareOrderModal from './ShareOrderModal'
 
-export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, viewParams, setViewParams }){
+export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNewSignal, viewParams, setViewParams }){
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [listTab, setListTab] = useState('os') // 'os' | 'services'
   const [query, setQuery] = useState('')
@@ -136,9 +136,9 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
     { id: 'attendant', label: 'Atendente', width: '8rem', visible: true, align: 'left' },
     { id: 'technician', label: 'Técnico', width: '8rem', visible: true, align: 'left' },
     { id: 'model', label: 'Modelo', width: '10rem', visible: true, align: 'left' },
-    { id: 'serial', label: 'Nº de Série', width: '10rem', visible: true, align: 'left' },
-    { id: 'dateIn', label: 'Data de abertura', width: '8rem', visible: true, align: 'left' },
-    { id: 'expected', label: 'Previsão de entrega', width: '10rem', visible: true, align: 'left' },
+    { id: 'updatedDate', label: 'Atualizado', width: '8rem', visible: true, align: 'left' },
+    { id: 'updatedTime', label: 'Hora', width: '6rem', visible: true, align: 'left' },
+    { id: 'updatedBy', label: 'Funcionário', width: '8rem', visible: true, align: 'left' },
     { id: 'value', label: 'Valor', width: '8rem', visible: true, align: 'right' },
     { id: 'status', label: 'Status', width: '9rem', visible: true, align: 'left' },
   ]
@@ -189,6 +189,7 @@ Com todos os termos acima, citado.`)
   const [unlockPattern, setUnlockPattern] = useState([])
   const [unlockPin, setUnlockPin] = useState('')
   const [unlockPassword, setUnlockPassword] = useState('')
+  const [paymentInfo, setPaymentInfo] = useState('')
   const [unlockTypeOpen, setUnlockTypeOpen] = useState(false)
   const [patternModalOpen, setPatternModalOpen] = useState(false)
   const [textUnlockOpen, setTextUnlockOpen] = useState(false)
@@ -330,6 +331,7 @@ Com todos os termos acima, citado.`)
     setOsProducts([])
     setOsServices([])
     setOsPayments([])
+    setPaymentInfo('')
     setEditingOrderId(null)
     setEditingOrderNumber('')
     setStatus('Iniciado')
@@ -390,6 +392,7 @@ Com todos os termos acima, citado.`)
     setOsProducts(Array.isArray(o.products) ? o.products : [])
     setOsServices(Array.isArray(o.services) ? o.services : [])
     setOsPayments(Array.isArray(o.payments) ? o.payments : [])
+    setPaymentInfo(o.paymentInfo || '')
     setEditingOrderId(o.id)
     setEditingOrderNumber(o.number || o.id)
     setStatus(o.status || 'Iniciado')
@@ -447,6 +450,7 @@ Com todos os termos acima, citado.`)
         total: (totalProductsAgg + totalServicesAgg),
         valor: (totalProductsAgg + totalServicesAgg),
         payments: osPayments,
+        paymentInfo,
         password: unlockType === 'pattern' 
           ? { type: 'pattern', pattern: unlockPattern }
           : unlockType === 'pin'
@@ -457,6 +461,8 @@ Com todos os termos acima, citado.`)
         checklist: [],
         files: [],
         status,
+        updatedAt: new Date(),
+        updatedBy: user?.name || attendant || 'Sistema'
       }
       if (editingOrderId) {
         await updateOrder(editingOrderId, basePayload)
@@ -623,7 +629,9 @@ Com todos os termos acima, citado.`)
                   await updateOrder(statusTargetOrder.id, {
                     cashLaunched: false,
                     cashLaunchCashId: null,
-                    payments: []
+                    payments: [],
+                    updatedAt: new Date(),
+                    updatedBy: user?.name || attendant || 'Sistema'
                   })
                 }
               } else if (oldStatus.includes('cancelad') && newStatus.includes('iniciado')) {
@@ -683,7 +691,9 @@ Com todos os termos acima, citado.`)
                 status: v.status,
                 dateIn: v.dateIn ? new Date(v.dateIn) : (statusTargetOrder.dateIn || null),
                 internalNotes: v.internalNotes,
-                receiptNotes: v.receiptNotes
+                receiptNotes: v.receiptNotes,
+                updatedAt: new Date(),
+                updatedBy: user?.name || attendant || 'Sistema'
               }).catch(()=>{}).finally(()=>{ setStatusTargetOrder(null); setStatusModalOpen(false) })
             } else {
               setStatus(v.status)
@@ -735,7 +745,11 @@ Com todos os termos acima, citado.`)
               
               // Persist payments immediately
               if (cashTargetOrder) {
-                 updateOrder(cashTargetOrder.id, { payments: newPaymentsList }).catch(()=>{})
+                 updateOrder(cashTargetOrder.id, { 
+                    payments: newPaymentsList,
+                    updatedAt: new Date(),
+                    updatedBy: user?.name || attendant || 'Sistema'
+                 }).catch(()=>{})
               }
 
               setPayAmountOpen(false) // Close amount modal
@@ -764,7 +778,11 @@ Com todos os termos acima, citado.`)
 
               // Persist payments immediately
               if (cashTargetOrder) {
-                 updateOrder(cashTargetOrder.id, { payments: newPaymentsList }).catch(()=>{})
+                 updateOrder(cashTargetOrder.id, { 
+                   payments: newPaymentsList,
+                   updatedAt: new Date(),
+                   updatedBy: user?.name || attendant || 'Sistema'
+                 }).catch(()=>{})
               }
 
               setPayAmountOpen(false)
@@ -800,7 +818,11 @@ Com todos os termos acima, citado.`)
 
             // Persist payments immediately
             if (cashTargetOrder) {
-                updateOrder(cashTargetOrder.id, { payments: newPaymentsList }).catch(()=>{})
+                updateOrder(cashTargetOrder.id, { 
+                  payments: newPaymentsList,
+                  updatedAt: new Date(),
+                  updatedBy: user?.name || attendant || 'Sistema'
+                }).catch(()=>{})
             }
             
             setPayAboveConfirmOpen(false)
@@ -1034,9 +1056,15 @@ Com todos os termos acima, citado.`)
                       case 'attendant': return <div key={`${o.id}-attendant`}>{o.attendant}</div>
                       case 'technician': return <div key={`${o.id}-technician`}>{o.technician}</div>
                       case 'model': return <div key={`${o.id}-model`}>{o.model}</div>
-                      case 'serial': return <div key={`${o.id}-serial`}>{o.serialNumber}</div>
-                      case 'dateIn': return <div key={`${o.id}-dateIn`}>{o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn).toLocaleDateString('pt-BR') : '-'}</div>
-                      case 'expected': return <div key={`${o.id}-expected`}>{o.expectedDate ? new Date(o.expectedDate.seconds ? o.expectedDate.seconds*1000 : o.expectedDate).toLocaleDateString('pt-BR') : '-'}</div>
+                      case 'updatedDate': {
+                        const d = o.updatedAt ? new Date(o.updatedAt.seconds ? o.updatedAt.seconds*1000 : o.updatedAt) : (o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn) : null)
+                        return <div key={`${o.id}-updatedDate`}>{d ? d.toLocaleDateString('pt-BR') : '-'}</div>
+                      }
+                      case 'updatedTime': {
+                        const d = o.updatedAt ? new Date(o.updatedAt.seconds ? o.updatedAt.seconds*1000 : o.updatedAt) : (o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn) : null)
+                        return <div key={`${o.id}-updatedTime`}>{d ? d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) : '-'}</div>
+                      }
+                      case 'updatedBy': return <div key={`${o.id}-updatedBy`}>{o.updatedBy || o.attendant || '-'}</div>
                       case 'value': return <div key={`${o.id}-value`} className="text-right">{((o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                       case 'status': return (
                         <div key={`${o.id}-status`}>
@@ -1089,7 +1117,6 @@ Com todos os termos acima, citado.`)
                           }}
                         >Compartilhar</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>window.print()}>Imprimir</button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50">Eventos</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) }}>Alterar Status</button>
                         {o.cashLaunched ? (
                           <button
@@ -1291,28 +1318,16 @@ Com todos os termos acima, citado.`)
 
               <div className="rounded-lg bg-white p-6 shadow">
                 <div className="font-semibold text-lg">Pagamento</div>
-                {osPayments.length === 0 ? (
-                  <div className="mt-3 text-sm text-gray-600">Nenhum pagamento adicionado...</div>
-                ) : (
-                  <div className="mt-3 space-y-2">
-                    {osPayments.map((p, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr_8rem] items-center gap-3 text-sm">
-                        <div className="leading-tight">
-                          <div className="font-medium">{p.method}</div>
-                          {p.change > 0 && (
-                            <div className="text-xs text-gray-600">Troco: {p.change.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                          )}
-                        </div>
-                        <div className="text-right">{p.amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                      </div>
-                    ))}
-                    <div className="grid grid-cols-[1fr_8rem] items-center gap-3 text-sm border-t pt-2 mt-2">
-                      <div className="text-gray-600">Restante a pagar</div>
-                      <div className="text-right font-semibold">{remainingToPay.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                    </div>
-                  </div>
-                )}
-                <div className="mt-3"><button type="button" onClick={()=>setPayMethodsOpen(true)} className="px-3 py-2 border rounded text-sm">Editar Pagamento</button></div>
+                <div className="mt-4">
+                  <label className="text-sm text-gray-600 block mb-1">Metódo de pagamento pré estabelecido com cliente</label>
+                  <textarea
+                    value={paymentInfo}
+                    onChange={e => setPaymentInfo(e.target.value)}
+                    rows={3}
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    placeholder="Descreva o método de pagamento acordado..."
+                  />
+                </div>
               </div>
 
               <div className="rounded-lg bg-white p-6 shadow">
@@ -1550,6 +1565,7 @@ Com todos os termos acima, citado.`)
         open={shareModalOpen}
         onClose={()=>setShareModalOpen(false)}
         order={shareTargetOrder}
+        store={store}
       />
     </div>
   )

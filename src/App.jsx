@@ -290,7 +290,7 @@ export default function App(){
           ) : view === 'catalogoPreview' ? (
             <div className="mt-4 md:mt-6"><CatalogPreviewPage storeId={store?.id} store={store} /></div>
           ) : view === 'os' ? (
-            <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} ownerId={user?.id} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
+            <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} store={store} ownerId={user?.id} user={user} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
           ) : view === 'clientes' ? (
             <div className="mt-4 md:mt-6"><ClientsPage storeId={store?.id} addNewSignal={addNewClientSignal} user={user} /></div>
           ) : view === 'notas' ? (
@@ -312,7 +312,7 @@ export default function App(){
           ) : view === 'cpagar' ? (
             <div className="mt-4 md:mt-6"><AccountsPayablePage storeId={store?.id} /></div>
           ) : view === 'creceber' ? (
-            <div className="mt-4 md:mt-6"><AccountsReceivablePage storeId={store?.id} /></div>
+            <div className="mt-4 md:mt-6"><AccountsReceivablePage storeId={store?.id} user={user} /></div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <p className="text-sm text-gray-600">Página em construção.</p>

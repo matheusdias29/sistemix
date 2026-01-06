@@ -37,6 +37,7 @@ export async function addAccountReceivable(data, storeId) {
     paymentDate: null,
     status: 'pending', // pending, paid, cancelled
     type: data.type || 'receivable', // 'receivable' or 'credit'
+    receivedBy: data.receivedBy || '', 
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }

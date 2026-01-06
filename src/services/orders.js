@@ -74,6 +74,7 @@ export async function addOrder(order, storeId){
     // Observações
     receiptNotes: order.receiptNotes || '',
     internalNotes: order.internalNotes || '',
+    warrantyInfo: order.warrantyInfo || '',
     // Outros
     password: order.password || '',
     checklist: Array.isArray(order.checklist) ? order.checklist : [],
@@ -88,6 +89,8 @@ export async function addOrder(order, storeId){
     total: Number(order.total || 0),
     // Pagamentos
     payments: Array.isArray(order.payments) ? order.payments : [],
+    paymentInfo: order.paymentInfo || '',
+    preEstablishedPayment: order.preEstablishedPayment || '',
     // Status
     status: order.status || 'Iniciado',
     valor: Number(order.total || 0),
@@ -96,6 +99,7 @@ export async function addOrder(order, storeId){
     // Timestamps
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
+    updatedBy: order.updatedBy || '',
   }
   const res = await addDoc(colRef, data)
   return res.id

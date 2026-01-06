@@ -13,7 +13,7 @@ const dateStr = (d) => {
   return '-'
 }
 
-export default function AccountsReceivablePage({ storeId }) {
+export default function AccountsReceivablePage({ storeId, user }) {
   const [accounts, setAccounts] = useState([])
   const [search, setSearch] = useState('')
   const [filterType, setFilterType] = useState('pending') // 'pending' (A Receber), 'all' (Todos)
@@ -65,7 +65,8 @@ export default function AccountsReceivablePage({ storeId }) {
       const s = search.toLowerCase()
       const match = (
         (acc.clientName && acc.clientName.toLowerCase().includes(s)) ||
-        (acc.description && acc.description.toLowerCase().includes(s))
+        (acc.description && acc.description.toLowerCase().includes(s)) ||
+        (acc.receivedBy && acc.receivedBy.toLowerCase().includes(s))
       )
       if (search && !match) return
 
@@ -85,11 +86,10 @@ export default function AccountsReceivablePage({ storeId }) {
       }
 
       // Agrupamento
-      const key = acc.clientId || acc.clientName || 'Sem Cliente'
+      const key = acc.receivedBy || 'Sem Funcionário'
       if (!groups[key]) {
         groups[key] = {
-          clientId: acc.clientId,
-          clientName: acc.clientName || 'Cliente Sem Nome',
+          receivedBy: acc.receivedBy || 'Sem Funcionário',
           items: [],
           totalDebit: 0,
           totalOverdue: 0,
@@ -154,7 +154,7 @@ export default function AccountsReceivablePage({ storeId }) {
           await updateAccountReceivable(data.id, updateData)
         } else {
           // Create
-          await addAccountReceivable(data, storeId)
+          await addAccountReceivable({ ...data, receivedBy: user?.name || 'Sistema' }, storeId)
         }
       }
       
@@ -302,7 +302,7 @@ export default function AccountsReceivablePage({ storeId }) {
            <table className="min-w-full divide-y divide-gray-100">
              <thead className="bg-gray-50">
                <tr>
-                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600">Cliente / Descrição</th>
+                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600">Funcionário</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Débito</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Vencido</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Crédito</th>
@@ -318,7 +318,7 @@ export default function AccountsReceivablePage({ storeId }) {
                  </tr>
                ) : (
                  grouped.map((group, idx) => {
-                    const groupKey = group.clientId || group.clientName || idx
+                    const groupKey = group.receivedBy || idx
                     const isExpanded = expandedClients[groupKey]
                     
                     return (
@@ -328,7 +328,7 @@ export default function AccountsReceivablePage({ storeId }) {
                           onClick={() => toggleExpand(groupKey)}
                         >
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-700 uppercase">{group.clientName}</div>
+                            <div className="text-sm text-gray-700 uppercase">{group.receivedBy}</div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right">
                             <div className="text-sm text-red-500">{money(group.totalDebit)}</div>
@@ -368,6 +368,7 @@ export default function AccountsReceivablePage({ storeId }) {
                                  <table className="min-w-full divide-y divide-gray-100">
                                    <thead className="bg-gray-100">
                                       <tr>
+                                        <th className="px-4 py-2 text-left text-sm font-bold text-gray-600">Cliente</th>
                                         <th className="px-4 py-2 text-left text-sm font-bold text-gray-600">Descrição</th>
                                         <th className="px-4 py-2 text-center text-sm font-bold text-gray-600">Vencimento</th>
                                         <th className="px-4 py-2 text-right text-sm font-bold text-gray-600">Valor</th>
@@ -378,6 +379,9 @@ export default function AccountsReceivablePage({ storeId }) {
                                    <tbody className="divide-y divide-gray-50">
                                       {group.items.map(item => (
                                         <tr key={item.id} className="hover:bg-gray-50">
+                                           <td className="px-4 py-2 text-sm text-gray-700 font-medium">
+                                              {item.clientName || 'Cliente Sem Nome'}
+                                           </td>
                                            <td className="px-4 py-2 text-sm text-gray-700">
                                               {item.type === 'credit' && <span className="text-green-600 font-bold mr-1">[CRÉDITO]</span>}
                                               {item.description}

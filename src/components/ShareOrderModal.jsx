@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-export default function ShareOrderModal({ open, onClose, order }) {
+export default function ShareOrderModal({ open, onClose, order, store }) {
   if (!open || !order) return null
 
   const orderNumber = order.number || String(order.id).slice(-4)
@@ -13,7 +13,8 @@ export default function ShareOrderModal({ open, onClose, order }) {
   const handleWhatsapp = () => {
     if (!whatsapp) return alert('Digite o número do Whatsapp')
     const phone = whatsapp.replace(/\D/g, '')
-    const text = encodeURIComponent(`Olá, segue o link para acompanhamento da sua Ordem de Serviço: ${shareUrl}`)
+    const storeName = store?.name || 'nossa loja'
+    const text = encodeURIComponent(`Olá, segue o link para acompanhamento de sua ordem de serviço aqui na ${storeName} ${shareUrl}`)
     window.open(`https://wa.me/55${phone}?text=${text}`, '_blank')
   }
 
