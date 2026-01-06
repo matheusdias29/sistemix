@@ -169,19 +169,22 @@ export default function OrderTrackingPage({ orderId }) {
            <p className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed">
              {order.warrantyInfo || `Garantia de produtos e serviços. 
 90 dias para defeito de fabricação. 
+Não cobre aparelho ou produto com sinais de humidade. 
 Não cobre produto quebrado . 
-Não cobre riscos na tela 
+Não cobre riscos na tela. 
 Não cobre trincos na tela. 
 Não cobre manchas ,listras trincos internos 
 Ou externos na peça . 
 Não cobre selo ou lacre rompido. 
-Fica ciente que deve Retornar A empresa 
-No prazo estabelecido. 
+Fica ciente que cliente em caso de defetio 
+deve Retornar A empresa,No prazo estabelecido. 
 Em caso de insatisfação cliente tem 7 dias 
-Para pedir estorno. 
-Visando e focanda na qualidade,todos os produto são testados na loja antes da saída da loja e testado junto ao cliente. 
+Para pedir estorno... E a empresa não tem responsabilidade 
+de colocar a peça velha no lugar, pois sao descartadas diariamente. 
+Visando e focanda na qualidade! 
+todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
 Sendo assim cliente ciente e de acordo 
-Com todos os termos acima, citado .`}
+Com todos os termos acima, citado.`}
            </p>
         </div>
 
@@ -189,7 +192,7 @@ Com todos os termos acima, citado .`}
       
       {/* Footer Branding */}
       <div className="text-center mt-8 text-gray-400 text-xs">
-        <p>Sistema Apex Comercio</p>
+        <p>SisteMix comercio</p>
       </div>
     </div>
   )
