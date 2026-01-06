@@ -337,6 +337,8 @@ export default function POSPage({ storeId, user }){
       orders.forEach(o => {
         if (o.status && o.status.toLowerCase() === 'cancelada') return
         if (o.payments && Array.isArray(o.payments) && o.payments.length > 0) {
+          const paymentsInThisCash = []
+
           o.payments.forEach((p, idx) => {
             let pTime = 0
             let pDateObj = null
@@ -350,43 +352,53 @@ export default function POSPage({ storeId, user }){
   
             // Filter by time range
             if (pTime >= openTime && pTime <= closeTime) {
+              paymentsInThisCash.push({ ...p, pTime, pDateObj, idx })
+            }
+          })
+
+          if (paymentsInThisCash.length > 0) {
               // Robust detection of OS vs Sale matching visual formatting logic
               const isOS = o.type === 'service_order' || (o.status && o.status.includes('Os Finalizada'))
               const isSale = !isOS
               
-              // Filter O.S. by status (REMOVED: User wants all payments to appear immediately)
-              // const validOsStatus = ['Os Finalizada e Faturada Cliente Final', 'Os Finalizada e Faturada Cliente lojista']
-              // if (isOS && !validOsStatus.includes(o.status)) {
-              //   return // Skip this payment if it's an O.S. but not in the correct status
-              // }
-
-              const amount = Number(p.amount || 0)
-
+              const totalAmt = paymentsInThisCash.reduce((s, p) => s + Number(p.amount||0), 0)
+              const firstP = paymentsInThisCash[0]
+              
+              // Construct methods list for display
+              const displayMethods = paymentsInThisCash.map(p => ({
+                code: p.methodCode,
+                label: p.method || 'Outros',
+                amount: Number(p.amount||0)
+              }))
+              
               list.push({
-                  id: `${o.id}_p${idx}`,
-                  description: formatSaleNumber(o),
-                date: pDateObj,
-                method: p.methodCode,
-                methodLabel: p.method || 'Outros',
-                value: amount,
+                id: `${o.id}_grouped`,
+                description: formatSaleNumber(o),
+                date: firstP.pDateObj,
+                method: firstP.methodCode, 
+                methodLabel: firstP.method || 'Outros',
+                displayMethods, 
+                value: totalAmt,
                 type: 'in',
                 originalOrder: o,
                 seller: o.attendant || o.userName || '—'
               })
-              
-              if(isSale) salesTotal += amount
-              else osTotal += amount
-              
-              totalIn += amount
-              
-              let mLabel = p.method || 'Outros'
-              // Normalize cash label to ensure balance calculation is correct
-              if (p.methodCode === 'cash' || mLabel.toLowerCase() === 'dinheiro') {
-                mLabel = 'Dinheiro'
-              }
-              methods[mLabel] = (methods[mLabel] || 0) + amount
-            }
-          })
+
+              // Update financials
+              paymentsInThisCash.forEach(p => {
+                 const amount = Number(p.amount || 0)
+                 if(isSale) salesTotal += amount
+                 else osTotal += amount
+                 
+                 totalIn += amount
+                 
+                 let mLabel = p.method || 'Outros'
+                 if (p.methodCode === 'cash' || mLabel.toLowerCase() === 'dinheiro') {
+                    mLabel = 'Dinheiro'
+                 }
+                 methods[mLabel] = (methods[mLabel] || 0) + amount
+              })
+          }
         }
       })
   
@@ -565,11 +577,23 @@ export default function POSPage({ storeId, user }){
                            <td className="py-3 px-4 text-gray-500 text-xs">{timeStr(t.date)}</td>
                            <td className="py-3 px-4 text-gray-500 text-xs truncate max-w-[100px]" title={t.seller}>{t.seller}</td>
                            <td className="py-3 px-4 text-center text-gray-500">
-                           {t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro')
-                             ? '💵'
-                             : (t.methodLabel?.toLowerCase().includes('pix')
-                               ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
-                               : '💳')}
+                             {t.displayMethods && t.displayMethods.length > 0 ? (
+                               <div className="flex justify-center gap-1">
+                                 {t.displayMethods.map((dm, idx) => (
+                                   <span key={idx} title={`${dm.label}: ${money(dm.amount)}`}>
+                                     {dm.code === 'cash' || dm.label?.toLowerCase().includes('dinheiro') ? '💵' : (
+                                       dm.label?.toLowerCase().includes('pix') ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" /> : '💳'
+                                     )}
+                                   </span>
+                                 ))}
+                               </div>
+                             ) : (
+                               t.method === 'cash' || t.methodLabel?.toLowerCase().includes('dinheiro')
+                                 ? '💵'
+                                 : (t.methodLabel?.toLowerCase().includes('pix')
+                                   ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                                   : '💳')
+                             )}
                           </td>
                           <td className={`py-3 px-4 text-right font-medium ${t.value < 0 ? 'text-red-600' : 'text-green-600'}`}>{money(t.value)}</td>
                           <td className="py-3 px-4 text-center text-green-500">✔</td>

@@ -766,12 +766,12 @@ Com todos os termos acima, citado.`)
                 setCashTargetOrder(null) 
               }
             } else {
-              if(amt > remainingToPay){
+              if(amt > remaining){
                 setPayAmountOpen(false)
                 setPayAboveConfirmOpen(true)
                 return
               }
-              const newRemaining = Math.max(remainingToPay - amt, 0)
+              const newRemaining = Math.max(remaining - amt, 0)
               const newPayment = { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: amt, date: new Date() }
               const newPaymentsList = [...osPayments, newPayment]
               setOsPayments(newPaymentsList)
@@ -805,13 +805,13 @@ Com todos os termos acima, citado.`)
         <AboveAmountConfirmModal
           open={payAboveConfirmOpen}
           amount={parseFloat(payAmountInput)||0}
-          remaining={remainingToPay}
+          remaining={osLaunchRemaining}
           method={selectedPayMethod}
           onCancel={()=>{ setPayAboveConfirmOpen(false); setPayAmountOpen(true) }}
           onConfirm={()=>{
             const amt = parseFloat(payAmountInput)||0
-            const applied = Math.min(amt, remainingToPay)
-            const newRemaining = Math.max(remainingToPay - applied, 0)
+            const applied = Math.min(amt, osLaunchRemaining)
+            const newRemaining = Math.max(osLaunchRemaining - applied, 0)
             const newPayment = { method: selectedPayMethod?.label, methodCode: selectedPayMethod?.code, amount: applied, date: new Date() }
             const newPaymentsList = [...osPayments, newPayment]
             setOsPayments(newPaymentsList)
@@ -835,7 +835,7 @@ Com todos os termos acima, citado.`)
       {remainingInfoOpen && (
         <PaymentRemainingModal
           open={remainingInfoOpen}
-          remaining={remainingSnapshot}
+          remaining={osLaunchRemaining}
           onClose={()=>setRemainingInfoOpen(false)}
           onAddMore={()=>{ setRemainingInfoOpen(false); setPayMethodsOpen(true) }}
         />
@@ -844,7 +844,7 @@ Com todos os termos acima, citado.`)
         <AfterAboveAdjustedModal
           open={afterAboveAdjustedOpen}
           method={selectedPayMethod}
-          remaining={remainingSnapshot}
+          remaining={osLaunchRemaining}
           onClose={()=>setAfterAboveAdjustedOpen(false)}
         />
       )}
