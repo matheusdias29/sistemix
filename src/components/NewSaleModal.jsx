@@ -54,6 +54,15 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [payError, setPayError] = useState('')
   const [remainingSnapshot, setRemainingSnapshot] = useState(0)
 
+  // Alert Modal State
+  const [alertModalOpen, setAlertModalOpen] = useState(false)
+  const [alertMessage, setAlertMessage] = useState('')
+
+  const showAlert = (msg) => {
+    setAlertMessage(msg)
+    setAlertModalOpen(true)
+  }
+
   // Cashier State
   const [currentCash, setCurrentCash] = useState(null)
   const [loadingCash, setLoadingCash] = useState(true)
@@ -139,6 +148,13 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
   // Cart Actions
   const addToCart = (product) => {
+    // Check stock globally first (matches what is displayed in the card)
+    const currentStock = Number(product.stock || 0)
+    if (currentStock <= 0) {
+      showAlert('Produto com estoque zerado. Não é possível realizar a venda.')
+      return
+    }
+
     // Check for variations
     if (product.variations > 0 && product.variationsData && product.variationsData.length > 0) {
       setTargetProduct(product)
@@ -146,9 +162,13 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       return
     }
 
-    // Check stock? For now just add.
+    // Check stock for existing item
     const existing = cart.find(item => item.product.id === product.id)
     if (existing) {
+      if (existing.quantity >= currentStock) {
+        showAlert('Estoque insuficiente para adicionar mais unidades.')
+        return
+      }
       setCart(cart.map(item => item.product.id === product.id ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price } : item))
     } else {
       const price = product.salePrice || 0
@@ -159,6 +179,13 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const handleVariationSelect = (variation) => {
     setVarSelectOpen(false)
     if (!targetProduct) return
+
+    const currentStock = Number(variation.stock ?? variation.stockInitial ?? 0)
+    if (currentStock <= 0) {
+      showAlert('Variação com estoque zerado. Não é possível realizar a venda.')
+      setTargetProduct(null)
+      return
+    }
 
     const price = Number(variation.promoPrice ?? variation.salePrice ?? 0)
     const variationId = `${targetProduct.id}-${variation.name}`
@@ -175,6 +202,11 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
     const existing = cart.find(item => item.product.id === variationId)
     if (existing) {
+      if (existing.quantity >= currentStock) {
+        showAlert('Estoque insuficiente para adicionar mais unidades.')
+        setTargetProduct(null)
+        return
+      }
       setCart(cart.map(item => item.product.id === variationId ? { ...item, quantity: item.quantity + 1, total: (item.quantity + 1) * item.price } : item))
     } else {
       setCart([...cart, { product: variationProduct, quantity: 1, price, total: price }])
@@ -187,6 +219,28 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   }
 
   const updateQuantity = (index, delta) => {
+    if (delta > 0) {
+      const item = cart[index]
+      const pId = item.product.originalId || item.product.id
+      const realProduct = products.find(p => p.id === pId)
+      
+      if (realProduct) {
+        let maxStock = 0
+        if (item.product.variationRawName) {
+           // Variation
+           const v = realProduct.variationsData?.find(x => x.name === item.product.variationRawName)
+           maxStock = Number(v?.stock ?? v?.stockInitial ?? 0)
+        } else {
+           maxStock = Number(realProduct.stock || 0)
+        }
+        
+        if (item.quantity + delta > maxStock) {
+            showAlert('Estoque insuficiente para adicionar mais unidades.')
+            return 
+        }
+      }
+    }
+
     setCart(cart.map((item, i) => {
       if (i === index) {
         const newQty = Math.max(1, item.quantity + delta)
@@ -1020,6 +1074,26 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           remaining={remainingSnapshot}
           onClose={()=>setAfterAboveAdjustedOpen(false)}
         />
+      )}
+      
+      {alertModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                <span className="text-3xl text-red-500">⚠️</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Atenção</h3>
+              <p className="text-gray-600 mb-6">{alertMessage}</p>
+              <button 
+                onClick={() => setAlertModalOpen(false)}
+                className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded font-medium transition-colors"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
