@@ -166,7 +166,21 @@ export default function ServiceOrdersPage({ storeId, ownerId, addNewSignal, view
   const [problem, setProblem] = useState('')
   const [receiptNotes, setReceiptNotes] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
-  const [warrantyInfo, setWarrantyInfo] = useState('Garantia de produtos e serviços.\n90 dias para defeito de fabricação.\nNão cobre produto quebrado.\nNão cobre riscos na tela\nNão cobre trincos na tela.')
+  const [warrantyInfo, setWarrantyInfo] = useState(`Garantia de produtos e serviços. 
+90 dias para defeito de fabricação. 
+Não cobre produto quebrado . 
+Não cobre riscos na tela 
+Não cobre trincos na tela. 
+Não cobre manchas ,listras trincos internos 
+Ou externos na peça . 
+Não cobre selo ou lacre rompido. 
+Fica ciente que deve Retornar A empresa 
+No prazo estabelecido. 
+Em caso de insatisfação cliente tem 7 dias 
+Para pedir estorno. 
+Visando e focanda na qualidade,todos os produto são testados na loja antes da saída da loja e testado junto ao cliente. 
+Sendo assim cliente ciente e de acordo 
+Com todos os termos acima, citado .`)
   const [saving, setSaving] = useState(false)
   const [unlockType, setUnlockType] = useState(null)
   const [unlockPattern, setUnlockPattern] = useState([])
@@ -292,7 +306,21 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   }, [members])
 
   const resetForm = () => {
-    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo('Garantia de produtos e serviços.\n90 dias para defeito de fabricação.\nNão cobre produto quebrado.\nNão cobre riscos na tela\nNão cobre trincos na tela.')
+    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(`Garantia de produtos e serviços. 
+90 dias para defeito de fabricação. 
+Não cobre produto quebrado . 
+Não cobre riscos na tela 
+Não cobre trincos na tela. 
+Não cobre manchas ,listras trincos internos 
+Ou externos na peça . 
+Não cobre selo ou lacre rompido. 
+Fica ciente que deve Retornar A empresa 
+No prazo estabelecido. 
+Em caso de insatisfação cliente tem 7 dias 
+Para pedir estorno. 
+Visando e focanda na qualidade,todos os produto são testados na loja antes da saída da loja e testado junto ao cliente. 
+Sendo assim cliente ciente e de acordo 
+Com todos os termos acima, citado .`)
     setOsProducts([])
     setOsServices([])
     setOsPayments([])
@@ -335,6 +363,21 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setProblem(o.problem || '')
     setReceiptNotes(o.receiptNotes || '')
     setInternalNotes(o.internalNotes || '')
+    setWarrantyInfo(o.warrantyInfo || `Garantia de produtos e serviços. 
+90 dias para defeito de fabricação. 
+Não cobre produto quebrado . 
+Não cobre riscos na tela 
+Não cobre trincos na tela. 
+Não cobre manchas ,listras trincos internos 
+Ou externos na peça . 
+Não cobre selo ou lacre rompido. 
+Fica ciente que deve Retornar A empresa 
+No prazo estabelecido. 
+Em caso de insatisfação cliente tem 7 dias 
+Para pedir estorno. 
+Visando e focanda na qualidade,todos os produto são testados na loja antes da saída da loja e testado junto ao cliente. 
+Sendo assim cliente ciente e de acordo 
+Com todos os termos acima, citado .`)
     setOsProducts(Array.isArray(o.products) ? o.products : [])
     setOsServices(Array.isArray(o.services) ? o.services : [])
     setOsPayments(Array.isArray(o.payments) ? o.payments : [])
@@ -386,6 +429,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         problem,
         receiptNotes,
         internalNotes,
+        warrantyInfo,
         services: osServices,
         products: osProducts,
         totalServices: totalServicesAgg,

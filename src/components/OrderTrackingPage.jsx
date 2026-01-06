@@ -47,6 +47,18 @@ export default function OrderTrackingPage({ orderId }) {
     return Number(val || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   }
 
+  const storeAddress = [
+    store?.address || store?.endereco,
+    store?.number || store?.numero,
+    store?.complement || store?.complemento,
+    store?.neighborhood || store?.bairro,
+    store?.city || store?.cidade,
+    store?.state || store?.estado,
+    store?.cep
+  ].filter(Boolean).join(', ')
+
+  const storePhone = store?.phone || store?.telefone || store?.whatsapp
+
   return (
     <div className="min-h-screen bg-gray-100 py-8 px-4 font-sans">
       <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-sm overflow-hidden p-8 md:p-12">
@@ -57,13 +69,11 @@ export default function OrderTrackingPage({ orderId }) {
             {store?.logoUrl && (
               <img src={store.logoUrl} alt={store.name} className="h-12 object-contain w-fit mb-2" />
             )}
-            <h1 className="font-bold text-xl text-gray-800">{store?.name || 'Sua Loja'}</h1>
+            <h1 className="font-bold text-xl text-gray-800">{store?.name || store?.fantasyName || store?.razaoSocial || 'Sua Loja'}</h1>
             <div className="text-xs text-gray-500 space-y-0.5">
-              {store?.cnpj && <p>{store.cnpj}</p>}
-              {store?.phone && <p>{store.phone}</p>}
-              <p>
-                {[store?.address, store?.number, store?.neighborhood, store?.city, store?.state].filter(Boolean).join(', ')}
-              </p>
+              {store?.cnpj && <p>CNPJ: {store.cnpj}</p>}
+              {storeAddress && <p>{storeAddress}</p>}
+              {storePhone && <p>Tel: {storePhone}</p>}
             </div>
           </div>
 
@@ -157,13 +167,21 @@ export default function OrderTrackingPage({ orderId }) {
         <div className="mt-8 pt-6 border-t border-gray-100">
            <h3 className="font-bold text-gray-800 mb-2 text-sm">Termo de garantia</h3>
            <p className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed">
-             Garantia de produtos e serviços.
-             90 dias para defeito de fabricação.
-             Não cobre produto quebrado.
-             Não cobre riscos na tela.
-             Não cobre trincos na tela.
-             Não cobre manchas, listras ou trincos internos.
-             Ou externos na peça.
+             {order.warrantyInfo || `Garantia de produtos e serviços. 
+90 dias para defeito de fabricação. 
+Não cobre produto quebrado . 
+Não cobre riscos na tela 
+Não cobre trincos na tela. 
+Não cobre manchas ,listras trincos internos 
+Ou externos na peça . 
+Não cobre selo ou lacre rompido. 
+Fica ciente que deve Retornar A empresa 
+No prazo estabelecido. 
+Em caso de insatisfação cliente tem 7 dias 
+Para pedir estorno. 
+Visando e focanda na qualidade,todos os produto são testados na loja antes da saída da loja e testado junto ao cliente. 
+Sendo assim cliente ciente e de acordo 
+Com todos os termos acima, citado .`}
            </p>
         </div>
 
