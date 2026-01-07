@@ -22,6 +22,7 @@ import CatalogPreviewPage from './components/CatalogPreviewPage'
 import PublicCatalogPage from './components/PublicCatalogPage'
 import OrderTrackingPage from './components/OrderTrackingPage'
 import FiscalNotesPage from './components/FiscalNotesPage'
+import TermsPage from './components/TermsPage'
 import { getStoreBySlug } from './services/stores'
 
 const labels = {
@@ -40,6 +41,7 @@ const labels = {
   taxas: 'Taxas adicionais',
   metas: 'Metas',
   dadosUsuario: 'Dados do usuário',
+  termos: 'Termos e Condições',
 }
 
 // Persistência de sessão e timeout de inatividade (60 min)
@@ -297,6 +299,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} store={store} user={user} openNewSaleSignal={openNewSaleSignal} /></div>
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} user={user} /></div>
+          ) : view === 'termos' ? (
+            <div className="mt-4 md:mt-6"><TermsPage storeId={store?.id} /></div>
           ) : view === 'catalogo' ? (
             <div className="mt-4 md:mt-6"><CatalogPage storeId={store?.id} store={store} onNavigate={onNavigate} /></div>
           ) : view === 'catalogoPreview' ? (

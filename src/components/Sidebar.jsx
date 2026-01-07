@@ -5,6 +5,7 @@ import logoWhite from '../assets/logofundobranco.png'
 
 const items = [
 {key:'inicio',label:'Início', icon: '🏠'},
+{key:'termos',label:'Termos', icon: '📜'},
 {key:'clientes',label:'Clientes', icon: '👥'},
 {key:'produtos',label:'Produtos', icon: '📦'},
 {key:'catalogo',label:'Catálogo', icon: '🛍️'},
