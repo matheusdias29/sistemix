@@ -9,6 +9,7 @@ import { listenFees } from '../services/stores'
 import SelectClientModal from './SelectClientModal'
 import NewClientModal from './NewClientModal'
 import SelectVariationModal from './SelectVariationModal'
+import EditCartItemModal from './EditCartItemModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 
 export default function NewSaleModal({ open, onClose, storeId, user, isEdit = false, sale = null }) {
@@ -31,6 +32,8 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [newClientOpen, setNewClientOpen] = useState(false)
   const [varSelectOpen, setVarSelectOpen] = useState(false)
   const [targetProduct, setTargetProduct] = useState(null)
+  const [editItemModalOpen, setEditItemModalOpen] = useState(false)
+  const [editingItemIndex, setEditingItemIndex] = useState(null)
   const [saving, setSaving] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
   const [notesText, setNotesText] = useState('')
@@ -236,7 +239,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         }
         
         if (item.quantity + delta > maxStock) {
-            showAlert('Estoque insuficiente para adicionar mais unidades.')
+            alert('Estoque insuficiente para adicionar mais unidades.')
             return 
         }
       }
@@ -249,6 +252,57 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       }
       return item
     }))
+  }
+
+  const handleUpdateCartItem = (quantity, price, discountPercent = 0, discountValue = 0) => {
+    if (editingItemIndex === null) return
+
+    // Validate stock if increasing quantity
+    const index = editingItemIndex
+    const item = cart[index]
+    const delta = quantity - item.quantity
+
+    if (delta > 0) {
+      const pId = item.product.originalId || item.product.id
+      const realProduct = products.find(p => p.id === pId)
+      
+      if (realProduct) {
+        let maxStock = 0
+        if (item.product.variationRawName) {
+           // Variation
+           const v = realProduct.variationsData?.find(x => x.name === item.product.variationRawName)
+           maxStock = Number(v?.stock ?? v?.stockInitial ?? 0)
+        } else {
+           maxStock = Number(realProduct.stock || 0)
+        }
+        
+        if (quantity > maxStock) {
+            alert('Estoque insuficiente para essa quantidade.')
+            return 
+        }
+      }
+    }
+
+    setCart(cart.map((item, i) => {
+      if (i === index) {
+        return { 
+            ...item, 
+            quantity, 
+            price, 
+            discountPercent, 
+            discountValue,
+            total: (price - discountValue) * quantity 
+        }
+      }
+      return item
+    }))
+    setEditItemModalOpen(false)
+    setEditingItemIndex(null)
+  }
+
+  const handleEditItemClick = (index) => {
+    setEditingItemIndex(index)
+    setEditItemModalOpen(true)
   }
 
   // Totals
@@ -621,16 +675,16 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {cart.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-start group border-b pb-3 last:border-0">
-                <div className="flex-1">
+              <div key={idx} className="flex justify-between items-start group border-b pb-3 last:border-0 hover:bg-gray-50 transition-colors rounded p-1">
+                <div className="flex-1 cursor-pointer" onClick={() => handleEditItemClick(idx)}>
                   <div className="text-sm text-gray-800 font-medium">{item.product.name}</div>
                   <div className="text-xs text-gray-500 mt-1">{money(item.price)} un.</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <div className="font-bold text-gray-800 text-sm">{money(item.total)}</div>
+                  <div className="font-bold text-gray-800 text-sm cursor-pointer" onClick={() => handleEditItemClick(idx)}>{money(item.total)}</div>
                   <div className="flex items-center border rounded bg-white">
                     <button onClick={() => updateQuantity(idx, -1)} className="px-2 py-0.5 text-gray-600 hover:bg-gray-100 text-sm">-</button>
-                    <span className="px-2 text-xs font-medium w-8 text-center">{item.quantity}</span>
+                    <span className="px-2 text-xs font-medium w-8 text-center cursor-pointer" onClick={() => handleEditItemClick(idx)}>{item.quantity}</span>
                     <button onClick={() => updateQuantity(idx, 1)} className="px-2 py-0.5 text-gray-600 hover:bg-gray-100 text-sm">+</button>
                   </div>
                 </div>
@@ -1110,6 +1164,20 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           }}
         />
       )}
+
+      <EditCartItemModal
+        open={editItemModalOpen}
+        onClose={() => { setEditItemModalOpen(false); setEditingItemIndex(null) }}
+        item={editingItemIndex !== null ? cart[editingItemIndex] : null}
+        onSave={handleUpdateCartItem}
+        onRemove={() => {
+            if(editingItemIndex !== null) {
+                removeFromCart(editingItemIndex)
+                setEditItemModalOpen(false)
+                setEditingItemIndex(null)
+            }
+        }}
+      />
     </div>
   )
 }
