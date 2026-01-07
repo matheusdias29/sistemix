@@ -5,6 +5,26 @@ import SaleDetailModal from './SaleDetailModal'
 import CloseCashModal from './CloseCashModal'
 import pixIcon from '../assets/pix.svg'
 
+const parseCurrency = (val) => {
+  if (!val) return 0
+  let v = val.toString().trim()
+  // Se tem vírgula e ponto (ex: 1.250,50 ou 1,250.50)
+  if (v.includes('.') && v.includes(',')) {
+    // Se o ponto vier antes da vírgula (formato BR: 1.250,50)
+    if (v.indexOf('.') < v.indexOf(',')) {
+      v = v.replace(/\./g, '') // remove pontos de milhar
+      v = v.replace(',', '.')  // troca virgula decimal por ponto
+    } else {
+      // Formato US (1,250.50)
+      v = v.replace(/,/g, '') // remove virgulas de milhar
+    }
+  } else {
+    // Se só tem vírgula (ex: 12,50), troca por ponto
+    v = v.replace(',', '.')
+  }
+  return parseFloat(v)
+}
+
 export default function POSPage({ storeId, user }){
   const [currentCash, setCurrentCash] = useState(null) // null = loading or not exists
   const [orders, setOrders] = useState([])
@@ -84,7 +104,7 @@ export default function POSPage({ storeId, user }){
     if (!initialValue) return
     
     // Validate positive
-    const val = parseFloat(initialValue.replace(',','.'))
+    const val = parseCurrency(initialValue)
     if (isNaN(val) || val < 0) {
       alert('Valor inválido')
       return
@@ -158,7 +178,7 @@ export default function POSPage({ storeId, user }){
       
       // Process each method with a value > 0
       for (const [method, valStr] of Object.entries(withdrawalValues)) {
-        const val = parseFloat(valStr.replace(',','.'))
+        const val = parseCurrency(valStr)
         if (!isNaN(val) && val > 0) {
            await addCashTransaction(currentCash.id, {
             description: 'Retirada de caixa',
@@ -222,7 +242,7 @@ export default function POSPage({ storeId, user }){
     e.preventDefault()
     if (!currentCash) return
     
-    const val = parseFloat(transValue.replace(',','.'))
+    const val = parseCurrency(transValue)
     if (isNaN(val) || val <= 0) {
       alert('Valor inválido')
       return
@@ -829,13 +849,12 @@ export default function POSPage({ storeId, user }){
                     <div className="bg-gray-100 rounded-lg p-4 flex flex-col items-end">
                       <label className="text-xs text-gray-500 font-medium mb-1">Valor em dinheiro</label>
                       <input 
-                        type="number"
-                        step="0.01"
-                        min="0.01"
+                        type="text"
+                        inputMode="decimal"
                         required
                         autoFocus
                         value={transValue}
-                        onChange={e => setTransValue(e.target.value)}
+                        onChange={e => setTransValue(e.target.value.replace(/[^0-9.,]/g, ''))}
                         className="w-full bg-transparent border-none p-0 text-right text-3xl font-bold text-gray-800 focus:ring-0 placeholder-gray-400 outline-none"
                         placeholder="0,00"
                       />
