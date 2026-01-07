@@ -175,3 +175,30 @@ export async function removeCashTransactionsByOrder(cashId, orderId) {
   const filtered = list.filter(t => !(t?.originalOrder?.id === orderId))
   await updateDoc(ref, { transactions: filtered })
 }
+
+export async function updateCashTransaction(cashId, transactionId, updates) {
+  if (!cashId || !transactionId) return
+  const ref = doc(db, 'cash_registers', cashId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const data = snap.data()
+  const list = Array.isArray(data.transactions) ? data.transactions : []
+  const newList = list.map(t => {
+    if (t.id === transactionId) {
+      return { ...t, ...updates }
+    }
+    return t
+  })
+  await updateDoc(ref, { transactions: newList })
+}
+
+export async function removeCashTransaction(cashId, transactionId) {
+  if (!cashId || !transactionId) return
+  const ref = doc(db, 'cash_registers', cashId)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return
+  const data = snap.data()
+  const list = Array.isArray(data.transactions) ? data.transactions : []
+  const newList = list.filter(t => t.id !== transactionId)
+  await updateDoc(ref, { transactions: newList })
+}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction } from '../services/cash'
+import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction, updateCashTransaction, removeCashTransaction } from '../services/cash'
 import { listenOrders } from '../services/orders'
 import SaleDetailModal from './SaleDetailModal'
 import CloseCashModal from './CloseCashModal'
@@ -35,6 +35,7 @@ export default function POSPage({ storeId, user }){
   const [transDescription, setTransDescription] = useState('')
   const [transValue, setTransValue] = useState('')
   const [transSaving, setTransSaving] = useState(false)
+  const [editingId, setEditingId] = useState(null)
 
   // Click outside to close menu
   useEffect(() => {
@@ -194,6 +195,29 @@ export default function POSPage({ storeId, user }){
     }
   }
 
+  const handleDeleteTransaction = async () => {
+    if (!selectedTransaction || !currentCash) return
+    if (!window.confirm('Tem certeza que deseja cancelar esta movimentação?')) return
+    try {
+      await removeCashTransaction(currentCash.id, selectedTransaction.id)
+      setSelectedTransaction(null)
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao cancelar movimentação')
+    }
+  }
+
+  const handleEditTransaction = () => {
+    if (!selectedTransaction) return
+    const t = selectedTransaction
+    setEditingId(t.id)
+    setTransactionType(t.type || (t.value > 0 ? 'add' : 'expense'))
+    setTransValue(String(Math.abs(t.value)).replace('.',','))
+    setTransDescription(t.notes || '')
+    setSelectedTransaction(null)
+    setTransactionModalOpen(true)
+  }
+
   const handleSaveTransaction = async (e) => {
     e.preventDefault()
     if (!currentCash) return
@@ -218,21 +242,31 @@ export default function POSPage({ storeId, user }){
       const isNegative = transactionType !== 'add'
       const finalValue = isNegative ? -val : val
 
-      await addCashTransaction(currentCash.id, {
-        description: title,
-        notes: userNotes,
-        value: finalValue,
-        type: transactionType, // add, remove, expense
-        method: 'cash', // Movimentação de caixa físico
-        methodCode: 'cash',
-        date: new Date(),
-        userId: user?.id,
-        userName: user?.name
-      })
+      if (editingId) {
+        await updateCashTransaction(currentCash.id, editingId, {
+          description: title,
+          notes: userNotes,
+          value: finalValue,
+          type: transactionType
+        })
+      } else {
+        await addCashTransaction(currentCash.id, {
+          description: title,
+          notes: userNotes,
+          value: finalValue,
+          type: transactionType, // add, remove, expense
+          method: 'cash', // Movimentação de caixa físico
+          methodCode: 'cash',
+          date: new Date(),
+          userId: user?.id,
+          userName: user?.name
+        })
+      }
 
       setTransactionModalOpen(false)
       setTransDescription('')
       setTransValue('')
+      setEditingId(null)
     } catch (err) {
       console.error(err)
       alert('Erro ao salvar movimentação')
@@ -787,7 +821,7 @@ export default function POSPage({ storeId, user }){
                   <h3 className="text-lg font-bold text-gray-800">
                     {transactionType === 'add' ? 'Adicionar dinheiro' : (transactionType === 'expense' ? 'Pagar despesas' : 'Remover valores')}
                   </h3>
-                  <button onClick={() => setTransactionModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                  <button onClick={() => { setTransactionModalOpen(false); setEditingId(null) }} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
                 </div>
                 
                 <form onSubmit={handleSaveTransaction} className="p-6">
@@ -821,7 +855,7 @@ export default function POSPage({ storeId, user }){
                   <div className="mt-8 flex gap-3 justify-end">
                     <button 
                       type="button"
-                      onClick={() => setTransactionModalOpen(false)}
+                      onClick={() => { setTransactionModalOpen(false); setEditingId(null) }}
                       className="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded text-sm font-medium transition-colors"
                     >
                       ✕ Cancelar
@@ -874,7 +908,13 @@ export default function POSPage({ storeId, user }){
                       </svg>
                       Recibo
                     </button>
-                    <button className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-500 rounded hover:bg-gray-50 text-sm font-medium transition-colors">
+                    <button onClick={handleEditTransaction} className="flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-600 rounded hover:bg-blue-50 text-sm font-medium transition-colors">
+                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                      Editar
+                    </button>
+                    <button onClick={handleDeleteTransaction} className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 rounded hover:bg-red-50 text-sm font-medium transition-colors">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
