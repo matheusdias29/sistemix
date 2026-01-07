@@ -162,6 +162,8 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [brand, setBrand] = useState('')
   const [model, setModel] = useState('')
   const [serialNumber, setSerialNumber] = useState('')
+  const [imei1, setImei1] = useState('')
+  const [imei2, setImei2] = useState('')
   const [equipment, setEquipment] = useState('')
   const [problem, setProblem] = useState('')
   const [receiptNotes, setReceiptNotes] = useState('')
@@ -310,7 +312,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   }, [members])
 
   const resetForm = () => {
-    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(`Garantia de produtos e serviços. 
+    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(`Garantia de produtos e serviços. 
 90 dias para defeito de fabricação. 
 Não cobre aparelho ou produto com sinais de humidade. 
 Não cobre produto quebrado . 
@@ -1199,6 +1201,14 @@ Com todos os termos acima, citado.`)
                   <div>
                     <label className="text-xs text-gray-600">Número de série</label>
                     <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">IMEI 1</label>
+                    <input value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">IMEI 2</label>
+                    <input value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
