@@ -23,6 +23,7 @@ import PublicCatalogPage from './components/PublicCatalogPage'
 import OrderTrackingPage from './components/OrderTrackingPage'
 import FiscalNotesPage from './components/FiscalNotesPage'
 import TermsPage from './components/TermsPage'
+import Calculator from './components/Calculator'
 import { getStoreBySlug } from './services/stores'
 
 const labels = {
@@ -336,6 +337,7 @@ export default function App(){
           )}
         </div>
       </div>
+      <Calculator />
     </div>
   )
 }
