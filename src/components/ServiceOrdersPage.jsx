@@ -32,6 +32,16 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [filterClientSelectOpen, setFilterClientSelectOpen] = useState(false)
   const [filterTechSelectOpen, setFilterTechSelectOpen] = useState(false)
   const [filterAttendantSelectOpen, setFilterAttendantSelectOpen] = useState(false)
+
+  // Alert Modal State
+  const [alertModalOpen, setAlertModalOpen] = useState(false)
+  const [alertMessage, setAlertMessage] = useState('')
+
+  const showAlert = (msg) => {
+    setAlertMessage(msg)
+    setAlertModalOpen(true)
+  }
+
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date()
     return {
@@ -689,6 +699,12 @@ Com todos os termos acima, citado.`)
                 }
               }
 
+              if (editingOrderId === statusTargetOrder.id) {
+                setStatus(v.status)
+                if(v.dateIn) setDateIn(v.dateIn)
+                if(v.internalNotes) setInternalNotes(v.internalNotes)
+                if(v.receiptNotes) setReceiptNotes(v.receiptNotes)
+              }
               updateOrder(statusTargetOrder.id, {
                 status: v.status,
                 dateIn: v.dateIn ? new Date(v.dateIn) : (statusTargetOrder.dateIn || null),
@@ -1119,7 +1135,14 @@ Com todos os termos acima, citado.`)
                           }}
                         >Compartilhar</button>
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>window.print()}>Imprimir</button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) }}>Alterar Status</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ 
+                          if (o.status && o.status.toLowerCase().includes('faturada')) {
+                            showAlert('Não é possível mudar o status de uma O.S. já faturada. Realize o cancelamento do movimento para alterar o status novamente.')
+                            setRowMenuOpenId(null)
+                            return
+                          }
+                          setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) 
+                        }}>Alterar Status</button>
                         {o.cashLaunched ? (
                           <button
                             className="w-full text-left px-3 py-2 hover:bg-gray-50"
@@ -1156,9 +1179,38 @@ Com todos os termos acima, citado.`)
         // Formulário Nova OS
         <div className="mt-2">
           <div className="flex items-center justify-between mb-3">
-            <button onClick={()=>setView('list')} className="px-3 py-2 border rounded text-sm">← Voltar</button>
+            <div className="flex items-center gap-3">
+              <button onClick={()=>setView('list')} className="px-3 py-2 border rounded text-sm">← Voltar</button>
+            </div>
             <div className="flex items-center gap-2">
-              <button className="px-3 py-2 border rounded text-sm">Opções</button>
+              <button 
+                type="button" 
+                onClick={()=>{ 
+                  if (status && status.toLowerCase().includes('faturada')) {
+                    showAlert('Não é possível mudar o status de uma O.S. já faturada. Realize o cancelamento do movimento para alterar o status novamente.')
+                    return
+                  }
+                  const t = editingOrderId ? orders.find(o => o.id === editingOrderId) : null
+                  setStatusTargetOrder(t || null)
+                  setStatusModalOpen(true)
+                }} 
+                className="px-3 py-2 border rounded text-sm hover:bg-gray-50"
+              >
+                Alterar Status
+              </button>
+              {(() => {
+                const s = String(status||'').trim()
+                const l = s.toLowerCase()
+                let cls = 'bg-gray-200 text-gray-700'
+                
+                if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700'
+                else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700'
+                else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
+                else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
+                else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
+                
+                return <span className={`px-3 py-2 rounded text-sm font-medium ${cls}`}>{s || 'Iniciado'}</span>
+              })()}
               <button className="px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
             </div>
           </div>
@@ -1347,11 +1399,7 @@ Com todos os termos acima, citado.`)
                   <div className="text-sm text-gray-600">Informações de garantia</div>
                   <textarea rows={6} value={warrantyInfo} onChange={e=>setWarrantyInfo(e.target.value)} className="mt-2 w-full border rounded px-3 py-2 text-sm" />
                 </div>
-                <div className="mt-4">
-                  <div className="text-sm text-gray-700">Status atual: <span className="inline-block px-2 py-1 rounded bg-gray-100 border text-gray-800">{status}</span></div>
-                </div>
                 <div className="mt-6 flex items-center justify-end gap-3">
-                  <button type="button" onClick={()=>{ setRowMenuOpenId(null); setStatusModalOpen(true) }} className="px-3 py-2 border rounded text-sm">Alterar Status</button>
                   <button type="button" className="px-3 py-2 border rounded text-sm">Salvar e Imprimir</button>
                   <button disabled={saving} type="button" onClick={handleSave} className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Salvar</button>
                 </div>
@@ -1378,6 +1426,19 @@ Com todos os termos acima, citado.`)
               setPrice={setPriceInput}
               onConfirm={()=>{
                 if(!selectedProduct) return;
+
+                let maxStock = 0
+                if (selectedVariation) {
+                   maxStock = Number(selectedVariation.stock ?? selectedVariation.stockInitial ?? 0)
+                } else {
+                   maxStock = Number(selectedProduct.stock || 0)
+                }
+                const q = parseFloat(qtyInput)||1
+                if (q > maxStock) {
+                   showAlert('Estoque insuficiente para adicionar essa quantidade.')
+                   return
+                }
+
                 const item = {
                   productId: selectedProduct.id,
                   name: selectedProduct.name,
@@ -1403,6 +1464,11 @@ Com todos os termos acima, citado.`)
                 if(p.variations > 0 && p.variationsData && p.variationsData.length > 0){
                   setVarSelectOpen(true)
                 } else {
+                  const currentStock = Number(p.stock || 0)
+                  if (currentStock <= 0) {
+                    showAlert('Produto com estoque zerado. Não é possível adicionar.')
+                    return
+                  }
                   setAddProdOpen(true)
                 }
               }}
@@ -1415,6 +1481,11 @@ Com todos os termos acima, citado.`)
               onClose={()=>setVarSelectOpen(false)}
               product={selectedProduct}
               onChoose={(variation)=>{
+                const currentStock = Number(variation.stock ?? variation.stockInitial ?? 0)
+                if (currentStock <= 0) {
+                  showAlert('Variação com estoque zerado. Não é possível adicionar.')
+                  return
+                }
                 setSelectedVariation(variation)
                 setVarSelectOpen(false)
                 setAddProdOpen(true)
@@ -1571,6 +1642,25 @@ Com todos os termos acima, citado.`)
           })
         }}
       />
+      {alertModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+                <span className="text-3xl text-red-500">⚠️</span>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Atenção</h3>
+              <p className="text-gray-600 mb-6">{alertMessage}</p>
+              <button 
+                onClick={() => setAlertModalOpen(false)}
+                className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded font-medium transition-colors"
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <ShareOrderModal
         open={shareModalOpen}
         onClose={()=>setShareModalOpen(false)}
