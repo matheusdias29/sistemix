@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import FinancialCategoriesTab from './FinancialCategoriesTab'
 import NewAccountPayableModal from './NewAccountPayableModal'
+import SalesDateFilterModal from './SalesDateFilterModal'
+import AccountsPayableFilterModal from './AccountsPayableFilterModal'
 import { listenAccountsPayable, addAccountPayable, updateAccountPayable, removeAccountPayable } from '../services/accountsPayable'
 
 const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -22,6 +24,17 @@ export default function AccountsPayablePage({ storeId }) {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('pending') // 'pending' (A Pagar), 'paid' (Pago), 'cancelled' (Cancelado)
   
+  // Date Filter
+  const [dateFilterLabel, setDateFilterLabel] = useState('Todos')
+  const [dateFilterStart, setDateFilterStart] = useState(null)
+  const [dateFilterEnd, setDateFilterEnd] = useState(null)
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false)
+
+  // Advanced Filters
+  const [filterSupplierId, setFilterSupplierId] = useState('')
+  const [filterCategoryId, setFilterCategoryId] = useState('')
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -44,6 +57,26 @@ export default function AccountsPayablePage({ storeId }) {
       if (statusFilter === 'paid' && acc.status !== 'paid') return false
       if (statusFilter === 'cancelled' && acc.status !== 'cancelled') return false
       
+      // Filtro de data
+      if (dateFilterStart && dateFilterEnd) {
+        if (!acc.dueDate) return false
+        let d = null
+        if (typeof acc.dueDate === 'string') {
+           // YYYY-MM-DD
+           d = new Date(acc.dueDate + 'T12:00:00') 
+        } else if (acc.dueDate?.toDate) {
+           d = acc.dueDate.toDate()
+        }
+        
+        if (!d) return false
+        // Zera horas para comparação segura se necessário, mas o filtro já manda 00:00 e 23:59
+        if (d < dateFilterStart || d > dateFilterEnd) return false
+      }
+
+      // Filtro Avançado (Fornecedor e Categoria)
+      if (filterSupplierId && acc.supplierId !== filterSupplierId) return false
+      if (filterCategoryId && acc.categoryId !== filterCategoryId) return false
+
       // Busca
       const s = search.toLowerCase()
       const match = (
@@ -53,7 +86,7 @@ export default function AccountsPayablePage({ storeId }) {
       )
       return match
     })
-  }, [accounts, search, statusFilter])
+  }, [accounts, search, statusFilter, dateFilterStart, dateFilterEnd, filterSupplierId, filterCategoryId])
 
   const totalValue = useMemo(() => {
     return filtered.reduce((acc, curr) => acc + (curr.remainingValue || 0), 0)
@@ -228,11 +261,25 @@ export default function AccountsPayablePage({ storeId }) {
 
                 {/* Filtros Botões */}
                 <div className="flex gap-2">
-                   <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2">
-                     📄 Filtrar Vencimento
+                   <button 
+                     onClick={() => setIsDateFilterOpen(true)}
+                     className={`px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 ${
+                       dateFilterLabel !== 'Todos' 
+                         ? 'bg-green-50 text-green-700 border-green-200' 
+                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                     }`}
+                   >
+                     📄 {dateFilterLabel !== 'Todos' ? dateFilterLabel : 'Filtrar Vencimento'}
                    </button>
-                   <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2">
-                     ⚙ Filtros
+                   <button 
+                     onClick={() => setIsFilterModalOpen(true)}
+                     className={`px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 ${
+                       (filterSupplierId || filterCategoryId)
+                         ? 'bg-green-50 text-green-700 border-green-200' 
+                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                     }`}
+                   >
+                     ⚙ Filtros {(filterSupplierId || filterCategoryId) ? '(Ativo)' : ''}
                    </button>
                    <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm">
                      ⇅
@@ -394,6 +441,29 @@ export default function AccountsPayablePage({ storeId }) {
           <FinancialCategoriesTab storeId={storeId} />
         )}
       </div>
+
+      <SalesDateFilterModal
+        open={isDateFilterOpen}
+        onClose={() => setIsDateFilterOpen(false)}
+        currentLabel={dateFilterLabel}
+        onApply={({ label, start, end }) => {
+          setDateFilterLabel(label)
+          setDateFilterStart(start)
+          setDateFilterEnd(end)
+        }}
+      />
+
+      <AccountsPayableFilterModal
+        open={isFilterModalOpen}
+        onClose={() => setIsFilterModalOpen(false)}
+        storeId={storeId}
+        initialSupplierId={filterSupplierId}
+        initialCategoryId={filterCategoryId}
+        onApply={({ supplierId, categoryId }) => {
+          setFilterSupplierId(supplierId)
+          setFilterCategoryId(categoryId)
+        }}
+      />
 
       {isModalOpen && (
         <NewAccountPayableModal
