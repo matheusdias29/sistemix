@@ -14,11 +14,118 @@ import { listenSubUsers } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
+import { listenStore } from '../services/stores'
 import { listenServices, addService, updateService } from '../services/services'
 import ChooseFinalStatusModal from './ChooseFinalStatusModal'
 import ShareOrderModal from './ShareOrderModal'
+import ServiceOrderSettingsModal from './ServiceOrderSettingsModal'
+import SelectChecklistModal from './SelectChecklistModal'
+import ChecklistQuestionsModal from './ChecklistQuestionsModal'
+
+const hexToRgba = (hex, alpha = 1) => {
+  let c;
+  if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
+    c= hex.substring(1).split('');
+    if(c.length== 3){
+      c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+    }
+    c= '0x'+c.join('');
+    return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
+  }
+  return hex;
+}
+
+const darkenColor = (hex, percent) => {
+  let r = 0, g = 0, b = 0;
+  if (!hex) return '#000000';
+  if (hex.length === 4) {
+    r = parseInt("0x" + hex[1] + hex[1]);
+    g = parseInt("0x" + hex[2] + hex[2]);
+    b = parseInt("0x" + hex[3] + hex[3]);
+  } else if (hex.length === 7) {
+    r = parseInt("0x" + hex[1] + hex[2]);
+    g = parseInt("0x" + hex[3] + hex[4]);
+    b = parseInt("0x" + hex[5] + hex[6]);
+  } else {
+    return hex;
+  }
+  r = Math.floor(r * (100 - percent) / 100);
+  g = Math.floor(g * (100 - percent) / 100);
+  b = Math.floor(b * (100 - percent) / 100);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
+const DEFAULT_WARRANTY = `Garantia de produtos e serviços. 
+90 dias para defeito de fabricação. 
+Não cobre aparelho ou produto com sinais de humidade. 
+Não cobre produto quebrado . 
+Não cobre riscos na tela. 
+Não cobre trincos na tela. 
+Não cobre manchas ,listras trincos internos 
+Ou externos na peça . 
+Não cobre selo ou lacre rompido. 
+Fica ciente que cliente em caso de defetio 
+deve Retornar A empresa,No prazo estabelecido. 
+Em caso de insatisfação cliente tem 7 dias 
+Para pedir estorno... E a empresa não tem responsabilidade 
+de colocar a peça velha no lugar, pois sao descartadas diariamente. 
+Visando e focanda na qualidade! 
+todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
+Sendo assim cliente ciente e de acordo 
+Com todos os termos acima, citado.`
+
+const DEFAULT_STATUSES = [
+  'Iniciado',
+  'Finalizado',
+  'Os Faturada Cliente Final',
+  'Cancelado',
+  'Serviço Aprovado Em Procedimento Com Tecnico',
+  'Os Faturada Cliente lojista',
+  'Serviço Realizado Pronto Na Gaveta',
+  'Serviço Não Aprovado P/cliente Devoluçao Na Gaveta',
+  'Garantia De Peça E Serviço Cliente lojista',
+  'Devolução Cliente Lojista Já Na Gaveta',
+  'Peça Para Troca E Devolução Ao Fornecedor',
+  'Serviço Aguardando Peça Na Gaveta',
+  'Devolução Cliente Final Já Na Gaveta',
+  'Garantia De Peça E Serviço Cliente Final',
+  'Serviço Não Realizado Devolução Na Gaveta',
+  'Serviço Em Orçamento Com Tecnico',
+  'Os Já Devolvida Ao Lojista - Sem Conserto',
+  'Os Já Devolvido Ao Cliente Final - Sem Conserto',
+  'Devolução Já Entregue Ao Cliente',
+  'APARELHO LIBERADO AGUARDANDO PAGAMENTO'
+]
 
 export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNewSignal, viewParams, setViewParams }){
+  const [currentStore, setCurrentStore] = useState(store)
+  const activeStore = currentStore || store
+
+  const availableStatuses = useMemo(() => {
+    if (activeStore?.serviceOrderSettings?.statuses?.length > 0) {
+      return activeStore.serviceOrderSettings.statuses
+        .filter(s => s.active !== false)
+        .map(s => s.name)
+    }
+    return DEFAULT_STATUSES
+  }, [activeStore])
+
+  const statusColorMap = useMemo(() => {
+    const map = {}
+    if (activeStore?.serviceOrderSettings?.statuses?.length > 0) {
+      activeStore.serviceOrderSettings.statuses.forEach(st => {
+        if (st.color) map[st.name] = st.color
+      })
+    }
+    return map
+  }, [activeStore])
+
+  useEffect(() => {
+    if(storeId) {
+      return listenStore(storeId, (s) => setCurrentStore(s))
+    }
+  }, [storeId])
+
   const [view, setView] = useState('list') // 'list' | 'new' | 'edit'
   const [listTab, setListTab] = useState('os') // 'os' | 'services'
   const [query, setQuery] = useState('')
@@ -35,6 +142,8 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
 
   // Alert Modal State
   const [alertModalOpen, setAlertModalOpen] = useState(false)
+  const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [alertMessage, setAlertMessage] = useState('')
 
   const showAlert = (msg) => {
@@ -178,30 +287,17 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [problem, setProblem] = useState('')
   const [receiptNotes, setReceiptNotes] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
-  const [warrantyInfo, setWarrantyInfo] = useState(`Garantia de produtos e serviços. 
-90 dias para defeito de fabricação. 
-Não cobre aparelho ou produto com sinais de humidade. 
-Não cobre produto quebrado . 
-Não cobre riscos na tela. 
-Não cobre trincos na tela. 
-Não cobre manchas ,listras trincos internos 
-Ou externos na peça . 
-Não cobre selo ou lacre rompido. 
-Fica ciente que cliente em caso de defetio 
-deve Retornar A empresa,No prazo estabelecido. 
-Em caso de insatisfação cliente tem 7 dias 
-Para pedir estorno... E a empresa não tem responsabilidade 
-de colocar a peça velha no lugar, pois sao descartadas diariamente. 
-Visando e focanda na qualidade! 
-todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
-Sendo assim cliente ciente e de acordo 
-Com todos os termos acima, citado.`)
+  const [warrantyInfo, setWarrantyInfo] = useState(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
   const [saving, setSaving] = useState(false)
   const [unlockType, setUnlockType] = useState(null)
   const [unlockPattern, setUnlockPattern] = useState([])
   const [unlockPin, setUnlockPin] = useState('')
   const [unlockPassword, setUnlockPassword] = useState('')
   const [paymentInfo, setPaymentInfo] = useState('')
+  const [checklistSelectOpen, setChecklistSelectOpen] = useState(false)
+  const [selectedChecklist, setSelectedChecklist] = useState(null)
+  const [checklistQuestionsOpen, setChecklistQuestionsOpen] = useState(false)
+  const [checklistAnswers, setChecklistAnswers] = useState({})
   const [unlockTypeOpen, setUnlockTypeOpen] = useState(false)
   const [patternModalOpen, setPatternModalOpen] = useState(false)
   const [textUnlockOpen, setTextUnlockOpen] = useState(false)
@@ -322,24 +418,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   }, [members])
 
   const resetForm = () => {
-    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(`Garantia de produtos e serviços. 
-90 dias para defeito de fabricação. 
-Não cobre aparelho ou produto com sinais de humidade. 
-Não cobre produto quebrado . 
-Não cobre riscos na tela. 
-Não cobre trincos na tela. 
-Não cobre manchas ,listras trincos internos 
-Ou externos na peça . 
-Não cobre selo ou lacre rompido. 
-Fica ciente que cliente em caso de defetio 
-deve Retornar A empresa,No prazo estabelecido. 
-Em caso de insatisfação cliente tem 7 dias 
-Para pedir estorno... E a empresa não tem responsabilidade 
-de colocar a peça velha no lugar, pois sao descartadas diariamente. 
-Visando e focanda na qualidade! 
-todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
-Sendo assim cliente ciente e de acordo 
-Com todos os termos acima, citado.`)
+    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts([])
     setOsServices([])
     setOsPayments([])
@@ -348,6 +427,7 @@ Com todos os termos acima, citado.`)
     setEditingOrderNumber('')
     setStatus('Iniciado')
     setUnlockType(null); setUnlockPattern([]); setUnlockPin(''); setUnlockPassword('')
+    setSelectedChecklist(null); setChecklistAnswers({})
   }
 
   useEffect(() => {
@@ -383,24 +463,7 @@ Com todos os termos acima, citado.`)
     setProblem(o.problem || '')
     setReceiptNotes(o.receiptNotes || '')
     setInternalNotes(o.internalNotes || '')
-    setWarrantyInfo(o.warrantyInfo || `Garantia de produtos e serviços. 
-90 dias para defeito de fabricação. 
-Não cobre aparelho ou produto com sinais de humidade. 
-Não cobre produto quebrado . 
-Não cobre riscos na tela. 
-Não cobre trincos na tela. 
-Não cobre manchas ,listras trincos internos 
-Ou externos na peça . 
-Não cobre selo ou lacre rompido. 
-Fica ciente que cliente em caso de defetio 
-deve Retornar A empresa,No prazo estabelecido. 
-Em caso de insatisfação cliente tem 7 dias 
-Para pedir estorno... E a empresa não tem responsabilidade 
-de colocar a peça velha no lugar, pois sao descartadas diariamente. 
-Visando e focanda na qualidade! 
-todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
-Sendo assim cliente ciente e de acordo 
-Com todos os termos acima, citado.`)
+    setWarrantyInfo(o.warrantyInfo || activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts(Array.isArray(o.products) ? o.products : [])
     setOsServices(Array.isArray(o.services) ? o.services : [])
     setOsPayments(Array.isArray(o.payments) ? o.payments : [])
@@ -416,6 +479,16 @@ Com todos os termos acima, citado.`)
       setUnlockPassword(pw.type==='password' ? (pw.value||'') : '')
     } else {
       setUnlockType(null); setUnlockPattern([]); setUnlockPin(''); setUnlockPassword('')
+    }
+    if (o.checklist) {
+      setSelectedChecklist({ id: o.checklist.id, name: o.checklist.name, questions: o.checklist.questions || [] })
+      const answers = {}
+      ;(o.checklist.questions || []).forEach(q => {
+        if (q.checked) answers[q.id] = true
+      })
+      setChecklistAnswers(answers)
+    } else {
+      setSelectedChecklist(null); setChecklistAnswers({})
     }
     setView('edit')
   }
@@ -470,7 +543,15 @@ Com todos os termos acima, citado.`)
           : unlockType === 'password'
           ? { type: 'password', value: unlockPassword }
           : '',
-        checklist: [],
+        checklist: selectedChecklist ? {
+          id: selectedChecklist.id,
+          name: selectedChecklist.name,
+          questions: (selectedChecklist.questions||[]).map(q => ({
+            id: q.id,
+            text: q.text,
+            checked: !!checklistAnswers[q.id]
+          }))
+        } : null,
         files: [],
         status,
         updatedAt: new Date(),
@@ -574,6 +655,7 @@ Com todos os termos acima, citado.`)
       {statusModalOpen && (
         <UpdateStatusModal
           open={statusModalOpen}
+          statuses={availableStatuses}
           onClose={()=>setStatusModalOpen(false)}
           initialDate={statusTargetOrder ? (statusTargetOrder.dateIn || '') : dateIn}
           initialStatus={statusTargetOrder ? (statusTargetOrder.status || 'Iniciado') : status}
@@ -916,7 +998,30 @@ Com todos os termos acima, citado.`)
                 </button>
               </div>
               <div className="hidden md:block flex-1"></div>
-              <button className="hidden md:inline-block px-3 py-2 border rounded text-sm">Opções</button>
+              <div className="hidden md:block relative">
+                <button 
+                  onClick={() => setOptionsMenuOpen(!optionsMenuOpen)} 
+                  className={`px-3 py-2 border rounded text-sm transition-colors ${optionsMenuOpen ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                >
+                  Opções
+                </button>
+                {optionsMenuOpen && (
+                  <div className="absolute top-full mt-1 right-0 w-48 bg-white rounded-md shadow-lg z-50 ring-1 ring-black ring-opacity-5 py-1 text-left">
+                    <button 
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => { setOptionsMenuOpen(false); setSettingsModalOpen(true) }}
+                    >
+                      Configuração
+                    </button>
+                    <button 
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => { setOptionsMenuOpen(false) }}
+                    >
+                      Exportar serviços
+                    </button>
+                  </div>
+                )}
+              </div>
               <button onClick={()=>{ resetForm(); setView('new') }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
             </div>
             ) : (
@@ -973,6 +1078,7 @@ Com todos os termos acima, citado.`)
         {filtersOpen && (
           <FiltersModal
             open={filtersOpen}
+            availableStatuses={availableStatuses}
             onClose={()=>setFiltersOpen(false)}
             clientName={filterClient}
             technicianName={filterTechnician}
@@ -1088,6 +1194,11 @@ Com todos os termos acima, citado.`)
                         <div key={`${o.id}-status`}>
                           {(() => {
                             const s = String(o.status||'').trim()
+                            const color = statusColorMap[s]
+                            if (color) {
+                              return <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: hexToRgba(color, 0.15), color: darkenColor(color, 40) }}>{s || '-'}</span>
+                            }
+                            
                             const l = s.toLowerCase()
                             let cls = 'bg-gray-200 text-gray-700'
                             
@@ -1289,10 +1400,57 @@ Com todos os termos acima, citado.`)
                 <div className="font-semibold text-lg">Outros</div>
                 <div className="mt-4 flex gap-3">
                   <button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Senha</button>
-                  <button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Checklist</button>
+                  {!selectedChecklist && (
+                    <button type="button" onClick={()=>setChecklistSelectOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Checklist</button>
+                  )}
                   <button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Arquivo</button>
                 </div>
               </div>
+
+              {selectedChecklist && (
+                <div>
+                  <div className="font-semibold text-lg mb-2">Checklist</div>
+                  <div className="bg-gray-50 p-4 rounded-lg mb-3">
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
+                      {(selectedChecklist.questions || []).map((q, idx) => {
+                        const isChecked = !!checklistAnswers[q.id]
+                        return (
+                          <div key={q.id} className="flex items-center gap-1">
+                            {isChecked ? (
+                              <span className="text-green-500 font-bold">✓</span>
+                            ) : (
+                              <span className="text-gray-400 font-bold">✕</span>
+                            )}
+                            <span className={isChecked ? 'text-green-700' : 'text-gray-500'}>{q.text}</span>
+                            {idx < (selectedChecklist.questions || []).length - 1 && (
+                              <span className="text-gray-300 ml-3">|</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex gap-3">
+                    <button 
+                      type="button" 
+                      onClick={()=>setChecklistQuestionsOpen(true)} 
+                      className="px-4 py-2 border border-green-500 text-green-600 rounded text-sm hover:bg-green-50 font-medium"
+                    >
+                      Editar Checklist
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={()=>{
+                        setSelectedChecklist(null)
+                        setChecklistAnswers({})
+                      }} 
+                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded text-sm hover:bg-gray-50"
+                    >
+                      Remover Checklist
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {unlockType && (
                 <div className="rounded-lg bg-white p-6 shadow">
@@ -1605,8 +1763,33 @@ Com todos os termos acima, citado.`)
               }}
             />
           )}
-        </div>
-      )}
+          {checklistSelectOpen && (
+            <SelectChecklistModal
+              open={checklistSelectOpen}
+              onClose={()=>setChecklistSelectOpen(false)}
+              checklists={activeStore?.serviceOrderSettings?.checklists || []}
+              onChoose={(cl)=>{
+                 setSelectedChecklist(cl)
+                 setChecklistAnswers({})
+                 setChecklistSelectOpen(false)
+                 setChecklistQuestionsOpen(true)
+               }}
+             />
+           )}
+           {checklistQuestionsOpen && (
+             <ChecklistQuestionsModal
+               open={checklistQuestionsOpen}
+               onClose={()=>setChecklistQuestionsOpen(false)}
+               checklist={selectedChecklist}
+               initialAnswers={checklistAnswers}
+               onConfirm={(answers) => {
+                 setChecklistAnswers(answers)
+                 setChecklistQuestionsOpen(false)
+               }}
+             />
+           )}
+         </div>
+       )}
       <SelectColumnsModal
         open={selectColumnsOpen}
         onClose={()=>setSelectColumnsOpen(false)}
@@ -1667,34 +1850,19 @@ Com todos os termos acima, citado.`)
         order={shareTargetOrder}
         store={store}
       />
+      {settingsModalOpen && (
+        <ServiceOrderSettingsModal 
+          store={activeStore} 
+          onClose={() => setSettingsModalOpen(false)} 
+        />
+      )}
     </div>
   )
 }
 
-function FiltersModal({ open, onClose, clientName, technicianName, attendantName, statuses, onChooseClient, onChooseTechnician, onChooseAttendant, onToggleStatus, onClear, onApply }){
+function FiltersModal({ open, onClose, clientName, technicianName, attendantName, statuses, availableStatuses, onChooseClient, onChooseTechnician, onChooseAttendant, onToggleStatus, onClear, onApply }){
   if (!open) return null
-  const allStatuses = [
-    'Iniciado',
-    'Finalizado',
-    'Os Faturada Cliente Final',
-    'Cancelado',
-    'Serviço Aprovado Em Procedimento Com Tecnico',
-    'Os Faturada Cliente lojista',
-    'Serviço Realizado Pronto Na Gaveta',
-    'Serviço Não Aprovado P/cliente Devoluçao Na Gaveta',
-    'Garantia De Peça E Serviço Cliente lojista',
-    'Devolução Cliente Lojista Já Na Gaveta',
-    'Peça Para Troca E Devolução Ao Fornecedor',
-    'Serviço Aguardando Peça Na Gaveta',
-    'Devolução Cliente Final Já Na Gaveta',
-    'Garantia De Peça E Serviço Cliente Final',
-    'Serviço Não Realizado Devolução Na Gaveta',
-    'Serviço Em Orçamento Com Tecnico',
-    'Os Já Devolvida Ao Lojista - Sem Conserto',
-    'Os Já Devolvido Ao Cliente Final - Sem Conserto',
-    'Devolução Já Entregue Ao Cliente',
-    'APARELHO LIBERADO AGUARDANDO PAGAMENTO'
-  ]
+  const allStatuses = availableStatuses || DEFAULT_STATUSES
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[2000]">
       <div className="bg-white rounded-lg shadow-lg w-[640px] max-w-[95vw]">
@@ -1755,34 +1923,14 @@ function FiltersModal({ open, onClose, clientName, technicianName, attendantName
   )
 }
 
-function UpdateStatusModal({ open, onClose, initialDate, initialStatus, internalNotes, receiptNotes, onConfirm }){
+function UpdateStatusModal({ open, onClose, statuses: propStatuses, initialDate, initialStatus, internalNotes, receiptNotes, onConfirm }){
   const [date, setDate] = useState(initialDate || '')
   const [statusSel, setStatusSel] = useState(initialStatus || 'Iniciado')
   const [internal, setInternal] = useState(internalNotes || '')
   const [receipt, setReceipt] = useState(receiptNotes || '')
   if (!open) return null
 
-  const statuses = [
-    'Iniciado',
-    'Finalizado',
-    'Os Faturada Cliente Final',
-    'Cancelado',
-    'Serviço Aprovado Em Procedimento Com tecnico',
-    'Os Faturada Cliente lojista',
-    'Serviço Realizado Pronto Na gaveta',
-    'Serviço Não Aprovado P/cliente Devoluçao na gaveta',
-    'Garantia de Peça e Serviço Cliente lojista',
-    'Devolução cliente Lojista Já na gaveta',
-    'Peça Para Troca e Devolução ao Fornecedor',
-    'Serviço Aguardando Peça Na Gaveta',
-    'Devolução Cliente Final Já na gaveta',
-    'Garantia de Peça e Serviço Cliente Final',
-    'Serviço Não Realizado Devolução Na gaveta',
-    'Serviço em Orçamento com tecnico',
-    'Os já devolvido ao Cliente final - Sem Conserto',
-    'Os já devolvida ao lojista - Sem conserto',
-    'Devolução já entreque ao cliente',
-  ]
+  const statuses = propStatuses || DEFAULT_STATUSES
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">

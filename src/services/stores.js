@@ -48,6 +48,16 @@ export async function getStoreBySlug(slug){
   return { id: d.id, ...d.data() }
 }
 
+export function listenStore(storeId, callback){
+  if(!storeId) return () => {}
+  const ref = doc(db, 'stores', storeId)
+  return onSnapshot(ref, (snap) => {
+    if(snap.exists()){
+      callback({ id: snap.id, ...snap.data() })
+    }
+  })
+}
+
 // Atualiza dados da loja (dados da empresa)
 export async function updateStore(id, partial){
   const ref = doc(db, 'stores', id)

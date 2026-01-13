@@ -2,6 +2,25 @@ import React, { useEffect, useState } from 'react'
 import { getOrderById } from '../services/orders'
 import { getStoreById } from '../services/stores'
 
+const DEFAULT_WARRANTY = `Garantia de produtos e serviços. 
+90 dias para defeito de fabricação. 
+Não cobre aparelho ou produto com sinais de humidade. 
+Não cobre produto quebrado . 
+Não cobre riscos na tela. 
+Não cobre trincos na tela. 
+Não cobre manchas ,listras trincos internos 
+Ou externos na peça . 
+Não cobre selo ou lacre rompido. 
+Fica ciente que cliente em caso de defetio 
+deve Retornar A empresa,No prazo estabelecido. 
+Em caso de insatisfação cliente tem 7 dias 
+Para pedir estorno... E a empresa não tem responsabilidade 
+de colocar a peça velha no lugar, pois sao descartadas diariamente. 
+Visando e focanda na qualidade! 
+todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
+Sendo assim cliente ciente e de acordo 
+Com todos os termos acima, citado.`
+
 export default function OrderTrackingPage({ orderId, isSale = false }) {
   const [order, setOrder] = useState(null)
   const [store, setStore] = useState(null)
@@ -216,24 +235,7 @@ export default function OrderTrackingPage({ orderId, isSale = false }) {
           <div className="mt-8 pt-6 border-t border-gray-100">
              <h3 className="font-bold text-gray-800 mb-2 text-sm">Termo de garantia</h3>
              <p className="text-xs text-gray-500 whitespace-pre-wrap leading-relaxed">
-               {order.warrantyInfo || `Garantia de produtos e serviços. 
-90 dias para defeito de fabricação. 
-Não cobre aparelho ou produto com sinais de humidade. 
-Não cobre produto quebrado . 
-Não cobre riscos na tela. 
-Não cobre trincos na tela. 
-Não cobre manchas ,listras trincos internos 
-Ou externos na peça . 
-Não cobre selo ou lacre rompido. 
-Fica ciente que cliente em caso de defetio 
-deve Retornar A empresa,No prazo estabelecido. 
-Em caso de insatisfação cliente tem 7 dias 
-Para pedir estorno... E a empresa não tem responsabilidade 
-de colocar a peça velha no lugar, pois sao descartadas diariamente. 
-Visando e focanda na qualidade! 
-todos os produto são testados na loja antes da saída para o cliente da loja e testado junto ao cliente. 
-Sendo assim cliente ciente e de acordo 
-Com todos os termos acima, citado.`}
+               {order.warrantyInfo || store?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY}
              </p>
           </div>
         )}
