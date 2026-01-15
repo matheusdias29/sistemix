@@ -25,6 +25,7 @@ import FiscalNotesPage from './components/FiscalNotesPage'
 import TermsPage from './components/TermsPage'
 import Calculator from './components/Calculator'
 import { getStoreBySlug } from './services/stores'
+import StatisticsPage from './components/StatisticsPage'
 
 const labels = {
   inicio: 'Início',
@@ -37,6 +38,7 @@ const labels = {
   notas: 'Notas Fiscais',
   cpagar: 'Contas a Pagar',
   creceber: 'Contas a Receber',
+  estatisticas: 'Estatísticas',
   configuracoes: 'Configurações',
   usuarios: 'Usuários',
   taxas: 'Taxas adicionais',
@@ -330,6 +332,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><AccountsPayablePage storeId={store?.id} /></div>
           ) : view === 'creceber' ? (
             <div className="mt-4 md:mt-6"><AccountsReceivablePage storeId={store?.id} user={user} /></div>
+          ) : view === 'estatisticas' ? (
+            <div className="mt-4 md:mt-6"><StatisticsPage storeId={store?.id} /></div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <p className="text-sm text-gray-600">Página em construção.</p>

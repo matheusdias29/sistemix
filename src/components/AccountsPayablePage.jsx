@@ -30,6 +30,9 @@ export default function AccountsPayablePage({ storeId }) {
   const [dateFilterEnd, setDateFilterEnd] = useState(null)
   const [isDateFilterOpen, setIsDateFilterOpen] = useState(false)
 
+  const [sortBy, setSortBy] = useState('dueDate')
+  const [isSortOpen, setIsSortOpen] = useState(false)
+
   // Advanced Filters
   const [filterSupplierId, setFilterSupplierId] = useState('')
   const [filterCategoryId, setFilterCategoryId] = useState('')
@@ -97,6 +100,29 @@ export default function AccountsPayablePage({ storeId }) {
       .filter(f => selectedIds.has(f.id))
       .reduce((acc, curr) => acc + (curr.remainingValue || 0), 0)
   }, [filtered, selectedIds])
+
+  const sorted = useMemo(() => {
+    const getDateValue = (d) => {
+      if (!d) return 0
+      if (typeof d === 'string' && d.includes('-')) {
+        return new Date(d + 'T00:00:00').getTime()
+      }
+      if (d?.toDate) {
+        return d.toDate().getTime()
+      }
+      return 0
+    }
+
+    const copy = [...filtered]
+
+    if (sortBy === 'createdAt') {
+      copy.sort((a, b) => getDateValue(a.createdAt) - getDateValue(b.createdAt))
+    } else {
+      copy.sort((a, b) => getDateValue(a.dueDate) - getDateValue(b.dueDate))
+    }
+
+    return copy
+  }, [filtered, sortBy])
 
   const handleSave = async (data) => {
     try {
@@ -281,9 +307,47 @@ export default function AccountsPayablePage({ storeId }) {
                    >
                      ⚙ Filtros {(filterSupplierId || filterCategoryId) ? '(Ativo)' : ''}
                    </button>
-                   <button className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm">
-                     ⇅
-                   </button>
+                   <div className="relative">
+                     <button
+                       type="button"
+                       onClick={() => setIsSortOpen(prev => !prev)}
+                       className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2"
+                     >
+                       ⇅
+                     </button>
+                     {isSortOpen && (
+                       <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setSortBy('dueDate')
+                             setIsSortOpen(false)
+                           }}
+                           className={`w-full text-left px-3 py-2 text-xs ${
+                             sortBy === 'dueDate'
+                               ? 'bg-green-50 text-green-700'
+                               : 'text-gray-700 hover:bg-gray-50'
+                           }`}
+                         >
+                           Data de Vencimento
+                         </button>
+                         <button
+                           type="button"
+                           onClick={() => {
+                             setSortBy('createdAt')
+                             setIsSortOpen(false)
+                           }}
+                           className={`w-full text-left px-3 py-2 text-xs border-t border-gray-100 ${
+                             sortBy === 'createdAt'
+                               ? 'bg-green-50 text-green-700'
+                               : 'text-gray-700 hover:bg-gray-50'
+                           }`}
+                         >
+                           Data de Criação
+                         </button>
+                       </div>
+                     )}
+                   </div>
                 </div>
               </div>
 
@@ -379,7 +443,7 @@ export default function AccountsPayablePage({ storeId }) {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((acc) => (
+                    sorted.map((acc) => (
                       <tr 
                         key={acc.id} 
                         className="hover:bg-gray-50 transition-colors cursor-pointer"
