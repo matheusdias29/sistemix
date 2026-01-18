@@ -73,6 +73,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkAmount, setBulkAmount] = useState('')
   const [bulkPercent, setBulkPercent] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkReviewOpen, setBulkReviewOpen] = useState(false)
+  const [bulkCandidateIds, setBulkCandidateIds] = useState([])
+  const [bulkSelectedIds, setBulkSelectedIds] = useState(() => new Set())
+  const [bulkSelectedSlots, setBulkSelectedSlots] = useState([true, true, true, true, true])
+  const [bulkConfig, setBulkConfig] = useState(null)
 
   useEffect(() => {
     const unsubProd = listenProducts(items => setProducts(items), storeId)
@@ -191,6 +196,30 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       .filter(c => (c.name || '').toLowerCase().includes(q))
       .filter(c => (c.active ?? true) ? catShowActive : catShowInactive)
   }, [categories, query, catShowActive, catShowInactive])
+
+  const bulkCandidates = useMemo(() => {
+    if (!bulkCategory) return []
+    if (!Array.isArray(bulkCandidateIds) || bulkCandidateIds.length === 0) return []
+    const ids = new Set(bulkCandidateIds)
+    return products.filter(p => ids.has(p.id))
+  }, [products, bulkCategory, bulkCandidateIds])
+
+  const bulkMaxSlots = useMemo(() => {
+    if (!bulkCategory) return 0
+    if (!bulkCandidates.length) return 0
+    const selectedIds = bulkSelectedIds && bulkSelectedIds.size > 0 ? bulkSelectedIds : null
+    const source = selectedIds
+      ? bulkCandidates.filter(p => selectedIds.has(p.id))
+      : bulkCandidates
+    if (!source.length) return 0
+    const max = Math.max(
+      ...source.map(p =>
+        Array.isArray(p.variationsData) ? p.variationsData.length : 0
+      )
+    )
+    if (!max) return 0
+    return Math.min(max, bulkSelectedSlots.length)
+  }, [bulkCategory, bulkCandidates, bulkSelectedIds, bulkSelectedSlots])
 
   const toggleSelect = (id) => {
     const next = new Set(selected)
@@ -460,6 +489,33 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       return
     }
     const type = bulkType === 'remove' ? -1 : 1
+    setBulkConfig({ amountValue, percentValue, type })
+    setBulkCandidateIds(affected.map(p => p.id))
+    setBulkSelectedIds(new Set(affected.map(p => p.id)))
+    setBulkSelectedSlots([true, true, true, true, true])
+    setBulkModalOpen(false)
+    setBulkReviewOpen(true)
+  }
+
+  const applyBulkPricing = async () => {
+    if (!bulkCategory || !storeId || !bulkConfig) {
+      setBulkReviewOpen(false)
+      return
+    }
+    const { amountValue, percentValue, type } = bulkConfig
+    if (!amountValue && !percentValue) {
+      setBulkReviewOpen(false)
+      return
+    }
+    if (!bulkSelectedIds || bulkSelectedIds.size === 0) {
+      setBulkReviewOpen(false)
+      return
+    }
+    const affected = products.filter(p => p.categoryId === bulkCategory.id && bulkSelectedIds.has(p.id))
+    if (!affected.length) {
+      setBulkReviewOpen(false)
+      return
+    }
     try {
       setBulkSaving(true)
       for (const p of affected) {
@@ -493,7 +549,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         if (!isNaN(nextMin) && baseMin) payload.priceMin = nextMin
         if (!isNaN(nextMax) && baseMax) payload.priceMax = nextMax
         if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-          const items = p.variationsData.map((v) => {
+          const items = p.variationsData.map((v, idx) => {
+            const slotSelected =
+              bulkMaxSlots > 0 &&
+              idx < bulkMaxSlots &&
+              idx < bulkSelectedSlots.length &&
+              bulkSelectedSlots[idx]
+            if (!slotSelected) {
+              return v
+            }
             const vSaleBase = Number(v.salePrice ?? 0)
             const vMinBase = Number(v.priceMin ?? vSaleBase)
             const vMaxBase = Number(v.priceMax ?? (vSaleBase || vMinBase))
@@ -523,7 +587,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           await updateProduct(p.id, payload)
         }
       }
-      setBulkModalOpen(false)
+      setBulkReviewOpen(false)
+      setBulkConfig(null)
+      setBulkCandidateIds([])
+      setBulkSelectedIds(new Set())
     } finally {
       setBulkSaving(false)
     }
@@ -877,7 +944,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     <div className="font-medium cursor-pointer" onClick={()=>startCategoryEdit(c)}>{c.name}</div>
                   </div>
                   <div className="hidden md:block text-sm text-right">
-                    <div className={`px-2 py-1 rounded text-xs ${(c.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(c.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                    <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active ?? true) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                      {(c.active ?? true) ? 'Ativo' : 'Inativo'}
+                    </div>
                   </div>
                   <div className="text-right text-sm relative">
                     <button
@@ -1211,6 +1280,141 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 disabled={bulkSaving}
               >
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {bulkReviewOpen && bulkCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={()=>setBulkReviewOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[900px]">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-medium">Aplicar ajuste em massa</h3>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  Categoria: {bulkCategory.name} • {bulkCandidates.length} produtos encontrados
+                </div>
+              </div>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Produtos que irão receber o ajuste</div>
+                <div className="max-h-80 overflow-auto border rounded bg-gray-50/60">
+                  {bulkCandidates.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-600">
+                      Nenhum produto encontrado nesta categoria.
+                    </div>
+                  )}
+                  {bulkCandidates.map(p => (
+                    <label
+                      key={p.id}
+                      className={`flex items-start gap-3 px-4 py-3 border-b last:border-0 text-sm bg-white transition-colors ${
+                        bulkSelectedIds.has(p.id) ? 'bg-green-50/60' : ''
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 text-green-600 rounded border-gray-300"
+                        checked={bulkSelectedIds.has(p.id)}
+                        onChange={() => {
+                          const next = new Set(bulkSelectedIds)
+                          if (next.has(p.id)) next.delete(p.id); else next.add(p.id)
+                          setBulkSelectedIds(next)
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <div className="font-medium truncate">{p.name}</div>
+                            <div className="text-xs text-gray-500">
+                              {p.reference || ''}
+                            </div>
+                          </div>
+                          {Array.isArray(p.variationsData) && p.variationsData.length > 0 && (
+                            <div className="flex items-center gap-1">
+                              {p.variationsData
+                                .slice(0, Math.min(p.variationsData.length, bulkSelectedSlots.length))
+                                .map((_, idx) => {
+                                const slotActiveGlobal =
+                                  bulkMaxSlots > 0 &&
+                                  idx < bulkMaxSlots &&
+                                  idx < bulkSelectedSlots.length &&
+                                  bulkSelectedSlots[idx]
+                                const active = bulkSelectedIds.has(p.id) && slotActiveGlobal
+                                return (
+                                  <span
+                                    key={idx}
+                                    className={`h-6 w-6 inline-flex items-center justify-center rounded-full border text-xs font-semibold ${
+                                      active
+                                        ? 'bg-green-600 border-green-600 text-white'
+                                        : 'bg-white border-gray-300 text-gray-700'
+                                    }`}
+                                  >
+                                    {idx+1}
+                                  </span>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Quais precificações ajustar</div>
+                {bulkMaxSlots === 0 ? (
+                  <div className="text-xs text-gray-500">
+                    Os produtos selecionados não possuem precificações cadastradas.
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap gap-2">
+                      {Array.from({ length: bulkMaxSlots }).map((_, idx) => {
+                        const active = idx < bulkSelectedSlots.length ? bulkSelectedSlots[idx] : false
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            className={`px-4 py-2 rounded-lg border text-xs font-medium min-w-[44px] ${
+                              active
+                                ? 'bg-green-600 border-green-600 text-white'
+                                : 'bg-white border-gray-300 text-gray-700'
+                            }`}
+                            onClick={() => {
+                              setBulkSelectedSlots(prev => prev.map((v, i) => i === idx ? !v : v))
+                            }}
+                          >
+                            {idx+1}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div className="mt-1 text-[11px] text-gray-500">
+                      Se nenhuma precificação for marcada, apenas o preço principal será ajustado.
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded border"
+                onClick={()=>setBulkReviewOpen(false)}
+                disabled={bulkSaving}
+              >
+                Voltar
+              </button>
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded bg-green-600 text-white"
+                onClick={applyBulkPricing}
+                disabled={bulkSaving || !bulkSelectedIds || bulkSelectedIds.size === 0}
+              >
+                Aplicar ajuste
               </button>
             </div>
           </div>
