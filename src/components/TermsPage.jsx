@@ -226,20 +226,28 @@ export default function TermsPage({ storeId }) {
             Selecionar termo
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {TERM_OPTIONS.map(option => (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => handleSelectTerm(option.id)}
-                className={`px-3 py-2 text-xs rounded border text-left transition-colors ${
-                  selectedTermId === option.id
-                    ? 'bg-green-50 border-green-500 text-green-700'
-                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+            {TERM_OPTIONS.map(option => {
+              const isReady = !!TERM_TEXTS[option.id]
+              let buttonClass = ''
+              if (selectedTermId === option.id) {
+                buttonClass = 'bg-green-50 border-green-500 text-green-700'
+              } else if (!isReady) {
+                buttonClass = 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+              } else {
+                buttonClass = 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+              }
+
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleSelectTerm(option.id)}
+                  className={`px-3 py-2 text-xs rounded border text-left transition-colors ${buttonClass}`}
+                >
+                  {option.label}
+                </button>
+              )
+            })}
           </div>
         </div>
 
