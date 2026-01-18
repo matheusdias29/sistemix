@@ -434,21 +434,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const q = Math.max(0, parseInt(String(stockQty), 10) || 0)
     const delta = stockType === 'entrada' ? q : -q
     const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+    const varIndex = hasVars ? 0 : -1
     try {
       setSavingAction(true)
-      if (hasVars && selectedVarIdx >= 0) {
+      if (hasVars && varIndex >= 0) {
         const items = p.variationsData.map((v) => ({ ...v }))
-        const cur = Number(items[selectedVarIdx]?.stock ?? 0)
-        items[selectedVarIdx].stock = Math.max(0, cur + delta)
+        const cur = Number(items[varIndex]?.stock ?? 0)
+        items[varIndex].stock = Math.max(0, cur + delta)
         const total = items.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
         await updateProduct(p.id, { variationsData: items, stock: total })
         
-        // Log movement
         await recordStockMovement({
           productId: p.id,
           productName: p.name,
-          variationId: items[selectedVarIdx].id || null, // Assuming ID exists or just use name
-          variationName: items[selectedVarIdx].name || items[selectedVarIdx].label || `Variação ${selectedVarIdx+1}`,
+          variationId: items[varIndex].id || null,
+          variationName: items[varIndex].name || items[varIndex].label || `Variação ${varIndex+1}`,
           type: stockType === 'entrada' ? 'in' : 'out',
           quantity: q,
           reason: 'manual_adjust',
@@ -462,7 +462,6 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         const next = Math.max(0, cur + delta)
         await updateProduct(p.id, { stock: next })
         
-        // Log movement
         await recordStockMovement({
           productId: p.id,
           productName: p.name,
@@ -1089,24 +1088,6 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <div className="text-xs text-gray-600 mb-1">Selecionar variação</div>
-                {Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length || 0) > 0 ? (
-                  <div className="flex items-center gap-2">
-                    <button type="button" className="h-8 w-8 rounded border" onClick={()=>setSelectedVarIdx(i=> Math.max(0, i-1))}>‹</button>
-                    <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
-                      {(stockTargetProduct?.variationsData||[]).map((v, idx) => (
-                        <button key={idx} type="button" className={`px-3 py-1 rounded border text-sm ${selectedVarIdx===idx ? 'bg-gray-200' : ''}`} onClick={()=>setSelectedVarIdx(idx)}>
-                          {v?.name || v?.label || `Variação ${idx+1}`}
-                        </button>
-                      ))}
-                    </div>
-                    <button type="button" className="h-8 w-8 rounded border" onClick={()=>setSelectedVarIdx(i=> Math.min((stockTargetProduct?.variationsData?.length||1)-1, i+1))}>›</button>
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-700">Produto sem variações</div>
-                )}
-              </div>
-              <div>
                 <div className="text-xs text-gray-600 mb-1">Tipo</div>
                 <div className="flex items-center gap-2">
                   <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='entrada' ? 'bg-green-50 border-green-300 text-green-700' : ''}`} onClick={()=>setStockType('entrada')}>Entrada</button>
@@ -1114,7 +1095,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
               </div>
               <div className="text-sm text-gray-800">
-                {stockTargetProduct?.name} {Array.isArray(stockTargetProduct?.variationsData) && selectedVarIdx>=0 ? ` - ${(stockTargetProduct?.variationsData?.[selectedVarIdx]?.name || stockTargetProduct?.variationsData?.[selectedVarIdx]?.label || '')}` : ''}
+                {stockTargetProduct?.name} {Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length || 0) > 0 ? ` - ${(stockTargetProduct?.variationsData?.[0]?.name || stockTargetProduct?.variationsData?.[0]?.label || '')}` : ''}
               </div>
               <div>
                 <div className="text-xs text-gray-600 mb-1">Quantidade</div>
@@ -1123,7 +1104,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               <div className="text-sm text-gray-700">
                 {(() => {
                   const hasVars = Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length||0) > 0
-                  const base = hasVars && selectedVarIdx>=0 ? Number(stockTargetProduct?.variationsData?.[selectedVarIdx]?.stock ?? 0) : Number(stockTargetProduct?.stock ?? 0)
+                  const base = hasVars ? Number(stockTargetProduct?.variationsData?.[0]?.stock ?? 0) : Number(stockTargetProduct?.stock ?? 0)
                   const qty = Math.max(0, parseInt(String(stockQty), 10) || 0)
                   const sign = stockType==='entrada' ? '+' : '-'
                   const total = Math.max(0, base + (stockType==='entrada' ? qty : -qty))

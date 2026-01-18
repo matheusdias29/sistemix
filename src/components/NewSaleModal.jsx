@@ -856,6 +856,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         }}
         product={targetProduct}
         onChoose={handleVariationSelect}
+        hideFifth
       />
 
       {notesOpen && (

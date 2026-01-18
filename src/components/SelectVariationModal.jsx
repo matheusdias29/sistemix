@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 
-export default function SelectVariationModal({ open, onClose, product, onChoose }){
+export default function SelectVariationModal({ open, onClose, product, onChoose, hideFifth = false }){
   const [query, setQuery] = useState('')
   if(!open || !product) return null
   
-  const variations = product.variationsData || []
+  const allVariations = product.variationsData || []
+  const variations = hideFifth ? allVariations.filter((_, idx) => idx !== 4) : allVariations
   const filtered = variations.filter(v => (v.name||'').toLowerCase().includes(query.trim().toLowerCase()))
   
   return (
@@ -30,8 +31,8 @@ export default function SelectVariationModal({ open, onClose, product, onChoose 
             {filtered.map((variation, idx) => {
               const price = variation.promoPrice ?? variation.salePrice ?? 0
               const stock = variation.stock ?? variation.stockInitial ?? 0
-              const originalIndex = variations.indexOf(variation)
-              const showStock = originalIndex === 0 || originalIndex === 4
+              const originalIndex = allVariations.indexOf(variation)
+              const showStock = originalIndex === 0
               return (
                 <div 
                   key={idx} 

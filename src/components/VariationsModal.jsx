@@ -125,20 +125,27 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     setCalcOpen(false)
   }
   const confirm = () => {
-    const normalized = items.map(it => ({
-      name: (it.name || '').trim(),
-      cost: parseFloat(it.cost) || 0,
-      salePrice: parseFloat(it.salePrice) || 0,
-      promoPrice: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : null,
-      priceMin: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : (parseFloat(it.salePrice) || 0),
-      priceMax: parseFloat(it.salePrice) || 0,
-      barcode: (it.barcode || '').trim(),
-      validityDate: it.validityDate || null,
-      stockInitial: parseInt(it.stockInitial, 10) || 0,
-      stockMin: parseInt(it.stockMin, 10) || 0,
-      stock: parseInt(it.stockInitial, 10) || 0,
-      active: it.active !== false,
-    }))
+    const normalized = items.map((it, idx) => {
+      const baseStockInitial = parseInt(it.stockInitial, 10) || 0
+      const baseStockMin = parseInt(it.stockMin, 10) || 0
+      const stockInitial = idx === 4 ? 0 : baseStockInitial
+      const stockMin = idx === 4 ? 0 : baseStockMin
+      const stock = idx === 4 ? 0 : stockInitial
+      return {
+        name: (it.name || '').trim(),
+        cost: parseFloat(it.cost) || 0,
+        salePrice: parseFloat(it.salePrice) || 0,
+        promoPrice: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : null,
+        priceMin: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : (parseFloat(it.salePrice) || 0),
+        priceMax: parseFloat(it.salePrice) || 0,
+        barcode: (it.barcode || '').trim(),
+        validityDate: it.validityDate || null,
+        stockInitial,
+        stockMin,
+        stock,
+        active: it.active !== false,
+      }
+    })
     onConfirm && onConfirm(normalized)
     onClose && onClose()
   }
@@ -173,7 +180,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                           <div>
                             <div className="text-sm font-medium leading-tight truncate">{it.name || '-'}</div>
                             <div className="mt-1 text-xs text-gray-600">
-                              <span>Estoque: {parseInt(it.stockInitial || '0', 10) || 0}</span>
+                              <span>Estoque: {idx === 0 ? (parseInt(it.stockInitial || '0', 10) || 0) : 0}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -214,8 +221,8 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                               <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                             </div>
                           </div>
-                          <div className="mt-3 grid grid-cols-1 gap-3">
-                            {(idx === 0 || idx === 4) && (
+                            <div className="mt-3 grid grid-cols-1 gap-3">
+                            {idx === 0 && (
                               <>
                                 <div>
                                   <label className="text-xs text-gray-600">Estoque inicial</label>
@@ -285,8 +292,8 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                         <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-4">
-                      {(idx === 0 || idx === 4) && (
+                          <div className="mt-3 grid grid-cols-3 gap-4">
+                      {idx === 0 && (
                         <>
                           <div>
                             <label className="text-xs text-gray-600">Estoque inicial</label>

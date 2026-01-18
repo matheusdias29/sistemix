@@ -312,10 +312,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       const priceMinAgg = Math.min(...priceCandidates)
       const priceMaxAgg = Math.max(...salePrices)
       const stockAgg = hasVars
-        ? variationsData.reduce((s, v)=> s + (parseInt(v.stock, 10) || 0), 0)
+        ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + (parseInt(v.stock, 10) || 0), 0)
         : (parseInt(stock, 10) || 0)
       const stockInitialAgg = hasVars
-        ? variationsData.reduce((s, v)=> s + ((parseInt(v.stockInitial, 10) || (parseInt(v.stock, 10) || 0))), 0)
+        ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + ((parseInt(v.stockInitial, 10) || (parseInt(v.stock, 10) || 0))), 0)
         : (parseInt(stock, 10) || 0)
       const variationsCount = hasVars ? variationsData.length : (parseInt(variations) || 0)
 
@@ -625,7 +625,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3">
                 <div>
                   <div className="text-sm font-medium leading-tight truncate" title={v.name}>{v.name || '-'}</div>
-                  {(idx === 0 || idx === 4) && (
+                  {idx === 0 && (
                     <div className="mt-1 text-xs text-gray-600">
                       <span>Estoque: {v.stock ?? 0}</span>
                     </div>
@@ -661,8 +661,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               <div className="truncate" title={v.name}>{v.name || '-'}</div>
               <div className="text-right">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
               <div className="text-right">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-              <div className="text-right">{(idx === 0 || idx === 4) ? (v.stockMin ?? 0) : ''}</div>
-              <div className={`text-right ${(v.stock ?? 0) > 0 ? '' : 'text-red-600'}`}>{(idx === 0 || idx === 4) ? (v.stock ?? 0) : ''}</div>
+              <div className="text-right">{idx === 0 ? (v.stockMin ?? 0) : ''}</div>
+              <div className={`text-right ${(v.stock ?? 0) > 0 ? '' : 'text-red-600'}`}>{idx === 0 ? (v.stock ?? 0) : ''}</div>
             </div>
           ))}
           {variationsData.length === 0 && (
