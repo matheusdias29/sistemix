@@ -63,10 +63,16 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [supplierEditOpen, setSupplierEditOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState(null)
   const [supSelected, setSupSelected] = useState(() => new Set())
-  
   // Opções menu
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [showLabelsScreen, setShowLabelsScreen] = useState(false)
+  const [categoryMenuId, setCategoryMenuId] = useState(null)
+  const [bulkCategory, setBulkCategory] = useState(null)
+  const [bulkModalOpen, setBulkModalOpen] = useState(false)
+  const [bulkType, setBulkType] = useState('add')
+  const [bulkAmount, setBulkAmount] = useState('')
+  const [bulkPercent, setBulkPercent] = useState('')
+  const [bulkSaving, setBulkSaving] = useState(false)
 
   useEffect(() => {
     const unsubProd = listenProducts(items => setProducts(items), storeId)
@@ -420,6 +426,109 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     setSupplierEditOpen(true)
   }
 
+  const openBulkPricing = (category) => {
+    setBulkCategory(category)
+    setBulkType('add')
+    setBulkAmount('')
+    setBulkPercent('')
+    setBulkModalOpen(true)
+    setCategoryMenuId(null)
+  }
+
+  const confirmBulkPricing = async () => {
+    if (!bulkCategory || !storeId) {
+      setBulkModalOpen(false)
+      return
+    }
+    const amountValue = (() => {
+      const raw = String(bulkAmount || '').trim()
+      if (!raw) return 0
+      const normalized = raw.replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, '')
+      const num = parseFloat(normalized)
+      return isNaN(num) ? 0 : num
+    })()
+    const percentValue = (() => {
+      const num = parseFloat(String(bulkPercent || '').replace(',', '.'))
+      return isNaN(num) ? 0 : num
+    })()
+    if (!amountValue && !percentValue) {
+      return
+    }
+    const affected = products.filter(p => p.categoryId === bulkCategory.id)
+    if (!affected.length) {
+      setBulkModalOpen(false)
+      return
+    }
+    const type = bulkType === 'remove' ? -1 : 1
+    try {
+      setBulkSaving(true)
+      for (const p of affected) {
+        const baseSale = Number(p.salePrice ?? 0)
+        const baseMin = Number(p.priceMin ?? baseSale)
+        const baseMax = Number(p.priceMax ?? (baseSale || baseMin))
+        const applyAmount = (value, amount) => {
+          const next = value + type * amount
+          return next < 0 ? 0 : Number(next.toFixed(2))
+        }
+        const applyPercent = (value, percent) => {
+          const factor = 1 + type * (percent / 100)
+          const next = value * factor
+          return next < 0 ? 0 : Number(next.toFixed(2))
+        }
+        let nextSale = baseSale
+        let nextMin = baseMin
+        let nextMax = baseMax
+        if (amountValue) {
+          if (baseSale) nextSale = applyAmount(baseSale, amountValue)
+          if (baseMin) nextMin = applyAmount(baseMin, amountValue)
+          if (baseMax) nextMax = applyAmount(baseMax, amountValue)
+        }
+        if (percentValue) {
+          if (baseSale) nextSale = applyPercent(nextSale, percentValue)
+          if (baseMin) nextMin = applyPercent(nextMin, percentValue)
+          if (baseMax) nextMax = applyPercent(nextMax, percentValue)
+        }
+        const payload = {}
+        if (!isNaN(nextSale) && baseSale) payload.salePrice = nextSale
+        if (!isNaN(nextMin) && baseMin) payload.priceMin = nextMin
+        if (!isNaN(nextMax) && baseMax) payload.priceMax = nextMax
+        if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+          const items = p.variationsData.map((v) => {
+            const vSaleBase = Number(v.salePrice ?? 0)
+            const vMinBase = Number(v.priceMin ?? vSaleBase)
+            const vMaxBase = Number(v.priceMax ?? (vSaleBase || vMinBase))
+            let vSale = vSaleBase
+            let vMin = vMinBase
+            let vMax = vMaxBase
+            if (amountValue) {
+              if (vSaleBase) vSale = applyAmount(vSaleBase, amountValue)
+              if (vMinBase) vMin = applyAmount(vMinBase, amountValue)
+              if (vMaxBase) vMax = applyAmount(vMaxBase, amountValue)
+            }
+            if (percentValue) {
+              if (vSaleBase) vSale = applyPercent(vSale, percentValue)
+              if (vMinBase) vMin = applyPercent(vMin, percentValue)
+              if (vMaxBase) vMax = applyPercent(vMax, percentValue)
+            }
+            return {
+              ...v,
+              salePrice: !isNaN(vSale) && vSaleBase ? vSale : v.salePrice,
+              priceMin: !isNaN(vMin) && vMinBase ? vMin : v.priceMin,
+              priceMax: !isNaN(vMax) && vMaxBase ? vMax : v.priceMax,
+            }
+          })
+          payload.variationsData = items
+        }
+        if (Object.keys(payload).length > 0) {
+          await updateProduct(p.id, payload)
+        }
+      }
+      setBulkModalOpen(false)
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+
   if (showLabelsScreen) {
     return (
       <ProductLabelsPage 
@@ -770,7 +879,31 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   <div className="hidden md:block text-sm text-right">
                     <div className={`px-2 py-1 rounded text-xs ${(c.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(c.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
-                  <div className="text-right text-sm">⋯</div>
+                  <div className="text-right text-sm relative">
+                    <button
+                      type="button"
+                      aria-label="Mais ações de categoria"
+                      title="Mais ações"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border"
+                      onClick={() => setCategoryMenuId(categoryMenuId === c.id ? null : c.id)}
+                    >
+                      ⋯
+                    </button>
+                    {categoryMenuId === c.id && (
+                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow">
+                        <div className="py-2">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                            onClick={() => openBulkPricing(c)}
+                          >
+                            <span>⚙️</span>
+                            <span>Precificações em massa</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -798,8 +931,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           ) : null)
         }
       </div>
-      {openMenuId && (
-        <div className="fixed inset-0 z-40" onClick={()=>setOpenMenuId(null)} />
+      {(openMenuId || categoryMenuId) && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => {
+            setOpenMenuId(null)
+            setCategoryMenuId(null)
+          }}
+        />
       )}
       <NewProductModal open={modalOpen} onClose={()=>setModalOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} user={user} />
       <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} storeId={storeId} user={user} />
@@ -988,6 +1127,91 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             </div>
             <div className="px-4 py-3 border-t flex items-center justify-end">
               <button type="button" className="px-3 py-2 border rounded text-sm" onClick={()=>setReservedOpen(false)}>Fechar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {bulkModalOpen && bulkCategory && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={()=>setBulkModalOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-medium">Precificação em massa</h3>
+                <div className="text-xs text-gray-500 mt-0.5">
+                  Categoria: {bulkCategory.name}
+                </div>
+              </div>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-600">Tipo:</span>
+                <div className="inline-flex rounded border overflow-hidden">
+                  <button
+                    type="button"
+                    className={`px-3 py-1 text-sm ${bulkType === 'add' ? 'bg-green-50 text-green-700' : 'bg-white text-gray-700'}`}
+                    onClick={()=>setBulkType('add')}
+                  >
+                    Adicionar
+                  </button>
+                  <button
+                    type="button"
+                    className={`px-3 py-1 text-sm border-l ${bulkType === 'remove' ? 'bg-red-50 text-red-700' : 'bg-white text-gray-700'}`}
+                    onClick={()=>setBulkType('remove')}
+                  >
+                    Remover
+                  </button>
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Ajuste R$</div>
+                <input
+                  type="text"
+                  value={bulkAmount}
+                  onChange={e=>setBulkAmount(e.target.value)}
+                  placeholder="0,00"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 mb-1">Ajuste (%)</div>
+                <input
+                  type="number"
+                  value={bulkPercent}
+                  onChange={e=>setBulkPercent(e.target.value)}
+                  className="w-full border rounded px-3 py-2 text-sm"
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  {[5,10,15,20].map(v => (
+                    <button
+                      key={v}
+                      type="button"
+                      className="flex-1 border rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                      onClick={()=>setBulkPercent(String(v))}
+                    >
+                      {v}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded border"
+                onClick={()=>setBulkModalOpen(false)}
+                disabled={bulkSaving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded bg-green-600 text-white"
+                onClick={confirmBulkPricing}
+                disabled={bulkSaving}
+              >
+                Confirmar
+              </button>
             </div>
           </div>
         </div>
