@@ -67,6 +67,35 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
     setAlertModalOpen(true)
   }
 
+  const usesSharedStockForVariation = (product, variationName) => {
+    if (!product || !product.variationsData || !Array.isArray(product.variationsData)) return false
+    const vars = product.variationsData
+    const index = vars.findIndex(v => v.name === variationName)
+    if (index <= 0 || index >= 4) return false
+    const base = vars[0]
+    const baseStock = Number((base && (base.stock ?? base.stockInitial)) ?? 0)
+    const ownVar = vars[index]
+    const ownStock = Number((ownVar && (ownVar.stock ?? ownVar.stockInitial)) ?? 0)
+    return ownStock === 0 && baseStock > 0
+  }
+
+  const getVariationEffectiveStock = (product, variationName) => {
+    if (!product || !product.variationsData || !Array.isArray(product.variationsData)) return 0
+    const vars = product.variationsData
+    const index = vars.findIndex(v => v.name === variationName)
+    if (index === -1) {
+      const base = vars[0]
+      return Number((base && (base.stock ?? base.stockInitial)) ?? 0)
+    }
+    const ownVar = vars[index]
+    const ownStock = Number((ownVar && (ownVar.stock ?? ownVar.stockInitial)) ?? 0)
+    if (usesSharedStockForVariation(product, variationName)) {
+      const base = vars[0]
+      return Number((base && (base.stock ?? base.stockInitial)) ?? 0)
+    }
+    return ownStock
+  }
+
   // Cashier State
   const [currentCash, setCurrentCash] = useState(null)
   const [loadingCash, setLoadingCash] = useState(true)
@@ -184,7 +213,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
     setVarSelectOpen(false)
     if (!targetProduct) return
 
-    const currentStock = Number(variation.stock ?? variation.stockInitial ?? 0)
+    const currentStock = getVariationEffectiveStock(targetProduct, variation.name)
     if (currentStock <= 0) {
       showAlert('Variação com estoque zerado. Não é possível realizar a venda.')
       setTargetProduct(null)
@@ -231,9 +260,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       if (realProduct) {
         let maxStock = 0
         if (item.product.variationRawName) {
-           // Variation
-           const v = realProduct.variationsData?.find(x => x.name === item.product.variationRawName)
-           maxStock = Number(v?.stock ?? v?.stockInitial ?? 0)
+           maxStock = getVariationEffectiveStock(realProduct, item.product.variationRawName)
         } else {
            maxStock = Number(realProduct.stock || 0)
         }
@@ -269,9 +296,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       if (realProduct) {
         let maxStock = 0
         if (item.product.variationRawName) {
-           // Variation
-           const v = realProduct.variationsData?.find(x => x.name === item.product.variationRawName)
-           maxStock = Number(v?.stock ?? v?.stockInitial ?? 0)
+           maxStock = getVariationEffectiveStock(realProduct, item.product.variationRawName)
         } else {
            maxStock = Number(realProduct.stock || 0)
         }
@@ -433,12 +458,24 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                    variationName = targetVar.name || targetVar.label || item.product.variationRawName
                 }
 
-                const newVars = realProduct.variationsData.map(v => {
-                  if (v.name === item.product.variationRawName) {
-                    return { ...v, stock: Number(v.stock || 0) - qty }
-                  }
-                  return v
-                })
+                const vars = realProduct.variationsData
+                const index = vars.findIndex(v => v.name === item.product.variationRawName)
+                let newVars = vars
+                if (usesSharedStockForVariation(realProduct, item.product.variationRawName)) {
+                  newVars = vars.map((v, i) => {
+                    if (i === 0) {
+                      return { ...v, stock: Number(v.stock || 0) - qty }
+                    }
+                    return v
+                  })
+                } else {
+                  newVars = vars.map(v => {
+                    if (v.name === item.product.variationRawName) {
+                      return { ...v, stock: Number(v.stock || 0) - qty }
+                    }
+                    return v
+                  })
+                }
                 const currentTotal = Number(realProduct.stock || 0)
                 await updateProduct(pId, { 
                   variationsData: newVars,

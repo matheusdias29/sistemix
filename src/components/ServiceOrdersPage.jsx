@@ -1639,12 +1639,22 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               onClose={()=>setVarSelectOpen(false)}
               product={selectedProduct}
               onChoose={(variation)=>{
-                const currentStock = Number(variation.stock ?? variation.stockInitial ?? 0)
-                if (currentStock <= 0) {
+                const vars = selectedProduct?.variationsData || []
+                const index = vars.findIndex(v => v.name === variation.name)
+                let effectiveStock = Number(variation.stock ?? variation.stockInitial ?? 0)
+                if (index > 0 && index < 4) {
+                  const base = vars[0]
+                  const baseStock = Number((base && (base.stock ?? base.stockInitial)) ?? 0)
+                  const ownStock = Number((variation && (variation.stock ?? variation.stockInitial)) ?? 0)
+                  if (ownStock === 0 && baseStock > 0) {
+                    effectiveStock = baseStock
+                  }
+                }
+                if (effectiveStock <= 0) {
                   showAlert('Variação com estoque zerado. Não é possível adicionar.')
                   return
                 }
-                setSelectedVariation(variation)
+                setSelectedVariation({ ...variation, stock: effectiveStock, stockInitial: effectiveStock })
                 setVarSelectOpen(false)
                 setAddProdOpen(true)
               }}
