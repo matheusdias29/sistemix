@@ -583,24 +583,17 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         <div className="flex items-center bg-gray-100 rounded-lg p-1 border">
           <button 
             type="button" 
-            onClick={() => { setVariationMode('3P'); setVariationsData(generateVariations('3P', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '3P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            P1
-          </button>
-          <button 
-            type="button" 
             onClick={() => { setVariationMode('4P'); setVariationsData(generateVariations('4P', variationsData)); }}
             className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            P2
+            P1
           </button>
           <button 
             type="button" 
             onClick={() => { setVariationMode('5P'); setVariationsData(generateVariations('5P', variationsData)); }}
             className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
           >
-            P3
+            P2
           </button>
         </div>
       </div>
