@@ -15,9 +15,9 @@ export default function Calculator() {
 
   // Initialize position on mount (bottom right)
   useEffect(() => {
-    setPosition({ 
-      x: window.innerWidth - 340, // 320 width + 20 margin
-      y: window.innerHeight - 500 // 450 height + 50 margin
+    setPosition({
+      x: window.innerWidth - 340,
+      y: window.innerHeight - 500
     })
   }, [])
 
@@ -113,11 +113,73 @@ export default function Calculator() {
     }
   }
 
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e) => {
+      const target = e.target
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return
+      }
+
+      const key = e.key
+
+      if (key >= '0' && key <= '9') {
+        e.preventDefault()
+        inputDigit(Number(key))
+        return
+      }
+
+      if (key === ',' || key === '.') {
+        e.preventDefault()
+        inputDot()
+        return
+      }
+
+      if (key === '+' || key === '-' || key === '*' || key === '/') {
+        e.preventDefault()
+        performOperation(key)
+        return
+      }
+
+      if (key === 'Enter' || key === '=') {
+        e.preventDefault()
+        performOperation('=')
+        return
+      }
+
+      if (key === 'Backspace') {
+        e.preventDefault()
+        setDisplay((prev) => {
+          const str = String(prev ?? '')
+          if (str.length <= 1) {
+            setWaitingForOperand(false)
+            return '0'
+          }
+          setWaitingForOperand(false)
+          return str.slice(0, -1)
+        })
+        return
+      }
+
+      if (key === 'Escape') {
+        e.preventDefault()
+        clear()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen, inputDigit, inputDot, performOperation, clear])
+
   if (!isOpen) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center z-[100] transition-transform hover:scale-105 active:scale-95"
+        className="fixed bottom-6 right-6 md:right-auto md:left-72 w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center z-[100] transition-transform hover:scale-105 active:scale-95"
         title="Calculadora"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
