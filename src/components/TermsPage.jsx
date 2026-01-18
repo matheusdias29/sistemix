@@ -1,65 +1,274 @@
-import React, { useState, useEffect } from 'react'
-import { getStoreById, updateStore } from '../services/stores'
+import React, { useState } from 'react'
+import { jsPDF } from 'jspdf'
+
+const TERM_OPTIONS = [
+  { id: 'termo-compra-aparelhos', label: 'TERMO COMPRA DE APARELHOS' },
+  { id: 'termo-risco-procedimento', label: 'TERMO RISCO NO PROCEDIMENTO' },
+  { id: 'termo-devolucao', label: 'TERMO DE DEVOLUÇÃO' },
+  { id: 'termo-aparelho-molhado', label: 'TERMO DE APARELHO MOLHADO' },
+  { id: 'pagamento-freelance', label: 'PAGAMENTO FREELANCE' },
+  { id: 'termo-responsabilidade-uso-equipamento', label: 'TERMO DE RESPONSABILIDADE E USO DE EQUIPAMENTO' },
+  { id: 'advertencia-funcionario', label: 'ADVERTENCIA FUNCIONARIO' },
+  { id: 'metodo-venda-pecas', label: 'METODO DE VENDA DE PECAS' },
+  { id: 'metodo-vendas-varejo-acessorios', label: 'METODO DE VENDAS VAREJO ACESSORIOS' },
+  { id: 'metodo-vendas-manutencao-lojista', label: 'METODO DE VENDAS MANUTENÇÃO LOJISTA' },
+  { id: 'metodo-vendas-pecas-atacado', label: 'METODO DE VENDAS DE PECAS ATAACADO' },
+  { id: 'metodo-comissao-vendas', label: 'METODO DE COMISSAO DE VENDAS / VENDEDOS' },
+  { id: 'metodo-comissao-servicos', label: 'METODO DE COMISSA DE SERVIÇOS / TECNICOS' },
+]
+
+const TERMO_COMPRA_TEXTO_PADRAO = `DECLARAÇÃO DE COMPRA DE APARELHO CELULAR
+Eu, __________________________________________________________, portador(a) do CPF nº ____________________ e do RG nº _______________, órgão emissor _______, residente à _______________________________________, bairro _________________, CEP _________, na cidade de ____________, telefone de contato: celular (___) _____________ / fixo (___) _____________,
+DECLARO, para os devidos fins, que realizo a venda de meu aparelho celular para revenda ou sucata, responsabilizando-me civil e criminalmente por qualquer irregularidade perante a empresa Lokatell Celulares Manutenções LTDA, inscrita no CNPJ nº 55.313.237/0001-14, IE: 214376287115, com sede à Rua Siqueira Campos, nº 535, Centro, Birigui/SP, CEP 16200-056.
+
+CARACTERÍSTICAS DO PRODUTO:
+Marca: ______________________________
+Modelo e cor: ________________________
+IMEI 1: ____________________________
+IMEI 2: ____________________________
+S/N: ______________________________
+
+VALOR: R$ ___________________________
+FORMA DE PAGAMENTO: ( ) PIX ( ) Dinheiro ( ) Troca de Aparelho
+
+Por ser expressão da verdade, afirmo o presente e me responsabilizo civil e criminalmente pelo conteúdo desta declaração.
+
+Testemunhas:
+______________________________ / Tel: (___) ____________
+______________________________ / Tel: (___) ____________
+
+Assinatura do Declarante:
+
+Local e Data: Birigui, ___ de ________________ de ________`
+
+const TERMO_APARELHO_MOLHADO_TEXTO_PADRAO = `🔴 TERMO DE RESPONSABILIDADE – VERSÃO JURÍDICA RIGOROSA
+(APARELHO COM CONTATO COM ÁGUA – ORDEM DE SERVIÇO)
+
+O.S. nº: ___________________________
+
+Eu, ____________________________________________, CPF nº ____________________________, declaro, para todos os fins legais, que o aparelho descrito nesta ORDEM DE SERVIÇO (O.S.), REDMI 13C – cor preta, entrou em contato com água, apresentando falhas de funcionamento, incluindo liga/desliga intermitente ou ausência total de funcionamento, decorrentes de oxidação e possível curto-circuito interno.
+
+Declaro estar plenamente ciente de que:
+a) Aparelhos que entram em contato com líquidos possuem alto risco de falha irreversível;
+b) A abertura do aparelho é indispensável para tentativa de desoxidação, testes e diagnóstico;
+c) Durante ou após o procedimento, o aparelho pode parar parcial ou totalmente, de forma definitiva;
+d) Componentes e periféricos podem deixar de funcionar, inclusive placa-mãe, tela, câmeras, sensores, conectores e demais circuitos;
+e) Não há garantia de recuperação, êxito ou manutenção das funções originais.
+
+Declaro que autorizo expressamente a abertura e o manuseio técnico do aparelho, assumindo integralmente todos os riscos, inclusive perda total do funcionamento, ainda que decorrente do procedimento técnico necessário.
+
+Estou ciente de que somente mediante a substituição de peças será possível eventual reparo, sendo todos os custos de minha exclusiva responsabilidade, mediante orçamento e autorização prévia.
+
+Dessa forma, isento, de forma irrevogável e irretratável, a empresa LOKATELL CELULARES E MANUTENÇÕES LTDA de qualquer responsabilidade técnica, civil, material, moral ou jurídica, renunciando desde já a qualquer reclamação, indenização ou ação judicial, presente ou futura, relacionada ao estado do aparelho descrito nesta O.S.
+
+Procedimento autorizado para realização na data de hoje.
+
+Birigui – SP, ____ de __________________ de ________.
+
+
+Assinatura do Cliente
+
+
+Assinatura da Empresa / Carimbo`
+
+const PAGAMENTO_FREELANCE_TEXTO_PADRAO = `RECIBO DE PAGAMENTO FREELANCE
+
+Empresa: LOKATELL CELULARES MANUTENÇÕES LTDA
+CNPJ: 14.313.237/0001-14
+Endereço: (inserir endereço completo da empresa, se desejar)
+
+Eu, CRISTIANE TORRES ROSSETTO, portadora do CPF nº 278.635.378-51, declaro, para os devidos fins, que recebi da empresa Lokatell Celulares Manutenções LTDA a quantia de R$ 137,00 (cento e trinta e sete reais), referente aos dias trabalhados, conforme detalhamento abaixo:
+
+29/09/2025 – Segunda-feira: 08:45 às 17:00
+30/09/2025 – Terça-feira: 08:45 às 17:00
+
+Declaro, ainda, que o valor acima foi recebido integralmente, nada mais tendo a reclamar a este título.
+
+Birigui, 30 de setembro de 2025
+
+Assinatura do Funcionário:
+
+CRISTIANE TORRES ROSSETTO
+CPF: 278.635.378-51
+
+Assinatura e Carimbo da Empresa:
+
+Lokatell Celulares Manutenções LTDA`
+
+const TERMO_RESPONSABILIDADE_USO_EQUIPAMENTO_TEXTO_PADRAO = `TERMO DE RESPONSABILIDADE E USO DE EQUIPAMENTO 
+ASSISTÊNCIA TÉCNICA – EMPRÉSTIMO DE APARELHO 
+
+Pelo presente instrumento particular, de um lado LOKATELL CELULARES E MANUTENÇÕES LTDA, inscrita no CNPJ nº 55.313.237/0001-14, doravante denominada EMPRESA, e de outro lado o cliente identificado abaixo, doravante denominado CLIENTE, têm entre si justo e acordado o seguinte: 
+
+1. IDENTIFICAÇÃO DO CLIENTE 
+Nome: ______________________________________________________________________ 
+CPF: _______________________________  RG: ______________________________ 
+Endereço: ____________________________________________________________________ 
+Telefone: _____________________________ 
+
+2. IDENTIFICAÇÃO DO EQUIPAMENTO EMPRESTADO 
+Tipo do Equipamento: _________________________________________________________ 
+Marca / Modelo: ______________________________________________________________ 
+IMEI 1: _______________________________  IMEI 2: __________________________ 
+Data de Retirada: //________ 
+Data Prevista para Devolução: //________ 
+Finalidade do Empréstimo: 
+(  ) Uso temporário enquanto o aparelho do cliente encontra-se em reparo 
+(  ) Testes técnicos 
+(  ) Outro: _______________________________________________________ 
+Local de Uso (cidade/estado/país): ____________________________________________ 
+Grau de Fragilidade do Equipamento: 
+(  ) Alto  (  ) Médio  (  ) Baixo 
+
+3. CONDIÇÕES DO EQUIPAMENTO NO ATO DA ENTREGA 
+O CLIENTE declara que recebeu o equipamento: 
+(  ) Em perfeitas condições de uso e conservação 
+(  ) Com os seguintes danos ou observações pré-existentes: 
+
+
+
+4. OBRIGAÇÕES DO CLIENTE 
+O CLIENTE compromete-se a: 
+a) Utilizar o equipamento exclusivamente para fins lícitos e compatíveis com sua finalidade; 
+b) Não emprestar, ceder, vender, sublocar ou transferir o equipamento a terceiros; 
+c) Manter o equipamento sob sua posse e guarda direta; 
+d) Devolver o equipamento na data acordada, no mesmo estado em que o recebeu, ressalvado o desgaste natural pelo uso regular; 
+e) Comunicar imediatamente à EMPRESA qualquer defeito, dano, perda, roubo ou furto. 
+
+5. CLÁUSULA DE MULTA E RESPONSABILIDADE FINANCEIRA 
+5.1. Em caso de dano parcial, o CLIENTE arcará com 100% do valor do reparo, conforme orçamento técnico da EMPRESA. 
+5.2. Em caso de dano irreparável, perda, extravio, roubo ou furto, o CLIENTE obriga-se a pagar à EMPRESA o valor integral do equipamento, fixado desde já em: 
+Valor do Equipamento: R$ ______________________________ 
+5.3. O não cumprimento da data de devolução acarretará multa diária de R$ __________, até a efetiva devolução do equipamento. 
+5.4. O inadimplemento autoriza a EMPRESA a adotar as medidas administrativas e judiciais cabíveis, inclusive cobrança extrajudicial. 
+
+6. DISPOSIÇÕES GERAIS 
+6.1. Este termo possui validade legal, servindo como título comprobatório de responsabilidade. 
+6.2. O CLIENTE declara ter lido, compreendido e concordado com todas as cláusulas. 
+6.3. Fica eleito o foro da Comarca de Birigui – SP, com renúncia de qualquer outro, por mais privilegiado que seja. 
+
+Birigui, _____ de __________________ de __________. 
+
+
+Assinatura do Cliente 
+
+
+Assinatura do Representante da Empresa 
+Nome: ____________________________________ 
+Cargo: ___________________________________ 
+Carimbo da Empresa`
+
+const TERM_TEXTS = {
+  'termo-compra-aparelhos': TERMO_COMPRA_TEXTO_PADRAO,
+  'termo-aparelho-molhado': TERMO_APARELHO_MOLHADO_TEXTO_PADRAO,
+  'pagamento-freelance': PAGAMENTO_FREELANCE_TEXTO_PADRAO,
+  'termo-responsabilidade-uso-equipamento': TERMO_RESPONSABILIDADE_USO_EQUIPAMENTO_TEXTO_PADRAO,
+}
+
+const TERM_FILENAMES = {
+  'termo-compra-aparelhos': 'DECLARACAO_DE_COMPRA_DE_APARELHO.pdf',
+  'termo-aparelho-molhado': 'TERMO_APARELHO_MOLHADO.pdf',
+  'pagamento-freelance': 'RECIBO_PAGAMENTO_FREELANCE.pdf',
+  'termo-responsabilidade-uso-equipamento': 'TERMO_RESPONSABILIDADE_USO_EQUIPAMENTO.pdf',
+}
 
 export default function TermsPage({ storeId }) {
-  const [terms, setTerms] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [selectedTermId, setSelectedTermId] = useState(TERM_OPTIONS[0]?.id || '')
+  const [editorText, setEditorText] = useState(TERMO_COMPRA_TEXTO_PADRAO)
 
-  useEffect(() => {
-    if (!storeId) return
-    setLoading(true)
-    getStoreById(storeId).then(s => {
-      if (s && s.termsText) {
-        setTerms(s.termsText)
+  const handleSelectTerm = (id) => {
+    setSelectedTermId(id)
+    const base = TERM_TEXTS[id]
+    setEditorText(base || '')
+  }
+
+  const createPdf = () => {
+    const doc = new jsPDF()
+    const text = editorText || ''
+    const lines = doc.splitTextToSize(text, 180)
+    let y = 20
+    const lineHeight = 7
+    lines.forEach(line => {
+      if (y > 280) {
+        doc.addPage()
+        y = 20
       }
-    }).finally(() => setLoading(false))
-  }, [storeId])
+      doc.text(line, 15, y)
+      y += lineHeight
+    })
+    return doc
+  }
 
-  const handleSave = async () => {
-    if (!storeId) return
-    setSaving(true)
-    try {
-      await updateStore(storeId, { termsText: terms })
-      alert('Termos salvos com sucesso!')
-    } catch (err) {
-      console.error(err)
-      alert('Erro ao salvar termos.')
-    } finally {
-      setSaving(false)
-    }
+  const handleDownload = () => {
+    const doc = createPdf()
+    const filename = TERM_FILENAMES[selectedTermId] || 'documento.pdf'
+    doc.save(filename)
+  }
+
+  const handlePrint = () => {
+    const doc = createPdf()
+    doc.autoPrint()
+    const blob = doc.output('blob')
+    const url = URL.createObjectURL(blob)
+    const win = window.open(url, '_blank')
+    if (!win) return
   }
 
   return (
     <div className="rounded-lg bg-white p-6 shadow">
       <h2 className="text-lg font-semibold mb-4">Termos e Condições</h2>
       <p className="text-sm text-gray-500 mb-4">
-        Edite os termos de garantia e condições de venda/serviço da sua loja. 
-        Este texto poderá ser exibido nos comprovantes.
+        Selecione um termo, edite o texto e depois imprima ou baixe o documento.
       </p>
-      
-      {loading ? (
-        <div className="text-gray-500">Carregando...</div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <textarea
-            className="w-full border rounded p-3 h-64 text-sm focus:ring-green-500 focus:border-green-500"
-            value={terms}
-            onChange={e => setTerms(e.target.value)}
-            placeholder="Digite aqui os termos de garantia, troca e devolução..."
-          ></textarea>
-          
-          <div className="flex justify-end">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 disabled:opacity-50"
-            >
-              {saving ? 'Salvando...' : 'Salvar Alterações'}
-            </button>
+      <div className="flex flex-col gap-4">
+        <div>
+          <div className="text-sm font-semibold text-gray-700 mb-2">
+            Selecionar termo
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {TERM_OPTIONS.map(option => (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => handleSelectTerm(option.id)}
+                className={`px-3 py-2 text-xs rounded border text-left transition-colors ${
+                  selectedTermId === option.id
+                    ? 'bg-green-50 border-green-500 text-green-700'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
-      )}
+
+        {selectedTermId && (
+          <div className="mt-4 space-y-3">
+            <textarea
+              className="w-full border rounded p-3 h-80 text-sm focus:ring-green-500 focus:border-green-500"
+              value={editorText}
+              onChange={e => setEditorText(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-3 justify-end">
+              <button
+                type="button"
+                onClick={handlePrint}
+                className="px-4 py-2 rounded bg-white border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Imprimir
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                className="px-4 py-2 rounded bg-green-600 text-white text-sm hover:bg-green-700"
+              >
+                Baixar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
