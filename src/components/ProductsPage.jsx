@@ -906,10 +906,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             const price = promo != null ? promo : sale
                             const stockVar = Number(v?.stock ?? 0)
                             return (
-                              <div key={idx} className="grid grid-cols-[1fr_6rem] items-center gap-2 text-xs">
+                              <div className="grid grid-cols-[1fr_6rem] items-center gap-2 text-xs">
                                 <div className="truncate">
                                   <span className="font-medium">{v?.name || v?.label || `Variação ${idx+1}`}</span>
-                                  {v?.reference ? (<span className="ml-1 text-gray-500">({v.reference})</span>) : null}
+                                  {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
                                   {stockVar ? (<span className="ml-2 text-gray-500">Estoque: {stockVar.toLocaleString('pt-BR')}</span>) : null}
                                 </div>
                                 <div className="text-right whitespace-nowrap">
@@ -939,7 +939,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                                 <div></div>
                                 <div className="col-span-5 truncate">
                                   <span className="font-medium text-gray-700">{v?.name || v?.label || `Variação ${idx+1}`}</span>
-                                  {v?.reference ? (<span className="ml-1 text-gray-500">({v.reference})</span>) : null}
+                                  {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
                                 </div>
                                 <div className="text-right whitespace-nowrap">
                                   {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}

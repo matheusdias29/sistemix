@@ -39,7 +39,7 @@ export default function SelectVariationModal({ open, onClose, product, onChoose 
                   <div className="flex-1">
                     <div className="font-medium text-gray-800 text-sm uppercase">{variation.name}</div>
                     <div className="text-xs text-gray-500 mt-0.5">
-                      {variation.reference && <span className="mr-2">ref: {variation.reference}</span>}
+                      {product.reference && <span className="mr-2">ref: {product.reference}</span>}
                       <span className={stock > 0 ? "text-gray-500" : "text-red-500"}>Estoque: {stock}</span>
                     </div>
                   </div>

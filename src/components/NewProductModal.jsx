@@ -631,7 +631,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                     </div>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 pt-[1px]">{(v.reference || '').trim() ? v.reference : ''}</div>
+                <div className="text-xs text-gray-500 pt-[1px]">{(reference || '').trim() ? reference : ''}</div>
                 <div className="text-right">
                   <div className="text-base font-semibold leading-tight">{((v.promoPrice ?? v.salePrice) ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
                   <div className="text-xs text-gray-600">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
@@ -786,7 +786,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               open={varModalOpen}
               commissionPercent={commissionPercent}
               initialItems={variationsData.length ? variationsData : [makeVarFromProduct()]}
-              defaultReference={reference}
               onClose={()=> setVarModalOpen(false)}
               onConfirm={(items) => {
                 setVariationsData(items)
@@ -797,7 +796,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                   setSalePrice(String(v1.salePrice ?? 0))
                   setPromoPrice(v1.promoPrice != null ? String(v1.promoPrice) : '')
                   setBarcode(v1.barcode ?? '')
-                  setReference(v1.reference ?? '')
                   setValidityDate(v1.validityDate ?? null)
                   const s = v1.stock ?? v1.stockInitial ?? 0
                   setStock(String(s))
