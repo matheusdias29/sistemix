@@ -78,6 +78,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkSelectedIds, setBulkSelectedIds] = useState(() => new Set())
   const [bulkSelectedSlots, setBulkSelectedSlots] = useState([true, true, true, true, true])
   const [bulkConfig, setBulkConfig] = useState(null)
+  const [bulkReviewQuery, setBulkReviewQuery] = useState('')
 
   useEffect(() => {
     const unsubProd = listenProducts(items => setProducts(items), storeId)
@@ -203,6 +204,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const ids = new Set(bulkCandidateIds)
     return products.filter(p => ids.has(p.id))
   }, [products, bulkCategory, bulkCandidateIds])
+
+  const bulkFilteredCandidates = useMemo(() => {
+    const list = bulkCandidates
+    const q = bulkReviewQuery.trim().toLowerCase()
+    if (!q) return list
+    return list.filter(p => {
+      const name = (p.name || '').toLowerCase()
+      const ref = (p.reference || '').toLowerCase()
+      return name.includes(q) || ref.includes(q)
+    })
+  }, [bulkCandidates, bulkReviewQuery])
 
   const bulkMaxSlots = useMemo(() => {
     if (!bulkCategory) return 0
@@ -491,8 +503,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const type = bulkType === 'remove' ? -1 : 1
     setBulkConfig({ amountValue, percentValue, type })
     setBulkCandidateIds(affected.map(p => p.id))
-    setBulkSelectedIds(new Set(affected.map(p => p.id)))
+    setBulkSelectedIds(new Set())
     setBulkSelectedSlots([true, true, true, true, true])
+    setBulkReviewQuery('')
     setBulkModalOpen(false)
     setBulkReviewOpen(true)
   }
@@ -1299,14 +1312,50 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <div className="text-xs text-gray-600 mb-1">Produtos que irão receber o ajuste</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-green-600"
+                      checked={
+                        bulkFilteredCandidates.length > 0 &&
+                        bulkFilteredCandidates.every(p => bulkSelectedIds.has(p.id))
+                      }
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        if (!checked) {
+                          setBulkSelectedIds(new Set())
+                        } else {
+                          const next = new Set(bulkSelectedIds)
+                          bulkFilteredCandidates.forEach(p => next.add(p.id))
+                          setBulkSelectedIds(next)
+                        }
+                      }}
+                    />
+                    <span>Selecionar todos os listados</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-600">Buscar:</span>
+                    <input
+                      value={bulkReviewQuery}
+                      onChange={e => setBulkReviewQuery(e.target.value)}
+                      placeholder="Nome ou código"
+                      className="border rounded px-2 py-1 text-xs w-48"
+                    />
+                  </div>
+                </div>
                 <div className="max-h-80 overflow-auto border rounded bg-gray-50/60">
                   {bulkCandidates.length === 0 && (
                     <div className="px-3 py-2 text-sm text-gray-600">
                       Nenhum produto encontrado nesta categoria.
                     </div>
                   )}
-                  {bulkCandidates.map(p => (
+                  {bulkCandidates.length > 0 && bulkFilteredCandidates.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-gray-600">
+                      Nenhum produto encontrado para a busca.
+                    </div>
+                  )}
+                  {bulkFilteredCandidates.map(p => (
                     <label
                       key={p.id}
                       className={`flex items-start gap-3 px-4 py-3 border-b last:border-0 text-sm bg-white transition-colors ${
