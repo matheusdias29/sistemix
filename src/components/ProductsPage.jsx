@@ -784,6 +784,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
               const reserved = reservedMap[p.id] || 0
+              const stockDotClass = stock <= 0 ? 'red-dot' : (stock === 1 ? 'orange-dot' : 'green-dot')
               return (
                 <>
                 <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
@@ -796,7 +797,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     </div>
                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
                       Estoque: {stock.toLocaleString('pt-BR')}
-                      <span className="red-dot" />
+                      <span className={stockDotClass} />
                     </div>
                   </div>
                   <div className="hidden md:block text-xs text-gray-500 font-mono">

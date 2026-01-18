@@ -31,6 +31,8 @@ body{font-family: 'Montserrat', sans-serif}
 
 /* small utility to mimic small green dot */
 .green-dot{width:10px;height:10px;border-radius:9999px;background:var(--green)}
+/* small utility orange dot for low stock */
+.orange-dot{width:10px;height:10px;border-radius:9999px;background:#f97316}
 /* small utility red dot for warnings/stock */
 .red-dot{width:10px;height:10px;border-radius:9999px;background:#ef4444}
 
