@@ -14,9 +14,22 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
   })
   const [items, setItems] = useState([toEditable()])
   const [expandedIdx, setExpandedIdx] = useState(null)
+  const [calcOpen, setCalcOpen] = useState(false)
+  const [calcIndex, setCalcIndex] = useState(null)
+  const [calcCost, setCalcCost] = useState('')
+  const [calcMarkup, setCalcMarkup] = useState('')
+  const [calcSale, setCalcSale] = useState('')
+  const [calcProfit, setCalcProfit] = useState('')
+
   const fmtBRL = (v) => {
     const n = parseFloat(v)
     return (isNaN(n) ? 0 : n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  }
+
+  const parseNumber = (v) => {
+    if (v == null) return 0
+    const n = parseFloat(String(v).replace(',', '.'))
+    return isNaN(n) ? 0 : n
   }
 
   useEffect(() => {
@@ -34,11 +47,60 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
   const updateItem = (idx, field, value) => {
     setItems(prev => prev.map((it, i) => i===idx ? { ...it, [field]: value } : it))
   }
-  const calcSale = (idx) => {
-    const c = parseFloat(items[idx].cost) || 0
-    const com = parseFloat(commissionPercent) || 0
-    const r = c * (1 + (com/100))
-    updateItem(idx, 'salePrice', String(r.toFixed(2)))
+
+  const openCalc = (idx) => {
+    const it = items[idx]
+    const cost = parseNumber(it.cost)
+    setCalcIndex(idx)
+    setCalcCost(cost > 0 ? cost.toFixed(2) : '')
+    setCalcSale('')
+    setCalcMarkup('')
+    setCalcProfit('')
+    setCalcOpen(true)
+  }
+
+  const onChangeMarkup = (raw) => {
+    setCalcMarkup(raw)
+    const cost = parseNumber(calcCost)
+    const markup = parseNumber(raw)
+    if (cost <= 0) return
+    const sale = cost * (1 + markup / 100)
+    const profit = markup
+    setCalcSale(sale > 0 ? sale.toFixed(2) : '')
+    setCalcProfit(!isNaN(profit) ? profit.toFixed(2) : '')
+  }
+
+  const onChangeSale = (raw) => {
+    setCalcSale(raw)
+    const cost = parseNumber(calcCost)
+    const sale = parseNumber(raw)
+    if (cost <= 0 || sale <= 0) return
+    const markup = (sale / cost - 1) * 100
+    const profit = markup
+    setCalcMarkup(markup.toFixed(2))
+    setCalcProfit(profit.toFixed(2))
+  }
+
+  const onChangeProfit = (raw) => {
+    setCalcProfit(raw)
+    const cost = parseNumber(calcCost)
+    const profit = parseNumber(raw)
+    if (cost <= 0) return
+    const sale = cost * (1 + profit / 100)
+    const markup = profit
+    setCalcSale(sale > 0 ? sale.toFixed(2) : '')
+    setCalcMarkup(!isNaN(markup) ? markup.toFixed(2) : '')
+  }
+
+  const applyCalc = () => {
+    if (calcIndex == null) {
+      setCalcOpen(false)
+      return
+    }
+    const sale = parseNumber(calcSale)
+    const value = sale > 0 ? sale.toFixed(2) : '0'
+    updateItem(calcIndex, 'salePrice', value)
+    setCalcOpen(false)
   }
   const confirm = () => {
     const normalized = items.map(it => ({
@@ -118,7 +180,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             </div>
                           </div>
                           <div className="mt-2">
-                            <button type="button" onClick={()=>calcSale(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
+                            <button type="button" onClick={()=>openCalc(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3">
                             <div>
@@ -189,7 +251,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                       </div>
                     </div>
                     <div className="mt-2">
-                      <button type="button" onClick={()=>calcSale(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
+                      <button type="button" onClick={()=>openCalc(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-4">
                       <div>
@@ -237,6 +299,80 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
           </div>
         </form>
       </div>
+      {calcOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-lg w-[480px] max-w-[95vw]">
+            <div className="px-4 py-3 border-b flex items-center justify-between">
+              <div className="text-sm font-semibold">Calcular preço de venda</div>
+              <button type="button" onClick={()=>setCalcOpen(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <div className="p-4 space-y-4 text-sm">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-600">Preço de custo</label>
+                </div>
+                <input
+                  className="w-full border rounded px-3 py-2 text-sm bg-gray-50"
+                  value={fmtBRL(calcCost)}
+                  readOnly
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-600">Markup (%)</label>
+                  <span className="text-xs text-gray-500">Markup é aplicado sobre o custo</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    value={calcMarkup}
+                    onChange={e=>onChangeMarkup(e.target.value)}
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-600">Preço de venda</label>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={calcSale}
+                  onChange={e=>onChangeSale(e.target.value)}
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-600">Lucro (%)</label>
+                  <span className="text-xs text-gray-500">Lucro é calculado sobre o custo</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full border rounded px-3 py-2 text-sm"
+                    value={calcProfit}
+                    onChange={e=>onChangeProfit(e.target.value)}
+                  />
+                  <span className="text-xs text-gray-500">%</span>
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-3 text-sm">
+              <button type="button" onClick={()=>setCalcOpen(false)} className="px-3 py-2 border rounded">
+                Cancelar
+              </button>
+              <button type="button" onClick={applyCalc} className="px-3 py-2 rounded bg-green-600 text-white">
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
