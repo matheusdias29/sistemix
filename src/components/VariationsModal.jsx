@@ -20,6 +20,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
   const [calcMarkup, setCalcMarkup] = useState('')
   const [calcSale, setCalcSale] = useState('')
   const [calcProfit, setCalcProfit] = useState('')
+  const [calcProfitValue, setCalcProfitValue] = useState('')
 
   const fmtBRL = (v) => {
     const n = parseFloat(v)
@@ -56,6 +57,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     setCalcSale('')
     setCalcMarkup('')
     setCalcProfit('')
+    setCalcProfitValue('')
     setCalcOpen(true)
   }
 
@@ -68,6 +70,8 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     const profit = markup
     setCalcSale(sale > 0 ? sale.toFixed(2) : '')
     setCalcProfit(!isNaN(profit) ? profit.toFixed(2) : '')
+    const profitValue = sale - cost
+    setCalcProfitValue(profitValue > 0 ? profitValue.toFixed(2) : '')
   }
 
   const onChangeSale = (raw) => {
@@ -79,6 +83,8 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     const profit = markup
     setCalcMarkup(markup.toFixed(2))
     setCalcProfit(profit.toFixed(2))
+    const profitValue = sale - cost
+    setCalcProfitValue(profitValue > 0 ? profitValue.toFixed(2) : '')
   }
 
   const onChangeProfit = (raw) => {
@@ -90,6 +96,22 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     const markup = profit
     setCalcSale(sale > 0 ? sale.toFixed(2) : '')
     setCalcMarkup(!isNaN(markup) ? markup.toFixed(2) : '')
+    const profitValue = sale - cost
+    setCalcProfitValue(profitValue > 0 ? profitValue.toFixed(2) : '')
+  }
+
+  const onChangeProfitValue = (raw) => {
+    setCalcProfitValue(raw)
+    const cost = parseNumber(calcCost)
+    const profitValue = parseNumber(raw)
+    if (cost <= 0) return
+    const sale = cost + profitValue
+    if (sale <= 0) return
+    const markup = (sale / cost - 1) * 100
+    const profit = markup
+    setCalcSale(sale.toFixed(2))
+    setCalcMarkup(markup.toFixed(2))
+    setCalcProfit(profit.toFixed(2))
   }
 
   const applyCalc = () => {
@@ -360,6 +382,18 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                   />
                   <span className="text-xs text-gray-500">%</span>
                 </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-600">Lucro (R$)</label>
+                </div>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full border rounded px-3 py-2 text-sm"
+                  value={calcProfitValue}
+                  onChange={e=>onChangeProfitValue(e.target.value)}
+                />
               </div>
             </div>
             <div className="px-4 py-3 border-t flex items-center justify-end gap-3 text-sm">
