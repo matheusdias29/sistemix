@@ -8,6 +8,7 @@ const TERM_OPTIONS = [
   { id: 'termo-aparelho-molhado', label: 'TERMO DE APARELHO MOLHADO' },
   { id: 'pagamento-freelance', label: 'PAGAMENTO FREELANCE' },
   { id: 'termo-responsabilidade-uso-equipamento', label: 'TERMO DE RESPONSABILIDADE E USO DE EQUIPAMENTO' },
+  { id: 'recibo-pagamento-comissao-funcionarios', label: 'RECIBO DE PAGAMENTO COMISSAO FUNCIONARIOS' },
   { id: 'advertencia-funcionario', label: 'ADVERTENCIA FUNCIONARIO' },
   { id: 'metodo-venda-pecas', label: 'METODO DE VENDA DE PECAS' },
   { id: 'metodo-vendas-varejo-acessorios', label: 'METODO DE VENDAS VAREJO ACESSORIOS' },
@@ -158,11 +159,28 @@ Nome: ____________________________________
 Cargo: ___________________________________ 
 Carimbo da Empresa`
 
+const RECIBO_PAGAMENTO_COMISSAO_TEXTO_PADRAO = `RECIBO DE PAGAMENTO DE COMISSÃO 
+
+Eu, GEOVANA BEATRIZ LOURENÇO, portadora do CPF nº 468.967.478-70, declaro, para os devidos fins, que recebi da empresa Lokatell Celulares Manutenções LTDA, inscrita no CNPJ sob nº 55.313.237/0001-14, com sede à Rua Siqueira Campos, nº 535, Birigui/SP, a quantia de R$ 350,00 (trezentos e cinquenta reais), referente ao pagamento de comissão pelas vendas realizadas no mês de novembro de 2025. 
+
+Declaro, ainda, que o valor acima foi recebido integralmente, nada mais tendo a reclamar a este título. 
+
+Birigui, 03 de dezembro de 2025 
+
+Assinatura do Funcionário: 
+
+GEOVANA BEATRIZ LOURENÇO 
+
+Assinatura e Carimbo da Empresa: 
+
+Lokatell Celulares Manutenções LTDA`
+
 const TERM_TEXTS = {
   'termo-compra-aparelhos': TERMO_COMPRA_TEXTO_PADRAO,
   'termo-aparelho-molhado': TERMO_APARELHO_MOLHADO_TEXTO_PADRAO,
   'pagamento-freelance': PAGAMENTO_FREELANCE_TEXTO_PADRAO,
   'termo-responsabilidade-uso-equipamento': TERMO_RESPONSABILIDADE_USO_EQUIPAMENTO_TEXTO_PADRAO,
+  'recibo-pagamento-comissao-funcionarios': RECIBO_PAGAMENTO_COMISSAO_TEXTO_PADRAO,
 }
 
 const TERM_FILENAMES = {
@@ -170,16 +188,86 @@ const TERM_FILENAMES = {
   'termo-aparelho-molhado': 'TERMO_APARELHO_MOLHADO.pdf',
   'pagamento-freelance': 'RECIBO_PAGAMENTO_FREELANCE.pdf',
   'termo-responsabilidade-uso-equipamento': 'TERMO_RESPONSABILIDADE_USO_EQUIPAMENTO.pdf',
+  'recibo-pagamento-comissao-funcionarios': 'RECIBO_PAGAMENTO_COMISSAO_FUNCIONARIOS.pdf',
 }
 
 export default function TermsPage({ storeId }) {
-  const [selectedTermId, setSelectedTermId] = useState(TERM_OPTIONS[0]?.id || '')
-  const [editorText, setEditorText] = useState(TERMO_COMPRA_TEXTO_PADRAO)
+  const [terms, setTerms] = useState(() => {
+    // Carregar do localStorage ou usar padrão
+    const saved = localStorage.getItem('sistemix_terms_data')
+    if (saved) {
+      return JSON.parse(saved)
+    }
+    // Converter estrutura antiga para nova
+    return TERM_OPTIONS.map(opt => ({
+      id: opt.id,
+      label: opt.label,
+      text: TERM_TEXTS[opt.id] || '',
+      filename: TERM_FILENAMES[opt.id] || `${opt.label.replace(/[^a-z0-9]/gi, '_').toUpperCase()}.pdf`
+    }))
+  })
+
+  const [selectedTermId, setSelectedTermId] = useState(terms[0]?.id || '')
+  const [editorText, setEditorText] = useState(terms[0]?.text || '')
+  
+  // Modo de edição
+  const [isEditingMode, setIsEditingMode] = useState(false)
+  const [newTermName, setNewTermName] = useState('')
+
+  // Efeito para salvar no localStorage sempre que 'terms' mudar
+  React.useEffect(() => {
+    localStorage.setItem('sistemix_terms_data', JSON.stringify(terms))
+  }, [terms])
 
   const handleSelectTerm = (id) => {
     setSelectedTermId(id)
-    const base = TERM_TEXTS[id]
-    setEditorText(base || '')
+    const term = terms.find(t => t.id === id)
+    setEditorText(term ? term.text : '')
+  }
+
+  const handleSaveDefault = () => {
+    if (!selectedTermId) return
+    setTerms(prev => prev.map(t => {
+      if (t.id === selectedTermId) {
+        return { ...t, text: editorText }
+      }
+      return t
+    }))
+    alert('Texto padrão atualizado com sucesso!')
+  }
+
+  const handleDeleteTerm = (id, e) => {
+    e.stopPropagation()
+    if (window.confirm('Tem certeza que deseja excluir este termo?')) {
+      const newTerms = terms.filter(t => t.id !== id)
+      setTerms(newTerms)
+      if (selectedTermId === id) {
+        setSelectedTermId('')
+        setEditorText('')
+      }
+    }
+  }
+
+  const handleAddTerm = () => {
+    if (!newTermName.trim()) return
+    const id = newTermName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+    if (terms.find(t => t.id === id)) {
+      alert('Já existe um termo com este nome/ID.')
+      return
+    }
+    
+    const newTerm = {
+      id,
+      label: newTermName.toUpperCase(),
+      text: '',
+      filename: `${newTermName.trim().replace(/\s+/g, '_').toUpperCase()}.pdf`
+    }
+    
+    setTerms([...terms, newTerm])
+    setNewTermName('')
+    // Selecionar o novo termo
+    setSelectedTermId(id)
+    setEditorText('')
   }
 
   const createPdf = () => {
@@ -201,7 +289,8 @@ export default function TermsPage({ storeId }) {
 
   const handleDownload = () => {
     const doc = createPdf()
-    const filename = TERM_FILENAMES[selectedTermId] || 'documento.pdf'
+    const term = terms.find(t => t.id === selectedTermId)
+    const filename = term?.filename || 'documento.pdf'
     doc.save(filename)
   }
 
@@ -216,18 +305,36 @@ export default function TermsPage({ storeId }) {
 
   return (
     <div className="rounded-lg bg-white p-6 shadow">
-      <h2 className="text-lg font-semibold mb-4">Termos e Condições</h2>
-      <p className="text-sm text-gray-500 mb-4">
-        Selecione um termo, edite o texto e depois imprima ou baixe o documento.
-      </p>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Termos e Condições</h2>
+          <p className="text-sm text-gray-500">
+            {isEditingMode 
+              ? 'Gerencie seus termos: adicione novos, apague existentes ou edite o texto padrão.' 
+              : 'Selecione um termo, edite o texto e depois imprima ou baixe o documento.'}
+          </p>
+        </div>
+        <button
+          onClick={() => setIsEditingMode(!isEditingMode)}
+          className={`px-3 py-1 text-sm rounded border transition-colors ${
+            isEditingMode 
+              ? 'bg-blue-100 border-blue-500 text-blue-700' 
+              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+          }`}
+        >
+          {isEditingMode ? 'Sair da Edição' : 'Editar Termos'}
+        </button>
+      </div>
+
       <div className="flex flex-col gap-4">
         <div>
-          <div className="text-sm font-semibold text-gray-700 mb-2">
-            Selecionar termo
+          <div className="text-sm font-semibold text-gray-700 mb-2 flex justify-between items-center">
+            <span>Selecionar termo</span>
           </div>
+          
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {TERM_OPTIONS.map(option => {
-              const isReady = !!TERM_TEXTS[option.id]
+            {terms.map(option => {
+              const isReady = !!option.text
               let buttonClass = ''
               if (selectedTermId === option.id) {
                 buttonClass = 'bg-green-50 border-green-500 text-green-700'
@@ -238,16 +345,47 @@ export default function TermsPage({ storeId }) {
               }
 
               return (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => handleSelectTerm(option.id)}
-                  className={`px-3 py-2 text-xs rounded border text-left transition-colors ${buttonClass}`}
-                >
-                  {option.label}
-                </button>
+                <div key={option.id} className="relative group">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTerm(option.id)}
+                    className={`w-full px-3 py-2 text-xs rounded border text-left transition-colors ${buttonClass} ${isEditingMode ? 'pr-8' : ''}`}
+                  >
+                    {option.label}
+                  </button>
+                  {isEditingMode && (
+                    <button
+                      onClick={(e) => handleDeleteTerm(option.id, e)}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-red-500 hover:bg-red-50 rounded"
+                      title="Excluir termo"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               )
             })}
+            
+            {isEditingMode && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="text"
+                  value={newTermName}
+                  onChange={(e) => setNewTermName(e.target.value)}
+                  placeholder="Nome do novo termo..."
+                  className="flex-1 px-3 py-2 text-xs border rounded focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                  onClick={handleAddTerm}
+                  disabled={!newTermName.trim()}
+                  className="px-3 py-2 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Adicionar
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -259,6 +397,16 @@ export default function TermsPage({ storeId }) {
               onChange={e => setEditorText(e.target.value)}
             />
             <div className="flex flex-wrap gap-3 justify-end">
+              {isEditingMode && (
+                <button
+                  type="button"
+                  onClick={handleSaveDefault}
+                  className="mr-auto px-4 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700"
+                >
+                  Salvar como Texto Padrão
+                </button>
+              )}
+              
               <button
                 type="button"
                 onClick={handlePrint}
