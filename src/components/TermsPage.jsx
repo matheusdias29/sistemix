@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { jsPDF } from 'jspdf'
+import { listenTerms, addTerm, updateTerm, deleteTerm, seedDefaultTerms } from '../services/terms'
 
 const TERM_OPTIONS = [
   { id: 'termo-compra-aparelhos', label: 'TERMO COMPRA DE APARELHOS' },
@@ -192,82 +193,109 @@ const TERM_FILENAMES = {
 }
 
 export default function TermsPage({ storeId }) {
-  const [terms, setTerms] = useState(() => {
-    // Carregar do localStorage ou usar padrão
-    const saved = localStorage.getItem('sistemix_terms_data')
-    if (saved) {
-      return JSON.parse(saved)
-    }
-    // Converter estrutura antiga para nova
-    return TERM_OPTIONS.map(opt => ({
-      id: opt.id,
-      label: opt.label,
-      text: TERM_TEXTS[opt.id] || '',
-      filename: TERM_FILENAMES[opt.id] || `${opt.label.replace(/[^a-z0-9]/gi, '_').toUpperCase()}.pdf`
-    }))
-  })
+  const [terms, setTerms] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const [selectedTermId, setSelectedTermId] = useState(terms[0]?.id || '')
-  const [editorText, setEditorText] = useState(terms[0]?.text || '')
+  const [selectedTermId, setSelectedTermId] = useState('')
+  const [editorText, setEditorText] = useState('')
   
   // Modo de edição
   const [isEditingMode, setIsEditingMode] = useState(false)
   const [newTermName, setNewTermName] = useState('')
 
-  // Efeito para salvar no localStorage sempre que 'terms' mudar
-  React.useEffect(() => {
-    localStorage.setItem('sistemix_terms_data', JSON.stringify(terms))
-  }, [terms])
+  useEffect(() => {
+    if (!storeId) {
+      setLoading(false)
+      return
+    }
 
+    const unsub = listenTerms((items) => {
+      if (items.length === 0) {
+        // Se não tiver termos no banco, inicializa com os padrões
+        const defaultTerms = TERM_OPTIONS.map(opt => ({
+          label: opt.label,
+          text: TERM_TEXTS[opt.id] || '',
+          filename: TERM_FILENAMES[opt.id] || `${opt.label.replace(/[^a-z0-9]/gi, '_').toUpperCase()}.pdf`
+        }))
+        seedDefaultTerms(storeId, defaultTerms)
+      } else {
+        setTerms(items)
+        setLoading(false)
+        // Se tiver um selecionado que não existe mais, limpa
+        // Ou se não tiver nada selecionado, seleciona o primeiro
+        if (items.length > 0 && !selectedTermId) {
+          // Opcional: auto selecionar o primeiro
+          // setSelectedTermId(items[0].id)
+          // setEditorText(items[0].text || '')
+        }
+      }
+    }, storeId)
+
+    return () => unsub()
+  }, [storeId])
+
+  // Atualiza o texto do editor quando muda o termo selecionado
+  // MAS CUIDADO: se o usuário estiver digitando e receber update do banco, pode sobrescrever?
+  // Sim, mas aqui estamos assumindo que o editor é local até salvar.
+  // Quando troca de termo selecionado, carrega o texto.
   const handleSelectTerm = (id) => {
     setSelectedTermId(id)
     const term = terms.find(t => t.id === id)
     setEditorText(term ? term.text : '')
   }
 
-  const handleSaveDefault = () => {
+  const handleSaveDefault = async () => {
     if (!selectedTermId) return
-    setTerms(prev => prev.map(t => {
-      if (t.id === selectedTermId) {
-        return { ...t, text: editorText }
-      }
-      return t
-    }))
-    alert('Texto padrão atualizado com sucesso!')
+    try {
+      await updateTerm(selectedTermId, { text: editorText })
+      alert('Texto padrão atualizado e salvo para todos os usuários!')
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao salvar texto.')
+    }
   }
 
-  const handleDeleteTerm = (id, e) => {
+  const handleDeleteTerm = async (id, e) => {
     e.stopPropagation()
-    if (window.confirm('Tem certeza que deseja excluir este termo?')) {
-      const newTerms = terms.filter(t => t.id !== id)
-      setTerms(newTerms)
-      if (selectedTermId === id) {
-        setSelectedTermId('')
-        setEditorText('')
+    if (window.confirm('Tem certeza que deseja excluir este termo para todos os usuários?')) {
+      try {
+        await deleteTerm(id)
+        if (selectedTermId === id) {
+          setSelectedTermId('')
+          setEditorText('')
+        }
+      } catch (error) {
+        console.error(error)
+        alert('Erro ao excluir termo.')
       }
     }
   }
 
-  const handleAddTerm = () => {
+  const handleAddTerm = async () => {
     if (!newTermName.trim()) return
-    const id = newTermName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-    if (terms.find(t => t.id === id)) {
-      alert('Já existe um termo com este nome/ID.')
-      return
-    }
     
-    const newTerm = {
-      id,
-      label: newTermName.toUpperCase(),
-      text: '',
-      filename: `${newTermName.trim().replace(/\s+/g, '_').toUpperCase()}.pdf`
+    try {
+      const label = newTermName.toUpperCase()
+      // Verifica duplicidade de nome localmente antes de enviar (opcional)
+      const exists = terms.find(t => t.label === label)
+      if (exists) {
+        alert('Já existe um termo com este nome.')
+        return
+      }
+
+      const newId = await addTerm({
+        label: label,
+        text: '',
+        filename: `${newTermName.trim().replace(/\s+/g, '_').toUpperCase()}.pdf`
+      }, storeId)
+      
+      setNewTermName('')
+      setSelectedTermId(newId)
+      setEditorText('')
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao adicionar termo.')
     }
-    
-    setTerms([...terms, newTerm])
-    setNewTermName('')
-    // Selecionar o novo termo
-    setSelectedTermId(id)
-    setEditorText('')
   }
 
   const createPdf = () => {
@@ -303,6 +331,10 @@ export default function TermsPage({ storeId }) {
     if (!win) return
   }
 
+  if (loading) {
+    return <div className="p-6">Carregando termos...</div>
+  }
+
   return (
     <div className="rounded-lg bg-white p-6 shadow">
       <div className="flex justify-between items-center mb-4">
@@ -319,7 +351,7 @@ export default function TermsPage({ storeId }) {
           className={`px-3 py-1 text-sm rounded border transition-colors ${
             isEditingMode 
               ? 'bg-blue-100 border-blue-500 text-blue-700' 
-              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+              : 'bg-green-600 border-green-600 text-white hover:bg-green-700'
           }`}
         >
           {isEditingMode ? 'Sair da Edição' : 'Editar Termos'}
