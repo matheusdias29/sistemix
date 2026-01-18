@@ -11,7 +11,7 @@ export default function SelectVariationModal({ open, onClose, product, onChoose 
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70]">
       <div className="bg-white rounded-lg shadow-lg w-[600px] max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-4 border-b shrink-0">
-          <h3 className="font-semibold text-lg text-gray-800">Selecionar variação</h3>
+          <h3 className="font-semibold text-lg text-gray-800">Selecionar Precificação</h3>
         </div>
         
         <div className="p-4 flex-1 overflow-hidden flex flex-col">
@@ -30,6 +30,8 @@ export default function SelectVariationModal({ open, onClose, product, onChoose 
             {filtered.map((variation, idx) => {
               const price = variation.promoPrice ?? variation.salePrice ?? 0
               const stock = variation.stock ?? variation.stockInitial ?? 0
+              const originalIndex = variations.indexOf(variation)
+              const showStock = originalIndex === 0 || originalIndex === 4
               return (
                 <div 
                   key={idx} 
@@ -38,7 +40,7 @@ export default function SelectVariationModal({ open, onClose, product, onChoose 
                 >
                   <div className="flex-1">
                     <div className="font-medium text-gray-800 text-sm uppercase">{variation.name}</div>
-                    {idx === 0 && (
+                    {showStock && (
                       <div className="text-xs text-gray-500 mt-0.5">
                         <span className={stock > 0 ? "text-gray-500" : "text-red-500"}>Estoque: {stock}</span>
                       </div>
