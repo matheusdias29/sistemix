@@ -233,6 +233,29 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     return Math.min(max, bulkSelectedSlots.length)
   }, [bulkCategory, bulkCandidates, bulkSelectedIds, bulkSelectedSlots])
 
+  const getClientFinalPrice = (p) => {
+    if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+      const targetNames = [
+        '1 - PREÇO P/ CLIENTE FINAL',
+        '1- PREÇO DO PRODUTO',
+        '1- VALOR DO PRODUTO'
+      ]
+      let v = p.variationsData.find(x => targetNames.includes(x.name))
+      if (!v) v = p.variationsData[0]
+      const promo = v.promoPrice != null ? Number(v.promoPrice) : null
+      const sale = Number(v.salePrice ?? 0)
+      if (promo && !isNaN(promo)) return promo
+      if (sale && !isNaN(sale)) return sale
+    }
+    const promo = p.promoPrice != null ? Number(p.promoPrice) : null
+    const sale = Number(p.salePrice ?? 0)
+    const min = Number(p.priceMin ?? 0)
+    if (promo && !isNaN(promo)) return promo
+    if (sale && !isNaN(sale)) return sale
+    if (min && !isNaN(min)) return min
+    return 0
+  }
+
   const toggleSelect = (id) => {
     const next = new Set(selected)
     if(next.has(id)) next.delete(id); else next.add(id)
@@ -757,9 +780,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         {(tab==='produto') ? (
           <div className="bg-white rounded-lg shadow">
             {filtered.map(p => {
-              const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
-              const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
-              const priceText = priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+              const clientFinal = getClientFinalPrice(p)
+              const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
               const reserved = reservedMap[p.id] || 0
               return (

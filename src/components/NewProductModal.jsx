@@ -68,13 +68,13 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   ]
   const VAR_NAMES_4P = [
     '1 - PREÇO P/ CLIENTE FINAL',
-    '2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO',
-    '3 - PREÇO PARCELADO 13X ATÉ 18X CARTÃO CREDITO',
+    '2 - PREÇO CARTÃO CREDITO 7X ATÉ 12X',
+    '3 - PREÇO CARTÃO CREDITO 13X ATÉ 18X',
     '4 - PREÇO P/LOJISTA LEVAR Á VISTA'
   ]
   const VAR_NAMES_5P = [
     ...VAR_NAMES_4P,
-    '5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA'
+    '5 - PREÇO P/ LOJISTA INSTALAR NA LOJA'
   ]
 
   const generateVariations = (mode, currentVars = []) => {
@@ -82,6 +82,21 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     if (mode === '5P') targetNames = VAR_NAMES_5P
     else if (mode === '3P') targetNames = VAR_NAMES_3P
     
+    const altNameMap = {
+      '2 - PREÇO CARTÃO CREDITO 7X ATÉ 12X': [
+        '2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X',
+        '2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO'
+      ],
+      '3 - PREÇO CARTÃO CREDITO 13X ATÉ 18X': [
+        '3 - PREÇO PARCELADO 13X ATÉ 18X CARTÃO CREDITO'
+      ],
+      '5 - PREÇO P/ LOJISTA INSTALAR NA LOJA': [
+        '5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA',
+        '5-PREÇO P/INSTALAR NA LOJA',
+        '5-VALOR P/INSTALAR NA LOJA'
+      ]
+    }
+
     return targetNames.map(name => {
       // Try to find exact match
       let existing = currentVars.find(v => v.name === name)
@@ -95,7 +110,16 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
          }
       }
 
-      // If not found, try to find legacy "VALOR" name and migrate it
+      // If not found, try alternative names configured for this slot
+      if (!existing && altNameMap[name]) {
+        const candidates = altNameMap[name]
+        const old = currentVars.find(v => candidates.includes(v.name))
+        if (old) {
+          existing = { ...old, name }
+        }
+      }
+
+      // If still not found, try to find legacy "VALOR" name and migrate it
       if (!existing && name.includes('PREÇO')) {
         const legacyName = name.replace('PREÇO', 'VALOR')
         const legacy = currentVars.find(v => v.name === legacyName)
@@ -107,20 +131,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       // Also check by index if possible (fragile but helpful for simple renames)
       // Actually, let's just stick to name matching for now.
       
-      // One more check: if we switched from 3P (P1) to 4P (P2) or 5P (P3)
-      // P1[1] is "2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X"
-      // P2[1] is "2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO"
-      // They are slightly different strings. We should try to map them.
-      if (!existing) {
-         if (name === '2 - PREÇO PARCELADO 7X ATÉ 12X CARTÃO CREDITO') {
-            const old = currentVars.find(v => v.name === '2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X')
-            if (old) existing = { ...old, name }
-         }
-         // P1[3] is "4 - PREÇO P/ LOJISTA INSTALADO NA LOJA"
-         // P3[4] is "5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA"
-         // These seem distinct concepts, maybe shouldn't auto-migrate unless user wants to.
-      }
-
       if (existing) return existing
       return {
         name,
@@ -161,7 +171,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         
         const vData = Array.isArray(product.variationsData) ? product.variationsData : []
         // Detecção do modo baseado nos nomes das variações
-        const has5th = vData.some(v => v.name === '5-PREÇO P/INSTALAR NA LOJA' || v.name === '5-VALOR P/INSTALAR NA LOJA')
+        const has5th = vData.some(v => [
+          '5 - PREÇO P/ LOJISTA INSTALAR NA LOJA',
+          '5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA',
+          '5-PREÇO P/INSTALAR NA LOJA',
+          '5-VALOR P/INSTALAR NA LOJA'
+        ].includes(v.name))
         const has3rd = vData.some(v => v.name === '3 - PREÇO P/ LOJISTA INSTALADA NA LOJA')
         
         let initialMode = '4P'
