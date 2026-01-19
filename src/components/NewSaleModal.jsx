@@ -823,7 +823,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                 disabled={cart.length === 0}
                 className="flex-[2] py-3 bg-green-600 text-white rounded font-medium hover:bg-green-700 transition-colors disabled:opacity-50 shadow-sm flex flex-col items-center justify-center leading-tight"
               >
-                <span>Pagar</span>
+                <span>Faturar</span>
                 <span className="text-xs opacity-90">{remainingToPay > 0 ? `Restante: ${money(remainingToPay)}` : 'Pago'}</span>
               </button>
             </div>

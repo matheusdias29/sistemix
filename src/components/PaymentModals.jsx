@@ -123,7 +123,7 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
   ]
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
       <div className="bg-white rounded-lg w-[600px] max-w-[95vw] md:max-w-[80vw] max-h-[90vh] md:max-h-[80vh] overflow-y-auto md:overflow-hidden">
         <div className="p-4 border-b">
           <div className="text-center">
@@ -204,7 +204,7 @@ export function PaymentAmountModal({ open, onClose, method, remaining, amount, s
   const appliedAmount = method?.code === 'cash' ? Math.min(currentAmount, remaining) : Math.min(currentAmount, remaining)
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
       <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold">Valor do pagamento</h2>
@@ -270,7 +270,7 @@ export function AboveAmountConfirmModal({ open, amount, remaining, method, onCan
   const excessAmount = amount - remaining
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
       <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold flex items-center">
@@ -333,7 +333,7 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
   const percentagePaid = remaining > 0 ? ((100 - (remaining / (remaining + 100)) * 100)) : 100
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
       <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold flex items-center">
@@ -385,7 +385,7 @@ export function AfterAboveAdjustedModal({ open, method, remaining, onClose }) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
       <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
         <div className="p-4 border-b">
           <h2 className="text-lg font-semibold flex items-center">

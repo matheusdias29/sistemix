@@ -146,7 +146,7 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
     : (isCredit ? 'Adicionar Crédito ao Cliente' : 'Nova Conta a Receber')
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 font-sans">
+    <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/50 p-4 font-sans">
       <div className="w-full max-w-xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="p-6 pb-2">

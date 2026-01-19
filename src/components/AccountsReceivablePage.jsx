@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { listenAccountsReceivable, addAccountReceivable, updateAccountReceivable, removeAccountReceivable } from '../services/accountsReceivable'
 import NewAccountReceivableModal from './NewAccountReceivableModal'
 import SalesDateFilterModal from './SalesDateFilterModal'
+import { PaymentMethodsModal, PaymentAmountModal } from './PaymentModals'
+import { listenCurrentCash, addCashTransaction } from '../services/cash'
 
 const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dateStr = (d) => {
@@ -28,9 +30,20 @@ export default function AccountsReceivablePage({ storeId, user }) {
   // Dropdown e Modal Type
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [modalType, setModalType] = useState('receivable') // 'receivable' or 'credit'
-
-  // Estado para expandir clientes
-  const [expandedClients, setExpandedClients] = useState({}) // { clientId: true/false }
+  const [detailGroup, setDetailGroup] = useState(null)
+  const [detailTab, setDetailTab] = useState('receivable')
+  const [selectedDetailIds, setSelectedDetailIds] = useState(new Set())
+  const [detailMenuOpenId, setDetailMenuOpenId] = useState(null)
+  const [currentCash, setCurrentCash] = useState(null)
+  const [receiveTargetAccounts, setReceiveTargetAccounts] = useState([])
+  const [receivePayments, setReceivePayments] = useState([])
+  const [receiveInfoOpen, setReceiveInfoOpen] = useState(false)
+  const [receivePayMethodsOpen, setReceivePayMethodsOpen] = useState(false)
+  const [receiveSelectedMethod, setReceiveSelectedMethod] = useState(null)
+  const [receivePayAmountOpen, setReceivePayAmountOpen] = useState(false)
+  const [receivePayAmountInput, setReceivePayAmountInput] = useState('')
+  const [receivePayError, setReceivePayError] = useState('')
+  const [receiveTotal, setReceiveTotal] = useState(0)
 
   useEffect(() => {
     const unsub = listenAccountsReceivable((items) => {
@@ -38,6 +51,18 @@ export default function AccountsReceivablePage({ storeId, user }) {
     }, storeId)
     return () => unsub()
   }, [storeId])
+
+  useEffect(() => {
+    const unsub = listenCurrentCash(storeId, (cash) => {
+      setCurrentCash(cash)
+    })
+    return () => unsub && unsub()
+  }, [storeId])
+
+  useEffect(() => {
+    setSelectedDetailIds(new Set())
+    setDetailMenuOpenId(null)
+  }, [detailGroup, detailTab])
 
   // Agrupar por Cliente
   const { grouped, totalReceivable, totalOverdue, totalCredits } = useMemo(() => {
@@ -85,18 +110,19 @@ export default function AccountsReceivablePage({ storeId, user }) {
         }
       }
 
-      // Agrupamento
-      const key = acc.receivedBy || 'Sem Funcionário'
+      // Agrupamento por cliente
+      const key = acc.clientName || 'Cliente Sem Nome'
       if (!groups[key]) {
         groups[key] = {
-          receivedBy: acc.receivedBy || 'Sem Funcionário',
+          clientName: acc.clientName || 'Cliente Sem Nome',
           items: [],
           totalDebit: 0,
           totalOverdue: 0,
           totalCredit: 0, // Total de créditos desse cliente
           countReceivable: 0,
           countOverdue: 0,
-          countCredit: 0
+          countCredit: 0,
+          latestCreatedAt: 0
         }
       }
 
@@ -116,18 +142,201 @@ export default function AccountsReceivablePage({ storeId, user }) {
           }
         }
       }
+
+      const createdAt = acc.createdAt
+      let ts = 0
+      if (createdAt?.toDate) {
+        ts = createdAt.toDate().getTime()
+      } else if (typeof createdAt === 'string') {
+        const t = Date.parse(createdAt)
+        ts = isNaN(t) ? 0 : t
+      }
+      if (ts > groups[key].latestCreatedAt) {
+        groups[key].latestCreatedAt = ts
+      }
     })
 
     return {
-      grouped: Object.values(groups),
+      grouped: Object.values(groups).sort((a, b) => b.latestCreatedAt - a.latestCreatedAt),
       totalReceivable: tReceivable,
       totalOverdue: tOverdue,
       totalCredits: tCredits
     }
   }, [accounts, search, filterType, dateRange])
 
-  const toggleExpand = (key) => {
-    setExpandedClients(prev => ({ ...prev, [key]: !prev[key] }))
+  const detailItems = useMemo(() => {
+    if (!detailGroup) return []
+    const key = detailGroup.clientName || 'Cliente Sem Nome'
+    return accounts.filter(acc => (acc.clientName || 'Cliente Sem Nome') === key)
+  }, [accounts, detailGroup])
+  const detailToday = new Date().toISOString().split('T')[0]
+
+  let detailTotalReceivable = 0
+  let detailTotalPaid = 0
+  let detailTotalOverdue = 0
+  let detailTotalCredits = 0
+
+  detailItems.forEach(acc => {
+    const isCredit = acc.type === 'credit'
+    const remaining = Number(acc.remainingValue ?? acc.value ?? 0)
+    const paid = Number(acc.paidValue ?? 0)
+
+    if (acc.status === 'pending') {
+      if (isCredit) {
+        detailTotalCredits += remaining
+      } else {
+        detailTotalReceivable += remaining
+        if (acc.dueDate && acc.dueDate < detailToday) {
+          detailTotalOverdue += remaining
+        }
+      }
+    } else if (acc.status === 'paid') {
+      detailTotalPaid += paid || acc.value || 0
+    }
+  })
+
+  const filteredDetailItems = detailItems.filter(acc => {
+    if (detailTab === 'receivable') return acc.status === 'pending'
+    if (detailTab === 'received') return acc.status === 'paid'
+    return true
+  })
+
+  const selectedDetailTotal = detailTab === 'receivable'
+    ? filteredDetailItems.reduce((sum, acc) => {
+        if (!selectedDetailIds.has(acc.id)) return sum
+        if (acc.type === 'credit') return sum
+        if (acc.status !== 'pending') return sum
+        const remaining = Number(acc.remainingValue ?? acc.value ?? 0)
+        return sum + remaining
+      }, 0)
+    : 0
+
+  const receiveRemaining = Math.max(
+    receiveTotal - receivePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0),
+    0
+  )
+
+  const handleReceiveSelected = () => {
+    if (selectedDetailIds.size === 0) return
+
+    const selectedAccounts = filteredDetailItems.filter(acc => {
+      if (!selectedDetailIds.has(acc.id)) return false
+      if (acc.type === 'credit') return false
+      return acc.status === 'pending'
+    })
+
+    if (selectedAccounts.length === 0) return
+
+    const total = selectedAccounts.reduce((sum, acc) => {
+      const remaining = Number(acc.remainingValue ?? acc.value ?? 0)
+      return sum + remaining
+    }, 0)
+
+    setReceiveTargetAccounts(selectedAccounts)
+    setReceivePayments([])
+    setReceiveSelectedMethod(null)
+    setReceivePayAmountInput(total > 0 ? String(total.toFixed(2)) : '')
+    setReceivePayError('')
+    setReceiveTotal(total)
+    setReceiveInfoOpen(true)
+    setReceivePayMethodsOpen(false)
+    setReceivePayAmountOpen(false)
+  }
+
+  const finalizeReceivePayments = async () => {
+    if (!receiveTargetAccounts.length) {
+      setReceivePayMethodsOpen(false)
+      return
+    }
+    if (receiveRemaining > 0.01) {
+      return
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0]
+
+    const paymentsToSave = receivePayments.map(p => ({
+      method: p.method,
+      methodCode: p.methodCode,
+      amount: Number(p.amount || 0),
+      date: p.date || new Date()
+    }))
+
+    try {
+      setIsLoading(true)
+
+      await Promise.all(
+        receiveTargetAccounts.map(async acc => {
+          const remaining = Number(acc.remainingValue ?? acc.value ?? 0)
+          const paid = Number(acc.paidValue ?? 0)
+
+          const updateData = {
+            status: 'paid',
+            paidValue: paid + remaining,
+            remainingValue: 0,
+            paymentDate: todayStr,
+            receivedBy: user?.name || acc.receivedBy || 'Sistema'
+          }
+
+          if (paymentsToSave.length > 0) {
+            updateData.payments = paymentsToSave
+          }
+
+          await updateAccountReceivable(acc.id, updateData)
+        })
+      )
+
+      if (currentCash && paymentsToSave.length > 0) {
+        const totalValue = paymentsToSave.reduce(
+          (sum, p) => sum + Number(p.amount || 0),
+          0
+        )
+        const mainMethod =
+          paymentsToSave.length === 1 ? paymentsToSave[0] : null
+
+        const description = 'Recebimento de contas'
+        const notes = receiveTargetAccounts
+          .map(acc => {
+            const name = acc.clientName || 'Cliente'
+            const desc = acc.description || ''
+            return `${name} - ${desc}`
+          })
+          .join(' | ')
+
+        await addCashTransaction(currentCash.id, {
+          description,
+          notes,
+          value: totalValue,
+          type: 'in',
+          method: mainMethod ? mainMethod.methodCode : 'multiple',
+          methodLabel: mainMethod ? mainMethod.method : 'Múltiplos métodos',
+          date: new Date(),
+          userId: user?.id,
+          userName: user?.name,
+          originalOrder: {
+            id: receiveTargetAccounts[0]?.id,
+            type: 'accounts_receivable',
+            accounts: receiveTargetAccounts.map(acc => ({
+              id: acc.id,
+              clientName: acc.clientName,
+              description: acc.description,
+              value: acc.value,
+              remainingValue: acc.remainingValue
+            }))
+          }
+        })
+      }
+
+      setSelectedDetailIds(new Set())
+      setReceiveTargetAccounts([])
+      setReceivePayments([])
+      setReceivePayMethodsOpen(false)
+      setReceiveSelectedMethod(null)
+      setReceiveTotal(0)
+    } catch (error) {
+      console.error(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleSave = async (data) => {
@@ -302,7 +511,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
            <table className="min-w-full divide-y divide-gray-100">
              <thead className="bg-gray-50">
                <tr>
-                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600">Funcionário</th>
+                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600">Cliente / Descrição</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Débito</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Vencido</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Crédito</th>
@@ -318,117 +527,447 @@ export default function AccountsReceivablePage({ storeId, user }) {
                  </tr>
                ) : (
                  grouped.map((group, idx) => {
-                    const groupKey = group.receivedBy || idx
-                    const isExpanded = expandedClients[groupKey]
-                    
-                    return (
-                      <React.Fragment key={groupKey}>
-                        <tr 
-                          className="hover:bg-gray-50 transition-colors cursor-pointer group"
-                          onClick={() => toggleExpand(groupKey)}
-                        >
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-700 uppercase">{group.receivedBy}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-red-500">{money(group.totalDebit)}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-red-500">{group.totalOverdue > 0 ? money(group.totalOverdue) : '-'}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                            <div className="text-sm text-green-600">{group.totalCredit > 0 ? money(group.totalCredit) : '-'}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right">
-                             <div className="flex gap-2 justify-end">
-                               {group.countOverdue > 0 && (
-                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                                   Vencido <span className="ml-1 bg-red-200 text-red-800 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">{group.countOverdue}</span>
-                                 </span>
-                               )}
-                               {group.countReceivable > 0 && (
-                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
-                                   A Receber <span className="ml-1 bg-orange-200 text-orange-800 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">{group.countReceivable}</span>
-                                 </span>
-                               )}
-                               {group.countCredit > 0 && (
-                                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                   Crédito <span className="ml-1 bg-green-200 text-green-800 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">{group.countCredit}</span>
-                                 </span>
-                               )}
-                             </div>
-                          </td>
-                        </tr>
-                        
-                        {/* Expanded Details */}
-                        {isExpanded && (
-                          <tr className="bg-gray-50">
-                            <td colSpan="5" className="px-6 py-4">
-                               <div className="border rounded-lg bg-white overflow-hidden">
-                                 <table className="min-w-full divide-y divide-gray-100">
-                                   <thead className="bg-gray-100">
-                                      <tr>
-                                        <th className="px-4 py-2 text-left text-sm font-bold text-gray-600">Cliente</th>
-                                        <th className="px-4 py-2 text-left text-sm font-bold text-gray-600">Descrição</th>
-                                        <th className="px-4 py-2 text-center text-sm font-bold text-gray-600">Vencimento</th>
-                                        <th className="px-4 py-2 text-right text-sm font-bold text-gray-600">Valor</th>
-                                        <th className="px-4 py-2 text-center text-sm font-bold text-gray-600">Status</th>
-                                        <th className="px-4 py-2 w-10"></th>
-                                      </tr>
-                                   </thead>
-                                   <tbody className="divide-y divide-gray-50">
-                                      {group.items.map(item => (
-                                        <tr key={item.id} className="hover:bg-gray-50">
-                                           <td className="px-4 py-2 text-sm text-gray-700 font-medium">
-                                              {item.clientName || 'Cliente Sem Nome'}
-                                           </td>
-                                           <td className="px-4 py-2 text-sm text-gray-700">
-                                              {item.type === 'credit' && <span className="text-green-600 font-bold mr-1">[CRÉDITO]</span>}
-                                              {item.description}
-                                           </td>
-                                           <td className="px-4 py-2 text-center text-sm text-gray-600">{dateStr(item.dueDate)}</td>
-                                           <td className="px-4 py-2 text-right text-sm text-gray-900">{money(item.remainingValue)}</td>
-                                           <td className="px-4 py-2 text-center">
-                                              {item.status === 'pending' ? (
-                                                item.type === 'credit' ? (
-                                                  <span className="text-xs text-green-600 font-bold">Disponível</span>
-                                                ) : (
-                                                  new Date(item.dueDate) < new Date() 
-                                                    ? <span className="text-xs text-red-600 font-bold">Vencido</span>
-                                                    : <span className="text-xs text-orange-600 font-bold">Pendente</span>
-                                                )
-                                              ) : (
-                                                <span className="text-xs text-green-600 font-bold">Pago</span>
-                                              )}
-                                           </td>
-                                           <td className="px-4 py-2 text-right">
-                                              <button 
-                                                className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                                                onClick={(e) => {
-                                                  e.stopPropagation()
-                                                  setEditingAccount(item)
-                                                  setIsModalOpen(true)
-                                                }}
-                                              >
-                                                Editar
-                                              </button>
-                                           </td>
-                                        </tr>
-                                      ))}
-                                   </tbody>
-                                 </table>
-                               </div>
-                            </td>
-                          </tr>
-                        )}
-                      </React.Fragment>
-                    )
+                   const groupKey = group.clientName || idx
+
+                   return (
+                     <tr
+                       key={groupKey}
+                       className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                       onClick={() => {
+                         setDetailGroup(group)
+                         setDetailTab('receivable')
+                       }}
+                     >
+                       <td className="px-6 py-4 whitespace-nowrap">
+                         <div className="text-sm text-gray-700">{group.clientName}</div>
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-right">
+                         <div className="text-sm text-red-500">{money(group.totalDebit)}</div>
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-right">
+                         <div className="text-sm text-red-500">{group.totalOverdue > 0 ? money(group.totalOverdue) : '-'}</div>
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-right">
+                         <div className="text-sm text-green-600">{group.totalCredit > 0 ? money(group.totalCredit) : '-'}</div>
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-right">
+                         <div className="flex gap-2 justify-end">
+                           {group.countOverdue > 0 && (
+                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                               Vencido <span className="ml-1 bg-red-200 text-red-800 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">{group.countOverdue}</span>
+                             </span>
+                           )}
+                           {group.countReceivable > 0 && (
+                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                               A Receber <span className="ml-1 bg-orange-200 text-orange-800 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">{group.countReceivable}</span>
+                             </span>
+                           )}
+                           {group.countCredit > 0 && (
+                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                               Crédito <span className="ml-1 bg-green-200 text-green-800 rounded-full w-5 h-5 flex items-center justify-center text-[10px]">{group.countCredit}</span>
+                             </span>
+                           )}
+                         </div>
+                       </td>
+                     </tr>
+                   )
                  })
                )}
              </tbody>
            </table>
         </div>
       </div>
+
+      {detailGroup && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
+            <div className="px-6 pt-4 border-b flex items-center justify-between">
+              <div className="text-sm font-semibold text-gray-800">Contas a receber</div>
+              <button
+                className="text-sm text-gray-500 hover:text-gray-700"
+                onClick={() => setDetailGroup(null)}
+              >
+                Voltar
+              </button>
+            </div>
+
+            <div className="px-6 border-b flex gap-4 mt-2">
+              <button
+                className={`pb-2 text-sm font-medium ${
+                  detailTab === 'receivable'
+                    ? 'text-green-600 border-b-2 border-green-600'
+                    : 'text-gray-500'
+                }`}
+                onClick={() => setDetailTab('receivable')}
+              >
+                A Receber
+              </button>
+              <button
+                className={`pb-2 text-sm font-medium ${
+                  detailTab === 'received'
+                    ? 'text-green-600 border-b-2 border-green-600'
+                    : 'text-gray-500'
+                }`}
+                onClick={() => setDetailTab('received')}
+              >
+                Recebido
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <div className="text-xs text-gray-500">Total a receber</div>
+                  <div className="text-base font-bold text-green-600">
+                    {money(detailTotalReceivable)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Total pago</div>
+                  <div className="text-base font-bold text-gray-800">
+                    {money(detailTotalPaid)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Total vencido</div>
+                  <div className="text-base font-bold text-red-500">
+                    {money(detailTotalOverdue)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Total créditos</div>
+                  <div className="text-base font-bold text-green-600">
+                    {money(detailTotalCredits)}
+                  </div>
+                </div>
+              </div>
+
+              {detailTab === 'receivable' && selectedDetailTotal > 0 && (
+                <div className="flex items-center justify-end">
+                  <span className="text-sm text-gray-700 mr-3">
+                    Valor a receber:{' '}
+                    <span className="font-semibold">
+                      {money(selectedDetailTotal)}
+                    </span>
+                  </span>
+                  <button
+                    onClick={handleReceiveSelected}
+                    disabled={isLoading}
+                    className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    Receber
+                  </button>
+                </div>
+              )}
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      {detailTab === 'receivable' && (
+                        <th className="px-4 py-2 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                            checked={
+                              filteredDetailItems.length > 0 &&
+                              filteredDetailItems.every(acc => selectedDetailIds.has(acc.id))
+                            }
+                            onChange={e => {
+                              if (e.target.checked) {
+                                const all = new Set(filteredDetailItems.map(acc => acc.id))
+                                setSelectedDetailIds(all)
+                              } else {
+                                setSelectedDetailIds(new Set())
+                              }
+                            }}
+                          />
+                        </th>
+                      )}
+                      <th className="px-4 py-2 text-left text-xs font-bold text-gray-600">
+                        Conta
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Valor original
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Valor pago
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Disponível/A receber
+                      </th>
+                      <th className="px-4 py-2 text-center text-xs font-bold text-gray-600">
+                        Vencimento
+                      </th>
+                      <th className="px-4 py-2 text-center text-xs font-bold text-gray-600">
+                        Status
+                      </th>
+                      <th className="px-4 py-2 w-14"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filteredDetailItems.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={detailTab === 'receivable' ? 8 : 7}
+                          className="px-4 py-6 text-center text-sm text-gray-500"
+                        >
+                          Nenhuma conta encontrada.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredDetailItems.map(acc => {
+                        const isSelected = selectedDetailIds.has(acc.id)
+
+                        return (
+                          <tr
+                            key={acc.id}
+                            className="hover:bg-gray-50 cursor-pointer"
+                            onClick={() => {
+                              if (acc.status !== 'pending') return
+                              setModalType(acc.type || 'receivable')
+                              setEditingAccount(acc)
+                              setIsModalOpen(true)
+                            }}
+                          >
+                            {detailTab === 'receivable' && (
+                              <td className="px-4 py-2 text-center">
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                                  checked={isSelected}
+                                  onClick={e => e.stopPropagation()}
+                                  onChange={e => {
+                                    const next = new Set(selectedDetailIds)
+                                    if (e.target.checked) {
+                                      next.add(acc.id)
+                                    } else {
+                                      next.delete(acc.id)
+                                    }
+                                    setSelectedDetailIds(next)
+                                  }}
+                                />
+                              </td>
+                            )}
+                            <td className="px-4 py-2 text-sm text-gray-700">
+                              <div className="font-medium">
+                                {acc.clientName || 'Cliente sem nome'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {acc.description}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(acc.value)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(acc.paidValue)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(acc.remainingValue)}
+                            </td>
+                            <td className="px-4 py-2 text-center text-sm text-gray-600">
+                              {dateStr(acc.dueDate)}
+                            </td>
+                            <td className="px-4 py-2 text-center text-sm">
+                              {acc.status === 'pending' ? (
+                                acc.type === 'credit' ? (
+                                  <span className="text-xs font-semibold text-green-600">
+                                    Disponível
+                                  </span>
+                                ) : acc.dueDate && acc.dueDate < detailToday ? (
+                                  <span className="text-xs font-semibold text-red-600">
+                                    Vencido
+                                  </span>
+                                ) : (
+                                  <span className="text-xs font-semibold text-orange-600">
+                                    A receber
+                                  </span>
+                                )
+                              ) : (
+                                <span className="text-xs font-semibold text-green-600">
+                                  Recebido
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2 text-right relative">
+                              <button
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500"
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  setDetailMenuOpenId(
+                                    detailMenuOpenId === acc.id ? null : acc.id
+                                  )
+                                }}
+                              >
+                                <span className="text-lg leading-none">⋮</span>
+                              </button>
+                              {detailMenuOpenId === acc.id && (
+                                <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg border border-gray-100 z-10">
+                                  <button
+                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                                    onClick={() => {
+                                      setDetailMenuOpenId(null)
+                                    }}
+                                  >
+                                    Promissória
+                                  </button>
+                                  <button
+                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                                    onClick={() => {
+                                      setDetailMenuOpenId(null)
+                                    }}
+                                  >
+                                    Pagamentos
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {receiveInfoOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl">
+            <div className="px-6 pt-4 border-b flex items-center justify-between">
+              <div className="text-base font-semibold text-gray-800">
+                Informações do Pagamento
+              </div>
+              <button
+                className="text-sm text-gray-500 hover:text-gray-700"
+                onClick={() => {
+                  setReceiveInfoOpen(false)
+                  setReceiveTargetAccounts([])
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              <div className="text-sm font-semibold text-red-500">
+                ↓ Débitos
+              </div>
+
+              <div className="border rounded-lg overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-100">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-bold text-gray-600">
+                        Conta
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Valor original
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Em aberto
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Pagamento
+                      </th>
+                      <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
+                        Valor pago
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {receiveTargetAccounts.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-4 py-6 text-center text-sm text-gray-500"
+                        >
+                          Nenhuma conta selecionada.
+                        </td>
+                      </tr>
+                    ) : (
+                      receiveTargetAccounts.map(acc => {
+                        const original = Number(acc.value || 0)
+                        const remaining = Number(
+                          acc.remainingValue ?? acc.value ?? 0
+                        )
+                        const paid = Number(acc.paidValue ?? 0)
+                        const paymentNow = remaining
+
+                        return (
+                          <tr key={acc.id}>
+                            <td className="px-4 py-2 text-sm text-gray-700">
+                              <div className="font-medium">
+                                {acc.clientName || 'Cliente sem nome'}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {acc.description}
+                              </div>
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(original)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(remaining)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(paymentNow)}
+                            </td>
+                            <td className="px-4 py-2 text-right text-sm text-gray-900">
+                              {money(paid)}
+                            </td>
+                          </tr>
+                        )
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className="text-sm text-gray-600"></div>
+                <div className="text-sm text-gray-700">
+                  Total a receber:{' '}
+                  <span className="font-semibold">
+                    {money(receiveTotal)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded"
+                  onClick={() => {
+                    setReceiveInfoOpen(false)
+                    setReceiveTargetAccounts([])
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className="px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded"
+                  onClick={() => {
+                    if (receiveTargetAccounts.length === 0) {
+                      setReceiveInfoOpen(false)
+                      return
+                    }
+                    setReceiveInfoOpen(false)
+                    setReceivePayMethodsOpen(true)
+                  }}
+                >
+                  Receber
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isModalOpen && (
         <NewAccountReceivableModal
@@ -451,6 +990,65 @@ export default function AccountsReceivablePage({ storeId, user }) {
         onApply={setDateRange}
         currentLabel={dateRange.label}
       />
+
+      {receivePayMethodsOpen && (
+        <PaymentMethodsModal
+          open={receivePayMethodsOpen}
+          onClose={() => {
+            setReceivePayMethodsOpen(false)
+            setReceivePayments([])
+            setReceiveSelectedMethod(null)
+          }}
+          remaining={receiveRemaining}
+          payments={receivePayments}
+          onRemovePayment={idx =>
+            setReceivePayments(prev =>
+              prev.filter((_, i) => i !== idx)
+            )
+          }
+          onChooseMethod={m => {
+            if (!receiveRemaining || receiveRemaining <= 0) return
+            setReceiveSelectedMethod(m)
+            setReceivePayAmountInput(
+              String(receiveRemaining.toFixed(2))
+            )
+            setReceivePayError('')
+            setReceivePayAmountOpen(true)
+          }}
+          onConfirm={finalizeReceivePayments}
+        />
+      )}
+
+      {receivePayAmountOpen && (
+        <PaymentAmountModal
+          open={receivePayAmountOpen}
+          onClose={() => setReceivePayAmountOpen(false)}
+          method={receiveSelectedMethod}
+          remaining={receiveRemaining}
+          amount={receivePayAmountInput}
+          setAmount={setReceivePayAmountInput}
+          error={receivePayError}
+          setError={setReceivePayError}
+          onConfirm={() => {
+            const amt = parseFloat(receivePayAmountInput) || 0
+            if (!receiveSelectedMethod) return
+            const remaining = receiveRemaining
+            const applied = Math.min(amt, remaining)
+            if (applied <= 0) {
+              setReceivePayError('Valor deve ser maior que zero')
+              return
+            }
+            const newPayment = {
+              method: receiveSelectedMethod.label,
+              methodCode: receiveSelectedMethod.code,
+              amount: applied,
+              date: new Date()
+            }
+            setReceivePayments(prev => [...prev, newPayment])
+            setReceivePayAmountOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
