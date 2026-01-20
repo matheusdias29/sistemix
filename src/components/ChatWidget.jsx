@@ -15,6 +15,18 @@ export default function ChatWidget({ user }) {
   const [userChats, setUserChats] = useState([])
   const [soundEnabled, setSoundEnabled] = useState(true)
   const messagesEndRef = useRef(null)
+  const audioRef = useRef(null)
+
+  // Initialize audio object once
+  useEffect(() => {
+    try {
+        const audio = new Audio(notificationSound)
+        audio.volume = 0.5
+        audioRef.current = audio
+    } catch (e) {
+        console.error('Audio initialization error', e)
+    }
+  }, [])
 
   // Identify the Owner ID
   const ownerId = user?.ownerId || user?.id
@@ -191,16 +203,24 @@ export default function ChatWidget({ user }) {
   }, [colleagues, userChats])
 
   // Play notification sound
-  const playNotificationSound = () => {
+  const playNotificationSound = React.useCallback(() => {
     if (!soundEnabled) return
     try {
-        const audio = new Audio(notificationSound)
-        audio.volume = 0.5
-        audio.play().catch(e => console.error('Error playing sound', e))
+        const audio = audioRef.current
+        if (audio) {
+            audio.currentTime = 0
+            // Attempt to play
+            const promise = audio.play()
+            if (promise !== undefined) {
+                promise.catch(e => {
+                    console.error('Audio play error (autoplay policy?)', e)
+                })
+            }
+        }
     } catch (e) {
         console.error('Audio error', e)
     }
-  }
+  }, [soundEnabled])
 
   // Total unread count
   const totalUnread = userChats.reduce((acc, chat) => acc + (chat.unreadCounts?.[myUid] || 0), 0)
@@ -220,7 +240,7 @@ export default function ChatWidget({ user }) {
         playNotificationSound()
     }
     prevUnreadRef.current = totalUnread
-  }, [totalUnread])
+  }, [totalUnread, playNotificationSound])
 
 
 
