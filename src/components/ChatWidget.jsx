@@ -14,17 +14,20 @@ export default function ChatWidget({ user }) {
   const [inputText, setInputText] = useState('')
   const [userChats, setUserChats] = useState([])
   const [soundEnabled, setSoundEnabled] = useState(true)
+  const [now, setNow] = useState(Date.now()) // For refreshing online status
   const messagesEndRef = useRef(null)
   const audioRef = useRef(null)
 
-  // Initialize audio object once
+  // Force refresh for online status every 5 seconds
   useEffect(() => {
-    try {
-        const audio = new Audio(notificationSound)
-        audio.volume = 0.5
-        audioRef.current = audio
-    } catch (e) {
-        console.error('Audio initialization error', e)
+    const interval = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Set audio volume
+  useEffect(() => {
+    if (audioRef.current) {
+        audioRef.current.volume = 0.5
     }
   }, [])
 
@@ -203,24 +206,17 @@ export default function ChatWidget({ user }) {
   }, [colleagues, userChats])
 
   // Play notification sound
-  const playNotificationSound = React.useCallback(() => {
+  const playNotificationSound = () => {
     if (!soundEnabled) return
     try {
-        const audio = audioRef.current
-        if (audio) {
-            audio.currentTime = 0
-            // Attempt to play
-            const promise = audio.play()
-            if (promise !== undefined) {
-                promise.catch(e => {
-                    console.error('Audio play error (autoplay policy?)', e)
-                })
-            }
+        if (audioRef.current) {
+            audioRef.current.currentTime = 0
+            audioRef.current.play().catch(e => console.error('Audio play error', e))
         }
     } catch (e) {
         console.error('Audio error', e)
     }
-  }, [soundEnabled])
+  }
 
   // Total unread count
   const totalUnread = userChats.reduce((acc, chat) => acc + (chat.unreadCounts?.[myUid] || 0), 0)
@@ -240,7 +236,7 @@ export default function ChatWidget({ user }) {
         playNotificationSound()
     }
     prevUnreadRef.current = totalUnread
-  }, [totalUnread, playNotificationSound])
+  }, [totalUnread, soundEnabled])
 
 
 
@@ -252,6 +248,7 @@ export default function ChatWidget({ user }) {
 
   return (
     <div className="fixed bottom-24 md:bottom-6 right-6 z-50 flex flex-col items-end">
+      <audio ref={audioRef} src={notificationSound} preload="auto" />
       {/* Chat Window */}
       {isOpen && (
         <div className="mb-4 w-[800px] max-w-[90vw] h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden flex flex-col md:flex-row border border-gray-200 dark:border-gray-700">
