@@ -172,8 +172,9 @@ export default function ChatWidget({ user }) {
   // Play notification sound
   const playNotificationSound = () => {
     try {
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3')
-        audio.volume = 0.5
+        // Simpler sound (short ping)
+        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3')
+        audio.volume = 0.4
         audio.play().catch(e => console.error('Error playing sound', e))
     } catch (e) {
         console.error('Audio error', e)
@@ -201,12 +202,10 @@ export default function ChatWidget({ user }) {
   }, [totalUnread])
 
 
-  // Auto-select first user if none selected and list available (optional, but requested "ao lado dessa lista o chat ja aberto")
-  useEffect(() => {
-    if (isOpen && !selectedUser && sortedColleagues.length > 0) {
-      setSelectedUser(sortedColleagues[0])
-    }
-  }, [isOpen, sortedColleagues, selectedUser])
+
+  // Auto-select removed to prevent auto-marking as read
+  // User must explicitly select a chat
+
 
   if (!user) return null
 
@@ -279,7 +278,7 @@ export default function ChatWidget({ user }) {
                     </div>
                     <span className="font-bold text-gray-800 dark:text-gray-100">{selectedUser.name}</span>
                   </div>
-                  <button onClick={() => setIsOpen(false)} className="md:hidden text-gray-500">✕</button>
+                  <button onClick={() => { setIsOpen(false); setSelectedUser(null); }} className="md:hidden text-gray-500">✕</button>
                 </div>
 
                 {/* Messages */}
@@ -341,7 +340,10 @@ export default function ChatWidget({ user }) {
             </div>
         )}
         <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => {
+                if (isOpen) setSelectedUser(null)
+                setIsOpen(!isOpen)
+            }}
             className="w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 z-50"
             title="Chat da Equipe"
         >
