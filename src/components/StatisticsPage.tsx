@@ -3,7 +3,10 @@ import { listenOrders } from '../services/orders'
 import { listenAccountsPayable } from '../services/accountsPayable'
 import { listenAccountsReceivable } from '../services/accountsReceivable'
 import { listenCurrentCash, getClosedCashRegisters } from '../services/cash'
+import { listenProducts } from '../services/products'
+import { listenCategories } from '../services/categories'
 import SalesDateFilterModal from './SalesDateFilterModal'
+import { ArrowRight, ChevronRight, Package, TrendingUp, DollarSign } from 'lucide-react'
 
 type StatisticsPageProps = {
   storeId?: string
@@ -26,6 +29,7 @@ type Order = {
   client?: string
   attendant?: string
   payments?: OrderPayment[]
+  discount?: number
 }
 
 type DateRange = {
@@ -86,6 +90,21 @@ type CashRegister = {
     totalIn?: number
     totalOut?: number
   } | null
+}
+
+type Product = {
+  id: string
+  name?: string
+  cost?: number
+  salePrice?: number
+  stock?: number
+  categoryId?: string
+  active?: boolean
+}
+
+type Category = {
+  id: string
+  name?: string
 }
 
 const TABS = [
@@ -163,6 +182,8 @@ export default function StatisticsPage({ storeId }: StatisticsPageProps) {
   const [receivables, setReceivables] = useState<AccountReceivable[]>([])
   const [currentCash, setCurrentCash] = useState<CashRegister | null>(null)
   const [closedCash, setClosedCash] = useState<CashRegister[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [categoriesList, setCategoriesList] = useState<Category[]>([])
   const [activeTab, setActiveTab] = useState<TabKey>('Vendas')
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -236,6 +257,18 @@ export default function StatisticsPage({ storeId }: StatisticsPageProps) {
     return () => {
       cancelled = true
     }
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    const unsub = listenProducts((items: any[]) => setProducts(items), storeId)
+    return () => unsub && unsub()
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    const unsub = listenCategories((items: any[]) => setCategoriesList(items), storeId)
+    return () => unsub && unsub()
   }, [storeId])
 
   const salesInPeriod = useMemo(() => {
@@ -942,6 +975,185 @@ export default function StatisticsPage({ storeId }: StatisticsPageProps) {
       ) || 1,
     [cashChartData]
   )
+
+  // --- ESTOQUE LOGIC ---
+
+  const stockMetrics = useMemo(() => {
+    return products.reduce((acc, p) => {
+      const stock = Number(p.stock || 0)
+      const cost = Number(p.cost || 0)
+      const price = Number(p.salePrice || 0)
+      return {
+        totalCost: acc.totalCost + (cost * stock),
+        totalValue: acc.totalValue + (price * stock),
+        totalQty: acc.totalQty + stock
+      }
+    }, { totalCost: 0, totalValue: 0, totalQty: 0 })
+  }, [products])
+
+  const stockGiro = useMemo(() => {
+    const map = new Map<string, { 
+      soldQty: number, 
+      soldValue: number, 
+      product: Product 
+    }>()
+
+    // Map all products first
+    products.forEach(p => {
+      map.set(p.id, { soldQty: 0, soldValue: 0, product: p })
+    })
+
+    // Aggregate sales
+    salesInPeriod.forEach(o => {
+      const items = Array.isArray(o.products) ? o.products : []
+      items.forEach((item: any) => {
+        // Need to match by ID if possible, but orders might only have name/id
+        // Assuming item.id exists or we match by name if id missing (fallback)
+        let pid = item.id
+        if (!pid) {
+          // Fallback: try to find by name in products list
+          const found = products.find(p => p.name === item.name)
+          if (found) pid = found.id
+        }
+
+        if (pid && map.has(pid)) {
+          const current = map.get(pid)!
+          const qty = Number(item.quantity || 0)
+          const val = Number(item.price || item.total || 0) * qty // price per unit * qty? or total line value
+          // item.price is usually unit price. item.total is line total.
+          // Let's use item.total if available, else calc
+          const lineTotal = item.total ? Number(item.total) : (Number(item.price || 0) * qty)
+          
+          current.soldQty += qty
+          current.soldValue += lineTotal
+        }
+      })
+    })
+
+    const list = Array.from(map.values())
+      .filter(i => i.soldQty > 0 || i.product.stock! > 0) // Show items with activity or stock
+      .map(i => {
+        const stock = Number(i.product.stock || 0)
+        // Giro (vezes) = Sold Qty / Stock (if stock 0, use sold qty as proxy or infinity? Let's use Sold/Max(1,Stock))
+        // Actually, standard is Sold / Avg Stock. We only have current stock.
+        const times = stock > 0 ? i.soldQty / stock : i.soldQty
+        
+        // Giro (dias). If period is "Este Mês" (30 days).
+        // Let's approximate period days based on dateRange
+        let daysInPeriod = 30
+        if (dateRange.start && dateRange.end) {
+          const diff = dateRange.end.getTime() - dateRange.start.getTime()
+          daysInPeriod = Math.ceil(diff / (1000 * 3600 * 24))
+        }
+        
+        const days = times > 0 ? daysInPeriod / times : 0
+        
+        return {
+          ...i,
+          times,
+          days
+        }
+      })
+      .sort((a, b) => b.soldValue - a.soldValue) // Sort by sold value desc
+
+    return list
+  }, [products, salesInPeriod, dateRange])
+
+  const stockByCategory = useMemo(() => {
+    const map = new Map<string, { qty: number, cost: number, value: number }>()
+
+    products.forEach(p => {
+      const catId = p.categoryId
+      const catName = categoriesList.find(c => c.id === catId)?.name || 'Sem Categoria'
+      const stock = Number(p.stock || 0)
+      const cost = Number(p.cost || 0) * stock
+      const val = Number(p.salePrice || 0) * stock
+
+      const current = map.get(catName) || { qty: 0, cost: 0, value: 0 }
+      current.qty += stock
+      current.cost += cost
+      current.value += val
+      map.set(catName, current)
+    })
+
+    return Array.from(map.entries())
+      .map(([name, data]) => ({ name, ...data }))
+      .sort((a, b) => b.value - a.value)
+  }, [products, categoriesList])
+
+  // --- DRE LOGIC ---
+  const dreData = useMemo(() => {
+    // 1. Sales Data
+    const salesGross = filteredSales.reduce((acc, o) => acc + (Number(o.total || 0) + Number(o.discount || 0)), 0)
+    const salesDiscount = filteredSales.reduce((acc, o) => acc + Number(o.discount || 0), 0)
+    const salesNet = salesGross - salesDiscount
+    const salesTax = 0 // Placeholder
+    const salesNetAfterTax = salesNet - salesTax
+    
+    const salesCost = filteredSales.reduce((acc, o) => {
+       const items = Array.isArray(o.products) ? o.products : []
+       const cost = items.reduce((s, p) => s + (Number(p.cost || 0) * Number(p.quantity || 0)), 0)
+       if (cost > 0) return acc + cost
+       return acc + (Number(o.total || 0) * 0.65)
+    }, 0)
+    
+    const salesProfit = salesNetAfterTax - salesCost
+
+    // 2. OS Data
+    const osGross = filteredServiceOrders.reduce((acc, o) => acc + (Number(o.total || 0) + Number(o.discount || 0)), 0)
+    const osDiscount = filteredServiceOrders.reduce((acc, o) => acc + Number(o.discount || 0), 0)
+    const osNet = osGross - osDiscount
+    const osTax = 0
+    
+    const osProductCost = filteredServiceOrders.reduce((acc, o) => {
+       const items = Array.isArray(o.products) ? o.products : []
+       const cost = items.reduce((s, p) => s + (Number(p.cost || 0) * Number(p.quantity || 0)), 0)
+       return acc + cost
+    }, 0)
+    
+    // Service Cost
+    const osServiceCost = 0 
+    
+    const osProfit = osNet - osTax - osProductCost - osServiceCost
+
+    // 3. Expenses
+    const totalExpenses = payablesPaidInPeriod.reduce((acc, p) => acc + Number(p.paidValue || p.originalValue || 0), 0)
+    
+    const finalResult = (salesProfit + osProfit) - totalExpenses
+
+    return {
+      salesGross,
+      salesDiscount,
+      salesNet,
+      salesTax,
+      salesNetAfterTax,
+      salesCost,
+      salesProfit,
+      
+      osGross,
+      osDiscount,
+      osNet,
+      osTax,
+      osProductCost,
+      osServiceCost,
+      osProfit,
+      
+      totalExpenses,
+      finalResult
+    }
+  }, [filteredSales, filteredServiceOrders, payablesPaidInPeriod])
+
+  const DreRow = ({ label, value, isPositive, isNegative, bold }: any) => {
+    const colorClass = isPositive ? 'text-green-600' : isNegative ? 'text-red-500' : 'text-gray-800'
+    return (
+      <div className={`flex justify-between py-3 px-4 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors ${bold ? 'font-bold' : ''}`}>
+        <span className="text-gray-600 text-sm">{label}</span>
+        <span className={`font-medium text-sm ${colorClass}`}>
+          {formatCurrency(value)}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 animate-[fadeIn_0.18s_ease-out]">
@@ -1654,6 +1866,123 @@ export default function StatisticsPage({ storeId }: StatisticsPageProps) {
          </div>
        )}
 
+      {activeTab === 'Estoque' && (
+        <div className="grid grid-cols-1 xl:grid-cols-[1.8fr_1.2fr] gap-6">
+          {/* Left Column */}
+          <div className="space-y-6">
+            
+            {/* Valor do estoque (Cards) */}
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
+              <h3 className="font-bold text-gray-800 text-lg mb-6">Valor do estoque</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div>
+                  <div className="text-gray-500 font-medium mb-1">Custo do estoque</div>
+                  <div className="text-green-600 font-bold text-xl">
+                    {formatCurrency(stockMetrics.totalCost)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500 font-medium mb-1">Valor em estoque</div>
+                  <div className="text-green-600 font-bold text-xl">
+                    {formatCurrency(stockMetrics.totalValue)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-gray-500 font-medium mb-1">Quantidade</div>
+                  <div className="text-green-600 font-bold text-xl">
+                    {stockMetrics.totalQty.toLocaleString('pt-BR')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Giro de Estoque */}
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <Package className="text-green-600" size={24} />
+                  <h3 className="font-bold text-gray-800 text-lg">Giro de Estoque</h3>
+                </div>
+                <button className="text-green-600 text-sm font-medium hover:underline flex items-center gap-1">
+                  Ver Mais <ChevronRight size={16} />
+                </button>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50/50 text-gray-500 font-medium text-left">
+                    <tr>
+                      <th className="py-3 px-2 font-medium">Produto</th>
+                      <th className="py-3 px-2 font-medium text-center">Quantidade<br/>Vendida</th>
+                      <th className="py-3 px-2 font-medium text-center">Estoque<br/>Atual</th>
+                      <th className="py-3 px-2 font-medium text-center">Giro de<br/>estoque (dias)</th>
+                      <th className="py-3 px-2 font-medium text-center">Giro de<br/>estoque (vezes)</th>
+                      <th className="py-3 px-2 font-medium text-right">Valor<br/>Vendido</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {stockGiro.length === 0 && (
+                       <tr>
+                         <td colSpan={6} className="py-8 text-center text-gray-500">
+                           Nenhuma movimentação de estoque encontrada neste período.
+                         </td>
+                       </tr>
+                    )}
+                    {stockGiro.slice(0, 5).map((item, idx) => (
+                      <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="py-3 px-2 text-gray-800 font-medium max-w-[200px] truncate" title={item.product.name}>
+                          {item.product.name}
+                        </td>
+                        <td className="py-3 px-2 text-center text-gray-700">{item.soldQty}</td>
+                        <td className="py-3 px-2 text-center text-red-500 font-medium">{item.product.stock}</td>
+                        <td className="py-3 px-2 text-center text-gray-700">{Math.round(item.days)}</td>
+                        <td className="py-3 px-2 text-center text-gray-700">{item.times.toFixed(2)}</td>
+                        <td className="py-3 px-2 text-right text-gray-800 font-medium">{formatCurrency(item.soldValue)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right Column: Estoque por categoria */}
+          <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100 h-fit">
+            <h3 className="font-bold text-gray-800 text-lg mb-6">Estoque por categoria</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-gray-500 font-medium text-left border-b border-gray-100">
+                  <tr>
+                    <th className="py-3 px-2 font-medium">Categoria</th>
+                    <th className="py-3 px-2 font-medium text-center">Quantidade</th>
+                    <th className="py-3 px-2 font-medium text-right">Custo</th>
+                    <th className="py-3 px-2 font-medium text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                   {stockByCategory.length === 0 && (
+                       <tr>
+                         <td colSpan={4} className="py-8 text-center text-gray-500">
+                           Nenhum produto cadastrado.
+                         </td>
+                       </tr>
+                    )}
+                   {stockByCategory.map((cat, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="py-3 px-2 text-gray-800 uppercase text-xs font-semibold">{cat.name}</td>
+                      <td className="py-3 px-2 text-center text-gray-700">{cat.qty}</td>
+                      <td className="py-3 px-2 text-right text-gray-700">{cat.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className="py-3 px-2 text-right text-gray-700">{cat.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'Caixa' && (
         <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_minmax(0,1.1fr)] gap-4">
           <div className="bg-white rounded-lg shadow p-6 space-y-6">
@@ -1786,13 +2115,55 @@ export default function StatisticsPage({ storeId }: StatisticsPageProps) {
         </div>
       )}
 
-      {(activeTab === 'Notas Fiscais' ||
-        activeTab === 'Estoque' ||
-        activeTab === 'DRE') && (
+      {activeTab === 'Notas Fiscais' && (
         <div className="rounded-lg bg-white shadow p-6 text-sm text-gray-600">
           Painel da aba <span className="font-semibold">{activeTab}</span> ainda
           será detalhado. As mesmas opções de período e filtros já funcionam
           para todas as abas.
+        </div>
+      )}
+
+      {activeTab === 'DRE' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 animate-[fadeIn_0.2s_ease-out]">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="p-2 bg-green-50 rounded-lg">
+              <TrendingUp className="text-green-600" size={24} />
+            </div>
+            <h3 className="text-lg font-bold text-gray-800">Relatório DRE</h3>
+          </div>
+
+          <div className="space-y-1">
+            <div className="flex justify-between py-2 px-4 bg-gray-50 rounded-t-lg font-semibold text-gray-700 text-sm">
+              <span>Descrição</span>
+              <span>Valor</span>
+            </div>
+
+            <div className="py-2 px-4 font-bold text-gray-800 bg-gray-50/50 mt-4">Receita bruta</div>
+            <DreRow label="Total bruto de vendas" value={dreData.salesGross} isPositive />
+            <DreRow label="Total de vendas com desconto" value={dreData.salesNet} isPositive />
+            <DreRow label="Total de vendas com desconto das taxas" value={dreData.salesNetAfterTax} isPositive />
+            <DreRow label="Total bruto de ordem serviços" value={dreData.osGross} isPositive />
+
+            <div className="py-2 px-4 font-bold text-gray-800 bg-gray-50/50 mt-4">Deduções</div>
+            <DreRow label="Custo da mercadoria vendida (CMV)" value={-dreData.salesCost} isNegative />
+            <DreRow label="Total de taxas" value={-dreData.salesTax} isNegative />
+            <DreRow label="Custo dos produtos O.S." value={-dreData.osProductCost} isNegative />
+            <DreRow label="Custo do serviço O.S." value={-dreData.osServiceCost} isNegative />
+            <DreRow label="Total de taxas O.S." value={-dreData.osTax} isNegative />
+            
+            <div className="py-2 px-4 font-bold text-gray-800 bg-gray-50/50 mt-4">Lucro por origem</div>
+            <DreRow label="Lucro sobre vendas liquido" value={dreData.salesProfit} isPositive={dreData.salesProfit > 0} isNegative={dreData.salesProfit < 0} />
+            <DreRow label="Lucro sobre ordens de serviço liquido" value={dreData.osProfit} isPositive={dreData.osProfit > 0} isNegative={dreData.osProfit < 0} />
+
+            <div className="py-2 px-4 font-bold text-gray-800 bg-gray-50/50 mt-4">Resultado líquido</div>
+            <DreRow label="Despesas Operacionais" value={-dreData.totalExpenses} isNegative />
+            <div className="flex justify-between py-3 px-4 border-t border-gray-100 mt-2">
+              <span className="font-bold text-gray-800">Total de receita líquida</span>
+              <span className={`font-bold text-lg ${dreData.finalResult >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {formatCurrency(dreData.finalResult)}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

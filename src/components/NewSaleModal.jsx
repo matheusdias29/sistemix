@@ -396,8 +396,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         technician: null,
         dateIn: new Date(),
         products: cart.map(item => ({
-          id: item.product.id,
+          id: item.product.originalId || item.product.id,
           name: item.product.name,
+          variationName: item.product.variationRawName || null,
           price: item.price,
           quantity: item.quantity,
           total: item.total
