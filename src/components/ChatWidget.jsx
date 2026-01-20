@@ -4,6 +4,7 @@ import { listenSubUsers } from '../services/users'
 import { listenChatMessages, sendMessage, listenUserChats, markChatAsRead, getChatId } from '../services/chat'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import notificationSound from '../assets/sons/notification.mp3'
 
 export default function ChatWidget({ user }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -19,6 +20,25 @@ export default function ChatWidget({ user }) {
   const ownerId = user?.ownerId || user?.id
   // Identify the Current User Unique ID (Owner ID if owner, Member ID if member)
   const myUid = user?.memberId || user?.id
+
+  // Load sound preference
+  useEffect(() => {
+    if (myUid) {
+        const saved = localStorage.getItem(`chat_sound_enabled_${myUid}`)
+        if (saved !== null) {
+            setSoundEnabled(saved === 'true')
+        }
+    }
+  }, [myUid])
+
+  // Save sound preference
+  const toggleSound = () => {
+      const newState = !soundEnabled
+      setSoundEnabled(newState)
+      if (myUid) {
+          localStorage.setItem(`chat_sound_enabled_${myUid}`, String(newState))
+      }
+  }
 
   // Load colleagues (Owner + Members)
   useEffect(() => {
@@ -174,9 +194,8 @@ export default function ChatWidget({ user }) {
   const playNotificationSound = () => {
     if (!soundEnabled) return
     try {
-        // Simpler sound (short ping)
-        const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3')
-        audio.volume = 0.4
+        const audio = new Audio(notificationSound)
+        audio.volume = 0.5
         audio.play().catch(e => console.error('Error playing sound', e))
     } catch (e) {
         console.error('Audio error', e)
@@ -222,7 +241,7 @@ export default function ChatWidget({ user }) {
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 font-bold text-gray-700 dark:text-gray-200 flex items-center justify-between">
               <span>Funcionários</span>
               <button 
-                onClick={() => setSoundEnabled(!soundEnabled)}
+                onClick={toggleSound}
                 className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none"
                 title={soundEnabled ? "Desativar sons" : "Ativar sons"}
               >
