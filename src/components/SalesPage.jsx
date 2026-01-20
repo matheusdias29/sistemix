@@ -57,6 +57,16 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
     }
   }, [])
 
+  useEffect(() => {
+    const w = window.innerWidth
+    if (w < 1300) {
+      setColumns(prev => prev.map(c => {
+        if (['fiscal', 'payment', 'time', 'attendant'].includes(c.id)) return { ...c, visible: false }
+        return c
+      }))
+    }
+  }, [])
+
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [dateRange, setDateRange] = useState(() => {
     const now = new Date()
@@ -338,7 +348,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
           </button>
         </div>
         {/* métricas */}
-        <div className="mt-4 grid grid-cols-3 gap-4 text-sm">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
           <div>
             <div className="text-xs text-gray-500">Total</div>
             <div className="text-green-600 font-semibold">{formatCurrency(totalValor)}</div>
@@ -393,9 +403,9 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
       </div>
 
       {/* Lista */}
-      <div className="mt-4 bg-white rounded-lg shadow overflow-hidden">
+      <div className="mt-4 bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
         <div 
-          className="grid items-center px-4 py-3 text-sm text-gray-600 font-bold border-b bg-gray-50 gap-3"
+          className="min-w-full w-max grid items-center px-4 py-3 text-sm text-gray-600 font-bold border-b bg-gray-50 gap-3"
           style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
         >
           {columns.filter(c => c.visible).map(col => (
@@ -426,7 +436,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
               setSelectedSale(o)
               setDetailModalOpen(true)
             }}
-            className="grid items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors gap-3"
+            className="min-w-full w-max grid items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors gap-3"
             style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
           >
             {columns.filter(c => c.visible).map(col => (

@@ -124,14 +124,15 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-[600px] max-w-[95vw] md:max-w-[80vw] max-h-[90vh] md:max-h-[80vh] overflow-y-auto md:overflow-hidden">
-        <div className="p-4 border-b">
+      <div className="bg-white rounded-lg w-[600px] max-w-[95vw] md:max-w-[80vw] max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex-shrink-0">
           <div className="text-center">
             <div className="text-sm text-gray-600">Restante a pagar:</div>
             <div className="text-3xl font-bold">R$ {Number(remaining||0).toFixed(2)}</div>
           </div>
           {payments && payments.length > 0 && (
             <div className="mt-3">
+              <div className="max-h-32 overflow-y-auto">
               {payments.map((p, idx) => (
                 <div key={idx} className="flex items-center justify-between py-2">
                   <div className="flex items-center">
@@ -146,13 +147,14 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
                   </div>
                 </div>
               ))}
+              </div>
               <div className="border-t"></div>
             </div>
           )}
           <h2 className="text-sm font-medium mt-2 text-center">Selecionar forma de pagamento:</h2>
         </div>
-        <div className="p-4 max-h-[60vh] md:max-h-96 overflow-y-auto">
-          <div className="grid grid-cols-3 gap-2">
+        <div className="p-4 overflow-y-auto flex-1 min-h-0">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {paymentMethods.map((method) => (
               <button
                 key={method.code}
@@ -167,7 +169,7 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
             ))}
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2">
+        <div className="p-4 border-t flex items-center justify-end space-x-2 flex-shrink-0 bg-white">
           <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">
             ✕ Cancelar
           </button>
@@ -205,14 +207,14 @@ export function PaymentAmountModal({ open, onClose, method, remaining, amount, s
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b">
+      <div className="bg-white rounded-lg w-96 max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-lg font-semibold">Valor do pagamento</h2>
           <div className="text-center mt-1 font-medium">
             {method?.label}
           </div>
         </div>
-        <div className="p-4">
+        <div className="p-4 overflow-y-auto flex-1">
           <div className="mb-4">
             <div className="flex items-center space-x-3">
               <input
@@ -255,7 +257,7 @@ export function PaymentAmountModal({ open, onClose, method, remaining, amount, s
             </div>
           )}
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2">
+        <div className="p-4 border-t flex items-center justify-end space-x-2 flex-shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
           <button type="button" onClick={handleConfirm} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Confirmar</button>
         </div>
@@ -334,8 +336,8 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b">
+      <div className="bg-white rounded-lg w-96 max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-lg font-semibold flex items-center">
             <svg className="w-5 h-5 text-orange-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,17A1.5,1.5 0 0,1 10.5,15.5A1.5,1.5 0 0,1 12,14A1.5,1.5 0 0,1 13.5,15.5A1.5,1.5 0 0,1 12,17M12,10A1,1 0 0,1 13,11V13A1,1 0 0,1 11,13V11A1,1 0 0,1 12,10Z"/>
@@ -343,7 +345,7 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
             Pagamento Parcial
           </h2>
         </div>
-        <div className="p-4">
+        <div className="p-4 overflow-y-auto flex-1">
           <div className="text-center mb-4">
             <div className="text-3xl font-bold text-orange-600 mb-2">
               R$ {remaining.toFixed(2)}
@@ -368,7 +370,7 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
             Você pode finalizar com pagamento parcial ou adicionar outro método de pagamento.
           </p>
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2">
+        <div className="p-4 border-t flex items-center justify-end space-x-2 flex-shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">
             Finalizar Parcial
           </button>
@@ -386,8 +388,8 @@ export function AfterAboveAdjustedModal({ open, method, remaining, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b">
+      <div className="bg-white rounded-lg w-96 max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b flex-shrink-0">
           <h2 className="text-lg font-semibold flex items-center">
             <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
               <path d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/>
@@ -395,7 +397,7 @@ export function AfterAboveAdjustedModal({ open, method, remaining, onClose }) {
             Pagamento Ajustado com Sucesso
           </h2>
         </div>
-        <div className="p-4">
+        <div className="p-4 overflow-y-auto flex-1">
           <div className="flex items-center mb-4">
             {method?.icon && <div className="mr-2">{method.icon}</div>}
             <div>
@@ -424,7 +426,7 @@ export function AfterAboveAdjustedModal({ open, method, remaining, onClose }) {
             </div>
           )}
         </div>
-        <div className="p-4 border-t flex items-center justify-end">
+        <div className="p-4 border-t flex items-center justify-end flex-shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600">
             Continuar
           </button>

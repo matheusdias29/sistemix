@@ -250,16 +250,16 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   
 
   const osDefaultColumns = [
-    { id: 'number', label: 'O.S.', width: '4rem', visible: true, align: 'left' },
-    { id: 'client', label: 'Cliente', width: '1fr', visible: true, align: 'left' },
-    { id: 'attendant', label: 'Atendente', width: '8rem', visible: true, align: 'left' },
-    { id: 'technician', label: 'Técnico', width: '8rem', visible: true, align: 'left' },
-    { id: 'model', label: 'Modelo', width: '10rem', visible: true, align: 'left' },
-    { id: 'updatedDate', label: 'Atualizado', width: '8rem', visible: true, align: 'left' },
-    { id: 'updatedTime', label: 'Hora', width: '6rem', visible: true, align: 'left' },
-    { id: 'updatedBy', label: 'Funcionário', width: '8rem', visible: true, align: 'left' },
-    { id: 'value', label: 'Valor', width: '8rem', visible: true, align: 'right' },
-    { id: 'status', label: 'Status', width: '9rem', visible: true, align: 'left' },
+    { id: 'number', label: 'O.S.', width: '0.5fr', visible: true, align: 'left' },
+    { id: 'client', label: 'Cliente', width: '2.5fr', visible: true, align: 'left' },
+    { id: 'attendant', label: 'Atendente', width: '1fr', visible: true, align: 'left' },
+    { id: 'technician', label: 'Técnico', width: '1fr', visible: true, align: 'left' },
+    { id: 'model', label: 'Modelo', width: '1fr', visible: true, align: 'left' },
+    { id: 'updatedDate', label: 'Atualizado', width: '0.8fr', visible: true, align: 'left' },
+    { id: 'updatedTime', label: 'Hora', width: '0.6fr', visible: true, align: 'left' },
+    { id: 'updatedBy', label: 'Funcionário', width: '0.8fr', visible: true, align: 'left' },
+    { id: 'value', label: 'Valor', width: '0.8fr', visible: true, align: 'right' },
+    { id: 'status', label: 'Status', width: '1fr', visible: true, align: 'left' },
   ]
   const [osColumns, setOsColumns] = useState(osDefaultColumns)
   const [selectColumnsOpen, setSelectColumnsOpen] = useState(false)
@@ -315,6 +315,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
       document.removeEventListener('click', onDocClick)
     }
   }, [rowMenuOpenId])
+
   // Status da OS
   const [status, setStatus] = useState('Iniciado')
   const [chooseFinalStatusOpen, setChooseFinalStatusOpen] = useState(false)
@@ -1043,9 +1044,9 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             
             </>
           ) : (
-            <div className="mt-4 bg-white rounded shadow">
-              <div className="min-w-[800px] divide-y divide-gray-200">
-                <div className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-3 text-sm font-medium text-gray-600 bg-gray-50">
+            <div className="mt-4 bg-white rounded shadow overflow-x-auto">
+              <div className="min-w-full divide-y divide-gray-200">
+                <div className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs font-medium text-gray-600 bg-gray-50 gap-1">
                   <div>Serviço</div>
                   <div className="text-right">Preço</div>
                   <div>Status</div>
@@ -1055,7 +1056,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   const ql = query.trim().toLowerCase()
                   return (sv.name||'').toLowerCase().includes(ql)
                 }).map(sv => (
-                  <div key={sv.id} className="grid grid-cols-[1fr_8rem_6rem_2rem] items-center px-4 py-3 text-sm hover:bg-gray-50">
+                  <div key={sv.id} className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs hover:bg-gray-50 gap-1">
                     <div className="">{sv.name}</div>
                     <div className="text-right">{Number(sv.price||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                     <div><span className={`inline-block px-2 py-1 rounded border ${sv.active ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'}`}>{sv.active ? 'Ativo' : 'Inativo'}</span></div>
@@ -1121,7 +1122,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         )}
 
         {/* Cards de resumo */}
-        <div className="mt-4 grid grid-cols-3 gap-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <div className="bg-white p-4 rounded shadow">
             <div className="text-xs text-gray-500">Total</div>
             <div className="text-green-700 font-semibold">{totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
@@ -1140,7 +1141,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           <div className="mt-4 bg-white rounded-lg shadow overflow-visible">
             <div className="overflow-x-auto">
             <div
-              className="min-w-[1200px] grid items-center px-4 py-3 text-sm text-gray-600 font-bold bg-gray-50 border-b gap-3"
+              className="min-w-full grid items-center px-2 py-2 text-xs text-gray-600 font-bold bg-gray-50 border-b gap-1"
               style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
             >
               {osColumns.filter(c=>c.visible).map(col => (
@@ -1161,12 +1162,12 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                 </button>
               </div>
             </div>
-            <div className="min-w-[1200px] divide-y divide-gray-200">
+            <div className="min-w-full divide-y divide-gray-200">
               {filtered.map(o => (
                 <div 
                   key={o.id}
                   onClick={()=>openEdit(o)}
-                  className="grid items-center px-4 py-3 text-sm cursor-pointer hover:bg-gray-50 gap-3"
+                  className="grid items-center px-2 py-2 text-xs cursor-pointer hover:bg-gray-50 gap-1"
                   style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
                 >
                   {osColumns.filter(c=>c.visible).map(col => {

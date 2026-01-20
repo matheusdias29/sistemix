@@ -44,6 +44,29 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [confirmRemoveProduct, setConfirmRemoveProduct] = useState(null)
   const [reservedOpen, setReservedOpen] = useState(false)
   const [reservedProduct, setReservedProduct] = useState(null)
+
+  const [gridCols, setGridCols] = useState(null)
+  const [showExtras, setShowExtras] = useState(true)
+
+  useEffect(() => {
+    function handleResize() {
+      const w = window.innerWidth
+      if (w < 768) {
+        setGridCols(null) // mobile default via class
+        setShowExtras(false)
+      } else if (w < 1300) {
+        setGridCols('1.5rem 1fr 12rem 6rem 6rem 2rem')
+        setShowExtras(false)
+      } else {
+        setGridCols('1.5rem 1fr 6rem 5.5rem 3.5rem 1fr 12rem 6rem 6rem 2rem')
+        setShowExtras(true)
+      }
+    }
+    handleResize()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
   const [movementsModalOpen, setMovementsModalOpen] = useState(false)
   const [movementsTargetProduct, setMovementsTargetProduct] = useState(null)
   const [allOrders, setAllOrders] = useState([])
@@ -744,15 +767,18 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       </div>
 
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
-      <div className={`mt-2 px-4 py-3 border-b bg-gray-50 text-sm text-gray-600 font-bold ${tab==='produto' ? 'hidden md:block' : ''}`}>
+      <div className={`mt-2 px-4 py-3 border-b bg-gray-50 text-sm text-gray-600 font-bold overflow-x-auto ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
-          <div className="grid grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4">
+          <div 
+            className="grid gap-x-4 min-w-full w-max"
+            style={gridCols ? { gridTemplateColumns: gridCols } : {}}
+          >
             <div></div>
             <div>Produto ({filtered.length})</div>
-            <div>Código</div>
-            <div className="text-center">Atualizado </div>
-            <div className="text-center">Hora</div>
-            <div className="text-center">Funcionário</div>
+            {showExtras && <div>Código</div>}
+            {showExtras && <div className="text-center">Atualizado </div>}
+            {showExtras && <div className="text-center">Hora</div>}
+            {showExtras && <div className="text-center">Funcionário</div>}
             <div className="text-right">PREÇO P/CLIENTE FINAL</div>
             <div className="text-right">Estoque</div>
             <div className="text-right">Status</div>
@@ -777,7 +803,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
       <div className="mt-4">
         {(tab==='produto') ? (
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white rounded-lg shadow overflow-x-auto">
             {filtered.map(p => {
               const clientFinal = getClientFinalPrice(p)
               const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
@@ -786,7 +812,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               const stockDotClass = stock <= 0 ? 'red-dot' : (stock === 1 ? 'orange-dot' : 'green-dot')
               return (
                 <>
-                <div key={p.id} className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
+                <div 
+                  key={p.id} 
+                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-4 items-center px-4 py-3 border-b last:border-0 min-w-full w-max"
+                  style={gridCols ? { gridTemplateColumns: gridCols } : {}}
+                >
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
@@ -799,19 +829,27 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       <span className={stockDotClass} />
                     </div>
                   </div>
-                  <div className="hidden md:block text-xs text-gray-500 font-mono">
-                    {p.reference || '-'}
-                  </div>
+                  {showExtras && (
+                    <div className="hidden md:block text-xs text-gray-500 font-mono">
+                      {p.reference || '-'}
+                    </div>
+                  )}
                   {/* Data de atualização (substituindo prévia de variações) */}
-                  <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
-                     {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
-                  </div>
-                  <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
-                     {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
-                  </div>
-                  <div className="hidden md:flex text-xs text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
-                     {p.lastEditedBy || p.createdBy || '—'}
-                  </div>
+                  {showExtras && (
+                    <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
+                       {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
+                    </div>
+                  )}
+                  {showExtras && (
+                    <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
+                       {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                    </div>
+                  )}
+                  {showExtras && (
+                    <div className="hidden md:flex text-xs text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
+                       {p.lastEditedBy || p.createdBy || '—'}
+                    </div>
+                  )}
                   <div className="text-right whitespace-nowrap md:whitespace-normal md:text-right md:pl-0 pl-4 justify-self-end flex flex-col items-end justify-center">
                     <div className="text-xs md:text-sm">{priceText}</div>
                     {/* Botão sanfona (mobile e desktop) abaixo do preço */}
@@ -935,9 +973,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             const price = promo != null ? promo : sale
                             const stockVar = Number(v?.stock ?? 0)
                             return (
-                              <div key={idx} className="grid grid-cols-[1.5rem_1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_6rem_2rem] gap-x-4 items-center text-sm">
+                              <div 
+                                key={idx} 
+                                className="grid gap-x-4 items-center text-sm min-w-full w-max"
+                                style={gridCols ? { gridTemplateColumns: gridCols } : {}}
+                              >
                                 <div></div>
-                                <div className="col-span-5 truncate">
+                                <div className={`${showExtras ? 'col-span-5' : 'col-span-1'} truncate`}>
                                   <span className="font-medium text-gray-700">{v?.name || v?.label || `Variação ${idx+1}`}</span>
                                   {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
                                 </div>
