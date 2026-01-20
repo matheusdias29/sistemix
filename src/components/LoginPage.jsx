@@ -557,7 +557,7 @@ export default function LoginPage({ onLoggedIn }){
              // FORMULÁRIO DE LOGIN
              <>
                 <div className="text-left">
-                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Login</h2>
+                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Faça seu login abaixo</h2>
                   <p className="mt-2 text-sm text-gray-500">
                     Entre com seu e-mail e senha para acessar sua conta.
                   </p>

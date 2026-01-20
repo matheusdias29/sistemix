@@ -42,10 +42,10 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
   <img 
     src={logoWhite} 
     alt="SisteMix" 
-    className="h-12 w-auto object-contain"
+    className="h-10 w-auto object-contain"
   />
-  <div className="font-bold text-2xl text-gray-900 dark:text-white">
-        Siste<span className="text-green-600">Mix</span>
+  <div className="font-bold text-lg whitespace-nowrap text-gray-900 dark:text-white">
+        Siste<span className="text-green-600">Mix</span> Comércio
       </div>
     </div>
 
