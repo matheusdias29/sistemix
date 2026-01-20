@@ -261,7 +261,7 @@ export default function App(){
           />
         ) : null}
 
-        <div className="flex-1 p-4 md:p-6 w-full max-w-full overflow-x-hidden">
+        <div className="flex-1 p-4 md:p-6 w-full max-w-full overflow-x-hidden md:ml-64">
           <Header
             user={headerUser}
             userData={user}

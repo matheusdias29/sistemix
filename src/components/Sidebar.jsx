@@ -45,7 +45,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       className={clsx(
         // Desktop
         'bg-white border-r z-40 dark:bg-[#0f1724] dark:border-gray-800',
-        'md:static md:w-64 md:min-h-screen md:overflow-y-auto',
+        'md:fixed md:top-0 md:left-0 md:h-screen md:w-64 md:overflow-y-auto',
         // Mobile drawer
         'fixed inset-y-0 left-0 w-72 md:w-64 md:block h-screen overflow-y-auto',
         'transform transition-transform duration-200 ease-out mobile-sidebar',
@@ -54,7 +54,30 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       aria-hidden={!mobileOpen && typeof window !== 'undefined' && window.innerWidth < 768}
       role="navigation"
     >
-<div className="p-4 md:p-6">
+      <style>{`
+        aside::-webkit-scrollbar {
+          width: 4px;
+        }
+        aside::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        aside::-webkit-scrollbar-thumb {
+          background-color: rgba(156, 163, 175, 0.3);
+          border-radius: 20px;
+        }
+        /* Oculta scrollbar visualmente mas mantém funcionalidade se o usuário preferir */
+        @media (min-width: 768px) {
+          aside::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+          }
+          aside {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+          }
+        }
+      `}</style>
+      <div className="p-4 md:p-6">
 <div className="flex items-center gap-2 mb-1">
   <img 
     src={logoWhite} 
