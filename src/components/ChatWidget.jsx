@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { listenSubUsers } from '../services/users'
 import { listenChatMessages, sendMessage, listenUserChats, markChatAsRead, getChatId } from '../services/chat'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import notificationSound from '../assets/sons/notification.mp3'
 
@@ -55,68 +55,68 @@ export default function ChatWidget({ user }) {
       }
   }
 
-  // Load colleagues (Owner + Members)
+  const [ownerData, setOwnerData] = useState(null)
+  const [membersData, setMembersData] = useState([])
+
+  // 1. Listen to Owner details (only if I am not the owner)
   useEffect(() => {
-    if (!ownerId) return
+    if (!ownerId || myUid === ownerId) {
+        setOwnerData(null)
+        return
+    }
 
-    let unsubMembers = () => {}
-    let unsubOwner = () => {}
-
-    const load = async () => {
-      // 1. Listen to Owner details (if current user is not owner)
-      let currentOwnerObj = null
-      
-      const updateList = (ownerData, membersList) => {
-        // Filter out self by ID and Email (safety check)
-        const myUidStr = String(myUid)
-        const myEmail = user.email ? user.email.toLowerCase() : ''
-        
-        const members = (membersList || []).filter(m => {
-            const mId = String(m.id)
-            const mEmail = m.email ? m.email.toLowerCase() : ''
-            return mId !== myUidStr && mEmail !== myEmail
-        })
-        
-        let final = []
-        // Add owner if exists and is not me
-        if (ownerData) {
-            const oId = String(ownerData.id)
-            const oEmail = ownerData.email ? ownerData.email.toLowerCase() : ''
-            
-            if (oId !== myUidStr && oEmail !== myEmail) {
-                final.push(ownerData)
-            }
+    const unsub = onSnapshot(doc(db, 'users', ownerId), (snap) => {
+        if (snap.exists()) {
+            setOwnerData({ id: snap.id, ...snap.data(), role: 'Dono' })
+        } else {
+            setOwnerData(null)
         }
-        final = [...final, ...members]
-        setColleagues(final)
-      }
+    })
 
-      // Variable to store latest members list to combine with owner updates
-      let latestMembers = []
+    return () => unsub()
+  }, [ownerId, myUid])
 
-      // If I am not the owner, listen to owner changes
-      if (myUid !== ownerId) {
-        unsubOwner = onSnapshot(doc(db, 'users', ownerId), (snap) => {
-            if (snap.exists()) {
-                currentOwnerObj = { id: snap.id, ...snap.data(), role: 'Dono' }
-                updateList(currentOwnerObj, latestMembers)
-            }
-        })
-      }
-
-      // 2. Listen to members
-      unsubMembers = listenSubUsers(ownerId, (list) => {
-        latestMembers = list
-        updateList(currentOwnerObj, list)
-      })
+  // 2. Listen to Members
+  useEffect(() => {
+    if (!ownerId) {
+        setMembersData([])
+        return
     }
 
-    load()
-    return () => {
-        unsubMembers()
-        unsubOwner()
+    const unsub = listenSubUsers(ownerId, (list) => {
+        setMembersData(list)
+    })
+
+    return () => unsub()
+  }, [ownerId])
+
+  // 3. Combine and Filter Colleagues
+  useEffect(() => {
+    // Filter out self by ID and Email (safety check)
+    const myUidStr = String(myUid)
+    const myEmail = user.email ? user.email.toLowerCase() : ''
+    
+    const filteredMembers = membersData.filter(m => {
+        const mId = String(m.id)
+        const mEmail = m.email ? m.email.toLowerCase() : ''
+        return mId !== myUidStr && mEmail !== myEmail
+    })
+    
+    let final = []
+    
+    // Add owner if exists and is not me
+    if (ownerData) {
+        const oId = String(ownerData.id)
+        const oEmail = ownerData.email ? ownerData.email.toLowerCase() : ''
+        
+        if (oId !== myUidStr && oEmail !== myEmail) {
+            final.push(ownerData)
+        }
     }
-  }, [user, ownerId, myUid])
+    
+    final = [...final, ...filteredMembers]
+    setColleagues(final)
+  }, [ownerData, membersData, myUid, user.email])
 
   // Unlock audio context on first user interaction
   useEffect(() => {

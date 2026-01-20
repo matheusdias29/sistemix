@@ -1,21 +1,38 @@
 import React from 'react'
 import clsx from 'clsx'
 import logoWhite from '../assets/logofundobranco.png'
+import { 
+  Home, 
+  FileText, 
+  Users, 
+  Package, 
+  ShoppingBag, 
+  ShoppingCart, 
+  Banknote, 
+  Receipt, 
+  Wrench, 
+  ArrowDownCircle, 
+  ArrowUpCircle, 
+  BarChart2, 
+  LifeBuoy, 
+  Settings, 
+  LogOut 
+} from 'lucide-react'
 
 
 const items = [
-{key:'inicio',label:'Início', icon: '🏠'},
-{key:'termos',label:'Termos', icon: '📜'},
-{key:'clientes',label:'Clientes', icon: '👥'},
-{key:'produtos',label:'Produtos', icon: '📦'},
-{key:'catalogo',label:'Catálogo', icon: '🛍️'},
-{key:'vendas',label:'Vendas', icon: '💳'},
-{key:'caixa',label:'Caixa', icon: '💰'},
-{key:'notas',label:'Notas fiscais', icon: '📄'},
-{key:'os',label:'Ordem de Serviço', icon: '🔧'},
-{key:'cpagar',label:'Contas a pagar', icon: '📥'},
-{key:'creceber',label:'Contas a receber', icon: '📤'},
-{key:'estatisticas',label:'Estatísticas', icon: '📊'},
+  {key:'inicio',label:'Início', icon: <Home size={20} />},
+  {key:'termos',label:'Termos', icon: <FileText size={20} />},
+  {key:'clientes',label:'Clientes', icon: <Users size={20} />},
+  {key:'produtos',label:'Produtos', icon: <Package size={20} />},
+  {key:'catalogo',label:'Catálogo', icon: <ShoppingBag size={20} />},
+  {key:'vendas',label:'Vendas', icon: <ShoppingCart size={20} />},
+  {key:'caixa',label:'Caixa', icon: <Banknote size={20} />},
+  {key:'notas',label:'Notas fiscais', icon: <Receipt size={20} />},
+  {key:'os',label:'Ordem de Serviço', icon: <Wrench size={20} />},
+  {key:'cpagar',label:'Contas a pagar', icon: <ArrowDownCircle size={20} />},
+  {key:'creceber',label:'Contas a receber', icon: <ArrowUpCircle size={20} />},
+  {key:'estatisticas',label:'Estatísticas', icon: <BarChart2 size={20} />},
 ]
 
 
@@ -38,13 +55,13 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       role="navigation"
     >
 <div className="p-4 md:p-6">
-<div className="flex items-center gap-1 mb-1">
+<div className="flex items-center gap-2 mb-1">
   <img 
     src={logoWhite} 
     alt="SisteMix" 
-    className="h-10 w-auto object-contain"
+    className="h-8 w-auto object-contain"
   />
-  <div className="font-bold text-lg whitespace-nowrap text-gray-900 dark:text-white">
+  <div className="font-bold text-base whitespace-nowrap text-gray-900 dark:text-white">
         Siste<span className="text-green-600">Mix</span> Comércio
       </div>
     </div>
@@ -58,20 +75,46 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     </button>
 
 
-    <nav className="mt-6">
+    <nav className="mt-6 space-y-1">
 {items.map(i=> (
-<div key={i.key} onClick={() => { onNavigate(i.key); closeIfMobile() }} className={clsx('mt-2 p-2 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center gap-3', active===i.key && 'bg-gray-100 dark:bg-gray-800') }>
-<span className="w-6 text-gray-900 dark:text-white">{i.icon}</span>
-<span className="text-sm text-gray-900 dark:text-white">{i.label}</span>
+<div 
+  key={i.key} 
+  onClick={() => { onNavigate(i.key); closeIfMobile() }} 
+  className={clsx(
+    'p-3 rounded-lg cursor-pointer flex items-center gap-3 transition-all duration-200', 
+    active===i.key 
+      ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold shadow-sm' 
+      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white font-medium'
+  )}
+>
+<span className="w-6">{i.icon}</span>
+<span className="text-[15px]">{i.label}</span>
 </div>
 ))}
 </nav>
 
 
-<div className="mt-8 border-t pt-4 text-sm text-gray-600 dark:text-gray-300 dark:border-gray-800">
-<div className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 rounded">Suporte</div>
-<div className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 rounded" onClick={() => { onNavigate('configuracoes'); closeIfMobile() }}>Configurações</div>
-<div className="p-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 rounded" onClick={() => { onLogout && onLogout(); closeIfMobile() }}>Sair</div>
+<div className="mt-8 border-t pt-4 space-y-1 dark:border-gray-800">
+<div 
+  className="p-3 cursor-pointer text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white rounded-lg font-medium text-[15px] transition-colors flex items-center gap-3"
+>
+  <span className="w-6"><LifeBuoy size={20} /></span>
+  <span>Suporte</span>
+</div>
+<div 
+  className="p-3 cursor-pointer text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white rounded-lg font-medium text-[15px] transition-colors flex items-center gap-3"
+  onClick={() => { onNavigate('configuracoes'); closeIfMobile() }}
+>
+  <span className="w-6"><Settings size={20} /></span>
+  <span>Configurações</span>
+</div>
+<div 
+  className="p-3 cursor-pointer text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 rounded-lg font-bold text-[15px] transition-colors flex items-center gap-3"
+  onClick={() => { onLogout && onLogout(); closeIfMobile() }}
+>
+  <span className="w-6"><LogOut size={20} /></span>
+  <span>Sair</span>
+</div>
 </div>
 </div>
 </aside>

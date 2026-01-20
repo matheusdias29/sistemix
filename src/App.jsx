@@ -264,6 +264,8 @@ export default function App(){
         <div className="flex-1 p-4 md:p-6 w-full max-w-full overflow-x-hidden">
           <Header
             user={headerUser}
+            userData={user}
+            storeData={store}
             title={labels[view] || 'Início'}
             onUserClick={() => setStore(null)}
             mobileControls={{

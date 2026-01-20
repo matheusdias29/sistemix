@@ -1,5 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
+import { 
+  Receipt, 
+  Eye, 
+  EyeOff, 
+  ShoppingCart, 
+  Wrench, 
+  Info, 
+  Calendar, 
+  ChevronRight, 
+  TrendingUp, 
+  BarChart2 
+} from 'lucide-react'
 
 export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
   const [orders, setOrders] = useState([])
@@ -155,94 +167,108 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
   return (
     <div className="space-y-6">
       {/* Resumo do Dia */}
-      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">🧾</span>
-            <h2 className="text-base md:text-lg font-semibold">Resumo do Dia</h2>
+      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-50 text-green-600">
+              <Receipt size={24} />
+            </div>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Resumo do Dia</h2>
           </div>
           <button
-            className="h-9 w-9 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-600"
+            className="h-10 w-10 rounded-full hover:bg-gray-50 flex items-center justify-center text-gray-500 transition-colors"
             onClick={() => setHideValues(v => !v)}
             aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
             title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
           >
-            <span>{hideValues ? '🙈' : '👁️'}</span>
+            {hideValues ? <EyeOff size={20} /> : <Eye size={20} />}
           </button>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Card Total de Venda */}
             <button
               onClick={() => onNavigate && onNavigate('vendas')}
-              className="text-left p-4 border rounded-lg hover:shadow-sm transition-all"
+              className="text-left p-6 border border-gray-100 rounded-xl bg-gray-50/50 hover:bg-white hover:shadow-md hover:border-green-100 transition-all group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="text-green-600">🛒</span>
-                  <span>Total de Venda ({vendasHoje.length})</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-md bg-white shadow-sm text-green-600">
+                    <ShoppingCart size={18} />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total de Vendas ({vendasHoje.length})</span>
                 </div>
-                <span className="text-gray-400">›</span>
+                <ChevronRight size={18} className="text-gray-300 group-hover:text-green-500 transition-colors" />
               </div>
-              <div className="mt-2 text-2xl md:text-3xl font-bold text-green-600">{currencyOrHidden(totalVendasHoje)}</div>
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-gray-600">
+              <div className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
+                {currencyOrHidden(totalVendasHoje)}
+              </div>
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-500">
                   <span>Ticket Médio</span>
-                  <span title="Média por venda">ℹ️</span>
+                  <Info size={14} className="text-gray-400" />
                 </div>
-                <div className="text-sm text-green-600 font-semibold">{currencyOrHidden(ticketMedioVendasHoje)}</div>
+                <div className="text-base font-bold text-green-600">{currencyOrHidden(ticketMedioVendasHoje)}</div>
               </div>
             </button>
 
             {/* Card OS Finalizada */}
             <button
               onClick={() => onNavigate && onNavigate('os')}
-              className="text-left p-4 border rounded-lg hover:shadow-sm transition-all"
+              className="text-left p-6 border border-gray-100 rounded-xl bg-gray-50/50 hover:bg-white hover:shadow-md hover:border-green-100 transition-all group"
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm text-gray-700">
-                  <span className="text-green-600">🔧</span>
-                  <span>Ordem de Serviço Finalizada ({osFinalizadasHoje.length})</span>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-md bg-white shadow-sm text-green-600">
+                    <Wrench size={18} />
+                  </div>
+                  <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">OS Finalizadas ({osFinalizadasHoje.length})</span>
                 </div>
-                <span className="text-gray-400">›</span>
+                <ChevronRight size={18} className="text-gray-300 group-hover:text-green-500 transition-colors" />
               </div>
-              <div className="mt-2 text-2xl md:text-3xl font-bold text-green-600">{currencyOrHidden(totalOsHoje)}</div>
-              <div className="mt-3 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs text-gray-600">
+              <div className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
+                {currencyOrHidden(totalOsHoje)}
+              </div>
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-500">
                   <span>Ticket Médio</span>
-                  <span title="Média por OS">ℹ️</span>
+                  <Info size={14} className="text-gray-400" />
                 </div>
-                <div className="text-sm text-green-600 font-semibold">{currencyOrHidden(ticketMedioOsHoje)}</div>
+                <div className="text-base font-bold text-green-600">{currencyOrHidden(ticketMedioOsHoje)}</div>
               </div>
             </button>
         </div>
       </section>
 
       {/* Últimos dias */}
-      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">📅</span>
-          <h3 className="text-base md:text-lg font-semibold">Últimos dias</h3>
+      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-green-50 text-green-600">
+            <Calendar size={24} />
+          </div>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Últimos dias</h3>
         </div>
 
-        <div className="mt-4 divide-y">
+        <div className="divide-y divide-gray-100">
           {lastDays.map((it, idx) => (
             <button
               key={idx}
               onClick={() => handleOpenDay(it.date)}
-              className="w-full text-left px-2 md:px-3 py-4 hover:bg-gray-50"
+              className="w-full text-left py-5 hover:bg-gray-50 transition-colors group px-2 rounded-lg"
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-gray-600">📅</span>
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-full bg-gray-100 text-gray-500 group-hover:bg-white group-hover:text-green-600 transition-colors shadow-sm">
+                    <Calendar size={20} />
+                  </div>
                   <div>
-                    <div className="text-sm md:text-base font-medium text-gray-800">{formatLongDate(it.date)}</div>
-                    <div className="text-xs text-gray-500">Ver vendas deste dia</div>
+                    <div className="text-base md:text-lg font-bold text-gray-900">{formatLongDate(it.date)}</div>
+                    <div className="text-sm font-medium text-gray-500">Ver vendas deste dia</div>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="text-green-600 font-semibold text-sm md:text-base">{currencyOrHidden(it.total)}</div>
-                  <span className="text-gray-400">›</span>
+                <div className="flex items-center gap-4">
+                  <div className="text-base md:text-lg font-extrabold text-green-600 tracking-tight">{currencyOrHidden(it.total)}</div>
+                  <ChevronRight size={20} className="text-gray-300 group-hover:text-green-500 transition-colors" />
                 </div>
               </div>
             </button>
@@ -251,54 +277,72 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       </section>
 
       {/* Metas do Mês */}
-      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">📈</span>
-            <h3 className="text-base md:text-lg font-semibold">Metas do Mês</h3>
+      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-50 text-green-600">
+              <TrendingUp size={24} />
+            </div>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Metas do Mês</h3>
           </div>
-          <button className="h-9 px-3 rounded border text-sm" onClick={() => onNavigate && onNavigate('metas')}>Ver todas ↗</button>
+          <button 
+            className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 transition-colors" 
+            onClick={() => onNavigate && onNavigate('metas')}
+          >
+            Ver todas
+          </button>
         </div>
-        <div className="mt-3">
-          <span className="inline-flex items-center px-2 py-1 rounded bg-green-50 text-green-700 text-xs border border-green-200">{monthGoalTypeLabel}</span>
+        <div className="mt-4">
+          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-bold uppercase tracking-wide border border-green-100">
+            {monthGoalTypeLabel}
+          </span>
         </div>
-        <div className="mt-3 text-sm text-gray-700">
-          <span className="mr-1">{currencyOrHidden(monthProgressValue)}</span>
-          <span>/</span>
-          <span className="ml-1">{currencyOrHidden(monthGoalTarget)}</span>
+        <div className="mt-4 flex items-end gap-2 text-gray-900">
+          <span className="text-2xl font-extrabold tracking-tight">{currencyOrHidden(monthProgressValue)}</span>
+          <span className="text-lg font-medium text-gray-400 mb-1">/</span>
+          <span className="text-lg font-bold text-gray-500 mb-1">{currencyOrHidden(monthGoalTarget)}</span>
         </div>
-        <div className="mt-3 h-2 rounded bg-gray-200 overflow-hidden">
-          <div className="h-full bg-green-600" style={{ width: `${monthProgressPct}%` }} />
+        <div className="mt-4 h-3 rounded-full bg-gray-100 overflow-hidden">
+          <div className="h-full bg-green-500 rounded-full" style={{ width: `${monthProgressPct}%` }} />
         </div>
-        <div className="mt-1 text-right text-xs text-gray-500">{monthProgressPct}%</div>
+        <div className="mt-2 text-right text-sm font-bold text-gray-500">{monthProgressPct}%</div>
       </section>
 
       {/* Vendas x Lucro */}
-      <section className="rounded-lg bg-gray-50 p-4 md:p-6 shadow">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-green-700">💹</span>
-          <h3 className="text-base md:text-lg font-semibold">Vendas x Lucro</h3>
+      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-green-50 text-green-600">
+            <BarChart2 size={24} />
+          </div>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Vendas x Lucro</h3>
         </div>
-        <div className="mt-4">
-          <div className="grid grid-cols-5 gap-6 md:gap-8 items-end h-48">
-            {last5DaysSalesProfit.map((d, idx) => {
+        <div className="mt-6">
+          <div className="grid grid-cols-5 gap-2 md:gap-8 items-end h-64">
+            {[...last5DaysSalesProfit].reverse().map((d, idx) => {
               const salesH = Math.round((d.sales / maxBarValue) * 100)
               const profitH = Math.round((d.profit / maxBarValue) * 100)
               const dd = String(d.date.getDate()).padStart(2,'0')
               const mm = String(d.date.getMonth()+1).padStart(2,'0')
               const yyyy = d.date.getFullYear()
               return (
-                <div key={idx} className="flex flex-col items-center justify-end h-full">
+                <div key={idx} className="flex flex-col items-center justify-end h-full group">
                   {/* valores compactos acima das barras */}
-                  <div className="mb-2 text-[11px] md:text-xs text-gray-700">
-                    <span className="mr-3 text-green-700">{formatCompactCurrency(d.sales)}</span>
-                    <span className="text-green-900">{formatCompactCurrency(d.profit)}</span>
+                  <div className="mb-2 text-[10px] md:text-xs font-bold flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                    <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{formatCompactCurrency(d.sales)}</span>
+                    <span className="text-green-800 bg-green-100 px-1.5 py-0.5 rounded">{formatCompactCurrency(d.profit)}</span>
                   </div>
-                  <div className="flex items-end gap-2 w-full justify-center">
-                    <div className="w-8 md:w-10 bg-green-400 rounded" style={{ height: `${salesH}%` }} title={`Vendas: ${formatCurrency(d.sales)}`} />
-                    <div className="w-8 md:w-10 bg-green-700 rounded" style={{ height: `${profitH}%` }} title={`Lucro: ${formatCurrency(d.profit)}`} />
+                  
+                  {/* Container das barras com altura fixa para o percentual funcionar */}
+                  <div className="flex items-end gap-1 md:gap-2 w-full justify-center h-40">
+                    <div className="w-5 md:w-12 bg-green-300 rounded-t-sm hover:bg-green-400 transition-colors relative group/bar" style={{ height: `${salesH}%` }} title={`Vendas: ${formatCurrency(d.sales)}`}>
+                    </div>
+                    <div className="w-5 md:w-12 bg-green-600 rounded-t-sm hover:bg-green-700 transition-colors relative group/bar" style={{ height: `${profitH}%` }} title={`Lucro: ${formatCurrency(d.profit)}`}>
+                    </div>
                   </div>
-                  <div className="mt-2 text-[11px] md:text-xs text-gray-600">{dd}/{mm}/{yyyy}</div>
+
+                  <div className="mt-2 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wide">
+                    {dd}/{mm}
+                  </div>
                 </div>
               )
             })}
