@@ -24,8 +24,10 @@ import OrderTrackingPage from './components/OrderTrackingPage'
 import FiscalNotesPage from './components/FiscalNotesPage'
 import TermsPage from './components/TermsPage'
 import Calculator from './components/Calculator'
+import ChatWidget from './components/ChatWidget'
 import { getStoreBySlug } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
+import { updateUserPresence } from './services/users'
 
 const labels = {
   inicio: 'Início',
@@ -160,6 +162,16 @@ export default function App(){
         sess.user = user
         sess.store = store
         localStorage.setItem('session', JSON.stringify(sess))
+
+        // Update presence (debounce 60s)
+        const lastPresence = sessionStorage.getItem('lastPresenceUpdate')
+        const now = Date.now()
+        if (!lastPresence || now - Number(lastPresence) > 60000) {
+           sessionStorage.setItem('lastPresenceUpdate', String(now))
+           const isMember = !!user.memberId
+           const uid = user.memberId || user.id
+           updateUserPresence(uid, user.ownerId || user.id, isMember)
+        }
       } catch {}
     }
 
@@ -342,6 +354,7 @@ export default function App(){
         </div>
       </div>
       <Calculator />
+      {user && store && <ChatWidget user={user} />}
     </div>
   )
 }

@@ -147,6 +147,19 @@ export async function changeMemberPassword(ownerUserId, memberId, currentPasswor
   await updateDoc(ref, { password: String(newPassword || ''), updatedAt: serverTimestamp() })
 }
 
+export async function updateUserPresence(uid, ownerId, isMember) {
+  if (!uid) return
+  const now = serverTimestamp()
+  let ref
+  if (isMember && ownerId) {
+    ref = doc(db, 'users', ownerId, 'members', uid)
+  } else {
+    ref = doc(db, 'users', uid)
+  }
+  // Use updateDoc and catch error silently (e.g. if user deleted)
+  await updateDoc(ref, { lastSeen: now }).catch(() => {})
+}
+
 // Login baseado em dados no Firestore, com autenticação anônima já ativa
 export async function login(email, password){
   // 1) Tenta carregar perfil de dono (users)
