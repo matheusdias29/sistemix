@@ -12,6 +12,7 @@ export default function ChatWidget({ user }) {
   const [messages, setMessages] = useState([])
   const [inputText, setInputText] = useState('')
   const [userChats, setUserChats] = useState([])
+  const [soundEnabled, setSoundEnabled] = useState(true)
   const messagesEndRef = useRef(null)
 
   // Identify the Owner ID
@@ -171,6 +172,7 @@ export default function ChatWidget({ user }) {
 
   // Play notification sound
   const playNotificationSound = () => {
+    if (!soundEnabled) return
     try {
         // Simpler sound (short ping)
         const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2346/2346-preview.mp3')
@@ -217,8 +219,26 @@ export default function ChatWidget({ user }) {
           
           {/* Sidebar (User List) */}
           <div className="w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 font-bold text-gray-700 dark:text-gray-200">
-              Funcionários
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 font-bold text-gray-700 dark:text-gray-200 flex items-center justify-between">
+              <span>Funcionários</span>
+              <button 
+                onClick={() => setSoundEnabled(!soundEnabled)}
+                className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 focus:outline-none"
+                title={soundEnabled ? "Desativar sons" : "Ativar sons"}
+              >
+                {soundEnabled ? (
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                     <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                   </svg>
+                ) : (
+                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                     <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                     <line x1="23" y1="9" x2="17" y2="15"></line>
+                     <line x1="17" y1="9" x2="23" y2="15"></line>
+                   </svg>
+                )}
+              </button>
             </div>
             <div className="flex-1 overflow-y-auto">
               {sortedColleagues.length === 0 ? (
