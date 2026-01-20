@@ -559,6 +559,146 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         updatedBy: user?.name || attendant || 'Sistema'
       }
       if (editingOrderId) {
+        // Verificar produtos removidos ou com quantidade reduzida para devolver ao estoque
+        const originalOrder = orders.find(o => o.id === editingOrderId)
+        if (originalOrder && Array.isArray(originalOrder.products)) {
+          for (const origItem of originalOrder.products) {
+            const newItem = osProducts.find(p => 
+              p.productId === origItem.productId && 
+              (String(p.variationName || '').trim() === String(origItem.variationName || '').trim())
+            )
+            
+            let qtyToReturn = 0
+            if (!newItem) {
+              // Produto foi removido
+              qtyToReturn = parseFloat(origItem.quantity) || 0
+            } else {
+              // Produto existe, verificar se quantidade diminuiu
+              const origQty = parseFloat(origItem.quantity) || 0
+              const newQty = parseFloat(newItem.quantity) || 0
+              if (newQty < origQty) {
+                qtyToReturn = origQty - newQty
+              }
+            }
+
+            if (qtyToReturn > 0) {
+              const p = productsAll.find(pr => pr.id === origItem.productId)
+              if (!p) continue
+
+              const vname = origItem.variationName ? String(origItem.variationName).trim() : ''
+              const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+
+              if (hasVars && vname) {
+                const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
+                if (idx >= 0) {
+                  const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                  const cur = Number(itemsVar[idx]?.stock ?? 0)
+                  itemsVar[idx].stock = cur + qtyToReturn
+                  const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
+                  await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+                  
+                  await recordStockMovement({
+                    productId: p.id,
+                    productName: p.name,
+                    variationId: itemsVar[idx].id || null,
+                    variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
+                    type: 'in',
+                    quantity: qtyToReturn,
+                    reason: 'adjustment',
+                    referenceId: editingOrderId,
+                    description: `Remoção de item na edição da OS ${originalOrder.number || originalOrder.id}`,
+                    userId: ownerId
+                  })
+                  continue
+                }
+              }
+
+              const cur = Number(p.stock ?? 0)
+              const next = cur + qtyToReturn
+              await updateProduct(p.id, { stock: next })
+              
+              await recordStockMovement({
+                productId: p.id,
+                productName: p.name,
+                type: 'in',
+                quantity: qtyToReturn,
+                reason: 'adjustment',
+                referenceId: editingOrderId,
+                description: `Remoção de item na edição da OS ${originalOrder.number || originalOrder.id}`,
+                userId: ownerId
+              })
+            }
+          }
+        }
+
+        // Verificar produtos adicionados ou com quantidade aumentada para debitar do estoque
+        for (const newItem of osProducts) {
+          const origItem = originalOrder.products.find(p => 
+            p.productId === newItem.productId && 
+            (String(p.variationName || '').trim() === String(newItem.variationName || '').trim())
+          )
+          
+          let qtyToRemove = 0
+          if (!origItem) {
+            // Produto novo
+            qtyToRemove = parseFloat(newItem.quantity) || 0
+          } else {
+            // Produto já existia, verificar se aumentou
+            const origQty = parseFloat(origItem.quantity) || 0
+            const newQty = parseFloat(newItem.quantity) || 0
+            if (newQty > origQty) {
+              qtyToRemove = newQty - origQty
+            }
+          }
+
+          if (qtyToRemove > 0) {
+            const p = productsAll.find(pr => pr.id === newItem.productId)
+            if (!p) continue
+
+            const vname = newItem.variationName ? String(newItem.variationName).trim() : ''
+            const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+
+            if (hasVars && vname) {
+              const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
+              if (idx >= 0) {
+                const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                const cur = Number(itemsVar[idx]?.stock ?? 0)
+                itemsVar[idx].stock = Math.max(0, cur - qtyToRemove)
+                const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
+                await updateProduct(p.id, { variationsData: itemsVar, stock: total })
+                
+                await recordStockMovement({
+                  productId: p.id,
+                  productName: p.name,
+                  variationId: itemsVar[idx].id || null,
+                  variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
+                  type: 'out',
+                  quantity: qtyToRemove,
+                  reason: 'adjustment',
+                  referenceId: editingOrderId,
+                  description: `Adição de item na edição da OS ${originalOrder.number || originalOrder.id}`,
+                  userId: ownerId
+                })
+                continue
+              }
+            }
+
+            const cur = Number(p.stock ?? 0)
+            const next = Math.max(0, cur - qtyToRemove)
+            await updateProduct(p.id, { stock: next })
+            
+            await recordStockMovement({
+              productId: p.id,
+              productName: p.name,
+              type: 'out',
+              quantity: qtyToRemove,
+              reason: 'adjustment',
+              referenceId: editingOrderId,
+              description: `Adição de item na edição da OS ${originalOrder.number || originalOrder.id}`,
+              userId: ownerId
+            })
+          }
+        }
         await updateOrder(editingOrderId, basePayload)
       } else {
         const newOsId = await addOrder({ ...basePayload }, storeId)
@@ -650,6 +790,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     }
     return `O.S:${String(order.id).slice(-4)}`
   }
+
+  const isOrderLocked = useMemo(() => {
+    const s = String(status || '').toLowerCase()
+    return s.includes('faturada') || s.includes('finalizada') || s.includes('finalizado')
+  }, [status])
 
   return (
     <div>
@@ -1504,12 +1649,16 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                         </div>
                         <div className="text-right">{p.quantity}</div>
                         <div className="text-right">{(p.price * p.quantity).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                        <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500">✕</button>
+                        {!isOrderLocked && (
+                          <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500">✕</button>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="mt-3"><button type="button" onClick={openAddProduct} className="px-3 py-2 border rounded text-sm">Adicionar Produto</button></div>
+                {!isOrderLocked && (
+                  <div className="mt-3"><button type="button" onClick={openAddProduct} className="px-3 py-2 border rounded text-sm">Adicionar Produto</button></div>
+                )}
               </div>
             </div>
 
