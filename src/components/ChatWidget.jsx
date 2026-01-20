@@ -60,55 +60,85 @@ export default function ChatWidget({ user }) {
     if (!ownerId) return
 
     let unsubMembers = () => {}
+    let unsubOwner = () => {}
 
     const load = async () => {
-      // 1. Fetch Owner details (if current user is not owner, add owner to list)
-      let ownerObj = null
-      // If I am not the owner (myUid is distinct from ownerId, OR I am a member)
-      if (myUid !== ownerId) {
-        try {
-          const snap = await getDoc(doc(db, 'users', ownerId))
-          if (snap.exists()) {
-            ownerObj = { id: snap.id, ...snap.data(), role: 'Dono' }
-          }
-        } catch (e) {
-          console.error('Error fetching owner', e)
-        }
-      }
-
-      // 2. Listen to members
-      unsubMembers = listenSubUsers(ownerId, (list) => {
+      // 1. Listen to Owner details (if current user is not owner)
+      let currentOwnerObj = null
+      
+      const updateList = (ownerData, membersList) => {
         // Filter out self by ID and Email (safety check)
-        // Ensure IDs are strings for comparison
         const myUidStr = String(myUid)
         const myEmail = user.email ? user.email.toLowerCase() : ''
         
-        const members = list.filter(m => {
+        const members = (membersList || []).filter(m => {
             const mId = String(m.id)
             const mEmail = m.email ? m.email.toLowerCase() : ''
             return mId !== myUidStr && mEmail !== myEmail
         })
         
-        // Combine
         let final = []
-        // Only add owner if I am NOT the owner (check by ID and Email)
-        if (ownerObj) {
-            const oId = String(ownerObj.id)
-            const oEmail = ownerObj.email ? ownerObj.email.toLowerCase() : ''
+        // Add owner if exists and is not me
+        if (ownerData) {
+            const oId = String(ownerData.id)
+            const oEmail = ownerData.email ? ownerData.email.toLowerCase() : ''
             
             if (oId !== myUidStr && oEmail !== myEmail) {
-                final.push(ownerObj)
+                final.push(ownerData)
             }
         }
         final = [...final, ...members]
-        
         setColleagues(final)
+      }
+
+      // Variable to store latest members list to combine with owner updates
+      let latestMembers = []
+
+      // If I am not the owner, listen to owner changes
+      if (myUid !== ownerId) {
+        unsubOwner = onSnapshot(doc(db, 'users', ownerId), (snap) => {
+            if (snap.exists()) {
+                currentOwnerObj = { id: snap.id, ...snap.data(), role: 'Dono' }
+                updateList(currentOwnerObj, latestMembers)
+            }
+        })
+      }
+
+      // 2. Listen to members
+      unsubMembers = listenSubUsers(ownerId, (list) => {
+        latestMembers = list
+        updateList(currentOwnerObj, list)
       })
     }
 
     load()
-    return () => unsubMembers()
+    return () => {
+        unsubMembers()
+        unsubOwner()
+    }
   }, [user, ownerId, myUid])
+
+  // Unlock audio context on first user interaction
+  useEffect(() => {
+    const unlockAudio = () => {
+        if (audioRef.current) {
+            audioRef.current.play().then(() => {
+                audioRef.current.pause()
+                audioRef.current.currentTime = 0
+            }).catch(() => {})
+        }
+        document.removeEventListener('click', unlockAudio)
+        document.removeEventListener('keydown', unlockAudio)
+    }
+
+    document.addEventListener('click', unlockAudio)
+    document.addEventListener('keydown', unlockAudio)
+    
+    return () => {
+        document.removeEventListener('click', unlockAudio)
+        document.removeEventListener('keydown', unlockAudio)
+    }
+  }, [])
 
   // Listen to my chats metadata (unread counts)
   useEffect(() => {
