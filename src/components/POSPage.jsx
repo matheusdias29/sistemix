@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction, updateCashTransaction, removeCashTransaction } from '../services/cash'
 import { listenOrders } from '../services/orders'
+import { listenClients } from '../services/clients'
 import SaleDetailModal from './SaleDetailModal'
 import CloseCashModal from './CloseCashModal'
 import pixIcon from '../assets/pix.svg'
@@ -28,6 +29,7 @@ const parseCurrency = (val) => {
 export default function POSPage({ storeId, user }){
   const [currentCash, setCurrentCash] = useState(null) // null = loading or not exists
   const [orders, setOrders] = useState([])
+  const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState('atual')
   const [previousList, setPreviousList] = useState([])
@@ -85,6 +87,13 @@ export default function POSPage({ storeId, user }){
     const unsub = listenOrders((allOrders) => {
       setOrders(allOrders)
     }, storeId)
+    return () => unsub && unsub()
+  }, [storeId])
+
+  // Listen to clients
+  useEffect(() => {
+    if (!storeId) return
+    const unsub = listenClients(setClients, storeId)
     return () => unsub && unsub()
   }, [storeId])
 
@@ -324,7 +333,7 @@ export default function POSPage({ storeId, user }){
          return `${prefix}${String(order.id).slice(-4)}`
       }
 
-      if (!cash) return { transactions: [], financials: { opening: 0, sales: 0, os: 0, cashBalance: 0, methods: {}, totalIn: 0, totalOut: 0, moneyAdded: 0 } }
+      if (!cash) return { transactions: [], financials: { opening: 0, sales: 0, salesLojista: 0, salesFinal: 0, os: 0, osLojista: 0, osFinal: 0, cashBalance: 0, methods: {}, totalIn: 0, totalOut: 0, moneyAdded: 0, moneyRemoved: 0 } }
   
       const openTime = cash.openedAt?.toDate ? cash.openedAt.toDate().getTime() : 0
       const closeTime = cash.closedAt?.toDate ? cash.closedAt.toDate().getTime() : (cash.status==='closed' ? Date.now() : Infinity)
@@ -345,7 +354,17 @@ export default function POSPage({ storeId, user }){
       })
   
       let salesTotal = 0
+      let salesLojista = 0
+      let salesFinal = 0
+      
       let osTotal = 0
+      let osLojista = 0
+      let osFinal = 0
+      
+      let receivablesTotal = 0
+      let receivablesLojista = 0
+      let receivablesFinal = 0
+      
       let totalIn = 0
       let totalOut = 0 // Expenses placeholder
       let moneyAdded = 0
@@ -375,6 +394,29 @@ export default function POSPage({ storeId, user }){
           })
 
           const amount = Number(t.value || 0)
+
+          // Check for Account Receivable
+          if (t.originalOrder && t.originalOrder.type === 'accounts_receivable') {
+             receivablesTotal += amount
+             
+             // Determine client type
+             let isLojista = false
+             const accounts = t.originalOrder.accounts || []
+             if (accounts.length > 0) {
+                const firstAcc = accounts[0]
+                if (firstAcc.clientId) {
+                   const c = clients.find(x => x.id === firstAcc.clientId)
+                   if (c && c.isCompany) isLojista = true
+                } else if (firstAcc.clientName) {
+                   const c = clients.find(x => x.name === firstAcc.clientName)
+                   if (c && c.isCompany) isLojista = true
+                }
+             }
+             
+             if (isLojista) receivablesLojista += amount
+             else receivablesFinal += amount
+          }
+
           if (amount > 0) {
             totalIn += amount
             if (t.type === 'add') moneyAdded += amount
@@ -386,6 +428,18 @@ export default function POSPage({ storeId, user }){
           
           methods['Dinheiro'] = (methods['Dinheiro'] || 0) + amount
         })
+      }
+
+      const getClientType = (order) => {
+        const s = (order.status || '').toLowerCase()
+        if (s.includes('lojista')) return 'lojista'
+        if (s.includes('final')) return 'final'
+        
+        if (order.clientId) {
+          const c = clients.find(x => x.id === order.clientId)
+          if (c && c.isCompany) return 'lojista'
+        }
+        return 'final'
       }
 
       orders.forEach(o => {
@@ -439,10 +493,18 @@ export default function POSPage({ storeId, user }){
               })
 
               // Update financials
+              const clientType = getClientType(o)
               paymentsInThisCash.forEach(p => {
                  const amount = Number(p.amount || 0)
-                 if(isSale) salesTotal += amount
-                 else osTotal += amount
+                 if(isSale) {
+                    salesTotal += amount
+                    if (clientType === 'lojista') salesLojista += amount
+                    else salesFinal += amount
+                 } else {
+                    osTotal += amount
+                    if (clientType === 'lojista') osLojista += amount
+                    else osFinal += amount
+                 }
                  
                  totalIn += amount
                  
@@ -466,7 +528,7 @@ export default function POSPage({ storeId, user }){
       // O Saldo do Caixa deve ser a soma de todos os valores registrados (Abertura + Vendas de todos os tipos)
       const cashBalance = Object.values(methods).reduce((acc, v) => acc + v, 0)
 
-      return { transactions: list, financials: { opening, sales: salesTotal, os: osTotal, cashBalance, methods, totalIn, totalOut, moneyAdded, moneyRemoved } }
+      return { transactions: list, financials: { opening, sales: salesTotal, salesLojista, salesFinal, os: osTotal, osLojista, osFinal, receivables: receivablesTotal, receivablesLojista, receivablesFinal, cashBalance, methods, totalIn, totalOut, moneyAdded, moneyRemoved } }
     }
 
     if (selectedPreviousCash) {
@@ -474,7 +536,7 @@ export default function POSPage({ storeId, user }){
     }
     return processCash(currentCash)
 
-  }, [currentCash, orders, selectedPreviousCash])
+  }, [currentCash, orders, selectedPreviousCash, clients])
 
   const handleViewOrder = (order) => {
     if (setViewParams) {
@@ -679,10 +741,42 @@ export default function POSPage({ storeId, user }){
                     <span className="text-gray-600">Total das vendas</span>
                     <span className="font-medium text-gray-900">{money(financials.sales)}</span>
                   </div>
+                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-100">
+                     <span className="text-gray-500">Cliente Lojista</span>
+                     <span className="text-gray-700">{money(financials.salesLojista)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-200">
+                     <span className="text-gray-500">Cliente Final</span>
+                     <span className="text-gray-700">{money(financials.salesFinal)}</span>
+                  </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-gray-200">
                     <span className="text-gray-600">Total Ordens de Serviço</span>
                     <span className="font-medium text-gray-900">{money(financials.os)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-100">
+                     <span className="text-gray-500">Cliente Lojista</span>
+                     <span className="text-gray-700">{money(financials.osLojista)}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-200">
+                     <span className="text-gray-500">Cliente Final</span>
+                     <span className="text-gray-700">{money(financials.osFinal)}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
+                    <span className="text-gray-600">Recebimento de Contas</span>
+                    <span className="font-medium text-gray-900">{money(financials.receivables)}</span>
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-gray-600 font-medium text-xs">Total Cliente Lojista</span>
+                        <span className="font-medium text-blue-600 text-sm">{money(financials.salesLojista + financials.osLojista)}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 font-medium text-xs">Total Cliente Final</span>
+                        <span className="font-medium text-blue-600 text-sm">{money(financials.salesFinal + financials.osFinal)}</span>
+                      </div>
                   </div>
 
                   {financials.moneyAdded > 0 && (
@@ -1134,12 +1228,46 @@ export default function POSPage({ storeId, user }){
                        <span className="text-gray-600">Total das vendas</span>
                        <span className="font-medium text-gray-900">{money(financials.sales)}</span>
                      </div>
-                     <div className="flex items-center justify-between">
+                     <div className="flex items-center justify-between pl-4 text-xs">
+                        <span className="text-gray-500">Cliente Lojista</span>
+                        <span className="text-gray-700">{money(financials.salesLojista)}</span>
+                     </div>
+                     <div className="flex items-center justify-between pl-4 text-xs">
+                        <span className="text-gray-500">Cliente Final</span>
+                        <span className="text-gray-700">{money(financials.salesFinal)}</span>
+                     </div>
+
+                     <div className="flex items-center justify-between mt-2">
                        <span className="text-gray-600">Total Ordens de Serviço</span>
                        <span className="font-medium text-gray-900">{money(financials.os)}</span>
                      </div>
-                     <div className="flex items-center justify-between">
-                       <span className="text-gray-600">Pagamentos</span>
+                     <div className="flex items-center justify-between pl-4 text-xs">
+                        <span className="text-gray-500">Cliente Lojista</span>
+                        <span className="text-gray-700">{money(financials.osLojista)}</span>
+                     </div>
+                     <div className="flex items-center justify-between pl-4 text-xs">
+                         <span className="text-gray-500">Cliente Final</span>
+                         <span className="text-gray-700">{money(financials.osFinal)}</span>
+                      </div>
+
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-gray-600">Recebimento de Contas</span>
+                        <span className="font-medium text-gray-900">{money(financials.receivables)}</span>
+                      </div>
+
+                      <div className="mt-2 pt-2 border-t border-dashed border-gray-200 mb-2">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-gray-600 font-medium text-xs">Total Cliente Lojista</span>
+                            <span className="font-medium text-blue-600 text-sm">{money(financials.salesLojista + financials.osLojista)}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-gray-600 font-medium text-xs">Total Cliente Final</span>
+                            <span className="font-medium text-blue-600 text-sm">{money(financials.salesFinal + financials.osFinal)}</span>
+                          </div>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Pagamentos</span>
                        <span className="font-medium text-gray-900">{money(financials.totalOut)}</span>
                      </div>
                      

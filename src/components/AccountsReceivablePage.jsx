@@ -317,6 +317,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
             type: 'accounts_receivable',
             accounts: receiveTargetAccounts.map(acc => ({
               id: acc.id,
+              clientId: acc.clientId,
               clientName: acc.clientName,
               description: acc.description,
               value: acc.value,

@@ -150,8 +150,14 @@ export default function AccountsPayablePage({ storeId }) {
 
         await updateAccountPayable(data.id, updateData)
       } else {
-        // Criar
-        await addAccountPayable(data, storeId)
+        // Criar (pode ser um array ou um objeto único)
+        if (Array.isArray(data)) {
+          // Processar array de parcelas
+          await Promise.all(data.map(item => addAccountPayable(item, storeId)))
+        } else {
+          // Processar item único
+          await addAccountPayable(data, storeId)
+        }
       }
 
       setIsModalOpen(false)

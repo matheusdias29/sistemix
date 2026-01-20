@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 
-export default function SelectSupplierModal({ open, onClose, onSelect, suppliers = [], onNew }) {
+export default function SelectFinancialCategoryModal({ open, onClose, onSelect, categories = [], onNew }) {
   const [query, setQuery] = useState('')
 
   useEffect(() => {
@@ -9,13 +9,13 @@ export default function SelectSupplierModal({ open, onClose, onSelect, suppliers
 
   if (!open) return null
 
-  const filtered = suppliers.filter(s => (s.name || '').toLowerCase().includes(query.trim().toLowerCase()))
+  const filtered = categories.filter(c => (c.name || '').toLowerCase().includes(query.trim().toLowerCase()))
 
   return (
     <div className="fixed inset-0 z-[10000] bg-black/30 flex items-center justify-center">
       <div className="bg-white w-[520px] max-w-[90vw] rounded-lg shadow-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-3 border-b">
-          <div className="font-semibold">Selecionar fornecedor</div>
+          <div className="font-semibold">Selecionar categoria financeira</div>
           {onNew && (
             <button type="button" onClick={onNew} className="px-2 py-1 text-sm rounded bg-green-600 text-white">+ Nova</button>
           )}
@@ -34,16 +34,16 @@ export default function SelectSupplierModal({ open, onClose, onSelect, suppliers
                className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between text-gray-500 italic"
                onClick={() => onSelect(null)}
             >
-               <span>Limpar seleção / Todos</span>
+               <span>Limpar seleção</span>
             </button>
-            {filtered.map((s, idx) => (
-              <button key={s.id ?? idx} type="button" onClick={()=>{ onSelect(s) }} className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between">
-                <span className="truncate">{s.name || '-'}</span>
+            {filtered.map(c => (
+              <button key={c.id} type="button" onClick={()=>{ onSelect(c) }} className="w-full text-left px-3 py-3 hover:bg-gray-50 flex items-center justify-between">
+                <span className="truncate">{c.name}</span>
                 <span className="text-gray-400">›</span>
               </button>
             ))}
             {filtered.length === 0 && (
-              <div className="px-3 py-3 text-sm text-gray-500">Nenhum fornecedor encontrado.</div>
+              <div className="px-3 py-3 text-sm text-gray-500">Nenhuma categoria encontrada.</div>
             )}
           </div>
           <div className="flex items-center justify-end gap-2 pt-3">
