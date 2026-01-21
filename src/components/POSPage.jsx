@@ -369,6 +369,9 @@ export default function POSPage({ storeId, user }){
       let totalOut = 0 // Expenses placeholder
       let moneyAdded = 0
       let moneyRemoved = 0
+      let expensesTotal = 0
+      let withdrawalsTotal = 0
+      let accountsPayableTotal = 0
       
       const methods = {
         'Dinheiro': Number(cash.initialValue || 0)
@@ -423,7 +426,13 @@ export default function POSPage({ storeId, user }){
           }
           else {
             totalOut += Math.abs(amount)
-            if (t.type === 'remove' || t.type === 'expense') moneyRemoved += Math.abs(amount)
+            if (t.type === 'remove' || t.type === 'expense' || t.type === 'account_payable') {
+               const absAmt = Math.abs(amount)
+               moneyRemoved += absAmt
+               if (t.type === 'expense') expensesTotal += absAmt
+               else if (t.type === 'account_payable') accountsPayableTotal += absAmt
+               else withdrawalsTotal += absAmt
+            }
           }
           
           methods['Dinheiro'] = (methods['Dinheiro'] || 0) + amount
@@ -528,7 +537,7 @@ export default function POSPage({ storeId, user }){
       // O Saldo do Caixa deve ser a soma de todos os valores registrados (Abertura + Vendas de todos os tipos)
       const cashBalance = Object.values(methods).reduce((acc, v) => acc + v, 0)
 
-      return { transactions: list, financials: { opening, sales: salesTotal, salesLojista, salesFinal, os: osTotal, osLojista, osFinal, receivables: receivablesTotal, receivablesLojista, receivablesFinal, cashBalance, methods, totalIn, totalOut, moneyAdded, moneyRemoved } }
+      return { transactions: list, financials: { opening, sales: salesTotal, salesLojista, salesFinal, os: osTotal, osLojista, osFinal, receivables: receivablesTotal, receivablesLojista, receivablesFinal, cashBalance, methods, totalIn, totalOut, moneyAdded, moneyRemoved, expensesTotal, withdrawalsTotal, accountsPayableTotal } }
     }
 
     if (selectedPreviousCash) {
@@ -724,106 +733,127 @@ export default function POSPage({ storeId, user }){
               </div>
 
               {/* Right Side: Resumo */}
-              <div className="w-full md:w-80 bg-gray-50 rounded border p-4">
-                <h3 className="font-semibold text-gray-700 mb-4">Resumo do caixa</h3>
+              <div className="w-full md:w-80 bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex flex-col h-fit">
+                <h3 className="font-bold text-gray-800 text-lg mb-6 flex items-center gap-2">
+                  <span>📊</span> Resumo do caixa
+                </h3>
                 
-                <div className="space-y-3 text-sm">
-                  <div className="text-xs text-gray-500 mb-2">
-                    Caixa #{currentCash.id.slice(0,6)} aberto em {dateStr(currentCash.openedAt)}
+                <div className="space-y-4 text-sm">
+                  <div className="text-xs text-gray-500 mb-2 font-medium bg-gray-50 p-2 rounded text-center border border-gray-100">
+                    Caixa #{currentCash.id.slice(0,6)} • {dateStr(currentCash.openedAt)}
                   </div>
                   
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600">Saldo de abertura</span>
-                    <span className="font-medium text-gray-900">{money(financials.opening)}</span>
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-600 font-medium">Saldo de abertura</span>
+                    <span className="font-bold text-gray-900">{money(financials.opening)}</span>
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600">Total das vendas</span>
-                    <span className="font-medium text-gray-900">{money(financials.sales)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-100">
-                     <span className="text-gray-500">Cliente Lojista</span>
-                     <span className="text-gray-700">{money(financials.salesLojista)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-200">
-                     <span className="text-gray-500">Cliente Final</span>
-                     <span className="text-gray-700">{money(financials.salesFinal)}</span>
-                  </div>
-
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600">Total Ordens de Serviço</span>
-                    <span className="font-medium text-gray-900">{money(financials.os)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-100">
-                     <span className="text-gray-500">Cliente Lojista</span>
-                     <span className="text-gray-700">{money(financials.osLojista)}</span>
-                  </div>
-                  <div className="flex items-center justify-between py-1 pl-4 text-xs border-b border-gray-200">
-                     <span className="text-gray-500">Cliente Final</span>
-                     <span className="text-gray-700">{money(financials.osFinal)}</span>
+                  {/* Sales */}
+                  <div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-gray-800 font-bold">Total das vendas</span>
+                      <span className="font-bold text-gray-900">{money(financials.sales)}</span>
+                    </div>
+                    <div className="pl-3 space-y-1 mt-1 border-l-2 border-gray-100">
+                        <div className="flex items-center justify-between text-xs">
+                           <span className="text-gray-500 font-medium">Cliente Lojista</span>
+                           <span className="text-gray-700 font-semibold">{money(financials.salesLojista)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                           <span className="text-gray-500 font-medium">Cliente Final</span>
+                           <span className="text-gray-700 font-semibold">{money(financials.salesFinal)}</span>
+                        </div>
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600">Recebimento de Contas</span>
-                    <span className="font-medium text-gray-900">{money(financials.receivables)}</span>
+                  {/* OS */}
+                  <div>
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-gray-800 font-bold">Total Ordens de Serviço</span>
+                      <span className="font-bold text-gray-900">{money(financials.os)}</span>
+                    </div>
+                    <div className="pl-3 space-y-1 mt-1 border-l-2 border-gray-100">
+                        <div className="flex items-center justify-between text-xs">
+                           <span className="text-gray-500 font-medium">Cliente Lojista</span>
+                           <span className="text-gray-700 font-semibold">{money(financials.osLojista)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                           <span className="text-gray-500 font-medium">Cliente Final</span>
+                           <span className="text-gray-700 font-semibold">{money(financials.osFinal)}</span>
+                        </div>
+                    </div>
                   </div>
 
-                  <div className="mt-2 pt-2 border-t border-dashed border-gray-200">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-gray-600 font-medium text-xs">Total Cliente Lojista</span>
-                        <span className="font-medium text-blue-600 text-sm">{money(financials.salesLojista + financials.osLojista)}</span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-600 font-medium text-xs">Total Cliente Final</span>
-                        <span className="font-medium text-blue-600 text-sm">{money(financials.salesFinal + financials.osFinal)}</span>
-                      </div>
+                  {/* Receivables */}
+                  <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                    <span className="text-gray-800 font-bold">Recebimento de Contas</span>
+                    <span className="font-bold text-gray-900">{money(financials.receivables)}</span>
                   </div>
 
+                  {/* Additions */}
                   {financials.moneyAdded > 0 && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                      <span className="text-gray-600">Dinheiro Adicionado</span>
-                      <span className="font-medium text-gray-900">{money(financials.moneyAdded)}</span>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 bg-green-50/50 px-2 rounded">
+                      <span className="text-green-700 font-bold">Dinheiro Adicionado</span>
+                      <span className="font-bold text-green-700">{money(financials.moneyAdded)}</span>
                     </div>
                   )}
 
-                  {financials.moneyRemoved > 0 && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                      <span className="text-gray-600">Valores Retirados</span>
-                      <span className="font-medium text-gray-900">-{money(financials.moneyRemoved)}</span>
+                  {/* Removals Breakdown */}
+                  {(financials.withdrawalsTotal > 0 || financials.expensesTotal > 0 || (financials.moneyRemoved > 0 && !financials.withdrawalsTotal && !financials.expensesTotal)) && (
+                    <div className="bg-red-50/50 px-2 rounded py-2 space-y-2 border border-red-100">
+                       {financials.withdrawalsTotal > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-red-700 font-bold">Retiradas</span>
+                            <span className="font-bold text-red-700">-{money(financials.withdrawalsTotal)}</span>
+                          </div>
+                       )}
+                       {financials.expensesTotal > 0 && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-red-700 font-bold">Despesas</span>
+                            <span className="font-bold text-red-700">-{money(financials.expensesTotal)}</span>
+                          </div>
+                       )}
+                       {/* Fallback */}
+                       {(!financials.withdrawalsTotal && !financials.expensesTotal && financials.moneyRemoved > 0) && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-red-700 font-bold">Valores Retirados</span>
+                            <span className="font-bold text-red-700">-{money(financials.moneyRemoved)}</span>
+                          </div>
+                       )}
                     </div>
                   )}
 
-                  <div className="flex items-center justify-between py-2 border-b border-gray-200">
-                    <span className="text-gray-600 font-medium">Saldo do Caixa</span>
-                    <span className="font-bold text-lg text-green-600">{money(financials.cashBalance)}</span>
+                  {/* Balance */}
+                  <div className="flex items-center justify-between py-4 border-t-2 border-gray-100 mt-4">
+                    <span className="text-gray-800 font-bold text-lg">Saldo do Caixa</span>
+                    <span className="font-extrabold text-xl text-green-600">{money(financials.cashBalance)}</span>
                   </div>
 
-                  <div className="flex items-center justify-between py-1">
-                    <span className="text-gray-500">Total a prazo</span>
-                    <span className="text-gray-500">R$ 0,00</span>
-                  </div>
-
-                  <div className="pt-4">
-                    <div className="text-xs text-gray-500 mb-2">Total por meio de pagamento</div>
-                    {Object.entries(financials.methods).map(([method, val]) => (
-                      <div key={method} className="flex items-center justify-between text-sm mb-1">
-                        <span className="flex items-center gap-2 text-gray-600">
-                          <span>{method.toLowerCase().includes('dinheiro')
-                            ? '💵'
-                            : (method.toLowerCase().includes('pix')
-                              ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
-                              : '💳')}</span> {method}
-                        </span>
-                        <span className="font-medium text-gray-900">{money(val)}</span>
-                      </div>
-                    ))}
+                  {/* Payment Methods */}
+                  <div className="pt-4 border-t border-gray-100">
+                    <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Por meio de pagamento</div>
+                    <div className="space-y-2">
+                      {Object.entries(financials.methods).map(([method, val]) => (
+                        <div key={method} className="flex items-center justify-between text-sm p-2 rounded hover:bg-gray-50 transition-colors">
+                          <span className="flex items-center gap-2 text-gray-700 font-medium">
+                            <span>{method.toLowerCase().includes('dinheiro')
+                              ? '💵'
+                              : (method.toLowerCase().includes('pix')
+                                ? <img src={pixIcon} alt="PIX" className="inline-block w-4 h-4" />
+                                : '💳')}</span> 
+                            {method}
+                          </span>
+                          <span className="font-bold text-gray-900">{money(val)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
                 <div className="mt-8">
                   <button 
                     onClick={() => setCloseModalOpen(true)}
-                    className="w-full py-2 bg-green-500 hover:bg-green-600 text-white rounded font-medium transition-colors"
+                    className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold shadow-md transition-all transform active:scale-95 text-sm uppercase tracking-wide"
                   >
                     Fechar Caixa
                   </button>

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import Switch from './Switch'
 import SelectSupplierModal from './SelectSupplierModal'
+import NewSupplierModal from './NewSupplierModal'
 import SelectFinancialCategoryModal from './SelectFinancialCategoryModal'
-import { listenFinancialCategories } from '../services/financialCategories'
+import NewFinancialCategoryModal from './NewFinancialCategoryModal'
+import { listenFinancialCategories, addFinancialCategory } from '../services/financialCategories'
 import { listenSuppliers } from '../services/suppliers'
 
 export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLoading, storeId, initialData }) {
@@ -19,6 +21,9 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
   // Modais de seleção
   const [showSupplierSelect, setShowSupplierSelect] = useState(false)
   const [showCategorySelect, setShowCategorySelect] = useState(false)
+  const [showNewSupplierModal, setShowNewSupplierModal] = useState(false)
+  const [showNewCategoryModal, setShowNewCategoryModal] = useState(false)
+  const [isSavingCategory, setIsSavingCategory] = useState(false)
 
   // Dados para seleção
   const [categories, setCategories] = useState([])
@@ -65,6 +70,19 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
       unsubSup()
     }
   }, [storeId])
+
+  const handleSaveCategory = async (data) => {
+    try {
+      setIsSavingCategory(true)
+      await addFinancialCategory(data, storeId)
+      setShowNewCategoryModal(false)
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao salvar categoria')
+    } finally {
+      setIsSavingCategory(false)
+    }
+  }
 
   const handleAddItem = () => {
     setItems(prev => [...prev, { id: Date.now() + Math.random(), value: '', dueDate: '' }])
@@ -269,15 +287,26 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
 
       {/* Modais Aninhados */}
       {showSupplierSelect && (
-        <SelectSupplierModal 
-          storeId={storeId} 
-          suppliers={suppliers}
+        <SelectSupplierModal
           open={showSupplierSelect}
+          suppliers={suppliers}
           onClose={() => setShowSupplierSelect(false)}
           onSelect={(s) => {
             setSupplier(s)
             setShowSupplierSelect(false)
           }}
+          onNew={() => {
+            setShowSupplierSelect(false)
+            setShowNewSupplierModal(true)
+          }}
+        />
+      )}
+
+      {showNewSupplierModal && (
+        <NewSupplierModal
+          open={showNewSupplierModal}
+          onClose={() => setShowNewSupplierModal(false)}
+          storeId={storeId}
         />
       )}
 
@@ -290,6 +319,18 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
             setCategory(c)
             setShowCategorySelect(false)
           }}
+          onNew={() => {
+            setShowCategorySelect(false)
+            setShowNewCategoryModal(true)
+          }}
+        />
+      )}
+
+      {showNewCategoryModal && (
+        <NewFinancialCategoryModal
+          onClose={() => setShowNewCategoryModal(false)}
+          onSave={handleSaveCategory}
+          isLoading={isSavingCategory}
         />
       )}
     </div>

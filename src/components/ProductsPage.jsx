@@ -55,10 +55,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         setGridCols(null) // mobile default via class
         setShowExtras(false)
       } else if (w < 1300) {
-        setGridCols('1.5rem minmax(0, 1fr) 12rem 6rem 6rem 2rem')
+        setGridCols('1.5rem minmax(0, 1fr) 8rem 5rem 5.5rem 2rem')
         setShowExtras(false)
       } else {
-        setGridCols('1.5rem minmax(0, 1fr) 6rem 5.5rem 3.5rem minmax(0, 1fr) 12rem 6rem 6rem 2rem')
+        setGridCols('1.5rem minmax(0, 1fr) 5rem 5rem 3rem minmax(0, 1fr) 8rem 5rem 5.5rem 2rem')
         setShowExtras(true)
       }
     }
@@ -767,10 +767,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       </div>
 
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
-      <div className={`mt-2 px-4 py-3 border-b bg-gray-50 text-sm text-gray-600 font-bold overflow-x-auto ${tab==='produto' ? 'hidden md:block' : ''}`}>
+      <div className={`mt-2 px-2 py-2 border-b bg-gray-50 text-xs lg:text-sm text-gray-600 font-bold overflow-x-auto ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
           <div 
-            className="grid gap-x-4 min-w-full"
+            className="grid gap-x-2 min-w-full"
             style={gridCols ? { gridTemplateColumns: gridCols } : {}}
           >
             <div></div>
@@ -779,7 +779,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             {showExtras && <div className="text-center">Atualizado </div>}
             {showExtras && <div className="text-center">Hora</div>}
             {showExtras && <div className="text-center">Funcionário</div>}
-            <div className="text-right">PREÇO P/CLIENTE FINAL</div>
+            <div className="text-right">Preço</div>
             <div className="text-right">Estoque</div>
             <div className="text-right">Status</div>
             <div></div>
@@ -814,13 +814,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 <>
                 <div 
                   key={p.id} 
-                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-4 items-center px-4 py-3 border-b last:border-0 min-w-full"
+                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-2 items-center px-2 py-2 border-b last:border-0 min-w-full hover:bg-gray-50 transition-colors"
                   style={gridCols ? { gridTemplateColumns: gridCols } : {}}
                 >
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
-                  <div className="text-xs md:text-sm overflow-hidden">
+                  <div className="text-xs lg:text-sm overflow-hidden">
                     <div className="truncate" title={p.name}>
                       {p.name}
                     </div>
@@ -830,28 +830,28 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     </div>
                   </div>
                   {showExtras && (
-                    <div className="hidden md:block text-xs text-gray-500 font-mono">
+                    <div className="hidden md:block text-xs lg:text-sm text-gray-500 font-mono">
                       {p.reference || '-'}
                     </div>
                   )}
                   {/* Data de atualização (substituindo prévia de variações) */}
                   {showExtras && (
-                    <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
+                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 justify-center items-center whitespace-nowrap">
                        {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
                     </div>
                   )}
                   {showExtras && (
-                    <div className="hidden md:flex text-xs text-gray-700 justify-center items-center">
+                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 justify-center items-center whitespace-nowrap">
                        {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </div>
                   )}
                   {showExtras && (
-                    <div className="hidden md:flex text-xs text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
+                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
                        {p.lastEditedBy || p.createdBy || '—'}
                     </div>
                   )}
                   <div className="text-right whitespace-nowrap md:whitespace-normal md:text-right md:pl-0 pl-4 justify-self-end flex flex-col items-end justify-center">
-                    <div className="text-xs md:text-sm">{priceText}</div>
+                    <div className="text-xs lg:text-sm whitespace-nowrap">{priceText}</div>
                     {/* Botão sanfona (mobile e desktop) abaixo do preço */}
                     {(Array.isArray(p.variationsData) && p.variationsData.length > 0) && (
                       <div className="mt-1">
@@ -874,9 +874,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   </div>
                   {/* Div anterior do botão sanfona removida/esvaziada para manter grid, ou ajustada */}
                   <div className="md:hidden text-right hidden"></div>
-                  <div className={`hidden md:block text-right text-sm ${stock === 0 ? 'text-red-500' : ''}`}>{stock.toLocaleString('pt-BR')}</div>
-                  <div className="hidden md:block text-right text-sm">
-                    <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                  <div className={`hidden md:block text-right text-xs lg:text-sm whitespace-nowrap ${stock === 0 ? 'text-red-500' : ''}`}>{stock.toLocaleString('pt-BR')}</div>
+                  <div className="hidden md:block text-right text-xs lg:text-sm">
+                    <div className={`inline-block px-2 py-0.5 rounded text-xs lg:text-sm font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
                   <div className="text-right text-sm relative">
                     <button
@@ -975,7 +975,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             return (
                               <div 
                                 key={idx} 
-                                className="grid gap-x-4 items-center text-sm min-w-full"
+                                className="grid gap-x-4 items-center text-xs min-w-full"
                                 style={gridCols ? { gridTemplateColumns: gridCols } : {}}
                               >
                                 <div></div>

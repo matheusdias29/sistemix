@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'orders')
@@ -116,4 +116,9 @@ export async function getOrderById(id){
 export async function updateOrder(id, partial){
   const ref = doc(db, 'orders', id)
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+}
+
+export async function deleteOrder(id){
+  const ref = doc(db, 'orders', id)
+  await deleteDoc(ref)
 }

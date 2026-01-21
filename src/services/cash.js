@@ -22,6 +22,20 @@ export function listenCurrentCash(storeId, callback) {
   })
 }
 
+// Busca o caixa aberto atual (Promise)
+export async function getOpenCashRegister(storeId) {
+  if (!storeId) return null
+  const q = query(
+    collection(db, 'cash_registers'),
+    where('storeId', '==', storeId),
+    where('status', '==', 'open'),
+    limit(1)
+  )
+  const snapshot = await getDocs(q)
+  if (snapshot.empty) return null
+  return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }
+}
+
 // Abre um novo caixa com número sequencial
 export async function openCashRegister({ storeId, userId, userName, initialValue }) {
   if (!storeId) throw new Error('Loja não identificada')

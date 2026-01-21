@@ -4,6 +4,7 @@ import NewAccountPayableModal from './NewAccountPayableModal'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import AccountsPayableFilterModal from './AccountsPayableFilterModal'
 import { listenAccountsPayable, addAccountPayable, updateAccountPayable, removeAccountPayable } from '../services/accountsPayable'
+// import { getOpenCashRegister, addCashTransaction } from '../services/cash' // Removido por solicitação
 
 const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dateStr = (d) => {
@@ -202,17 +203,37 @@ export default function AccountsPayablePage({ storeId }) {
       setIsLoading(true)
       const ids = Array.from(selectedIds)
       
+      // Busca caixa aberto (Removido: não lançar mais no caixa)
+      // const openCash = await getOpenCashRegister(storeId)
+
       // Processa pagamentos em paralelo
       await Promise.all(ids.map(async (id) => {
         const acc = accounts.find(a => a.id === id)
         if (!acc) return
         
+        // const payAmount = Number(acc.remainingValue ?? acc.originalValue ?? 0)
+
         await updateAccountPayable(id, {
           status: 'paid',
           paidValue: acc.originalValue, // Assume pagamento total por enquanto
           remainingValue: 0,
           paymentDate: new Date().toISOString().split('T')[0] // Data de hoje YYYY-MM-DD
         })
+
+        // Lança no caixa (Removido por solicitação)
+        /*
+        if (openCash && payAmount > 0) {
+          await addCashTransaction(openCash.id, {
+            type: 'account_payable',
+            value: -payAmount, 
+            description: `Pagamento Conta: ${acc.description || ''} (${acc.supplierName || 'Fornecedor'})`,
+            categoryId: acc.categoryId || null,
+            categoryName: acc.categoryName || null,
+            paymentMethod: 'Dinheiro', 
+            date: new Date()
+          })
+        }
+        */
       }))
 
       setSelectedIds(new Set()) // Limpa seleção

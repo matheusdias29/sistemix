@@ -17,7 +17,9 @@ export default function SelectSupplierModal({ open, onClose, onSelect, suppliers
         <div className="flex items-center justify-between p-3 border-b">
           <div className="font-semibold">Selecionar fornecedor</div>
           {onNew && (
-            <button type="button" onClick={onNew} className="px-2 py-1 text-sm rounded bg-green-600 text-white">+ Nova</button>
+            <button type="button" onClick={onNew} className="px-2 py-1 text-sm rounded bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1">
+              <span className="text-lg leading-none pb-1">+</span> Novo
+            </button>
           )}
         </div>
         <div className="p-3 flex-1 overflow-hidden flex flex-col">

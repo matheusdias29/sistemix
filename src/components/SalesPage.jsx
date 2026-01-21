@@ -16,15 +16,15 @@ const tabs = [
 ]
 
 const defaultColumns = [
-  { id: 'number', label: 'Venda', width: '5.5rem', visible: true, align: 'left' },
-  { id: 'client', label: 'Cliente', width: '1.5fr', visible: true, align: 'left' },
-  { id: 'fiscal', label: 'Fiscal', width: '5rem', visible: true, align: 'center' },
-  { id: 'payment', label: 'Meio de Pg.', width: '11rem', visible: true, align: 'center' },
-  { id: 'date', label: 'Data', width: '9rem', visible: true, align: 'center' },
-  { id: 'time', label: 'Hora', width: '7rem', visible: true, align: 'center' },
-  { id: 'attendant', label: 'Vendedor', width: '1fr', visible: true, align: 'left' },
-  { id: 'value', label: 'Valor', width: '7rem', visible: true, align: 'right' },
-  { id: 'status', label: 'Status', width: '7rem', visible: true, align: 'center' }
+  { id: 'number', label: 'Venda', width: '4.5rem', visible: true, align: 'left' },
+  { id: 'client', label: 'Cliente', width: 'minmax(0, 1.5fr)', visible: true, align: 'left' },
+  { id: 'fiscal', label: 'Fiscal', width: '4rem', visible: true, align: 'center' },
+  { id: 'payment', label: 'Pgto.', width: '8rem', visible: true, align: 'center' },
+  { id: 'date', label: 'Data', width: '6rem', visible: true, align: 'center' },
+  { id: 'time', label: 'Hora', width: '5rem', visible: true, align: 'center' },
+  { id: 'attendant', label: 'Vendedor', width: 'minmax(0, 1fr)', visible: true, align: 'left' },
+  { id: 'value', label: 'Valor', width: '6rem', visible: true, align: 'right' },
+  { id: 'status', label: 'Status', width: '6.5rem', visible: true, align: 'center' }
 ]
 
 export default function SalesPage({ initialDayFilter = null, storeId, store, user, openNewSaleSignal = 0 }){
@@ -86,6 +86,14 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
     product: '',
     paymentMethod: ''
   })
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 20
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [query, tab, dateRange, advFilters])
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
@@ -240,6 +248,12 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
   const vendasRealizadas = useMemo(() => filtered.filter(o => (o.status||'').toLowerCase() === 'venda').length, [filtered])
   const ticketMedio = useMemo(() => filtered.length ? totalValor / filtered.length : 0, [filtered, totalValor])
 
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(start, start + ITEMS_PER_PAGE)
+  }, [filtered, currentPage])
+
   const formatCurrency = (n) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   const formatDate = (ts) => {
     const d = ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : new Date())
@@ -297,19 +311,19 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
 
   const renderCell = (o, col) => {
     switch(col.id) {
-      case 'number': return <div className="text-sm">{formatSaleNumber(o)}</div>
-      case 'client': return <div className="text-sm">{o.client || '-'}</div>
-      case 'fiscal': return <div className="text-sm text-center">{o.fiscal ? '📄' : '-'}</div>
+      case 'number': return <div className="text-xs lg:text-sm">{formatSaleNumber(o)}</div>
+      case 'client': return <div className="text-xs lg:text-sm truncate" title={o.client || '-'}>{o.client || '-'}</div>
+      case 'fiscal': return <div className="text-xs lg:text-sm text-center">{o.fiscal ? '📄' : '-'}</div>
       case 'payment': {
         const icons = (Array.isArray(o.payments) ? o.payments : []).map((p, idx) => (
           <span key={idx} className="mx-0.5">{paymentIcon(p.method)}</span>
         ))
-        return <div className="text-sm text-center">{icons.length ? icons : '-'}</div>
+        return <div className="text-xs lg:text-sm text-center">{icons.length ? icons : '-'}</div>
       }
-      case 'date': return <div className="text-sm text-center">{formatDate(o.createdAt)}</div>
-      case 'time': return <div className="text-sm text-center">{formatTime(o.createdAt)}</div>
-      case 'attendant': return <div className="text-sm text-left truncate" title={o.attendant || '-'}>{o.attendant || '-'}</div>
-      case 'value': return <div className="text-sm text-right">{formatCurrency(Number(o.valor || o.total || 0))}</div>
+      case 'date': return <div className="text-xs lg:text-sm text-center whitespace-nowrap">{formatDate(o.createdAt)}</div>
+      case 'time': return <div className="text-xs lg:text-sm text-center">{formatTime(o.createdAt)}</div>
+      case 'attendant': return <div className="text-xs lg:text-sm text-left truncate" title={o.attendant || '-'}>{o.attendant || '-'}</div>
+      case 'value': return <div className="text-xs lg:text-sm text-right whitespace-nowrap">{formatCurrency(Number(o.valor || o.total || 0))}</div>
       case 'status': {
         const s = (o.status ?? '').toLowerCase()
         let colorClass = 'bg-gray-200 text-gray-700'
@@ -319,8 +333,8 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
         else if (s === 'cancelada') colorClass = 'bg-red-100 text-red-700'
 
         return (
-          <div className="text-sm text-center">
-            <div className={`px-2 py-1 rounded text-xs ${colorClass}`}>{o.status || 'Indef.'}</div>
+          <div className="text-center">
+            <div className={`px-1.5 py-0.5 rounded text-[10px] lg:text-xs inline-block ${colorClass}`}>{o.status || 'Indef.'}</div>
           </div>
         )
       }
@@ -405,7 +419,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
       {/* Lista */}
       <div className="mt-4 bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
         <div 
-          className="min-w-full w-max grid items-center px-4 py-3 text-sm text-gray-600 font-bold border-b bg-gray-50 gap-3"
+          className="min-w-full grid items-center px-2 py-2 text-xs lg:text-sm text-gray-600 font-bold border-b bg-gray-50 gap-2"
           style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
         >
           {columns.filter(c => c.visible).map(col => (
@@ -429,14 +443,14 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
             </button>
           </div>
         </div>
-        {filtered.map(o => (
+        {paginatedData.map(o => (
           <div 
             key={o.id} 
             onClick={() => {
               setSelectedSale(o)
               setDetailModalOpen(true)
             }}
-            className="min-w-full w-max grid items-center px-4 py-3 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors gap-3"
+            className="min-w-full grid items-center px-2 py-2 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors gap-2"
             style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
           >
             {columns.filter(c => c.visible).map(col => (
@@ -455,6 +469,34 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
           <div className="px-4 py-6 text-sm text-gray-600">Nenhuma venda encontrada.</div>
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {filtered.length > ITEMS_PER_PAGE && (
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} resultados
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className={`px-3 py-1 rounded border text-sm ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Anterior
+            </button>
+            <span className="text-sm text-gray-600">
+              Página {currentPage} de {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className={`px-3 py-1 rounded border text-sm ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+            >
+              Próximo
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal Nova Venda */}
       <NewSaleModal open={newSaleOpen} onClose={()=>setNewSaleOpen(false)} storeId={storeId} user={user} />

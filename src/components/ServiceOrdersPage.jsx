@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { listenOrders, addOrder, updateOrder } from '../services/orders'
+import { listenOrders, addOrder, updateOrder, deleteOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
 import { listenProducts, updateProduct } from '../services/products'
 import NewProductModal from './NewProductModal'
@@ -796,6 +796,31 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     return s.includes('faturada') || s.includes('finalizada') || s.includes('finalizado')
   }, [status])
 
+  const handleDeleteOrder = async (order) => {
+    setRowMenuOpenId(null)
+    
+    // Validar se pode excluir
+    const s = String(order.status || '').toLowerCase()
+    if (s.includes('faturada')) {
+      showAlert('Não é possível excluir uma O.S. faturada. Cancele o status primeiro.')
+      return
+    }
+
+    if (order.cashLaunched) {
+      showAlert('Não é possível excluir uma O.S. faturada no caixa. Cancele o movimento de caixa primeiro.')
+      return
+    }
+
+    if (window.confirm(`Tem certeza que deseja excluir a ${formatOSNumber(order)}? Esta ação não pode ser desfeita.`)) {
+      try {
+        await deleteOrder(order.id)
+      } catch (e) {
+        console.error('Erro ao excluir OS', e)
+        showAlert('Erro ao excluir O.S.')
+      }
+    }
+  }
+
   return (
     <div>
       {statusModalOpen && (
@@ -1400,6 +1425,12 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                           }
                           setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) 
                         }}>Alterar Status</button>
+                        <button 
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 text-red-600 hover:text-red-700"
+                          onClick={() => handleDeleteOrder(o)}
+                        >
+                          Excluir O.S.
+                        </button>
                         {o.cashLaunched ? (
                           <button
                             className="w-full text-left px-3 py-2 hover:bg-gray-50"

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { updateOrder } from '../services/orders'
+import { updateOrder, deleteOrder } from '../services/orders'
 import { updateProduct } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
 import ShareSaleModal from './ShareSaleModal'
@@ -230,6 +230,31 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
             }}
           >
             <span>🗑️</span> Cancelar
+          </button>
+          <button
+            className="px-3 py-1.5 bg-red-600 text-white border border-red-600 rounded text-sm hover:bg-red-700 flex items-center gap-1"
+            onClick={async () => {
+              const s = (sale.status || '').toLowerCase()
+              // Permitir excluir se estiver cancelada ou for apenas um pedido (não faturado)
+              const isSafeToDelete = s === 'cancelada' || s === 'pedido'
+              
+              if (!isSafeToDelete) {
+                alert('Para excluir o registro, primeiro cancele a venda/O.S. para garantir o estorno do estoque e financeiro.')
+                return
+              }
+
+              if (window.confirm('Tem certeza que deseja excluir permanentemente este registro? Esta ação não pode ser desfeita.')) {
+                try {
+                  await deleteOrder(sale.id)
+                  onClose && onClose()
+                } catch (e) {
+                  console.error('Erro ao excluir', e)
+                  alert('Erro ao excluir registro.')
+                }
+              }
+            }}
+          >
+             <span>❌</span> Excluir
           </button>
         </div>
 

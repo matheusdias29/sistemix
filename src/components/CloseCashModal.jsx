@@ -15,9 +15,25 @@ export default function CloseCashModal({ open, onClose, onConfirm, financials })
   if (!open) return null
 
   const methods = Object.keys(financials.methods || {})
+  const { moneyAdded, moneyRemoved, expensesTotal, withdrawalsTotal, accountsPayableTotal } = financials
+
+  // Extra items for verification
+  const extraItems = []
+  // User requested to hide moneyAdded (Suprimento)
+  // if (moneyAdded > 0) extraItems.push({ key: 'suprimento', label: 'Suprimento (+)', value: moneyAdded, isExtra: true })
   
-  // Calculate totals
+  if (withdrawalsTotal > 0) extraItems.push({ key: 'retirada', label: 'Retirada (-)', value: withdrawalsTotal, isExtra: true })
+  if (expensesTotal > 0) extraItems.push({ key: 'despesa', label: 'Despesas (-)', value: expensesTotal, isExtra: true })
+  if (accountsPayableTotal > 0) extraItems.push({ key: 'pagamento_conta', label: 'Pagamento Conta (-)', value: accountsPayableTotal, isExtra: true })
+
+  // Fallback for moneyRemoved if specific totals are missing (backward compat or if logic wasn't updated in parent yet)
+  if (!withdrawalsTotal && !expensesTotal && !accountsPayableTotal && moneyRemoved > 0) {
+      extraItems.push({ key: 'sangria', label: 'Retirada (-)', value: moneyRemoved, isExtra: true })
+  }
+  
+  // Calculate totals (Only Payment Methods - Assets)
   const totalRegistered = methods.reduce((acc, m) => acc + (financials.methods[m] || 0), 0)
+  // Only sum methods for total informado to compare with totalRegistered
   const totalInformado = methods.reduce((acc, m) => acc + (values[m] !== undefined ? values[m] : 0), 0)
   const totalDiff = totalInformado - totalRegistered
 
@@ -25,6 +41,10 @@ export default function CloseCashModal({ open, onClose, onConfirm, financials })
     const newValues = {}
     methods.forEach(m => {
       newValues[m] = financials.methods[m] || 0
+    })
+    // Auto fill extra items
+    extraItems.forEach(item => {
+      newValues[item.key] = item.value
     })
     setValues(newValues)
   }
@@ -72,6 +92,37 @@ export default function CloseCashModal({ open, onClose, onConfirm, financials })
                 </tr>
               </thead>
               <tbody className="divide-y">
+                {/* Movimentações (Sangria/Suprimento) */}
+                {extraItems.map(item => {
+                  const registered = item.value
+                  const informed = values[item.key]
+                  const hasInformed = informed !== undefined
+                  const diff = (informed || 0) - registered
+                  
+                  return (
+                    <tr key={item.key} className="bg-gray-50/50">
+                      <td className="py-3 px-4 text-gray-700 font-medium">{item.label}</td>
+                      <td className="py-3 px-4 text-right text-gray-600">{formatMoney(registered)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <input
+                          type="number"
+                          step="0.01"
+                          className="w-24 text-right border rounded px-2 py-1 text-sm focus:ring-1 focus:ring-green-500 outline-none"
+                          placeholder="0,00"
+                          value={hasInformed ? informed : ''}
+                          onChange={(e) => {
+                            const val = e.target.value === '' ? undefined : parseFloat(e.target.value)
+                            setValues(prev => ({ ...prev, [item.key]: val }))
+                          }}
+                        />
+                      </td>
+                      <td className={`py-3 px-4 text-right font-medium ${Math.abs(diff) > 0.001 ? 'text-red-600' : 'text-green-600'}`}>
+                        {formatMoney(diff)}
+                      </td>
+                    </tr>
+                  )
+                })}
+
                 {methods.map(method => {
                   const registered = financials.methods[method] || 0
                   const informed = values[method]
