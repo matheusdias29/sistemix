@@ -1079,8 +1079,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       {/* Payment Modals Flow */}
       {payMethodsOpen && (
         <PaymentMethodsModal
-          open={payMethodsOpen}
-          onClose={()=>setPayMethodsOpen(false)}
+        storeId={storeId}
+        open={payMethodsOpen}
+        onClose={()=>setPayMethodsOpen(false)}
           remaining={remainingToPay}
           payments={payments}
           onRemovePayment={(idx)=>setPayments(prev=>prev.filter((_,i)=>i!==idx))}

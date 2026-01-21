@@ -1,5 +1,6 @@
-import React from 'react'
+import React, { useState } from 'react'
 import clsx from 'clsx'
+import ServiceOrderSettingsModal from './ServiceOrderSettingsModal'
 
 function Section({ title, children }) {
   return (
@@ -28,6 +29,7 @@ function Item({ label, onClick, rightSlot }) {
 }
 
 export default function SettingsPage({ user, store, onNavigate, onLogout, darkMode=false, onToggleDark }) {
+  const [osSettingsOpen, setOsSettingsOpen] = useState(false)
 
   const handleSoon = (name) => () => {
     window.alert(`${name} — em breve`)
@@ -41,12 +43,12 @@ export default function SettingsPage({ user, store, onNavigate, onLogout, darkMo
       <Section title="Configurações de empresa">
         <Item label="Dados da empresa" onClick={() => onNavigate && onNavigate('dadosEmpresa')} />
         <Item label="Usuários" onClick={() => onNavigate && onNavigate('usuarios')} />
-        <Item label="Assistente" onClick={handleSoon('Assistente')} />
+        <Item label="Assinatura" onClick={handleSoon('Assinatura')} />
       </Section>
 
       {/* Configurações de venda */}
       <Section title="Configurações de venda">
-        <Item label="Formas de pagamento" onClick={handleSoon('Formas de pagamento')} />
+        <Item label="Formas de pagamento" onClick={() => onNavigate && onNavigate('formasPagamento')} />
         <Item label="Taxas adicionais" onClick={() => onNavigate && onNavigate('taxas')} />
         <Item label="Recibo" onClick={handleSoon('Recibo')} />
         <Item label="Crediário" onClick={handleSoon('Crediário')} />
@@ -61,11 +63,7 @@ export default function SettingsPage({ user, store, onNavigate, onLogout, darkMo
 
       {/* Configurações adicionais */}
       <Section title="Configurações adicionais">
-        <Item label="Cálculos de O.A." onClick={handleSoon('Cálculos de O.A.')} />
-        <Item label="Catálogo Online" onClick={handleSoon('Catálogo Online')} />
-        <Item label="Configurar O.S" onClick={handleSoon('Configurar O.S')} />
-        <Item label="Módulos de mensagens" onClick={handleSoon('Módulos de mensagens')} />
-        <Item label="Integrações" onClick={handleSoon('Integrações')} />
+        <Item label="Configurar O.S" onClick={() => setOsSettingsOpen(true)} />
       </Section>
 
       {/* Outras configurações */}
@@ -91,9 +89,12 @@ export default function SettingsPage({ user, store, onNavigate, onLogout, darkMo
             </button>
           }
         />
-        <Item label="Atualizar App" onClick={handleSoon('Atualizar App')} />
         <Item label="Sair" onClick={() => onLogout && onLogout()} />
       </Section>
+      
+      {osSettingsOpen && (
+        <ServiceOrderSettingsModal store={store} onClose={() => setOsSettingsOpen(false)} />
+      )}
     </div>
   )
 }

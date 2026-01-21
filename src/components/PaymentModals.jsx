@@ -1,125 +1,68 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import pixIcon from '../assets/pix.svg'
+import { listenPaymentMethods } from '../services/paymentMethods'
 
-export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, onConfirm, remaining, payments, onRemovePayment }) {
+const ICONS = {
+  dinheiro: (
+    <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M7,15H9C9,16.08 10.37,17 12,17C13.63,17 15,16.08 15,15C15,13.9 13.96,13.5 11.76,12.97C9.64,12.44 7,11.78 7,9C7,7.21 8.47,5.69 10.5,5.18V3H13.5V5.18C15.53,5.69 17,7.21 17,9H15C15,7.92 13.63,7 12,7C10.37,7 9,7.92 9,9C9,10.1 10.04,10.5 12.24,11.03C14.36,11.56 17,12.22 17,15C17,16.79 15.53,18.31 13.5,18.82V21H10.5V18.82C8.47,18.31 7,16.79 7,15Z"/>
+    </svg>
+  ),
+  pix: (<img src={pixIcon} alt="PIX" className="w-8 h-8" />),
+  cartao_debito: (
+    <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.11,4 20,4M20,18H4V12H20V18M20,8H4V6H20V8Z"/>
+    </svg>
+  ),
+  cartao_credito: (
+    <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.11,4 20,4M20,18H4V12H20V18M20,8H4V6H20V8M7,15H9V17H7V15M11,15H17V17H11V15Z"/>
+    </svg>
+  ),
+  cheque: (
+    <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M21,5C21,3.89 20.1,3 19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5M19,19H5V5H19V19M17,17H7V15H17V17M17,13H7V11H17V13M17,9H7V7H17V9Z"/>
+    </svg>
+  ),
+  transferencia_bancaria: (
+    <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M17,12H7V10H17V12M15,16H7V14H15V16M17,8H7V6H17V8Z"/>
+    </svg>
+  ),
+  default: (
+    <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,17A1.5,1.5 0 0,1 10.5,15.5A1.5,1.5 0 0,1 12,14A1.5,1.5 0 0,1 13.5,15.5A1.5,1.5 0 0,1 12,17M12,10A1,1 0 0,1 13,11V13A1,1 0 0,1 11,13V11A1,1 0 0,1 12,10Z"/>
+    </svg>
+  )
+}
+
+const getIcon = (type) => ICONS[type] || ICONS.default
+
+export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, onConfirm, remaining, payments, onRemovePayment, storeId }) {
   if (!open) return null
 
   const chooseHandler = onChoose || onChooseMethod
+  const [dbMethods, setDbMethods] = useState([])
+
+  useEffect(() => {
+    return listenPaymentMethods(setDbMethods, storeId)
+  }, [storeId])
 
   const paymentMethods = [
     { 
       code: 'cash', 
       label: 'Dinheiro',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M7,15H9C9,16.08 10.37,17 12,17C13.63,17 15,16.08 15,15C15,13.9 13.96,13.5 11.76,12.97C9.64,12.44 7,11.78 7,9C7,7.21 8.47,5.69 10.5,5.18V3H13.5V5.18C15.53,5.69 17,7.21 17,9H15C15,7.92 13.63,7 12,7C10.37,7 9,7.92 9,9C9,10.1 10.04,10.5 12.24,11.03C14.36,11.56 17,12.22 17,15C17,16.79 15.53,18.31 13.5,18.82V21H10.5V18.82C8.47,18.31 7,16.79 7,15Z"/>
-        </svg>
-      )
+      icon: ICONS.dinheiro,
+      type: 'dinheiro'
     },
-    { 
-      code: 'pix', 
-      label: 'PIX Lojista',
-      icon: (<img src={pixIcon} alt="PIX" className="w-8 h-8" />)
-    },
-    { 
-      code: 'debit_card', 
-      label: 'Cartão De Débito',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.11,4 20,4M20,18H4V12H20V18M20,8H4V6H20V8Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'debit_card_lojista', 
-      label: 'Cartão De Débito Lojista',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.11,4 20,4M20,18H4V12H20V18M20,8H4V6H20V8Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'credit_card', 
-      label: 'Cartão De Crédito',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.11,4 20,4M20,18H4V12H20V18M20,8H4V6H20V8M7,15H9V17H7V15M11,15H17V17H11V15Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'credit_card_lojista', 
-      label: 'Cartão De Crédito Lojista',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M20,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6C22,4.89 21.11,4 20,4M20,18H4V12H20V18M20,8H4V6H20V8M7,15H9V17H7V15M11,15H17V17H11V15Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'cheque', 
-      label: 'Cheque',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M21,5C21,3.89 20.1,3 19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5M19,19H5V5H19V19M17,17H7V15H17V17M17,13H7V11H17V13M17,9H7V7H17V9Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'conta', 
-      label: 'Conta',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M17,12H7V10H17V12M15,16H7V14H15V16M17,8H7V6H17V8Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'troca_pecas', 
-      label: 'TROCA DE PEÇAS - SH',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6A6,6 0 0,1 18,12A6,6 0 0,1 12,18M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'vale_funcionario', 
-      label: 'Vale Funcionário',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12,4A4,4 0 0,1 16,8A4,4 0 0,1 12,12A4,4 0 0,1 8,8A4,4 0 0,1 12,4M12,14C16.42,14 20,15.79 20,18V20H4V18C4,15.79 7.58,14 12,14Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'garantia_conserto', 
-      label: 'GARANTIA DE CONSERTO - GRATUITO',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5H16.3V16H7.7V11.5H9.2V10C9.2,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.5,8.7 10.5,10V11.5H13.5V10C13.5,8.7 12.8,8.2 12,8.2Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'garantia_produto', 
-      label: 'GARANTIA DE PRODUTO ESPECÍFICO',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M10,17L6,13L7.41,11.59L10,14.17L16.59,7.58L18,9L10,17Z"/>
-        </svg>
-      )
-    },
-    { 
-      code: 'crediario', 
-      label: 'Crediário',
-      icon: (
-        <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M17,12H7V10H17V12M15,16H7V14H15V16M17,8H7V6H17V8Z"/>
-        </svg>
-      )
-    }
+    ...dbMethods.filter(m => m.active).map(m => ({
+      code: m.type, // keeping 'code' for compatibility, but ideally should use ID or Type
+      id: m.id,
+      label: m.label,
+      type: m.type,
+      icon: getIcon(m.type),
+      ...m // Spread other properties like installmentsConfig, etc.
+    }))
   ]
 
   return (
@@ -133,20 +76,23 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
           {payments && payments.length > 0 && (
             <div className="mt-3">
               <div className="max-h-32 overflow-y-auto">
-              {payments.map((p, idx) => (
-                <div key={idx} className="flex items-center justify-between py-2">
-                  <div className="flex items-center">
-                    <div className="mr-2">{(paymentMethods.find(m=>m.code===p.methodCode)||{}).icon}</div>
-                    <span className="text-gray-700">{p.method}</span>
+              {payments.map((p, idx) => {
+                const method = paymentMethods.find(m => m.label === p.method) || paymentMethods.find(m => m.code === p.methodCode) || {}
+                return (
+                  <div key={idx} className="flex items-center justify-between py-2">
+                    <div className="flex items-center">
+                      <div className="mr-2">{method.icon || ICONS.default}</div>
+                      <span className="text-gray-700">{p.method}</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="mr-3 font-medium">{p.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      {onRemovePayment && (
+                        <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 hover:text-red-600">✕</button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center">
-                    <span className="mr-3 font-medium">{p.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                    {onRemovePayment && (
-                      <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 hover:text-red-600">✕</button>
-                    )}
-                  </div>
-                </div>
-              ))}
+                )
+              })}
               </div>
               <div className="border-t"></div>
             </div>
@@ -157,7 +103,7 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {paymentMethods.map((method) => (
               <button
-                key={method.code}
+                key={method.id || method.code}
                 onClick={() => chooseHandler && chooseHandler(method)}
                 className="flex flex-col items-center p-3 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 hover:border-green-300 transition-colors min-h-[80px]"
               >

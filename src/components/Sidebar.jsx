@@ -120,9 +120,14 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
 <div className="mt-8 border-t pt-4 space-y-1 dark:border-gray-800">
 <div 
   className="p-3 cursor-pointer text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white rounded-lg font-medium text-[15px] transition-colors flex items-center gap-3"
+  onClick={() => {
+    const message = encodeURIComponent('Preciso de suporte para a ferramenta sistemix comércio')
+    window.open(`https://wa.me/5518996003093?text=${message}`, '_blank')
+    closeIfMobile()
+  }}
 >
   <span className="w-6"><LifeBuoy size={20} /></span>
-  <span>Suporte</span>
+  <span>Ajuda</span>
 </div>
 <div 
   className="p-3 cursor-pointer text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white rounded-lg font-medium text-[15px] transition-colors flex items-center gap-3"

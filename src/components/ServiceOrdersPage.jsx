@@ -978,6 +978,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       )}
       {payMethodsOpen && (
         <PaymentMethodsModal
+          storeId={storeId}
           open={payMethodsOpen}
           onClose={()=>setPayMethodsOpen(false)}
           remaining={osLaunchRemaining}

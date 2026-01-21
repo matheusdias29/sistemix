@@ -994,6 +994,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
 
       {receivePayMethodsOpen && (
         <PaymentMethodsModal
+          storeId={storeId}
           open={receivePayMethodsOpen}
           onClose={() => {
             setReceivePayMethodsOpen(false)

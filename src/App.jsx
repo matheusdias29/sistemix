@@ -24,6 +24,7 @@ import OrderTrackingPage from './components/OrderTrackingPage'
 import FiscalNotesPage from './components/FiscalNotesPage'
 import TermsPage from './components/TermsPage'
 import Calculator from './components/Calculator'
+import PaymentMethodsPage from './components/PaymentMethodsPage'
 import ChatWidget from './components/ChatWidget'
 import { getStoreBySlug } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
@@ -334,6 +335,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><CompanyPage storeId={store?.id} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'taxas' ? (
             <div className="mt-4 md:mt-6"><AdditionalFeesPage storeId={store?.id} onBack={() => onNavigate('configuracoes')} /></div>
+          ) : view === 'formasPagamento' ? (
+            <div className="mt-4 md:mt-6"><PaymentMethodsPage storeId={store?.id} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'usuarios' ? (
             <div className="mt-4 md:mt-6"><UsersPage owner={user} /></div>
           ) : view === 'metas' ? (
