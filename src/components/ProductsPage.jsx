@@ -55,10 +55,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         setGridCols(null) // mobile default via class
         setShowExtras(false)
       } else if (w < 1300) {
-        setGridCols('1.5rem 1fr 12rem 6rem 6rem 2rem')
+        setGridCols('1.5rem minmax(0, 1fr) 12rem 6rem 6rem 2rem')
         setShowExtras(false)
       } else {
-        setGridCols('1.5rem 1fr 6rem 5.5rem 3.5rem 1fr 12rem 6rem 6rem 2rem')
+        setGridCols('1.5rem minmax(0, 1fr) 6rem 5.5rem 3.5rem minmax(0, 1fr) 12rem 6rem 6rem 2rem')
         setShowExtras(true)
       }
     }
@@ -770,7 +770,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       <div className={`mt-2 px-4 py-3 border-b bg-gray-50 text-sm text-gray-600 font-bold overflow-x-auto ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
           <div 
-            className="grid gap-x-4 min-w-full w-max"
+            className="grid gap-x-4 min-w-full"
             style={gridCols ? { gridTemplateColumns: gridCols } : {}}
           >
             <div></div>
@@ -814,14 +814,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 <>
                 <div 
                   key={p.id} 
-                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-4 items-center px-4 py-3 border-b last:border-0 min-w-full w-max"
+                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-4 items-center px-4 py-3 border-b last:border-0 min-w-full"
                   style={gridCols ? { gridTemplateColumns: gridCols } : {}}
                 >
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
                   </div>
-                  <div className="text-xs md:text-sm">
-                    <div className="">
+                  <div className="text-xs md:text-sm overflow-hidden">
+                    <div className="truncate" title={p.name}>
                       {p.name}
                     </div>
                     <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
@@ -945,7 +945,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             const stockVar = Number(v?.stock ?? 0)
                             return (
                               <div className="grid grid-cols-[1fr_6rem] items-center gap-2 text-xs">
-                                <div className="truncate">
+                                <div className="truncate" title={v?.name || v?.label || `Variação ${idx+1}`}>
                                   <span className="font-medium">{v?.name || v?.label || `Variação ${idx+1}`}</span>
                                   {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
                                   {stockVar ? (<span className="ml-2 text-gray-500">Estoque: {stockVar.toLocaleString('pt-BR')}</span>) : null}
@@ -975,11 +975,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             return (
                               <div 
                                 key={idx} 
-                                className="grid gap-x-4 items-center text-sm min-w-full w-max"
+                                className="grid gap-x-4 items-center text-sm min-w-full"
                                 style={gridCols ? { gridTemplateColumns: gridCols } : {}}
                               >
                                 <div></div>
-                                <div className={`${showExtras ? 'col-span-5' : 'col-span-1'} truncate`}>
+                                <div className={`${showExtras ? 'col-span-5' : 'col-span-1'} truncate`} title={v?.name || v?.label || `Variação ${idx+1}`}>
                                   <span className="font-medium text-gray-700">{v?.name || v?.label || `Variação ${idx+1}`}</span>
                                   {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
                                 </div>
