@@ -33,6 +33,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   // Mobile: controle de sanfona por linha (produtos abertos)
   const [mobileOpenRows, setMobileOpenRows] = useState(() => new Set())
   const [openMenuId, setOpenMenuId] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const [stockModalOpen, setStockModalOpen] = useState(false)
   const [stockTargetProduct, setStockTargetProduct] = useState(null)
   const [selectedVarIdx, setSelectedVarIdx] = useState(0)
@@ -884,12 +885,22 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       aria-label="Mais ações"
                       title="Mais ações"
                       className="inline-flex h-8 w-8 items-center justify-center rounded border"
-                      onClick={() => setOpenMenuId(openMenuId===p.id ? null : p.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        // w-56 = 14rem = 224px. Ajuste para alinhar a direita do menu com a direita do botão
+                        setMenuPos({ top: rect.bottom + 2, left: rect.right - 224 })
+                        setOpenMenuId(openMenuId === p.id ? null : p.id)
+                      }}
                     >
                       ⋯
                     </button>
                     {openMenuId === p.id && (
-                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow">
+                      <div 
+                        className="fixed z-[9999] w-56 bg-white border rounded-lg shadow-lg"
+                        style={{ top: menuPos.top, left: menuPos.left }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="py-2">
                           <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> { startEdit(p); setOpenMenuId(null); }}>
                             <span>✏️</span>
