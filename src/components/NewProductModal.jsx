@@ -1,12 +1,61 @@
 import React, { useState, useEffect } from 'react'
 import { addProduct, updateProduct, getNextProductReference } from '../services/products'
+import { getStoreById, listStoresByOwner } from '../services/stores'
+import { addCategory } from '../services/categories'
+import { addSupplier } from '../services/suppliers'
+import { collection, query, where, getDocs } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 import VariationsModal from './VariationsModal'
 import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
 import SelectCategoryModal from './SelectCategoryModal'
 import SelectSupplierModal from './SelectSupplierModal'
 
-export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user }){
+const ensureSupplierInStore = async (supplierData, targetStoreId) => {
+  if (!supplierData || !supplierData.name) return
+  try {
+    console.log(`[Sync] Verificando fornecedor "${supplierData.name}" na loja ${targetStoreId}...`)
+    const supCol = collection(db, 'suppliers')
+    // Busca na loja de destino pelo nome do fornecedor original identificado
+    const supQuery = query(supCol, where('storeId', '==', targetStoreId), where('name', '==', supplierData.name))
+    const supSnap = await getDocs(supQuery)
+
+    if (supSnap.empty) {
+      console.log(`[Sync] Fornecedor não encontrado na loja ${targetStoreId}. Criando...`)
+      
+      // Preparar objeto limpo para criação
+      const supplierToCreate = {
+        name: supplierData.name,
+        whatsapp: supplierData.whatsapp ?? '',
+        phone: supplierData.phone ?? '',
+        cnpj: supplierData.cnpj ?? '',
+        isCompany: supplierData.isCompany ?? false,
+        cep: supplierData.cep ?? '',
+        address: supplierData.address ?? '',
+        number: supplierData.number ?? '',
+        complement: supplierData.complement ?? '',
+        neighborhood: supplierData.neighborhood ?? '',
+        city: supplierData.city ?? '',
+        state: supplierData.state ?? '',
+        code: supplierData.code ?? '',
+        stateRegistration: supplierData.stateRegistration ?? '',
+        email: supplierData.email ?? '',
+        notes: supplierData.notes ?? '',
+        active: true // Forçar ativo na sincronização
+      }
+
+      // Não existe na loja de destino, criar cópia
+      const newSupId = await addSupplier(supplierToCreate, targetStoreId)
+      console.log(`[Sync] Fornecedor criado com sucesso na loja ${targetStoreId}. ID: ${newSupId}`)
+    } else {
+      console.log(`[Sync] Fornecedor já existe na loja ${targetStoreId}. ID: ${supSnap.docs[0].id}`)
+    }
+  } catch (supErr) {
+    console.error(`[Sync] Erro ao sincronizar fornecedor para loja ${targetStoreId}:`, supErr)
+  }
+}
+
+export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false }){
   const [name, setName] = useState('')
   const [priceMin, setPriceMin] = useState('0')
   const [priceMax, setPriceMax] = useState('0')
@@ -363,9 +412,254 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       }
       if(isEdit && product?.id){
         await updateProduct(product.id, data)
+
+        // Sincronização na edição
+        if (syncProducts) {
+          try {
+            const currentStore = await getStoreById(storeId)
+            if (currentStore && currentStore.ownerId) {
+              const allStores = await listStoresByOwner(currentStore.ownerId)
+              const otherStores = allStores.filter(s => s.id !== storeId)
+              
+              if (otherStores.length > 0) {
+                console.log(`[Sync] Sincronizando atualização para mais ${otherStores.length} lojas...`)
+                
+                // Preparar dados de Categoria e Fornecedor
+                const sourceCategory = categories.find(c => c.id === categoryId)
+                let sourceSupplierFull = null
+                if (supplier && supplier.trim()) {
+                  const cleanSupplier = supplier.trim()
+                  sourceSupplierFull = suppliers.find(s => s.name === cleanSupplier)
+                  if (!sourceSupplierFull) {
+                    sourceSupplierFull = suppliers.find(s => s.name.toLowerCase() === cleanSupplier.toLowerCase())
+                  }
+                  
+                  // 3. Se ainda não achou, busca no banco da loja de origem
+                  if (!sourceSupplierFull) {
+                    try {
+                      const supCol = collection(db, 'suppliers')
+                      const sourceSupQuery = query(supCol, where('storeId', '==', storeId), where('name', '==', cleanSupplier))
+                      const sourceSupSnap = await getDocs(sourceSupQuery)
+                      if (!sourceSupSnap.empty) {
+                        sourceSupplierFull = sourceSupSnap.docs[0].data()
+                      }
+                    } catch (e) {
+                      console.error('Erro ao buscar fornecedor original para cópia:', e)
+                    }
+                  }
+
+                  if (!sourceSupplierFull) {
+                     sourceSupplierFull = { name: cleanSupplier }
+                  }
+                }
+
+                for (const store of otherStores) {
+                  try {
+                    // Tentar encontrar o produto correspondente na outra loja
+                    const prodCol = collection(db, 'products')
+                    
+                    // Estratégia de busca: Reference (se existir) OU Name (fallback)
+                    // Importante: Buscar pelo dado ORIGINAL do produto (product.reference ou product.name)
+                    // pois o usuário pode ter alterado esses campos agora.
+                    let targetProduct = null
+                    
+                    // 1. Tenta por Reference Original
+                    if (product.reference) {
+                      const qRef = query(prodCol, where('storeId', '==', store.id), where('reference', '==', product.reference))
+                      const snapRef = await getDocs(qRef)
+                      if (!snapRef.empty) targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
+                    }
+
+                    // 2. Se não achou, tenta por Nome Original
+                    if (!targetProduct && product.name) {
+                      const qName = query(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
+                      const snapName = await getDocs(qName)
+                      if (!snapName.empty) targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+                    }
+
+                    if (targetProduct) {
+                      console.log(`[Sync] Produto encontrado na loja ${store.id} (ID: ${targetProduct.id}). Atualizando...`)
+                      
+                      // Resolver Categoria na loja destino
+                      let targetCategoryId = null
+                      if (sourceCategory) {
+                        const catCol = collection(db, 'categories')
+                        const catQuery = query(catCol, where('storeId', '==', store.id), where('name', '==', sourceCategory.name))
+                        const catSnap = await getDocs(catQuery)
+                        if (!catSnap.empty) {
+                          targetCategoryId = catSnap.docs[0].id
+                        } else {
+                          targetCategoryId = await addCategory({ name: sourceCategory.name, active: true }, store.id)
+                        }
+                      }
+
+                      // Resolver Fornecedor na loja destino
+                      if (sourceSupplierFull) {
+                         await ensureSupplierInStore(sourceSupplierFull, store.id)
+                      }
+
+                      // Preparar dados de update
+                      // Preservar estoque original da loja destino
+                      const updatePayload = {
+                        ...data,
+                        storeId: store.id,
+                        categoryId: targetCategoryId,
+                        stock: targetProduct.stock, // Preserva estoque total
+                        stockInitial: targetProduct.stockInitial, // Preserva inicial
+                        createdBy: targetProduct.createdBy, // Preserva criador original
+                        createdAt: targetProduct.createdAt // Preserva data criação
+                      }
+
+                      // Ajuste fino para variações: Tentar preservar estoque de variações existentes
+                      if (updatePayload.variationsData && updatePayload.variationsData.length > 0) {
+                         updatePayload.variationsData = updatePayload.variationsData.map(v => {
+                           // Tenta achar essa variação no produto destino antigo
+                           // Match por nome
+                           const oldVar = (targetProduct.variationsData || []).find(ov => ov.name === v.name)
+                           if (oldVar) {
+                             return { ...v, stock: oldVar.stock, stockInitial: oldVar.stockInitial }
+                           }
+                           // Se é variação nova na estrutura, começa com 0
+                           return { ...v, stock: 0, stockInitial: 0 }
+                         })
+                         
+                         // Recalcular stock total baseado nas variações preservadas
+                         const newStockTotal = updatePayload.variationsData.reduce((acc, curr) => acc + (Number(curr.stock)||0), 0)
+                         updatePayload.stock = newStockTotal
+                      }
+
+                      await updateProduct(targetProduct.id, updatePayload)
+                      console.log(`[Sync] Produto atualizado na loja ${store.id}`)
+                    } else {
+                      console.log(`[Sync] Produto correspondente não encontrado na loja ${store.id} para atualização.`)
+                    }
+
+                  } catch (errLoop) {
+                    console.error(`[Sync] Erro ao atualizar loja ${store.id}:`, errLoop)
+                  }
+                }
+              }
+            }
+          } catch (syncErr) {
+            console.error('[Sync] Erro geral na sincronização de edição:', syncErr)
+          }
+        }
+
       } else {
         data.createdBy = user?.name || 'Desconhecido'
-        await addProduct(data, storeId)
+        const newId = await addProduct(data, storeId)
+
+        // Sincronização entre lojas (somente na criação)
+        if (syncProducts) {
+          try {
+            // Obter dados da loja atual para saber o ownerId
+            // Se o usuário for owner, user.uid pode ser usado, mas melhor garantir via store
+            const currentStore = await getStoreById(storeId)
+            if (currentStore && currentStore.ownerId) {
+              const allStores = await listStoresByOwner(currentStore.ownerId)
+              const otherStores = allStores.filter(s => s.id !== storeId)
+              
+              if (otherStores.length > 0) {
+                console.log(`Sincronizando produto para mais ${otherStores.length} lojas...`)
+                const sourceCategory = categories.find(c => c.id === categoryId)
+
+                // Preparar dados do fornecedor original UMA VEZ antes do loop
+                let sourceSupplierFull = null
+                if (supplier && supplier.trim()) {
+                  const cleanSupplier = supplier.trim()
+                  // 1. Tenta encontrar na lista local (props)
+                  sourceSupplierFull = suppliers.find(s => s.name === cleanSupplier)
+                  
+                  // 2. Tenta case-insensitive
+                  if (!sourceSupplierFull) {
+                    sourceSupplierFull = suppliers.find(s => s.name.toLowerCase() === cleanSupplier.toLowerCase())
+                  }
+
+                  // 3. Se ainda não achou, busca no banco da loja de origem
+                  if (!sourceSupplierFull) {
+                    try {
+                      const supCol = collection(db, 'suppliers')
+                      const sourceSupQuery = query(supCol, where('storeId', '==', storeId), where('name', '==', cleanSupplier))
+                      const sourceSupSnap = await getDocs(sourceSupQuery)
+                      if (!sourceSupSnap.empty) {
+                        sourceSupplierFull = sourceSupSnap.docs[0].data()
+                      }
+                    } catch (e) {
+                      console.error('Erro ao buscar fornecedor original para cópia:', e)
+                    }
+                  }
+
+                  // Fallback apenas com o nome se realmente não encontrar nada
+                  if (!sourceSupplierFull) {
+                    sourceSupplierFull = { name: cleanSupplier }
+                  }
+                }
+
+                const syncData = {
+                  ...data,
+                  // Campos específicos para sincronização simplificada
+                  storeId: null, // Será setado no loop
+                  stock: 0,
+                  stockInitial: 0,
+                  // Mantemos stockMin, preços, variações e outros dados "idênticos"
+                  // Apenas zeramos o estoque físico atual
+                  
+                  // Limpar referências que podem não existir em outras lojas (serão recalculadas)
+                  categoryId: null, 
+                }
+
+                // Ajuste para variações: zerar estoque nas variações também, mas manter preços e estrutura
+                if (syncData.variationsData && syncData.variationsData.length > 0) {
+                  syncData.variationsData = syncData.variationsData.map(v => ({
+                    ...v,
+                    stock: 0,
+                    stockInitial: 0
+                  }))
+                }
+
+                for (const store of otherStores) {
+                  let targetCategoryId = null
+                  
+                  // Verificar e criar categoria se necessário
+                  if (sourceCategory) {
+                    try {
+                      const catCol = collection(db, 'categories')
+                      const catQuery = query(catCol, where('storeId', '==', store.id), where('name', '==', sourceCategory.name))
+                      const catSnap = await getDocs(catQuery)
+                      
+                      if (!catSnap.empty) {
+                        targetCategoryId = catSnap.docs[0].id
+                      } else {
+                        // Criar categoria na loja de destino
+                        targetCategoryId = await addCategory({ 
+                          name: sourceCategory.name, 
+                          active: sourceCategory.active ?? true 
+                        }, store.id)
+                      }
+                    } catch (catErr) {
+                      console.error(`Erro ao sincronizar categoria para loja ${store.id}:`, catErr)
+                    }
+                  }
+
+                  // Verificar e criar fornecedor se necessário
+                  if (sourceSupplierFull) {
+                    await ensureSupplierInStore(sourceSupplierFull, store.id)
+                  }
+
+                  const payload = { 
+                    ...syncData, 
+                    storeId: store.id,
+                    categoryId: targetCategoryId
+                  }
+                  await addProduct(payload, store.id)
+                }
+              }
+            }
+          } catch (syncErr) {
+            console.error('Erro na sincronização de produtos:', syncErr)
+            // Não impede o fluxo principal, apenas loga erro
+          }
+        }
       }
       close()
     }catch(err){
