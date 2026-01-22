@@ -409,6 +409,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         isAccessories: !!isAccessories,
         isSundries: !!isSundries,
         lastEditedBy: user?.name || 'Desconhecido',
+        rootId: product?.rootId || crypto.randomUUID(),
       }
       if(isEdit && product?.id){
         await updateProduct(product.id, data)
@@ -458,11 +459,22 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                     // Tentar encontrar o produto correspondente na outra loja
                     const prodCol = collection(db, 'products')
                     
-                    // Estratégia de busca: Reference (se existir) OU Name (fallback)
+                    // Estratégia de busca: RootID -> Reference -> Name
                     let targetProduct = null
+
+                    // 0. Busca por RootID (Identificador Único Global)
+                    if (data.rootId) {
+                      console.log(`[Sync] Buscando por rootId "${data.rootId}" na loja ${store.id}`)
+                      const qRoot = query(prodCol, where('storeId', '==', store.id), where('rootId', '==', data.rootId))
+                      const snapRoot = await getDocs(qRoot)
+                      if (!snapRoot.empty) {
+                        targetProduct = { id: snapRoot.docs[0].id, ...snapRoot.docs[0].data() }
+                        console.log(`[Sync] Produto encontrado por rootId.`)
+                      }
+                    }
                     
                     // 1. Tenta por Reference Original (se houver)
-                    if (product.reference && product.reference.trim()) {
+                    if (!targetProduct && product.reference && product.reference.trim()) {
                       const refToSearch = product.reference.trim()
                       console.log(`[Sync] Buscando por referência original "${refToSearch}" na loja ${store.id}`)
                       const qRef = query(prodCol, where('storeId', '==', store.id), where('reference', '==', refToSearch))
@@ -529,6 +541,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                         stockInitial: targetProduct.stockInitial, // Preserva inicial
                         createdBy: targetProduct.createdBy, // Preserva criador original
                         createdAt: targetProduct.createdAt // Preserva data criação
+                      }
+                      
+                      // Preservar reference (código) original da loja destino, se existir
+                      if (targetProduct.reference) {
+                        updatePayload.reference = targetProduct.reference
                       }
 
                       // Ajuste fino para variações: Tentar preservar estoque de variações existentes

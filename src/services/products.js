@@ -76,6 +76,9 @@ export async function addProduct(product, storeId){
     condition: product.condition ?? '',
     warrantyMonths: product.warrantyMonths ?? null,
 
+    // Sincronização
+    rootId: product.rootId ?? crypto.randomUUID(),
+
     // Mídia (desabilitado por enquanto)
     imageUrl: product.imageUrl ?? null,
 

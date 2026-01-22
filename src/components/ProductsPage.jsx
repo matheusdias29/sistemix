@@ -11,7 +11,7 @@ import { listenOrders } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
 import StockMovementsModal from './StockMovementsModal'
 import { getStoreById, listStoresByOwner } from '../services/stores'
-import { collection, query as firestoreQuery, where, getDocs } from 'firebase/firestore'
+import { collection, query as firestoreQuery, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const tabs = [
@@ -58,6 +58,36 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     finished: false,
     successCount: 0 
   })
+
+  // Modal de Confirmação de Match
+  const [syncConfirm, setSyncConfirm] = useState({
+    open: false,
+    source: null,
+    target: null,
+    targetCategoryName: '',
+    storeName: '',
+    resolver: null
+  })
+
+  const requestSyncConfirmation = (source, target, targetCategoryName, storeName) => {
+    return new Promise((resolve) => {
+      setSyncConfirm({
+        open: true,
+        source,
+        target,
+        targetCategoryName,
+        storeName,
+        resolver: resolve
+      })
+    })
+  }
+
+  const handleConfirmSync = (result) => {
+    if (syncConfirm.resolver) {
+      syncConfirm.resolver(result)
+    }
+    setSyncConfirm(prev => ({ ...prev, open: false, resolver: null }))
+  }
 
   const [gridCols, setGridCols] = useState(null)
   const [showExtras, setShowExtras] = useState(true)
@@ -359,7 +389,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     if (!storeId) return
     try {
       setSavingAction(true)
-      const { id, createdAt, updatedAt, number, ...rest } = product || {}
+      const { id, createdAt, updatedAt, number, rootId, ...rest } = product || {}
       
       // Lógica de sufixo alfabético (A, B, C...)
       let newCode = String(product.reference || '').trim()
@@ -549,6 +579,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     }
 
     try {
+        // Garantir que o produto tenha um rootId para sincronização robusta
+        let activeRootId = product.rootId
+        if (!activeRootId) {
+             activeRootId = crypto.randomUUID()
+             await updateProduct(product.id, { rootId: activeRootId })
+             addLog("Gerado ID único de sincronização.")
+        }
+
         const currentStore = await getStoreById(storeId)
         if (!currentStore || !currentStore.ownerId) {
             addLog('Erro: Loja atual ou proprietário não identificados.')
@@ -630,32 +668,45 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 const prodCol = collection(db, 'products')
                 let targetProduct = null
 
-                // REGRA PRINCIPAL: Buscar pelo MESMO CÓDIGO (Referência)
-                // Se o produto tem código, essa é a chave única.
-                if (product.reference && product.reference.trim()) {
-                    const refToSearch = product.reference.trim()
-                    addLog(`Buscando por código: "${refToSearch}"`)
-                    const qRef = firestoreQuery(prodCol, where('storeId', '==', store.id), where('reference', '==', refToSearch))
-                    const snapRef = await getDocs(qRef)
-                    if (!snapRef.empty) {
-                        targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
-                        addLog(`Produto encontrado pelo código (ID: ${targetProduct.id}).`)
+                // 1. Tentar buscar por rootId (Identificador único global)
+                if (activeRootId) {
+                    addLog(`Buscando por ID global...`)
+                    const qRoot = firestoreQuery(prodCol, where('storeId', '==', store.id), where('rootId', '==', activeRootId))
+                    const snapRoot = await getDocs(qRoot)
+                    if (!snapRoot.empty) {
+                        targetProduct = { id: snapRoot.docs[0].id, ...snapRoot.docs[0].data() }
+                        addLog(`Produto encontrado pelo ID global.`)
                     }
                 }
 
-                // Fallback: Se não achou por código (ou não tem código), tenta por Nome
-                if (!targetProduct && product.name) {
-                     addLog(`Buscando por nome: "${product.name}"`)
-                     const qName = firestoreQuery(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
-                     const snapName = await getDocs(qName)
-                     if (!snapName.empty) {
-                         targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
-                         addLog(`Produto encontrado pelo nome (ID: ${targetProduct.id}).`)
-                     }
+                // 2. Fallback: Se não achou por rootId, tenta por Código ou Nome
+                if (!targetProduct) {
+                    // Por Código
+                    if (product.reference && product.reference.trim()) {
+                        const refToSearch = product.reference.trim()
+                        addLog(`Buscando por código (fallback): "${refToSearch}"`)
+                        const qRef = firestoreQuery(prodCol, where('storeId', '==', store.id), where('reference', '==', refToSearch))
+                        const snapRef = await getDocs(qRef)
+                        if (!snapRef.empty) {
+                            targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
+                            addLog(`Produto encontrado pelo código.`)
+                        }
+                    }
+
+                    // Por Nome
+                    if (!targetProduct && product.name) {
+                         addLog(`Buscando por nome (fallback): "${product.name}"`)
+                         const qName = firestoreQuery(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
+                         const snapName = await getDocs(qName)
+                         if (!snapName.empty) {
+                             targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+                             addLog(`Produto encontrado pelo nome.`)
+                         }
+                    }
                 }
 
                 // Prepara dados para salvar
-                const dataToSync = { ...product }
+                const dataToSync = { ...product, rootId: activeRootId }
                 // Remove campos de sistema/origem
                 delete dataToSync.id
                 delete dataToSync.storeId
@@ -668,11 +719,38 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 dataToSync.lastEditedBy = user?.name || 'Sincronização Manual'
 
                 if (targetProduct) {
+                    // Busca nome da categoria do destino para exibir
+                    let targetCatName = 'Sem Categoria'
+                    if (targetProduct.categoryId) {
+                         try {
+                             const catDocRef = doc(db, 'categories', targetProduct.categoryId)
+                             const catDocSnap = await getDoc(catDocRef)
+                             if (catDocSnap.exists()) {
+                                 targetCatName = catDocSnap.data().name
+                             }
+                         } catch (e) {
+                             // Ignora erro
+                         }
+                    }
+
+                    // Solicita confirmação
+                    const confirmed = await requestSyncConfirmation(product, targetProduct, targetCatName, store.name)
+                    if (!confirmed) {
+                        addLog(`Item ignorado pelo usuário.`)
+                        continue
+                    }
+
                     // UPDATE - O produto JÁ EXISTE na outra loja
                     // IMPORTANTE: Preservar o estoque que está LÁ na outra loja
                     dataToSync.stock = targetProduct.stock
                     dataToSync.stockInitial = targetProduct.stockInitial
                     dataToSync.createdBy = targetProduct.createdBy // Mantém quem criou lá
+                    
+                    // IMPORTANTE: Preservar o CÓDIGO (Reference) que está LÁ na outra loja
+                    // O usuário solicitou que o código não seja alterado na sincronização
+                    if (targetProduct.reference) {
+                        dataToSync.reference = targetProduct.reference
+                    }
                     
                     // Variações: tentar preservar o estoque de cada variação existente lá
                     if (dataToSync.variationsData && dataToSync.variationsData.length > 0) {
@@ -1363,6 +1441,58 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     Fechar
                   </button>
                )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação de Sync */}
+      {syncConfirm.open && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl p-6 relative flex flex-col animate-fade-in">
+            <h3 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">
+              Confirmar Sincronização
+            </h3>
+            
+            <p className="mb-4 text-gray-600">
+              Um produto similar foi encontrado na loja <strong className="text-blue-600">{syncConfirm.storeName}</strong>.
+              Confira se trata-se do mesmo item antes de prosseguir.
+            </p>
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="bg-blue-50 p-4 rounded border border-blue-100">
+                <h4 className="font-bold text-blue-800 mb-2 text-sm uppercase">Produto de Origem (Esta Loja)</h4>
+                <div className="text-sm space-y-1">
+                  <p><span className="font-semibold">Nome:</span> {syncConfirm.source?.name}</p>
+                  <p><span className="font-semibold">Ref:</span> {syncConfirm.source?.reference || '-'}</p>
+                  <p><span className="font-semibold">Fornecedor:</span> {syncConfirm.source?.supplier || '-'}</p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 p-4 rounded border border-yellow-100">
+                <h4 className="font-bold text-yellow-800 mb-2 text-sm uppercase">Produto Encontrado (Destino)</h4>
+                <div className="text-sm space-y-1">
+                  <p><span className="font-semibold">Nome:</span> {syncConfirm.target?.name}</p>
+                  <p><span className="font-semibold">Ref:</span> {syncConfirm.target?.reference || '-'}</p>
+                  <p><span className="font-semibold">Fornecedor:</span> {syncConfirm.target?.supplier || '-'}</p>
+                  <p><span className="font-semibold">Categoria:</span> {syncConfirm.targetCategoryName || '-'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-auto pt-4 border-t">
+               <button 
+                 onClick={() => handleConfirmSync(false)}
+                 className="px-5 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-medium transition-colors"
+               >
+                 Não, é diferente (Pular)
+               </button>
+               <button 
+                 onClick={() => handleConfirmSync(true)}
+                 className="px-5 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium shadow-lg hover:shadow-xl transition-all"
+               >
+                 Sim, é o mesmo (Sincronizar)
+               </button>
             </div>
           </div>
         </div>
