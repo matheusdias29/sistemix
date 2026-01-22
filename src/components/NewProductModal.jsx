@@ -11,7 +11,7 @@ import NewSupplierModal from './NewSupplierModal'
 import SelectCategoryModal from './SelectCategoryModal'
 import SelectSupplierModal from './SelectSupplierModal'
 
-const ensureSupplierInStore = async (supplierData, targetStoreId) => {
+export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   if (!supplierData || !supplierData.name) return
   try {
     console.log(`[Sync] Verificando fornecedor "${supplierData.name}" na loja ${targetStoreId}...`)
@@ -434,7 +434,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                     sourceSupplierFull = suppliers.find(s => s.name.toLowerCase() === cleanSupplier.toLowerCase())
                   }
                   
-                  // 3. Se ainda não achou, busca no banco da loja de origem
+                // 3. Se ainda não achou, busca no banco da loja de origem
                   if (!sourceSupplierFull) {
                     try {
                       const supCol = collection(db, 'suppliers')
@@ -459,22 +459,43 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                     const prodCol = collection(db, 'products')
                     
                     // Estratégia de busca: Reference (se existir) OU Name (fallback)
-                    // Importante: Buscar pelo dado ORIGINAL do produto (product.reference ou product.name)
-                    // pois o usuário pode ter alterado esses campos agora.
                     let targetProduct = null
                     
-                    // 1. Tenta por Reference Original
-                    if (product.reference) {
-                      const qRef = query(prodCol, where('storeId', '==', store.id), where('reference', '==', product.reference))
+                    // 1. Tenta por Reference Original (se houver)
+                    if (product.reference && product.reference.trim()) {
+                      const refToSearch = product.reference.trim()
+                      console.log(`[Sync] Buscando por referência original "${refToSearch}" na loja ${store.id}`)
+                      const qRef = query(prodCol, where('storeId', '==', store.id), where('reference', '==', refToSearch))
                       const snapRef = await getDocs(qRef)
                       if (!snapRef.empty) targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
                     }
 
                     // 2. Se não achou, tenta por Nome Original
                     if (!targetProduct && product.name) {
-                      const qName = query(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
-                      const snapName = await getDocs(qName)
-                      if (!snapName.empty) targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+                      console.log(`[Sync] Buscando por nome original "${product.name}" na loja ${store.id}`)
+                      let qName = query(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
+                      let snapName = await getDocs(qName)
+                      if (!snapName.empty) {
+                        targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+                      } else {
+                        // Tentativa extra: Nome Trimmed (sem espaços extras nas pontas)
+                        const trimmedName = product.name.trim()
+                        if (trimmedName !== product.name) {
+                            console.log(`[Sync] Buscando por nome trimmed "${trimmedName}" na loja ${store.id}`)
+                            qName = query(prodCol, where('storeId', '==', store.id), where('name', '==', trimmedName))
+                            snapName = await getDocs(qName)
+                            if (!snapName.empty) targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+                        }
+                      }
+                    }
+
+                    // 3. Fallback: Se não achou pelo original, tenta pela referência NOVA
+                    // (Útil se o usuário adicionou um código agora e quer vincular a um produto que já tem esse código lá)
+                    if (!targetProduct && data.reference && data.reference !== product.reference) {
+                       console.log(`[Sync] Buscando por nova referência "${data.reference}" na loja ${store.id}`)
+                       const qRefNew = query(prodCol, where('storeId', '==', store.id), where('reference', '==', data.reference))
+                       const snapRefNew = await getDocs(qRefNew)
+                       if (!snapRefNew.empty) targetProduct = { id: snapRefNew.docs[0].id, ...snapRefNew.docs[0].data() }
                     }
 
                     if (targetProduct) {

@@ -1,15 +1,18 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { listenProducts, updateProduct, addProduct, removeProduct } from '../services/products'
-import NewProductModal from './NewProductModal'
-import { listenCategories, updateCategory } from '../services/categories'
+import NewProductModal, { ensureSupplierInStore } from './NewProductModal'
+import { listenCategories, updateCategory, addCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
-import { listenSuppliers, updateSupplier } from '../services/suppliers'
+import { listenSuppliers, updateSupplier, addSupplier } from '../services/suppliers'
 import NewSupplierModal from './NewSupplierModal'
 import ProductsFilterModal from './ProductsFilterModal'
 import ProductLabelsPage from './ProductLabelsPage'
 import { listenOrders } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
 import StockMovementsModal from './StockMovementsModal'
+import { getStoreById, listStoresByOwner } from '../services/stores'
+import { collection, query as firestoreQuery, where, getDocs } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 
 const tabs = [
   { key: 'produto', label: 'Produto' },
@@ -30,6 +33,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [modalOpen, setModalOpen] = useState(false)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [syncingProduct, setSyncingProduct] = useState(null)
   // Mobile: controle de sanfona por linha (produtos abertos)
   const [mobileOpenRows, setMobileOpenRows] = useState(() => new Set())
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -45,6 +49,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [confirmRemoveProduct, setConfirmRemoveProduct] = useState(null)
   const [reservedOpen, setReservedOpen] = useState(false)
   const [reservedProduct, setReservedProduct] = useState(null)
+  
+  // Estado para feedback de sincronização (substitui alerts)
+  const [syncFeedback, setSyncFeedback] = useState({ 
+    open: false, 
+    loading: false, 
+    logs: [], 
+    finished: false,
+    successCount: 0 
+  })
 
   const [gridCols, setGridCols] = useState(null)
   const [showExtras, setShowExtras] = useState(true)
@@ -518,6 +531,206 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     }
   }
 
+  const handleSyncProduct = async (product) => {
+    if (!product || !storeId || syncingProduct) return
+    
+    // Iniciar modal de feedback
+    setSyncFeedback({
+      open: true,
+      loading: true,
+      logs: [`Iniciando sincronização para: ${product.name}...`],
+      finished: false,
+      successCount: 0
+    })
+    setSyncingProduct(product.id)
+
+    const addLog = (msg) => {
+        setSyncFeedback(prev => ({ ...prev, logs: [...prev.logs, msg] }))
+    }
+
+    try {
+        const currentStore = await getStoreById(storeId)
+        if (!currentStore || !currentStore.ownerId) {
+            addLog('Erro: Loja atual ou proprietário não identificados.')
+            setSyncFeedback(prev => ({ ...prev, loading: false, finished: true }))
+            return
+        }
+
+        addLog(`Buscando lojas do proprietário...`)
+        const allStores = await listStoresByOwner(currentStore.ownerId)
+        const otherStores = allStores.filter(s => s.id !== storeId)
+        
+        if (otherStores.length === 0) {
+            addLog('Nenhuma outra loja encontrada para sincronizar.')
+            setSyncFeedback(prev => ({ ...prev, loading: false, finished: true }))
+            return
+        }
+
+        addLog(`Encontradas ${otherStores.length} outras lojas.`)
+
+        // Dados de Categoria e Fornecedor da origem
+        const sourceCategory = categories.find(c => c.id === product.categoryId)
+        
+        // Preparar Fornecedor
+        const supplierName = product.supplier || ''
+        let sourceSupplierFull = null
+        if (supplierName) {
+             const cleanSupplier = supplierName.trim()
+             sourceSupplierFull = suppliers.find(s => s.name === cleanSupplier)
+             if (!sourceSupplierFull) {
+                 sourceSupplierFull = suppliers.find(s => s.name.toLowerCase() === cleanSupplier.toLowerCase())
+             }
+             // Busca no banco se não achar no state
+             if (!sourceSupplierFull) {
+                try {
+                  const supCol = collection(db, 'suppliers')
+                  const sourceSupQuery = firestoreQuery(supCol, where('storeId', '==', storeId), where('name', '==', cleanSupplier))
+                  const sourceSupSnap = await getDocs(sourceSupQuery)
+                  if (!sourceSupSnap.empty) {
+                     sourceSupplierFull = sourceSupSnap.docs[0].data()
+                  }
+                } catch (e) {
+                  addLog(`Aviso: Erro ao buscar dados completos do fornecedor: ${e.message}`)
+                }
+             }
+             if (!sourceSupplierFull) {
+                 sourceSupplierFull = { name: cleanSupplier }
+             }
+        }
+
+        let syncCount = 0
+
+        for (const store of otherStores) {
+            try {
+                addLog(`--------------------------------`)
+                addLog(`Processando loja: ${store.name || store.id}...`)
+
+                // 1. Sincronizar Categoria
+                let targetCategoryId = null
+                if (sourceCategory) {
+                    const catCol = collection(db, 'categories')
+                    const catQuery = firestoreQuery(catCol, where('storeId', '==', store.id), where('name', '==', sourceCategory.name))
+                    const catSnap = await getDocs(catQuery)
+                    if (!catSnap.empty) {
+                        targetCategoryId = catSnap.docs[0].id
+                        // addLog(`Categoria "${sourceCategory.name}" já existe.`)
+                    } else {
+                        targetCategoryId = await addCategory({ name: sourceCategory.name, active: true }, store.id)
+                        addLog(`Categoria "${sourceCategory.name}" criada.`)
+                    }
+                }
+
+                // 2. Sincronizar Fornecedor
+                if (sourceSupplierFull) {
+                    await ensureSupplierInStore(sourceSupplierFull, store.id)
+                    // addLog(`Fornecedor verificado/criado.`)
+                }
+
+                // 3. Sincronizar Produto
+                const prodCol = collection(db, 'products')
+                let targetProduct = null
+
+                // REGRA PRINCIPAL: Buscar pelo MESMO CÓDIGO (Referência)
+                // Se o produto tem código, essa é a chave única.
+                if (product.reference && product.reference.trim()) {
+                    const refToSearch = product.reference.trim()
+                    addLog(`Buscando por código: "${refToSearch}"`)
+                    const qRef = firestoreQuery(prodCol, where('storeId', '==', store.id), where('reference', '==', refToSearch))
+                    const snapRef = await getDocs(qRef)
+                    if (!snapRef.empty) {
+                        targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
+                        addLog(`Produto encontrado pelo código (ID: ${targetProduct.id}).`)
+                    }
+                }
+
+                // Fallback: Se não achou por código (ou não tem código), tenta por Nome
+                if (!targetProduct && product.name) {
+                     addLog(`Buscando por nome: "${product.name}"`)
+                     const qName = firestoreQuery(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
+                     const snapName = await getDocs(qName)
+                     if (!snapName.empty) {
+                         targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+                         addLog(`Produto encontrado pelo nome (ID: ${targetProduct.id}).`)
+                     }
+                }
+
+                // Prepara dados para salvar
+                const dataToSync = { ...product }
+                // Remove campos de sistema/origem
+                delete dataToSync.id
+                delete dataToSync.storeId
+                delete dataToSync.createdAt
+                delete dataToSync.updatedAt
+                delete dataToSync.lastEditedBy // Será sobrescrito
+                
+                dataToSync.storeId = store.id
+                dataToSync.categoryId = targetCategoryId
+                dataToSync.lastEditedBy = user?.name || 'Sincronização Manual'
+
+                if (targetProduct) {
+                    // UPDATE - O produto JÁ EXISTE na outra loja
+                    // IMPORTANTE: Preservar o estoque que está LÁ na outra loja
+                    dataToSync.stock = targetProduct.stock
+                    dataToSync.stockInitial = targetProduct.stockInitial
+                    dataToSync.createdBy = targetProduct.createdBy // Mantém quem criou lá
+                    
+                    // Variações: tentar preservar o estoque de cada variação existente lá
+                    if (dataToSync.variationsData && dataToSync.variationsData.length > 0) {
+                         dataToSync.variationsData = dataToSync.variationsData.map(v => {
+                           // Tenta achar a variação correspondente no produto destino antigo
+                           const oldVar = (targetProduct.variationsData || []).find(ov => ov.name === v.name)
+                           if (oldVar) {
+                             // Mantém estoque da variação antiga
+                             return { ...v, stock: oldVar.stock, stockInitial: oldVar.stockInitial }
+                           }
+                           // Variação nova = estoque 0
+                           return { ...v, stock: 0, stockInitial: 0 }
+                         })
+                         // Recalcula total
+                         dataToSync.stock = dataToSync.variationsData.reduce((acc, curr) => acc + (Number(curr.stock)||0), 0)
+                    } else {
+                         // Se não tem variações, garante que stock é o do destino
+                         dataToSync.stock = targetProduct.stock
+                    }
+
+                    await updateProduct(targetProduct.id, dataToSync)
+                    addLog(`Produto ATUALIZADO com sucesso.`)
+                } else {
+                    // CREATE - Produto NÃO EXISTE na outra loja
+                    // Nasce com estoque ZERO
+                    dataToSync.stock = 0
+                    dataToSync.stockInitial = 0
+                    dataToSync.createdBy = user?.name || 'Sincronização Manual'
+                    
+                    if (dataToSync.variationsData && dataToSync.variationsData.length > 0) {
+                        dataToSync.variationsData = dataToSync.variationsData.map(v => ({
+                            ...v, stock: 0, stockInitial: 0
+                        }))
+                    }
+                    
+                    await addProduct(dataToSync, store.id)
+                    addLog(`Produto CRIADO com sucesso.`)
+                }
+                syncCount++
+
+            } catch (errStore) {
+                console.error(`Erro na loja ${store.id}:`, errStore)
+                addLog(`ERRO na loja ${store.name}: ${errStore.message}`)
+            }
+        }
+        
+        setSyncFeedback(prev => ({ ...prev, successCount: syncCount, finished: true, loading: false }))
+
+    } catch (err) {
+        console.error('Erro na sincronização manual:', err)
+        addLog(`Erro fatal: ${err.message}`)
+        setSyncFeedback(prev => ({ ...prev, finished: true, loading: false }))
+    } finally {
+        setSyncingProduct(null)
+        setOpenMenuId(null)
+    }
+  }
+
   const startCategoryEdit = (category) => {
     setEditingCategory(category)
     setCatEditOpen(true)
@@ -957,9 +1170,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                           <span>🗂️</span>
                           <span>Excluir do catálogo</span>
                         </button>
-                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=>{ console.log('sincronizar', p.id) }}>
-                          <span>🔁</span>
-                          <span>Sincronizar entre empresas</span>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> handleSyncProduct(p)} disabled={syncingProduct === p.id}>
+                          <span>{syncingProduct === p.id ? '⏳' : '🔁'}</span>
+                          <span>{syncingProduct === p.id ? 'Sincronizando...' : 'Sincronizar entre empresas'}</span>
                         </button>
                       </div>
                     </div>
@@ -1120,8 +1333,43 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           }}
         />
       )}
+      
+      {/* Modal de Feedback de Sincronização */}
+      {syncFeedback.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative flex flex-col max-h-[90vh]">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+              {syncFeedback.loading ? <span className="animate-spin">⏳</span> : (syncFeedback.successCount > 0 ? '✅' : 'ℹ️')}
+              {syncFeedback.loading ? 'Sincronizando...' : 'Sincronização Concluída'}
+            </h3>
+            
+            <div className="bg-gray-100 p-3 rounded flex-1 overflow-y-auto mb-4 text-xs font-mono border min-h-[200px]">
+              {syncFeedback.logs.map((log, idx) => (
+                <div key={idx} className="mb-1 border-b border-gray-200 last:border-0 pb-1 break-words">
+                  {log}
+                </div>
+              ))}
+              {syncFeedback.loading && (
+                 <div className="animate-pulse text-blue-600 font-bold mt-2">Processando...</div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+               {!syncFeedback.loading && (
+                  <button 
+                    onClick={() => setSyncFeedback(prev => ({ ...prev, open: false }))}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  >
+                    Fechar
+                  </button>
+               )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <NewProductModal 
-        open={modalOpen} 
+        open={modalOpen}  
         onClose={()=>setModalOpen(false)} 
         categories={categories} 
         suppliers={suppliers} 
@@ -1129,7 +1377,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         user={user} 
         syncProducts={syncProducts} 
       />
-      <NewProductModal open={editModalOpen} onClose={()=>setEditModalOpen(false)} isEdit={true} product={editingProduct} categories={categories} suppliers={suppliers} storeId={storeId} user={user} />
+      <NewProductModal 
+        open={editModalOpen} 
+        onClose={()=>setEditModalOpen(false)} 
+        isEdit={true} 
+        product={editingProduct} 
+        categories={categories} 
+        suppliers={suppliers} 
+        storeId={storeId} 
+        user={user}
+        syncProducts={syncProducts}
+      />
       <NewCategoryModal open={catModalOpen} onClose={()=>setCatModalOpen(false)} storeId={storeId} />
       <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} storeId={storeId} />
       <NewSupplierModal open={supplierModalOpen} onClose={()=>setSupplierModalOpen(false)} storeId={storeId} />
