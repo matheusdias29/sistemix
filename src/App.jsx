@@ -26,7 +26,7 @@ import TermsPage from './components/TermsPage'
 import Calculator from './components/Calculator'
 import PaymentMethodsPage from './components/PaymentMethodsPage'
 import ChatWidget from './components/ChatWidget'
-import { getStoreBySlug } from './services/stores'
+import { getStoreBySlug, listenStore } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
 import { updateUserPresence } from './services/users'
 
@@ -94,6 +94,18 @@ export default function App(){
       localStorage.removeItem('session')
     }
   }, [user, store])
+
+  // Mantém loja atualizada em tempo real
+  useEffect(() => {
+    if (!store?.id) return
+    const unsub = listenStore(store.id, (updated) => {
+      setStore(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(updated)) return prev
+        return updated
+      })
+    })
+    return () => unsub()
+  }, [store?.id])
 
   // Tema escuro: restaura preferência e aplica classe global
   useEffect(() => {

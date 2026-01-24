@@ -9,6 +9,8 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const [installments, setInstallments] = useState(String(store?.catalogInstallments || ''))
   const [promoInstallments, setPromoInstallments] = useState(!!(store?.catalogPromoInstallments))
   const [banners, setBanners] = useState(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
+  const [openingHours, setOpeningHours] = useState(store?.catalogOpeningHours || '')
+  const [openingDays, setOpeningDays] = useState(store?.catalogOpeningDays || '')
 
   useEffect(() => {
     setCatalogEnabled(!!(store?.catalogEnabled))
@@ -18,6 +20,8 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     setInstallments(String(store?.catalogInstallments || ''))
     setPromoInstallments(!!(store?.catalogPromoInstallments))
     setBanners(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
+    setOpeningHours(store?.catalogOpeningHours || '')
+    setOpeningDays(store?.catalogOpeningDays || '')
   }, [store?.id])
 
   const displaySlug = useMemo(() => {
@@ -71,6 +75,16 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     const next = !promoInstallments
     setPromoInstallments(next)
     await save({ catalogPromoInstallments: next })
+  }
+
+  const onChangeOpeningHours = async (v) => {
+    setOpeningHours(v)
+    await save({ catalogOpeningHours: v })
+  }
+
+  const onChangeOpeningDays = async (v) => {
+    setOpeningDays(v)
+    await save({ catalogOpeningDays: v })
   }
 
   const onAddBanner = async (file) => {
@@ -227,6 +241,31 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
               <input type="checkbox" checked={promoInstallments} onChange={onTogglePromoInstallments} />
               Parcelar produtos em promoção
             </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="text-sm font-semibold">Horário de funcionamento</div>
+        <div className="text-xs text-gray-600 mt-1">Configure os dias e horários que aparecerão no catálogo</div>
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Dias de funcionamento</label>
+            <input
+              value={openingDays}
+              onChange={e => onChangeOpeningDays(e.target.value)}
+              placeholder="Ex: Seg à Sex"
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Horário</label>
+            <input
+              value={openingHours}
+              onChange={e => onChangeOpeningHours(e.target.value)}
+              placeholder="Ex: 08h - 18h"
+              className="w-full border rounded px-3 py-2 text-sm"
+            />
           </div>
         </div>
       </div>
