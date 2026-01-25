@@ -559,7 +559,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         updatedBy: user?.name || attendant || 'Sistema'
       }
       if (editingOrderId) {
-        // Verificar produtos removidos ou com quantidade reduzida para devolver ao estoque
+                // Verificar produtos removidos ou com quantidade reduzida para devolver ao estoque
         const originalOrder = orders.find(o => o.id === editingOrderId)
         if (originalOrder && Array.isArray(originalOrder.products)) {
           for (const origItem of originalOrder.products) {
@@ -592,8 +592,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                 const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
                 if (idx >= 0) {
                   const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                  const cur = Number(itemsVar[idx]?.stock ?? 0)
-                  itemsVar[idx].stock = cur + qtyToReturn
+                  
+                  // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+                  let targetIdx = idx
+                  if (idx > 0 && idx < 4 && itemsVar[0]) {
+                    targetIdx = 0
+                  }
+
+                  const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
+                  itemsVar[targetIdx].stock = cur + qtyToReturn
                   const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                   await updateProduct(p.id, { variationsData: itemsVar, stock: total })
                   
@@ -662,8 +669,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
               if (idx >= 0) {
                 const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                const cur = Number(itemsVar[idx]?.stock ?? 0)
-                itemsVar[idx].stock = Math.max(0, cur - qtyToRemove)
+                
+                // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+                let targetIdx = idx
+                if (idx > 0 && idx < 4 && itemsVar[0]) {
+                  targetIdx = 0
+                }
+
+                const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
+                itemsVar[targetIdx].stock = Math.max(0, cur - qtyToRemove)
                 const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                 await updateProduct(p.id, { variationsData: itemsVar, stock: total })
                 
@@ -721,8 +735,14 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               variationId = itemsVar[idx].id || null
               variationName = itemsVar[idx].name || itemsVar[idx].label || vname
 
-              const cur = Number(itemsVar[idx]?.stock ?? 0)
-              itemsVar[idx].stock = Math.max(0, cur - qty)
+              // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+              let targetIdx = idx
+              if (idx > 0 && idx < 4 && itemsVar[0]) {
+                targetIdx = 0
+              }
+
+              const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
+              itemsVar[targetIdx].stock = Math.max(0, cur - qty)
               const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
               await updateProduct(p.id, { variationsData: itemsVar, stock: total })
               
@@ -801,8 +821,10 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     
     // Validar se pode excluir
     const s = String(order.status || '').toLowerCase()
-    if (s.includes('faturada')) {
-      showAlert('Não é possível excluir uma O.S. faturada. Cancele o status primeiro.')
+    
+    // Agora só permite excluir se estiver CANCELADO
+    if (!s.includes('cancelad')) {
+      showAlert('A O.S. só pode ser excluída se estiver com status Cancelado.')
       return
     }
 
@@ -852,8 +874,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
                     if (idx >= 0) {
                       const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                      const cur = Number(itemsVar[idx]?.stock ?? 0)
-                      itemsVar[idx].stock = cur + qty
+                      
+                      // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+                      let targetIdx = idx
+                      if (idx > 0 && idx < 4 && itemsVar[0]) {
+                        targetIdx = 0
+                      }
+
+                      const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
+                      itemsVar[targetIdx].stock = cur + qty
                       const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                       await updateProduct(p.id, { variationsData: itemsVar, stock: total })
                       
@@ -914,8 +943,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
                     if (idx >= 0) {
                       const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                      const cur = Number(itemsVar[idx]?.stock ?? 0)
-                      itemsVar[idx].stock = Math.max(0, cur - qty)
+                      
+                      // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+                      let targetIdx = idx
+                      if (idx > 0 && idx < 4 && itemsVar[0]) {
+                        targetIdx = 0
+                      }
+
+                      const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
+                      itemsVar[targetIdx].stock = Math.max(0, cur - qty)
                       const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                       await updateProduct(p.id, { variationsData: itemsVar, stock: total })
                       
@@ -1769,7 +1805,22 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
 
                 let maxStock = 0
                 if (selectedVariation) {
-                   maxStock = Number(selectedVariation.stock ?? selectedVariation.stockInitial ?? 0)
+                   // Se for precificação 2, 3 ou 4 (índices 1, 2, 3), verificar se deve usar estoque da precificação 1 (índice 0)
+                   // O selectedVariation já deve vir com o estoque ajustado do SelectVariationModal,
+                   // mas vamos garantir verificando novamente os dados originais do produto.
+                   
+                   let effectiveStock = Number(selectedVariation.stock ?? selectedVariation.stockInitial ?? 0)
+                   const vars = selectedProduct?.variationsData || []
+                   const idx = vars.findIndex(v => v.name === selectedVariation.name)
+                   
+                   if (idx > 0 && idx < 4) {
+                      const base = vars[0]
+                      if (base) {
+                        const baseStock = Number(base.stock ?? base.stockInitial ?? 0)
+                        effectiveStock = baseStock
+                      }
+                   }
+                   maxStock = effectiveStock
                 } else {
                    maxStock = Number(selectedProduct.stock || 0)
                 }
@@ -1824,14 +1875,15 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                 const vars = selectedProduct?.variationsData || []
                 const index = vars.findIndex(v => v.name === variation.name)
                 let effectiveStock = Number(variation.stock ?? variation.stockInitial ?? 0)
+                
+                // Se for precificação 2, 3 ou 4 (índices 1, 2, 3), usa o estoque da precificação 1 (índice 0)
                 if (index > 0 && index < 4) {
                   const base = vars[0]
-                  const baseStock = Number((base && (base.stock ?? base.stockInitial)) ?? 0)
-                  const ownStock = Number((variation && (variation.stock ?? variation.stockInitial)) ?? 0)
-                  if (ownStock === 0 && baseStock > 0) {
-                    effectiveStock = baseStock
+                  if (base) {
+                    effectiveStock = Number(base.stock ?? base.stockInitial ?? 0)
                   }
                 }
+
                 if (effectiveStock <= 0) {
                   showAlert('Variação com estoque zerado. Não é possível adicionar.')
                   return

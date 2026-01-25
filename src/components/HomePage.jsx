@@ -48,6 +48,11 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
   }), [todayOrders])
   function isOsFinalizadaFaturada(status){
     const s = (status || '').toLowerCase()
+    // Aceita status que indicam finalização ou faturamento
+    if (s.includes('faturada') || s.includes('faturado')) return true
+    if (s.includes('finalizada') || s.includes('finalizado')) return true
+    
+    // Fallback para lógica antiga (caso haja status muito específicos que não caíram acima)
     const exacts = [
       'os finalizada e faturada cliente final',
       'os finalizada e faturada cliente logista',
@@ -55,7 +60,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       'os faturada cliente lojista'
     ]
     if (exacts.includes(s)) return true
-    return (s.includes('finalizada') || s.includes('faturada')) && (s.includes('cliente final') || s.includes('cliente logista') || s.includes('cliente lojista'))
+    return false
   }
   const osFinalizadasHoje = useMemo(() => todayOrders.filter(o => isOsFinalizadaFaturada(o.status)), [todayOrders])
 
@@ -79,7 +84,8 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
         const created = toDate(o.createdAt)
         const s = (o.status || '').toLowerCase()
         const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
-        return !!created && isVenda && isSameDay(created, d)
+        const isOs = isOsFinalizadaFaturada(o.status)
+        return !!created && (isVenda || isOs) && isSameDay(created, d)
       })
       const totalNoDia = vendasNoDia.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0)
       days.push({ date: d, total: totalNoDia })
@@ -97,7 +103,8 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
 
   // Metas do mês (sumariza vendas + OS conforme configuração)
   const currentMonthStr = `${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`
-  const monthGoal = useMemo(() => goals.find(g => g.monthYear === currentMonthStr) || null, [goals, currentMonthStr])
+  // Prioriza meta da empresa (sem sellerId)
+  const monthGoal = useMemo(() => goals.find(g => g.monthYear === currentMonthStr && !g.sellerId) || null, [goals, currentMonthStr])
   const monthGoalTarget = monthGoal ? Number(monthGoal.target || 0) : 0
   const monthOrders = useMemo(() => orders.filter(o => {
     const d = toDate(o.createdAt)
@@ -150,7 +157,8 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
         const created = toDate(o.createdAt)
         const s = (o.status || '').toLowerCase()
         const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
-        return !!created && isVenda && isSameDay(created, d)
+        const isOs = isOsFinalizadaFaturada(o.status)
+        return !!created && (isVenda || isOs) && isSameDay(created, d)
       })
       const sales = daySales.reduce((acc, o) => acc + getOrderRevenue(o), 0)
       const profit = daySales.reduce((acc, o) => acc + Math.max(0, getOrderRevenue(o) - getOrderCost(o)), 0)

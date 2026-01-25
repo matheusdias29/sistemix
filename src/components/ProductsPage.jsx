@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { listenProducts, updateProduct, addProduct, removeProduct } from '../services/products'
 import NewProductModal, { ensureSupplierInStore } from './NewProductModal'
-import { listenCategories, updateCategory, addCategory } from '../services/categories'
+import { listenCategories, updateCategory, addCategory, removeCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
 import { listenSuppliers, updateSupplier, addSupplier } from '../services/suppliers'
 import NewSupplierModal from './NewSupplierModal'
@@ -123,6 +123,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [catModalOpen, setCatModalOpen] = useState(false)
   const [catEditOpen, setCatEditOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState(null)
+  const [confirmRemoveCategoryOpen, setConfirmRemoveCategoryOpen] = useState(false)
+  const [categoryToRemove, setCategoryToRemove] = useState(null)
 
   // Fornecedores
   const [suppliers, setSuppliers] = useState([])
@@ -360,6 +362,24 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const c = categories.find(x=>x.id===id)
     if(!c) return
     await updateCategory(id, { active: !c.active })
+  }
+
+  const openConfirmRemoveCategory = (category) => {
+    setCategoryToRemove(category)
+    setConfirmRemoveCategoryOpen(true)
+    setCategoryMenuId(null)
+  }
+
+  const handleRemoveCategory = async () => {
+    if (!categoryToRemove) return
+    try {
+      setSavingAction(true)
+      await removeCategory(categoryToRemove.id)
+      setConfirmRemoveCategoryOpen(false)
+      setCategoryToRemove(null)
+    } finally {
+      setSavingAction(false)
+    }
   }
 
   const addNew = () => {
@@ -1371,6 +1391,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             <span>⚙️</span>
                             <span>Precificações em massa</span>
                           </button>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
+                            onClick={() => openConfirmRemoveCategory(c)}
+                          >
+                            <span>🗑️</span>
+                            <span>Excluir</span>
+                          </button>
                         </div>
                       </div>
                     )}
@@ -1547,6 +1575,29 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
               <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
               <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemoveFromCatalog} disabled={savingAction}>Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmRemoveCategoryOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={()=>setConfirmRemoveCategoryOpen(false)} />
+          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b">
+              <h3 className="text-base font-medium">Excluir categoria</h3>
+            </div>
+            <div className="p-4 space-y-3 text-sm">
+              <div>
+                Tem certeza que deseja excluir a categoria “{categoryToRemove?.name}”?
+              </div>
+              <div className="text-gray-500">
+                Isso não excluirá os produtos, mas eles ficarão sem categoria.
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveCategoryOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={handleRemoveCategory} disabled={savingAction}>Excluir</button>
             </div>
           </div>
         </div>

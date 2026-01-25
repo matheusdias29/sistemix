@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'categories')
@@ -35,4 +35,9 @@ export async function addCategory(category, storeId){
 export async function updateCategory(id, partial){
   const ref = doc(db, 'categories', id)
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+}
+
+export async function removeCategory(id){
+  const ref = doc(db, 'categories', id)
+  await deleteDoc(ref)
 }

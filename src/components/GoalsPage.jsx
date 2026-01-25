@@ -22,6 +22,10 @@ function toDate(ts){
 
 function isOsFinalizadaFaturada(status){
   const s = (status || '').toLowerCase()
+  // Aceita status que indicam finalização ou faturamento
+  if (s.includes('faturada') || s.includes('faturado')) return true
+  if (s.includes('finalizada') || s.includes('finalizado')) return true
+  
   const exacts = [
     'os finalizada e faturada cliente final',
     'os finalizada e faturada cliente logista',
@@ -29,7 +33,7 @@ function isOsFinalizadaFaturada(status){
     'os faturada cliente lojista'
   ]
   if (exacts.includes(s)) return true
-  return (s.includes('finalizada') || s.includes('faturada')) && (s.includes('cliente final') || s.includes('cliente logista') || s.includes('cliente lojista'))
+  return false
 }
 
 export default function GoalsPage({ storeId, owner }){
