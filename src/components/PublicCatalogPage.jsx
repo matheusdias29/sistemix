@@ -11,6 +11,8 @@ export default function PublicCatalogPage({ storeId, store }) {
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
+  const outOfStockSetting = store?.catalogOutOfStock || 'show'
+
   useEffect(() => {
     if (!storeId) return
     const unsubProd = listenProducts(items => setProducts(items), storeId)
@@ -46,6 +48,10 @@ export default function PublicCatalogPage({ storeId, store }) {
       list = list.filter(p => p.categoryName === selectedCategory)
     }
 
+    if (outOfStockSetting === 'hide') {
+      list = list.filter(p => Number(p.stock || 0) > 0)
+    }
+
     if (q) {
       list = list.filter(p =>
         (p.name || '').toLowerCase().includes(q) ||
@@ -53,7 +59,7 @@ export default function PublicCatalogPage({ storeId, store }) {
       )
     }
     return list
-  }, [productsWithCategory, query, selectedCategory])
+  }, [productsWithCategory, query, selectedCategory, outOfStockSetting])
 
   if (!storeId) {
     return (
@@ -218,6 +224,7 @@ export default function PublicCatalogPage({ storeId, store }) {
               const defaultPrice = Number(p.priceMin ?? p.salePrice ?? 0)
               const hasCustomPricing = price4 !== null || price5 !== null
               const stockZero = Number(p.stock || 0) === 0
+              const isUnavailable = stockZero && outOfStockSetting === 'disabled'
 
               return (
                 <div key={p.id} className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative">
@@ -228,7 +235,7 @@ export default function PublicCatalogPage({ storeId, store }) {
                        <ShoppingBag size={48} opacity={0.2} />
                     </div>
                     {/* Badge Overlay */}
-                    {stockZero && (
+                    {isUnavailable && (
                       <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
                         <span className="bg-red-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">ESGOTADO</span>
                       </div>
@@ -249,13 +256,13 @@ export default function PublicCatalogPage({ storeId, store }) {
                         <div className="space-y-1.5 mb-3">
                           {price4 !== null && (
                             <div className="flex justify-between items-baseline">
-                               <span className="text-[10px] uppercase font-bold text-gray-400">Lojista</span>
+                               <span className="text-[10px] uppercase font-bold text-gray-400">(P/Levar)</span>
                                <span className="text-sm font-bold text-green-700">{price4.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                             </div>
                           )}
                           {price5 !== null && (
                             <div className="flex justify-between items-baseline">
-                               <span className="text-[10px] uppercase font-bold text-gray-400">Instalado</span>
+                               <span className="text-[10px] uppercase font-bold text-gray-400">(P/Instalar)</span>
                                <span className="text-sm font-bold text-blue-700">{price5.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                             </div>
                           )}
@@ -269,23 +276,23 @@ export default function PublicCatalogPage({ storeId, store }) {
                       
                       <a 
                         href={
-                          store?.phone 
+                          store?.phone && !isUnavailable
                           ? `https://wa.me/55${store.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá, tenho interesse no produto: ${p.name}`)}`
                           : '#'
                         }
                         target="_blank"
                         rel="noopener noreferrer"
                         className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
-                          stockZero 
+                          isUnavailable 
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                             : 'bg-green-600 hover:bg-green-700 text-white shadow-sm hover:shadow-md'
                         }`}
                         onClick={(e) => {
-                          if (stockZero) e.preventDefault()
+                          if (isUnavailable) e.preventDefault()
                         }}
                       >
                         <ShoppingCart size={16} />
-                        {stockZero ? 'Indisponível' : 'Comprar'}
+                        {isUnavailable ? 'Indisponível' : 'Comprar'}
                       </a>
                     </div>
                   </div>

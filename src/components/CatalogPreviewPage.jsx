@@ -74,13 +74,13 @@ export default function CatalogPreviewPage({ storeId, store }) {
                     {price4 !== null && (
                       <div className="text-green-700 font-semibold">
                         {price4.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                        <span className="text-xs text-gray-500 font-normal ml-1">(Lojista)</span>
+                        <span className="text-xs text-gray-500 font-normal ml-1">(P/Levar)</span>
                       </div>
                     )}
                     {price5 !== null && (
                       <div className="text-green-700 font-semibold">
                         {price5.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                        <span className="text-xs text-gray-500 font-normal ml-1">(Instalado)</span>
+                        <span className="text-xs text-gray-500 font-normal ml-1">(P/Instalar)</span>
                       </div>
                     )}
                   </div>

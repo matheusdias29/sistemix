@@ -31,7 +31,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   }, [slug, store?.name])
 
   const catalogLink = `https://sistemix.netlify.app/${displaySlug || ''}`
-  const wholesalerCatalogLink = 'https://docs.google.com/spreadsheets/d/1qcKgBAFPSCwVDrJv3CJ8BmgGrsle0PfEa7UIMi8bn_M/edit?gid=0#gid=0'
 
   const save = async (partial) => {
     if (!storeId) return
@@ -106,34 +105,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     await save({ catalogBanners: next })
   }
 
-  const shareWholesalerCatalog = async () => {
-    const url = wholesalerCatalogLink
-    const text = 'Confira o catálogo para lojistas'
-    const hasNavigator = typeof navigator !== 'undefined'
-    if (hasNavigator && navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Catálogo lojista',
-          text,
-          url,
-        })
-        return
-      } catch (e) {
-      }
-    }
-    if (hasNavigator && navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(url)
-        alert('Link copiado!')
-        return
-      } catch (e) {
-      }
-    }
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank')
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div className="bg-white rounded-lg shadow p-4">
@@ -171,32 +142,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
           <a className="text-green-700 hover:underline" href={catalogLink} target="_blank" rel="noreferrer">{catalogLink}</a>
           <button className="text-green-700 hover:underline" onClick={() => navigator.clipboard && navigator.clipboard.writeText(catalogLink)}>Copiar Link</button>
           <button className="px-3 py-1 rounded bg-gray-100 text-gray-700" onClick={() => onNavigate && onNavigate('catalogoPreview')}>Visualizar Catálogo</button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="text-sm font-semibold">Link do catálogo lojista</div>
-        <div className="mt-2 flex items-center gap-3 text-sm">
-          <a
-            className="text-green-700 hover:underline"
-            href={wholesalerCatalogLink}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {wholesalerCatalogLink}
-          </a>
-          <button
-            className="text-green-700 hover:underline"
-            onClick={() => navigator.clipboard && navigator.clipboard.writeText(wholesalerCatalogLink)}
-          >
-            Copiar Link
-          </button>
-          <button
-            className="px-3 py-1 rounded bg-gray-100 text-gray-700"
-            onClick={shareWholesalerCatalog}
-          >
-            Compartilhar
-          </button>
         </div>
       </div>
 
