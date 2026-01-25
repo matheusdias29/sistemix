@@ -106,9 +106,9 @@ export default function PublicCatalogPage({ storeId, store }) {
               <button className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                 <Search size={20} />
               </button>
-              {store?.phone && (
+              {(store?.catalogWhatsapp || store?.phone) && (
                 <a 
-                  href={`https://wa.me/55${store.phone.replace(/\D/g, '')}`} 
+                  href={`https://wa.me/55${(store.catalogWhatsapp || store.phone).replace(/\D/g, '')}`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="hidden md:flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm hover:shadow"
@@ -276,8 +276,8 @@ export default function PublicCatalogPage({ storeId, store }) {
                       
                       <a 
                         href={
-                          store?.phone && !isUnavailable
-                          ? `https://wa.me/55${store.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Olá, tenho interesse no produto: ${p.name}`)}`
+                          (store?.catalogWhatsapp || store?.phone) && !isUnavailable
+                          ? `https://wa.me/55${(store.catalogWhatsapp || store.phone).replace(/\D/g, '')}?text=${encodeURIComponent(`Olá, tenho interesse no produto: ${p.name}`)}`
                           : '#'
                         }
                         target="_blank"

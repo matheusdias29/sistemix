@@ -11,6 +11,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const [banners, setBanners] = useState(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
   const [openingHours, setOpeningHours] = useState(store?.catalogOpeningHours || '')
   const [openingDays, setOpeningDays] = useState(store?.catalogOpeningDays || '')
+  const [catalogWhatsapp, setCatalogWhatsapp] = useState(store?.catalogWhatsapp || '')
 
   useEffect(() => {
     setCatalogEnabled(!!(store?.catalogEnabled))
@@ -22,6 +23,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     setBanners(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
     setOpeningHours(store?.catalogOpeningHours || '')
     setOpeningDays(store?.catalogOpeningDays || '')
+    setCatalogWhatsapp(store?.catalogWhatsapp || '')
   }, [store?.id])
 
   const displaySlug = useMemo(() => {
@@ -84,6 +86,11 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const onChangeOpeningDays = async (v) => {
     setOpeningDays(v)
     await save({ catalogOpeningDays: v })
+  }
+
+  const onChangeCatalogWhatsapp = async (v) => {
+    setCatalogWhatsapp(v)
+    await save({ catalogWhatsapp: v })
   }
 
   const onAddBanner = async (file) => {
@@ -212,6 +219,19 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
               className="w-full border rounded px-3 py-2 text-sm"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="text-sm font-semibold">WhatsApp para pedidos</div>
+        <div className="text-xs text-gray-600 mt-1">Número que receberá as mensagens quando o cliente clicar em comprar</div>
+        <div className="mt-3">
+          <input
+            value={catalogWhatsapp}
+            onChange={e => onChangeCatalogWhatsapp(e.target.value)}
+            placeholder="Ex: 11999999999"
+            className="w-full border rounded px-3 py-2 text-sm"
+          />
         </div>
       </div>
 
