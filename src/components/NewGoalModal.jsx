@@ -1,13 +1,20 @@
 import React, { useState } from 'react'
 import { addGoal } from '../services/goals'
-import Switch from './Switch'
 
-export default function NewGoalModal({ open, onClose, storeId }){
+export default function NewGoalModal({ open, onClose, storeId, initialType }){
   const [monthYear, setMonthYear] = useState('')
   const [target, setTarget] = useState('R$ 0,00')
-  const [includeSale, setIncludeSale] = useState(false)
-  const [includeServiceOrder, setIncludeServiceOrder] = useState(false)
+  const [type, setType] = useState('sale') // sale | os
   const [saving, setSaving] = useState(false)
+
+  // Atualiza estados quando modal abre com novo initialType
+  React.useEffect(() => {
+    if (open) {
+      if (initialType === 'sale') setType('sale')
+      else if (initialType === 'os') setType('os')
+      else setType('sale') // Default for 'all'
+    }
+  }, [open, initialType])
 
   if (!open) return null
 
@@ -27,7 +34,12 @@ export default function NewGoalModal({ open, onClose, storeId }){
     const tgt = Number(String(target).replace(/[^0-9.,]/g,'').replace('.', '').replace(',', '.'))
     setSaving(true)
     try {
-      await addGoal({ monthYear: mmYY, target: tgt, includeSale, includeServiceOrder }, storeId)
+      await addGoal({ 
+        monthYear: mmYY, 
+        target: tgt, 
+        includeSale: type === 'sale', 
+        includeServiceOrder: type === 'os' 
+      }, storeId)
       onClose && onClose()
     } finally {
       setSaving(false)
@@ -42,6 +54,44 @@ export default function NewGoalModal({ open, onClose, storeId }){
           <h3 className="text-base font-medium">Definir Meta</h3>
         </div>
         <div className="p-4 space-y-3">
+          {/* Se não for específico, permite escolher */}
+          {(!initialType || initialType === 'all') && (
+            <div>
+              <label className="text-xs text-gray-600">Tipo</label>
+              <div className="flex items-center gap-4 mt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="goalType" 
+                    checked={type === 'sale'} 
+                    onChange={() => setType('sale')}
+                    className="text-green-600 focus:ring-green-500"
+                  />
+                  <span className="text-sm">Venda</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input 
+                    type="radio" 
+                    name="goalType" 
+                    checked={type === 'os'} 
+                    onChange={() => setType('os')}
+                    className="text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm">Ordem de Serviço</span>
+                </label>
+              </div>
+            </div>
+          )}
+          
+          {/* Se for específico, mostra apenas informativo (ou nada) */}
+          {(initialType === 'sale' || initialType === 'os') && (
+             <div className="text-sm font-medium text-gray-700 mb-2">
+               Tipo: <span className={initialType === 'sale' ? 'text-green-600' : 'text-blue-600'}>
+                 {initialType === 'sale' ? 'Venda' : 'Ordem de Serviço'}
+               </span>
+             </div>
+          )}
+
           <div>
             <label className="text-xs text-gray-600">Mês / Ano</label>
             <input
@@ -59,19 +109,6 @@ export default function NewGoalModal({ open, onClose, storeId }){
               placeholder="R$ 0,00"
               className="mt-1 w-full border rounded px-3 py-2 text-sm"
             />
-          </div>
-          <div className="pt-2">
-            <div className="text-xs text-gray-600 mb-2">Escolha os registros que deseja incluir:</div>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Venda</span>
-                <Switch checked={includeSale} onChange={setIncludeSale} />
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Ordem de Serviço</span>
-                <Switch checked={includeServiceOrder} onChange={setIncludeServiceOrder} />
-              </div>
-            </div>
           </div>
         </div>
         <div className="px-4 py-3 border-t flex items-center justify-end gap-2">

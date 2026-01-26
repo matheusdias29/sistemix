@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
+import { listenClients } from '../services/clients'
+import { listenStore } from '../services/stores'
+import CommissionsModal from './CommissionsModal'
 import { 
   Receipt, 
   Eye, 
@@ -10,22 +13,33 @@ import {
   Calendar, 
   ChevronRight, 
   TrendingUp, 
-  BarChart2 
+  BarChart2,
+  Users,
+  Briefcase,
+  User
 } from 'lucide-react'
 
 export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
   const [orders, setOrders] = useState([])
+  const [clients, setClients] = useState([])
   const [hideValues, setHideValues] = useState(false)
   const [goals, setGoals] = useState([])
+  const [showCommissions, setShowCommissions] = useState(false)
+  const [store, setStore] = useState(null)
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
+    const unsubClients = listenClients(items => setClients(items), storeId)
+    let unsubStore = null
+    if (storeId) {
+        unsubStore = listenStore(storeId, (data) => setStore(data))
+    }
     // lazy import para evitar dependência circular
     let unsubGoals = null
     import('../services/goals').then(({ listenGoals }) => {
       unsubGoals = listenGoals(items => setGoals(items), storeId)
     }).catch(() => {})
-    return () => { unsub && unsub(); unsubGoals && unsubGoals() }
+    return () => { unsub && unsub(); unsubClients && unsubClients(); unsubGoals && unsubGoals(); unsubStore && unsubStore() }
   }, [storeId])
 
   const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
@@ -101,33 +115,99 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
     }
   }
 
-  // Metas do mês (sumariza vendas + OS conforme configuração)
+  // Metas do mês (separadas por tipo)
   const currentMonthStr = `${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`
-  // Prioriza meta da empresa (sem sellerId)
-  const monthGoal = useMemo(() => goals.find(g => g.monthYear === currentMonthStr && !g.sellerId) || null, [goals, currentMonthStr])
-  const monthGoalTarget = monthGoal ? Number(monthGoal.target || 0) : 0
+  
   const monthOrders = useMemo(() => orders.filter(o => {
     const d = toDate(o.createdAt)
     return d ? d.getMonth()===today.getMonth() && d.getFullYear()===today.getFullYear() : false
   }), [orders])
+
   const monthSalesValue = useMemo(() => monthOrders
     .filter(o => {
       const s = (o.status||'').toLowerCase()
       return s==='venda'||s==='cliente final'||s==='cliente lojista'
     })
     .reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0), [monthOrders])
+
   const monthOsValue = useMemo(() => monthOrders
     .filter(o => isOsFinalizadaFaturada(o.status))
     .reduce((acc, o) => acc + Number(o.total || o.valor || 0), 0), [monthOrders])
-  const monthProgressValue = useMemo(() => {
-    if (!monthGoal) return 0
-    let v = 0
-    if (monthGoal.includeSale) v += monthSalesValue
-    if (monthGoal.includeServiceOrder) v += monthOsValue
-    return v
-  }, [monthGoal, monthSalesValue, monthOsValue])
-  const monthProgressPct = monthGoalTarget ? Math.min(100, Math.round((monthProgressValue / monthGoalTarget) * 100)) : 0
-  const monthGoalTypeLabel = monthGoal ? (monthGoal.includeSale && monthGoal.includeServiceOrder ? 'Venda + Ordem de Serviço' : (monthGoal.includeSale ? 'Venda' : 'Ordem de Serviço')) : 'Venda + Ordem de Serviço'
+
+  // Meta Vendas
+  const monthGoalSales = useMemo(() => goals.find(g => g.monthYear === currentMonthStr && !g.sellerId && g.includeSale && !g.includeServiceOrder), [goals, currentMonthStr])
+  const monthGoalSalesTarget = monthGoalSales ? Number(monthGoalSales.target || 0) : 0
+  const monthGoalSalesPct = monthGoalSalesTarget ? Math.min(100, Math.round((monthSalesValue / monthGoalSalesTarget) * 100)) : 0
+
+  // Meta OS
+  const monthGoalOS = useMemo(() => goals.find(g => g.monthYear === currentMonthStr && !g.sellerId && g.includeServiceOrder && !g.includeSale), [goals, currentMonthStr])
+  const monthGoalOSTarget = monthGoalOS ? Number(monthGoalOS.target || 0) : 0
+  const monthGoalOSPct = monthGoalOSTarget ? Math.min(100, Math.round((monthOsValue / monthGoalOSTarget) * 100)) : 0
+
+  const clientTypeSummary = useMemo(() => {
+    const res = {
+      sales: { final: 0, company: 0 },
+      os: { final: 0, company: 0 }
+    }
+
+    monthOrders.forEach(o => {
+      const status = (o.status || '').toLowerCase()
+      if (status.includes('cancelad')) return
+
+      const isSale = status === 'venda' || status === 'cliente final' || status === 'cliente lojista'
+      const isOS = isOsFinalizadaFaturada(o.status)
+
+      if (!isSale && !isOS) return
+
+      let type = 'final'
+      if (status.includes('lojista')) type = 'company'
+      else if (status.includes('final')) type = 'final'
+      else if (o.clientId) {
+        const c = clients.find(x => x.id === o.clientId)
+        if (c && c.isCompany) type = 'company'
+      }
+
+      const val = Number(o.total || o.valor || 0)
+
+      if (isSale) {
+        res.sales[type] += val
+      } else if (isOS) {
+        res.os[type] += val
+      }
+    })
+
+    return res
+  }, [monthOrders, clients])
+
+  const performanceSummary = useMemo(() => {
+    const attendantMap = {}
+    const techMap = {}
+
+    monthOrders.forEach(o => {
+      const status = (o.status || '').toLowerCase()
+      if (status.includes('cancelad')) return
+
+      const isSale = status === 'venda' || status === 'cliente final' || status === 'cliente lojista'
+      const isOS = isOsFinalizadaFaturada(o.status)
+
+      if (isSale && (o.attendantName || o.attendant)) {
+        const key = o.attendantId || o.attendant || o.attendantName
+        const name = o.attendant || o.attendantName
+        if (!attendantMap[key]) attendantMap[key] = { name: name, total: 0 }
+        attendantMap[key].total += Number(o.total || o.valor || 0)
+      } else if (isOS && (o.technicianName || o.technician)) {
+        const key = o.technicianId || o.technician || o.technicianName
+        const name = o.technician || o.technicianName
+        if (!techMap[key]) techMap[key] = { name: name, total: 0 }
+        techMap[key].total += Number(o.total || o.valor || 0)
+      }
+    })
+
+    const attendants = Object.values(attendantMap).sort((a, b) => b.total - a.total).slice(0, 3)
+    const technicians = Object.values(techMap).sort((a, b) => b.total - a.total).slice(0, 3)
+
+    return { attendants, technicians }
+  }, [monthOrders])
 
   // Vendas x Lucro (últimos 5 dias)
   const formatCompactCurrency = (n) => {
@@ -284,6 +364,144 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
         </div>
       </section>
 
+      {/* Resumo por Tipo de Cliente */}
+      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+            <Briefcase size={24} />
+          </div>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Vendas por Cliente (Mês)</h3>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Vendas */}
+            <div>
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  Vendas
+                </h4>
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-white text-green-700 shadow-sm border border-green-100">
+                                <User size={16} />
+                            </div>
+                            <span className="font-medium text-gray-900">Consumidor Final</span>
+                        </div>
+                        <span className="font-bold text-green-600">{currencyOrHidden(clientTypeSummary.sales.final)}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-white text-blue-700 shadow-sm border border-blue-100">
+                                <Briefcase size={16} />
+                            </div>
+                            <span className="font-medium text-gray-900">Lojista</span>
+                        </div>
+                        <span className="font-bold text-green-600">{currencyOrHidden(clientTypeSummary.sales.company)}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* OS */}
+            <div>
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  Ordens de Serviço
+                </h4>
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-white text-green-700 shadow-sm border border-green-100">
+                                <User size={16} />
+                            </div>
+                            <span className="font-medium text-gray-900">Consumidor Final</span>
+                        </div>
+                        <span className="font-bold text-blue-600">{currencyOrHidden(clientTypeSummary.os.final)}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-full bg-white text-blue-700 shadow-sm border border-blue-100">
+                                <Briefcase size={16} />
+                            </div>
+                            <span className="font-medium text-gray-900">Lojista</span>
+                        </div>
+                        <span className="font-bold text-blue-600">{currencyOrHidden(clientTypeSummary.os.company)}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+      </section>
+
+      {/* Performance da Equipe */}
+      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-50 text-green-600">
+              <Users size={24} />
+            </div>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Performance da Equipe</h3>
+          </div>
+          <button 
+            className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 transition-colors" 
+            onClick={() => onNavigate && onNavigate('comissoes')}
+          >
+            Ver comissões
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Vendas */}
+            <div>
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                  Vendas (Top 3)
+                </h4>
+                <div className="space-y-3">
+                    {performanceSummary.attendants.length === 0 ? (
+                        <p className="text-sm text-gray-400 italic">Nenhuma venda registrada.</p>
+                    ) : (
+                        performanceSummary.attendants.map((a, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-6 h-6 rounded-full bg-white text-green-700 shadow-sm flex items-center justify-center text-xs font-bold border border-green-100">
+                                        {i + 1}
+                                    </div>
+                                    <span className="font-medium text-gray-900">{a.name}</span>
+                                </div>
+                                <span className="font-bold text-green-600">{currencyOrHidden(a.total)}</span>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+
+            {/* OS */}
+            <div>
+                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  O.S. (Top 3)
+                </h4>
+                <div className="space-y-3">
+                    {performanceSummary.technicians.length === 0 ? (
+                        <p className="text-sm text-gray-400 italic">Nenhuma O.S. finalizada.</p>
+                    ) : (
+                        performanceSummary.technicians.map((t, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-6 h-6 rounded-full bg-white text-blue-700 shadow-sm flex items-center justify-center text-xs font-bold border border-blue-100">
+                                        {i + 1}
+                                    </div>
+                                    <span className="font-medium text-gray-900">{t.name}</span>
+                                </div>
+                                <span className="font-bold text-blue-600">{currencyOrHidden(t.total)}</span>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </div>
+        </div>
+      </section>
+
       {/* Metas do Mês */}
       <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-6">
@@ -293,27 +511,63 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
             </div>
             <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Metas do Mês</h3>
           </div>
-          <button 
-            className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 transition-colors" 
-            onClick={() => onNavigate && onNavigate('metas')}
-          >
-            Ver todas
-          </button>
         </div>
-        <div className="mt-4">
-          <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-green-50 text-green-700 text-xs font-bold uppercase tracking-wide border border-green-100">
-            {monthGoalTypeLabel}
-          </span>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Meta Vendas */}
+            <div>
+                 <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                      Vendas
+                    </h4>
+                    <button 
+                        className="text-xs font-bold text-green-600 hover:text-green-700 hover:underline"
+                        onClick={() => onNavigate && onNavigate('metas', { type: 'sale' })}
+                    >
+                        Ver detalhes
+                    </button>
+                 </div>
+                 
+                 {/* Progress Bar & Values */}
+                 <div className="mt-4 flex items-end gap-2 text-gray-900">
+                    <span className="text-2xl font-extrabold tracking-tight">{currencyOrHidden(monthSalesValue)}</span>
+                    <span className="text-lg font-medium text-gray-400 mb-1">/</span>
+                    <span className="text-lg font-bold text-gray-500 mb-1">{monthGoalSalesTarget ? currencyOrHidden(monthGoalSalesTarget) : 'Definir'}</span>
+                 </div>
+                 <div className="mt-4 h-3 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${monthGoalSalesPct}%` }} />
+                 </div>
+                 <div className="mt-2 text-right text-sm font-bold text-gray-500">{monthGoalSalesPct}%</div>
+            </div>
+
+            {/* Meta OS */}
+            <div>
+                 <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Ordens de Serviço
+                    </h4>
+                    <button 
+                        className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline"
+                        onClick={() => onNavigate && onNavigate('metas', { type: 'os' })}
+                    >
+                        Ver detalhes
+                    </button>
+                 </div>
+
+                 {/* Progress Bar & Values */}
+                 <div className="mt-4 flex items-end gap-2 text-gray-900">
+                    <span className="text-2xl font-extrabold tracking-tight">{currencyOrHidden(monthOsValue)}</span>
+                    <span className="text-lg font-medium text-gray-400 mb-1">/</span>
+                    <span className="text-lg font-bold text-gray-500 mb-1">{monthGoalOSTarget ? currencyOrHidden(monthGoalOSTarget) : 'Definir'}</span>
+                 </div>
+                 <div className="mt-4 h-3 rounded-full bg-gray-100 overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${monthGoalOSPct}%` }} />
+                 </div>
+                 <div className="mt-2 text-right text-sm font-bold text-gray-500">{monthGoalOSPct}%</div>
+            </div>
         </div>
-        <div className="mt-4 flex items-end gap-2 text-gray-900">
-          <span className="text-2xl font-extrabold tracking-tight">{currencyOrHidden(monthProgressValue)}</span>
-          <span className="text-lg font-medium text-gray-400 mb-1">/</span>
-          <span className="text-lg font-bold text-gray-500 mb-1">{currencyOrHidden(monthGoalTarget)}</span>
-        </div>
-        <div className="mt-4 h-3 rounded-full bg-gray-100 overflow-hidden">
-          <div className="h-full bg-green-500 rounded-full" style={{ width: `${monthProgressPct}%` }} />
-        </div>
-        <div className="mt-2 text-right text-sm font-bold text-gray-500">{monthProgressPct}%</div>
       </section>
 
       {/* Vendas x Lucro */}
@@ -357,6 +611,13 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
           </div>
         </div>
       </section>
+
+      <CommissionsModal 
+        open={showCommissions} 
+        onClose={() => setShowCommissions(false)} 
+        orders={monthOrders}
+        store={store}
+      />
     </div>
   )
 }

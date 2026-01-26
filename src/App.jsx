@@ -28,10 +28,12 @@ import PaymentMethodsPage from './components/PaymentMethodsPage'
 import ChatWidget from './components/ChatWidget'
 import { getStoreBySlug, listenStore } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
+import CommissionsPage from './components/CommissionsPage'
 import { updateUserPresence } from './services/users'
 
 const labels = {
   inicio: 'Início',
+  comissoes: 'Comissões',
   clientes: 'Clientes',
   produtos: 'Produtos',
   catalogo: 'Catálogo',
@@ -231,8 +233,9 @@ export default function App(){
     return <SelectStorePage user={user} onSelect={(s) => setStore(s)} />
   }
 
-  function onNavigate(next){
+  function onNavigate(next, params){
     setView(next)
+    setViewParams(params || {})
     setMobileSidebarOpen(false) // fecha sidebar no mobile ao navegar
   }
 
@@ -325,6 +328,8 @@ export default function App(){
                 onOpenSalesDay={(d) => { setSalesDayFilter(d); onNavigate('vendas') }}
               />
             </div>
+          ) : view === 'comissoes' ? (
+            <div className="mt-4 md:mt-6"><CommissionsPage storeId={store?.id} store={store} onNavigate={onNavigate} /></div>
           ) : view === 'vendas' ? (
             <div className="mt-4 md:mt-6"><SalesPage initialDayFilter={salesDayFilter} storeId={store?.id} store={store} user={user} openNewSaleSignal={openNewSaleSignal} /></div>
           ) : view === 'produtos' ? (
@@ -352,7 +357,7 @@ export default function App(){
           ) : view === 'usuarios' ? (
             <div className="mt-4 md:mt-6"><UsersPage owner={user} /></div>
           ) : view === 'metas' ? (
-            <div className="mt-4 md:mt-6"><GoalsPage storeId={store?.id} owner={user} /></div>
+            <div className="mt-4 md:mt-6"><GoalsPage storeId={store?.id} owner={user} viewParams={viewParams} /></div>
           ) : view === 'dadosUsuario' ? (
             <div className="mt-4 md:mt-6"><UserDataPage user={user} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'caixa' ? (

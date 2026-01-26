@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import clsx from 'clsx'
 import ServiceOrderSettingsModal from './ServiceOrderSettingsModal'
+import CommissionsSettingsModal from './CommissionsSettingsModal'
 
 function Section({ title, children }) {
   return (
@@ -30,6 +31,7 @@ function Item({ label, onClick, rightSlot }) {
 
 export default function SettingsPage({ user, store, onNavigate, onLogout, darkMode=false, onToggleDark }) {
   const [osSettingsOpen, setOsSettingsOpen] = useState(false)
+  const [commissionsOpen, setCommissionsOpen] = useState(false)
 
   const handleSoon = (name) => () => {
     window.alert(`${name} — em breve`)
@@ -52,7 +54,7 @@ export default function SettingsPage({ user, store, onNavigate, onLogout, darkMo
         <Item label="Taxas adicionais" onClick={() => onNavigate && onNavigate('taxas')} />
         <Item label="Recibo" onClick={handleSoon('Recibo')} />
         <Item label="Crediário" onClick={handleSoon('Crediário')} />
-        <Item label="Comissão" onClick={handleSoon('Comissão')} />
+        <Item label="Comissão" onClick={() => setCommissionsOpen(true)} />
       </Section>
 
       {/* Configurações fiscais */}
@@ -94,6 +96,10 @@ export default function SettingsPage({ user, store, onNavigate, onLogout, darkMo
       
       {osSettingsOpen && (
         <ServiceOrderSettingsModal store={store} onClose={() => setOsSettingsOpen(false)} />
+      )}
+      
+      {commissionsOpen && (
+        <CommissionsSettingsModal store={store} onClose={() => setCommissionsOpen(false)} />
       )}
     </div>
   )

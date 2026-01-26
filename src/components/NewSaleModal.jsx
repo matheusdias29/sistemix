@@ -5,7 +5,7 @@ import { listenCategories } from '../services/categories'
 import { listenClients } from '../services/clients'
 import { addOrder, updateOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
-import { listenFees } from '../services/stores'
+import { listenFees, listenStore } from '../services/stores'
 import SelectClientModal from './SelectClientModal'
 import NewClientModal from './NewClientModal'
 import SelectVariationModal from './SelectVariationModal'
@@ -17,6 +17,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [products, setProducts] = useState([])
   const [categories, setCategories] = useState([])
   const [clients, setClients] = useState([])
+  const [store, setStore] = useState(null)
 
   // UI State
   const [search, setSearch] = useState('')
@@ -119,6 +120,13 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   }, [open, storeId])
 
   // Reset when opening
+  useEffect(() => {
+    if (storeId) {
+      const unsub = listenStore(storeId, (data) => setStore(data))
+      return () => unsub()
+    }
+  }, [storeId])
+
   useEffect(() => {
     if (open) {
       if (!isEdit) {
@@ -388,6 +396,11 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
     setSaving(true)
     try {
+      // Calculate Commission
+      const commSettings = store?.commissionsSettings || {}
+      const salesAttendantPercent = Number(commSettings.salesAttendantPercent || 0)
+      const commissionValue = salesAttendantPercent > 0 ? (total * (salesAttendantPercent / 100)) : 0
+
       const payload = {
         type: 'sale',
         client: selectedClient ? selectedClient.name : 'Consumidor Final',
@@ -395,6 +408,10 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         attendant: user?.name || '',
         technician: null,
         dateIn: new Date(),
+        commissions: {
+          salesAttendantPercent,
+          salesAttendantValue: commissionValue
+        },
         products: cart.map(item => ({
           id: item.product.originalId || item.product.id,
           name: item.product.name,

@@ -513,11 +513,26 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     if (saving) return
     setSaving(true)
     try {
+      // Calculate Commission
+      const commSettings = store?.commissionsSettings || {}
+      const osTechnicianPercent = Number(commSettings.osTechnicianPercent || 0)
+      const osAttendantPercent = Number(commSettings.osAttendantPercent || 0)
+      
+      const totalOS = totalProductsAgg + totalServicesAgg
+      const technicianValue = osTechnicianPercent > 0 ? (totalOS * (osTechnicianPercent / 100)) : 0
+      const attendantValue = osAttendantPercent > 0 ? (totalOS * (osAttendantPercent / 100)) : 0
+
       const basePayload = {
         type: 'service_order',
         client,
         technician,
         attendant,
+        commissions: {
+          osTechnicianPercent,
+          osTechnicianValue: technicianValue,
+          osAttendantPercent,
+          osAttendantValue: attendantValue
+        },
         dateIn: dateIn ? new Date(dateIn) : null,
         expectedDate: expectedDate ? new Date(expectedDate) : null,
         brand,
