@@ -58,7 +58,18 @@ export default function LoginPage({ onLoggedIn }){
         const cred = await signInWithEmailLink(auth, emailToUse, window.location.href)
         const authedEmail = cred?.user?.email || emailToUse
         const owner = await findUserByEmail(authedEmail)
-        if (owner) { onLoggedIn(owner); setInfo(''); return }
+        if (owner) {
+          const status = owner.status || (owner.active === false ? 'cancelado' : 'ativo')
+          if (status === 'cancelado') {
+            setError('Seu acesso foi cancelado. Entre em contato com o suporte.')
+            setInfo('')
+            setLoading(false)
+            return
+          }
+          onLoggedIn(owner)
+          setInfo('')
+          return
+        }
         const member = await findMemberByEmail(authedEmail)
         if (member) {
           onLoggedIn({
@@ -127,7 +138,18 @@ export default function LoginPage({ onLoggedIn }){
       const cred = await signInWithEmailLink(auth, emailTrim, window.location.href)
       const authedEmail = cred?.user?.email || emailTrim
       const owner = await findUserByEmail(authedEmail)
-      if (owner) { onLoggedIn(owner); setInfo(''); return }
+      if (owner) {
+        const status = owner.status || (owner.active === false ? 'cancelado' : 'ativo')
+        if (status === 'cancelado') {
+          setError('Seu acesso foi cancelado. Entre em contato com o suporte.')
+          setInfo('')
+          setLoading(false)
+          return
+        }
+        onLoggedIn(owner)
+        setInfo('')
+        return
+      }
       const member = await findMemberByEmail(authedEmail)
       if (member) {
         onLoggedIn({

@@ -10,7 +10,7 @@ import NewClientModal from './NewClientModal'
 import SelectClientModal from './SelectClientModal'
 import SelectVariationModal from './SelectVariationModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
-import { listenSubUsers } from '../services/users'
+import { listenSubUsers, getOwner } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
@@ -273,7 +273,15 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [clientsAll, setClientsAll] = useState([])
   const [technician, setTechnician] = useState('')
   const [attendant, setAttendant] = useState('')
-  const [members, setMembers] = useState([])
+  const [subUsers, setSubUsers] = useState([])
+  const [ownerUser, setOwnerUser] = useState(null)
+  const members = useMemo(() => {
+    const list = [...subUsers]
+    if (ownerUser) {
+      list.unshift({ ...ownerUser, isTech: true, isSeller: true })
+    }
+    return list
+  }, [subUsers, ownerUser])
   const [techSelectOpen, setTechSelectOpen] = useState(false)
   const [attendantSelectOpen, setAttendantSelectOpen] = useState(false)
   const [dateIn, setDateIn] = useState('')
@@ -301,6 +309,11 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [unlockTypeOpen, setUnlockTypeOpen] = useState(false)
   const [patternModalOpen, setPatternModalOpen] = useState(false)
   const [textUnlockOpen, setTextUnlockOpen] = useState(false)
+  
+  // Adicionais e Descontos
+  const [discount, setDiscount] = useState('')
+  const [addition, setAddition] = useState('')
+  
   useEffect(() => {
     if (!rowMenuOpenId) return
     const onScroll = () => setRowMenuOpenId(null)
@@ -357,6 +370,14 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   }, [selectedProduct, selectedVariation])
 
   useEffect(() => {
+    if (ownerId) {
+      getOwner(ownerId).then(u => setOwnerUser(u))
+    } else {
+      setOwnerUser(null)
+    }
+  }, [ownerId])
+
+  useEffect(() => {
     const unsubP = listenProducts(items => setProductsAll(items), storeId)
     const unsubSv = listenServices(items => setServicesAll(items), storeId)
     const unsubC = listenCategories(items => setCategories(items), storeId)
@@ -364,7 +385,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     const unsubClients = listenClients(items => setClientsAll(items), storeId)
     let unsubMembers
     if (ownerId) {
-      unsubMembers = listenSubUsers(ownerId, (list) => setMembers(list.filter(u => (u.active ?? true))))
+      unsubMembers = listenSubUsers(ownerId, (list) => setSubUsers(list.filter(u => (u.active ?? true))))
     }
     return () => { unsubP && unsubP(); unsubSv && unsubSv(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers() }
   }, [storeId, ownerId])
@@ -424,6 +445,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setOsServices([])
     setOsPayments([])
     setPaymentInfo('')
+    setDiscount(''); setAddition('')
     setEditingOrderId(null)
     setEditingOrderNumber('')
     setStatus('Iniciado')
@@ -469,6 +491,8 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setOsServices(Array.isArray(o.services) ? o.services : [])
     setOsPayments(Array.isArray(o.payments) ? o.payments : [])
     setPaymentInfo(o.paymentInfo || '')
+    setDiscount(o.discount ? String(o.discount) : '')
+    setAddition(o.addition ? String(o.addition) : '')
     setEditingOrderId(o.id)
     setEditingOrderNumber(o.number || o.id)
     setStatus(o.status || 'Iniciado')
@@ -518,7 +542,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       const osTechnicianPercent = Number(commSettings.osTechnicianPercent || 0)
       const osAttendantPercent = Number(commSettings.osAttendantPercent || 0)
       
-      const totalOS = totalProductsAgg + totalServicesAgg
+      const totalOS = totalProductsAgg + totalServicesAgg + parseFloat(addition || 0) - parseFloat(discount || 0)
       const technicianValue = osTechnicianPercent > 0 ? (totalOS * (osTechnicianPercent / 100)) : 0
       const attendantValue = osAttendantPercent > 0 ? (totalOS * (osAttendantPercent / 100)) : 0
 
@@ -547,9 +571,10 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         products: osProducts,
         totalServices: totalServicesAgg,
         totalProducts: totalProductsAgg,
-        discount: 0,
-        total: (totalProductsAgg + totalServicesAgg),
-        valor: (totalProductsAgg + totalServicesAgg),
+        discount: parseFloat(discount || 0),
+        addition: parseFloat(addition || 0),
+        total: totalOS,
+        valor: totalOS,
         payments: osPayments,
         paymentInfo,
         password: unlockType === 'pattern' 
@@ -1743,6 +1768,38 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   <div className="mt-3"><button type="button" onClick={openAddProduct} className="px-3 py-2 border rounded text-sm">Adicionar Produto</button></div>
                 )}
               </div>
+
+              <div className="rounded-lg bg-white p-6 shadow">
+                <div className="font-semibold text-lg">Adicionais</div>
+                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs text-gray-600">Acréscimo (R$)</label>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={addition} 
+                      onChange={e => setAddition(e.target.value)} 
+                      className="mt-1 w-full border rounded px-3 py-2 text-sm" 
+                      placeholder="0,00"
+                      disabled={isOrderLocked}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Desconto (R$)</label>
+                    <input 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      value={discount} 
+                      onChange={e => setDiscount(e.target.value)} 
+                      className="mt-1 w-full border rounded px-3 py-2 text-sm" 
+                      placeholder="0,00"
+                      disabled={isOrderLocked}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Coluna direita */}
@@ -1760,11 +1817,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   </div>
                   <div className="p-3 border rounded">
                     <div className="text-xs text-gray-500">Desconto</div>
-                    <div className="text-right">{(0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                    <div className="text-right">{(parseFloat(discount||0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
                   <div className="p-3 border rounded">
                     <div className="text-xs text-gray-500">Total da OS</div>
-                    <div className="text-right">{(totalProductsAgg + totalServicesAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                    <div className="text-right">{(totalProductsAgg + totalServicesAgg + parseFloat(addition||0) - parseFloat(discount||0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
                 </div>
               </div>

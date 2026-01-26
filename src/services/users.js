@@ -1,4 +1,4 @@
-import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { addStore } from './stores'
 import { listStoresByOwner } from './stores'
@@ -13,6 +13,14 @@ export async function findUserByEmail(email){
   if (snap.empty) return null
   const d = snap.docs[0]
   return { id: d.id, ...d.data() }
+}
+
+export async function getOwner(ownerId) {
+  if (!ownerId) return null
+  const ref = doc(db, 'users', ownerId)
+  const d = await getDoc(ref)
+  if (d.exists()) return { id: d.id, ...d.data() }
+  return null
 }
 
 // Criação de usuário sem obrigatoriedade de storeId
@@ -162,11 +170,12 @@ export async function updateUserPresence(uid, ownerId, isMember) {
 
 // Login baseado em dados no Firestore, com autenticação anônima já ativa
 export async function login(email, password){
-  // 1) Tenta carregar perfil de dono (users)
   const owner = await findUserByEmail(email)
   if (owner){
     const ok = String(owner.password || '') === String(password || '')
     if (!ok) throw new Error('Senha incorreta')
+    const status = owner.status || (owner.active === false ? 'cancelado' : 'ativo')
+    if (status === 'cancelado') throw new Error('Seu acesso foi cancelado. Entre em contato com o suporte.')
     return owner
   }
 

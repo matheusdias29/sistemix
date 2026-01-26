@@ -30,6 +30,14 @@ export async function listStoresByOwner(ownerId){
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
+export function listenAllStores(callback){
+  const q = query(storesCol, orderBy('createdAt', 'desc'))
+  return onSnapshot(q, (snap) => {
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    callback(items)
+  })
+}
+
 // Carrega uma loja por ID
 export async function getStoreById(id){
   if(!id) return null
