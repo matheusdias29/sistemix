@@ -31,9 +31,9 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
 
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md bg-white rounded-lg shadow-xl overflow-hidden">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold text-gray-800">
+      <div className="w-full max-w-md bg-white dark:bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+        <div className="p-4 border-b dark:border-gray-700">
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
             {initialData ? 'Editar Categoria' : 'Nova Categoria'}
           </h2>
         </div>
@@ -45,7 +45,7 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
             <input
               type="text"
               placeholder="Nome"
-              className="w-full rounded border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition"
+              className="w-full rounded border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 px-3 py-2 text-sm text-gray-900 dark:text-white focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none transition"
               value={name}
               onChange={e => setName(e.target.value)}
               autoFocus
@@ -55,12 +55,12 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
           {/* Tipo e Status */}
           <div className="flex items-center justify-between">
             {/* Seletor de Tipo */}
-            <div className="flex bg-gray-100 rounded p-1">
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded p-1">
               <button
                 type="button"
                 onClick={() => setType('in')}
                 className={`px-3 py-1 rounded text-sm font-medium transition ${
-                  type === 'in' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'
+                  type === 'in' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >
                 Entrada
@@ -69,7 +69,7 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
                 type="button"
                 onClick={() => setType('out')}
                 className={`px-3 py-1 rounded text-sm font-medium transition ${
-                  type === 'out' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:text-gray-700'
+                  type === 'out' ? 'bg-white dark:bg-gray-600 shadow text-gray-800 dark:text-white' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                 }`}
               >
                 Saída
@@ -83,13 +83,13 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
                 onChange={setActive} 
                 className="" // Remove default flex behavior from wrapper if needed, but Switch handles it
               />
-              <span className="text-sm text-gray-700">Ativo</span>
+              <span className="text-sm text-gray-700 dark:text-gray-300">Ativo</span>
             </div>
           </div>
 
         </form>
 
-        <div className="p-4 border-t bg-gray-50 flex justify-between gap-3">
+        <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex justify-between gap-3">
           {initialData && onDelete ? (
             <button
               type="button"
@@ -98,7 +98,7 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
                   onDelete(initialData.id)
                 }
               }}
-              className="px-4 py-2 text-sm font-medium text-red-600 hover:text-red-800 flex items-center gap-1"
+              className="px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 flex items-center gap-1"
             >
               🗑 Excluir
             </button>
@@ -110,7 +110,7 @@ export default function NewFinancialCategoryModal({ onClose, onSave, onDelete, i
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800"
+              className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
               disabled={isLoading}
             >
               Cancelar

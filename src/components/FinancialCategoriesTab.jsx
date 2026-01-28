@@ -104,7 +104,7 @@ export default function FinancialCategoriesTab({ storeId }) {
             </div>
             <input
               type="text"
-              className="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-100 placeholder-gray-400 focus:outline-none focus:bg-white focus:ring-1 focus:ring-green-500 sm:text-sm transition duration-150 ease-in-out"
+              className="block w-full pl-10 pr-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg leading-5 bg-gray-100 dark:bg-gray-700 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:bg-white dark:focus:bg-gray-800 focus:ring-1 focus:ring-green-500 sm:text-sm transition duration-150 ease-in-out text-gray-900 dark:text-white"
               placeholder="Pesquisar..."
               value={search}
               onChange={e => setSearch(e.target.value)}
@@ -117,8 +117,8 @@ export default function FinancialCategoriesTab({ storeId }) {
               onClick={() => setFilterStatus(filterStatus === 'active' ? 'all' : 'active')}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 filterStatus === 'active' 
-                  ? 'bg-green-100 text-green-800 border border-green-200' 
-                  : 'bg-gray-100 text-gray-600 border border-transparent hover:bg-gray-200'
+                  ? 'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' 
+                  : 'bg-gray-100 text-gray-600 border border-transparent hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
               }`}
             >
               ✓ Ativo
@@ -127,8 +127,8 @@ export default function FinancialCategoriesTab({ storeId }) {
               onClick={() => setFilterStatus(filterStatus === 'inactive' ? 'all' : 'inactive')}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                 filterStatus === 'inactive' 
-                  ? 'bg-gray-200 text-gray-800 border border-gray-300' 
-                  : 'bg-gray-100 text-gray-600 border border-transparent hover:bg-gray-200'
+                  ? 'bg-gray-200 text-gray-800 border border-gray-300 dark:bg-gray-600 dark:text-gray-300 dark:border-gray-500' 
+                  : 'bg-gray-100 text-gray-600 border border-transparent hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
               }`}
             >
               Inativo
@@ -138,29 +138,29 @@ export default function FinancialCategoriesTab({ storeId }) {
 
         <button
           onClick={() => setIsModalOpen(true)}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-colors"
+          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm transition-colors dark:bg-green-600 dark:hover:bg-green-500"
         >
           <span>+ Novo</span>
         </button>
       </div>
 
       {/* Table/List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700/50">
             <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Nome
               </th>
-              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Status
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan="2" className="px-6 py-10 text-center text-gray-500 text-sm">
+                <td colSpan="2" className="px-6 py-10 text-center text-gray-500 dark:text-gray-400 text-sm">
                   Nenhuma categoria encontrada.
                 </td>
               </tr>
@@ -168,7 +168,7 @@ export default function FinancialCategoriesTab({ storeId }) {
               filtered.map((cat) => (
                 <tr 
                   key={cat.id} 
-                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
                   onClick={() => handleEdit(cat)}
                 >
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -176,7 +176,7 @@ export default function FinancialCategoriesTab({ storeId }) {
                       <div className="flex-shrink-0 mr-3">
                         {renderIcon(cat.type)}
                       </div>
-                      <div className="text-sm font-medium text-gray-900">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {cat.name}
                       </div>
                     </div>
@@ -184,8 +184,8 @@ export default function FinancialCategoriesTab({ storeId }) {
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       cat.active 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
                     }`}>
                       {cat.active ? 'Ativo' : 'Inativo'}
                     </span>

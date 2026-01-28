@@ -154,32 +154,32 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 font-sans">
-      <div className="w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-2xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
-          <h2 className="text-xl font-bold text-gray-800">{initialData ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+        <div className="p-5 border-b dark:border-gray-700 flex justify-between items-center bg-gray-50 dark:bg-gray-700/50">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">{initialData ? 'Editar Conta a Pagar' : 'Nova Conta a Pagar'}</h2>
+          <button onClick={onClose} className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-2xl">&times;</button>
         </div>
 
         {/* Body */}
-        <div className="p-6 overflow-y-auto space-y-5 bg-white">
+        <div className="p-6 overflow-y-auto space-y-5 bg-white dark:bg-gray-800">
           
           {/* Fornecedor */}
           <div 
-            className="bg-gray-100 p-3 rounded-lg border border-transparent hover:border-gray-300 cursor-pointer transition-colors flex justify-between items-center group"
+            className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg border border-transparent hover:border-gray-300 dark:hover:border-gray-500 cursor-pointer transition-colors flex justify-between items-center group"
             onClick={() => setShowSupplierSelect(true)}
           >
-            <span className={`font-medium ${supplier ? 'text-gray-900' : 'text-gray-500'}`}>
+            <span className={`font-medium ${supplier ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
               {supplier ? supplier.name : 'Fornecedor'}
             </span>
-            <span className="text-gray-400">›</span>
+            <span className="text-gray-400 dark:text-gray-500">›</span>
           </div>
 
           {/* Descrição */}
-          <div className="bg-gray-100 p-3 rounded-lg border border-transparent hover:border-gray-300 transition-colors">
+          <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg border border-transparent hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
              <input 
                type="text"
-               className="w-full bg-transparent text-gray-900 font-medium outline-none placeholder-gray-500"
+               className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none placeholder-gray-500 dark:placeholder-gray-400"
                placeholder="Descrição"
                value={description}
                onChange={e => setDescription(e.target.value)}
@@ -188,19 +188,19 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
 
           {/* Categoria */}
           <div 
-            className="bg-gray-100 p-3 rounded-lg border border-transparent hover:border-gray-300 cursor-pointer transition-colors flex justify-between items-center group"
+            className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg border border-transparent hover:border-gray-300 dark:hover:border-gray-500 cursor-pointer transition-colors flex justify-between items-center group"
             onClick={() => setShowCategorySelect(true)}
           >
-             <span className={`font-medium ${category ? 'text-gray-900' : 'text-gray-500'}`}>
+             <span className={`font-medium ${category ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>
               {category ? category.name : 'Categoria'}
             </span>
-            <span className="text-gray-400">›</span>
+            <span className="text-gray-400 dark:text-gray-500">›</span>
           </div>
 
           {/* Detalhes */}
-          <div className="bg-gray-100 p-3 rounded-lg border border-transparent hover:border-gray-300 transition-colors">
+          <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg border border-transparent hover:border-gray-300 dark:hover:border-gray-500 transition-colors">
              <textarea 
-               className="w-full bg-transparent text-gray-900 font-medium outline-none placeholder-gray-500 resize-none h-20"
+               className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none placeholder-gray-500 dark:placeholder-gray-400 resize-none h-20"
                placeholder="Detalhes (opcional)"
                value={details}
                onChange={e => setDetails(e.target.value)}
@@ -210,34 +210,34 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
           {/* Recorrente Switch */}
           <div className="flex items-center gap-3 px-1">
             <Switch checked={isRecurring} onChange={setIsRecurring} />
-            <span className="text-sm font-medium text-gray-700">Conta Recorrente/Fixa</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Conta Recorrente/Fixa</span>
           </div>
 
           {/* Lista de Itens (Parcelas) */}
           <div className="space-y-3">
             {items.map((item, index) => (
               <div key={item.id} className="flex items-center gap-3 animate-in fade-in slide-in-from-top-1">
-                <div className="bg-gray-100 p-3 rounded-lg flex-1">
+                <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg flex-1">
                    <div className="flex justify-between items-center">
-                     <span className="text-xs text-gray-500 mb-1 block">Valor</span>
+                     <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Valor</span>
                    </div>
                    <input 
                      type="number"
                      step="0.01"
-                     className="w-full bg-transparent text-gray-900 font-bold text-lg outline-none placeholder-gray-400 text-right"
+                     className="w-full bg-transparent text-gray-900 dark:text-white font-bold text-lg outline-none placeholder-gray-400 text-right"
                      placeholder="0,00"
                      value={item.value}
                      onChange={e => updateItem(item.id, 'value', e.target.value)}
                    />
                 </div>
                 
-                <div className="bg-gray-100 p-3 rounded-lg flex-1">
+                <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg flex-1">
                    <div className="flex justify-between items-center">
-                     <span className="text-xs text-gray-500 mb-1 block">Data de Vencimento</span>
+                     <span className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Data de Vencimento</span>
                    </div>
                    <input 
                      type="date"
-                     className="w-full bg-transparent text-gray-900 font-medium outline-none placeholder-gray-400"
+                     className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none placeholder-gray-400 dark:placeholder-gray-500 dark:[color-scheme:dark]"
                      value={item.dueDate}
                      onChange={e => updateItem(item.id, 'dueDate', e.target.value)}
                    />
@@ -245,7 +245,7 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
 
                 <button 
                   onClick={() => handleRemoveItem(item.id)}
-                  className="bg-gray-800 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black transition-colors shrink-0"
+                  className="bg-gray-800 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-black dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors shrink-0"
                   title="Remover parcela"
                 >
                   <span className="text-xs font-bold">&times;</span>
@@ -259,7 +259,7 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
              <button 
                type="button"
                onClick={handleAddItem}
-               className="text-green-500 border border-green-500 rounded px-4 py-2 text-sm font-medium hover:bg-green-50 transition-colors inline-block"
+               className="text-green-500 border border-green-500 rounded px-4 py-2 text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30 transition-colors inline-block"
              >
                Adicionar Parcela
              </button>
@@ -268,17 +268,17 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t bg-white flex justify-end items-center gap-3">
+        <div className="p-4 border-t dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-end items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-500 font-medium hover:text-gray-700 transition-colors text-sm flex items-center gap-2"
+              className="px-4 py-2 text-gray-500 dark:text-gray-400 font-medium hover:text-gray-700 dark:hover:text-gray-200 transition-colors text-sm flex items-center gap-2"
             >
               <span className="text-lg">&times;</span> Cancelar
             </button>
             <button
               onClick={handleSubmit}
               disabled={isLoading}
-              className="px-6 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 shadow-md transition-all transform active:scale-95 disabled:opacity-50 disabled:shadow-none text-sm flex items-center gap-2"
+              className="px-6 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-500 shadow-md transition-all transform active:scale-95 disabled:opacity-50 disabled:shadow-none text-sm flex items-center gap-2"
             >
               <span className="text-lg">✓</span> {isLoading ? 'Salvando...' : 'Salvar'}
             </button>

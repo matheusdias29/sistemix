@@ -48,9 +48,9 @@ export default function SelectColumnsModal({ open, onClose, columns, onSave, onR
   }
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
-      <div className="bg-white rounded-lg w-full max-w-md p-6 shadow-lg">
-        <h3 className="text-lg font-semibold mb-4 text-gray-800">Selecione as colunas</h3>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md p-6 shadow-lg">
+        <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Selecione as colunas</h3>
         
         <div className="space-y-2 max-h-[60vh] overflow-y-auto mb-6">
           {localColumns.map((col, index) => (
@@ -60,10 +60,10 @@ export default function SelectColumnsModal({ open, onClose, columns, onSave, onR
               onDragStart={(e) => onDragStart(e, index)}
               onDragOver={(e) => onDragOver(e, index)}
               onDragEnd={onDragEnd}
-              className={`flex items-center justify-between p-2 rounded border transition-colors ${draggedItemIndex === index ? 'bg-gray-100 border-gray-200 opacity-50' : 'hover:bg-gray-50 border-transparent hover:border-gray-100'}`}
+              className={`flex items-center justify-between p-2 rounded border transition-colors ${draggedItemIndex === index ? 'bg-gray-100 dark:bg-gray-700 border-gray-200 dark:border-gray-600 opacity-50' : 'hover:bg-gray-50 dark:hover:bg-gray-700 border-transparent hover:border-gray-100 dark:hover:border-gray-600'}`}
             >
               <label className="flex items-center gap-3 cursor-pointer flex-1">
-                <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${col.visible ? 'bg-green-600 border-green-600' : 'border-gray-300 bg-white'}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${col.visible ? 'bg-green-600 border-green-600' : 'border-gray-300 dark:border-gray-500 bg-white dark:bg-gray-700'}`}>
                   {col.visible && (
                     <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -76,10 +76,10 @@ export default function SelectColumnsModal({ open, onClose, columns, onSave, onR
                   checked={col.visible} 
                   onChange={() => toggleColumn(col.id)}
                 />
-                <span className="text-sm text-gray-700 font-medium">{col.label}</span>
+                <span className="text-sm text-gray-700 dark:text-gray-200 font-medium">{col.label}</span>
               </label>
               
-              <div className="flex items-center gap-1 cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1">
+              <div className="flex items-center gap-1 cursor-grab active:cursor-grabbing text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
@@ -88,7 +88,7 @@ export default function SelectColumnsModal({ open, onClose, columns, onSave, onR
           ))}
         </div>
 
-        <div className="flex items-center justify-between pt-4 border-t">
+        <div className="flex items-center justify-between pt-4 border-t dark:border-gray-700">
           <button 
             onClick={() => {
               if (onReset) {
@@ -96,7 +96,7 @@ export default function SelectColumnsModal({ open, onClose, columns, onSave, onR
                 onClose()
               }
             }}
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 px-2 py-1"
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 px-2 py-1"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -107,7 +107,7 @@ export default function SelectColumnsModal({ open, onClose, columns, onSave, onR
           <div className="flex items-center gap-3">
             <button 
               onClick={onClose}
-              className="text-sm text-gray-600 hover:text-gray-800 font-medium px-4 py-2"
+              className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100 font-medium px-4 py-2"
             >
               Voltar
             </button>

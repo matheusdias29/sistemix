@@ -83,9 +83,9 @@ export default function SalesDateFilterModal({ open, onClose, onApply, currentLa
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold text-center text-gray-800">Selecione um periodo</h3>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="p-4 border-b dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-center text-gray-800 dark:text-white">Selecione um periodo</h3>
         </div>
         
         <div className="p-4 overflow-y-auto space-y-2">
@@ -96,7 +96,7 @@ export default function SalesDateFilterModal({ open, onClose, onApply, currentLa
               className={`w-full py-3 px-4 rounded-lg text-sm font-medium transition-colors flex items-center justify-center ${
                 selectedKey === opt.key
                   ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-white text-gray-700 hover:bg-gray-50 border border-transparent'
+                  : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 border border-transparent'
               }`}
             >
               {opt.label}
@@ -106,31 +106,31 @@ export default function SalesDateFilterModal({ open, onClose, onApply, currentLa
           {selectedKey === 'custom' && (
             <div className="pt-2 flex gap-2 animate-fadeIn">
               <div className="flex-1">
-                <label className="text-xs text-gray-500 mb-1 block">De</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">De</label>
                 <input 
                   type="date" 
                   value={customStart} 
                   onChange={e=>setCustomStart(e.target.value)}
-                  className="w-full border rounded px-2 py-2 text-sm outline-none focus:border-green-500"
+                  className="w-full border rounded px-2 py-2 text-sm outline-none focus:border-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                 />
               </div>
               <div className="flex-1">
-                <label className="text-xs text-gray-500 mb-1 block">Até</label>
+                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Até</label>
                 <input 
                   type="date" 
                   value={customEnd} 
                   onChange={e=>setCustomEnd(e.target.value)}
-                  className="w-full border rounded px-2 py-2 text-sm outline-none focus:border-green-500"
+                  className="w-full border rounded px-2 py-2 text-sm outline-none focus:border-green-500 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                 />
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-4 border-t bg-gray-50 flex gap-3">
+        <div className="p-4 border-t bg-gray-50 dark:bg-gray-700/50 dark:border-gray-700 flex gap-3">
           <button 
             onClick={onClose}
-            className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium transition-colors"
+            className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium transition-colors"
           >
             &times; Cancelar
           </button>

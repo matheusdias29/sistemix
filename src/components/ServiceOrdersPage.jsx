@@ -14,13 +14,14 @@ import { listenSubUsers, getOwner } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
-import { listenStore } from '../services/stores'
+import { listenStore, listenFees } from '../services/stores'
 import { listenServices, addService, updateService } from '../services/services'
 import ChooseFinalStatusModal from './ChooseFinalStatusModal'
 import ShareOrderModal from './ShareOrderModal'
 import ServiceOrderSettingsModal from './ServiceOrderSettingsModal'
 import SelectChecklistModal from './SelectChecklistModal'
 import ChecklistQuestionsModal from './ChecklistQuestionsModal'
+import { useDarkMode } from '../hooks/useDarkMode'
 
 const hexToRgba = (hex, alpha = 1) => {
   let c;
@@ -52,6 +53,26 @@ const darkenColor = (hex, percent) => {
   r = Math.floor(r * (100 - percent) / 100);
   g = Math.floor(g * (100 - percent) / 100);
   b = Math.floor(b * (100 - percent) / 100);
+  return "rgb(" + r + "," + g + "," + b + ")";
+}
+
+const lightenColor = (hex, percent) => {
+  let r = 0, g = 0, b = 0;
+  if (!hex) return '#ffffff';
+  if (hex.length === 4) {
+    r = parseInt("0x" + hex[1] + hex[1]);
+    g = parseInt("0x" + hex[2] + hex[2]);
+    b = parseInt("0x" + hex[3] + hex[3]);
+  } else if (hex.length === 7) {
+    r = parseInt("0x" + hex[1] + hex[2]);
+    g = parseInt("0x" + hex[3] + hex[4]);
+    b = parseInt("0x" + hex[5] + hex[6]);
+  } else {
+    return hex;
+  }
+  r = Math.min(255, Math.floor(r + (255 - r) * percent / 100));
+  g = Math.min(255, Math.floor(g + (255 - g) * percent / 100));
+  b = Math.min(255, Math.floor(b + (255 - b) * percent / 100));
   return "rgb(" + r + "," + g + "," + b + ")";
 }
 
@@ -98,6 +119,7 @@ const DEFAULT_STATUSES = [
 ]
 
 export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNewSignal, viewParams, setViewParams }){
+  const isDark = useDarkMode()
   const [currentStore, setCurrentStore] = useState(store)
   const activeStore = currentStore || store
 
@@ -313,6 +335,9 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   // Adicionais e Descontos
   const [discount, setDiscount] = useState('')
   const [addition, setAddition] = useState('')
+  const [availableFees, setAvailableFees] = useState([])
+  const [appliedFees, setAppliedFees] = useState([])
+  const [feesModalOpen, setFeesModalOpen] = useState(false)
   
   useEffect(() => {
     if (!rowMenuOpenId) return
@@ -387,7 +412,10 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     if (ownerId) {
       unsubMembers = listenSubUsers(ownerId, (list) => setSubUsers(list.filter(u => (u.active ?? true))))
     }
-    return () => { unsubP && unsubP(); unsubSv && unsubSv(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers() }
+    const unsubFees = listenFees(storeId, (rows) => {
+      setAvailableFees(rows.filter(r => r.active))
+    })
+    return () => { unsubP && unsubP(); unsubSv && unsubSv(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers(); unsubFees && unsubFees() }
   }, [storeId, ownerId])
 
   const totalProductsAgg = useMemo(() => {
@@ -396,6 +424,14 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
   const totalServicesAgg = useMemo(() => {
     return osServices.reduce((s, sv) => s + ((parseFloat(sv.price)||0) * (parseFloat(sv.quantity)||0)), 0)
   }, [osServices])
+
+  const totalFeesAgg = useMemo(() => {
+    const base = totalProductsAgg + totalServicesAgg
+    return appliedFees.reduce((acc, f) => {
+      if (f.type === 'percent') return acc + (base * (Number(f.value || 0) / 100))
+      return acc + Number(f.value || 0)
+    }, 0)
+  }, [totalProductsAgg, totalServicesAgg, appliedFees])
 
   const [osPayments, setOsPayments] = useState([])
   const [payMethodsOpen, setPayMethodsOpen] = useState(false)
@@ -446,6 +482,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setOsPayments([])
     setPaymentInfo('')
     setDiscount(''); setAddition('')
+    setAppliedFees([])
     setEditingOrderId(null)
     setEditingOrderNumber('')
     setStatus('Iniciado')
@@ -493,6 +530,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
     setPaymentInfo(o.paymentInfo || '')
     setDiscount(o.discount ? String(o.discount) : '')
     setAddition(o.addition ? String(o.addition) : '')
+    setAppliedFees(Array.isArray(o.feesApplied) ? o.feesApplied : [])
     setEditingOrderId(o.id)
     setEditingOrderNumber(o.number || o.id)
     setStatus(o.status || 'Iniciado')
@@ -542,7 +580,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       const osTechnicianPercent = Number(commSettings.osTechnicianPercent || 0)
       const osAttendantPercent = Number(commSettings.osAttendantPercent || 0)
       
-      const totalOS = totalProductsAgg + totalServicesAgg + parseFloat(addition || 0) - parseFloat(discount || 0)
+      const totalOS = totalProductsAgg + totalServicesAgg + totalFeesAgg + parseFloat(addition || 0) - parseFloat(discount || 0)
       const technicianValue = osTechnicianPercent > 0 ? (totalOS * (osTechnicianPercent / 100)) : 0
       const attendantValue = osAttendantPercent > 0 ? (totalOS * (osAttendantPercent / 100)) : 0
 
@@ -571,6 +609,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         products: osProducts,
         totalServices: totalServicesAgg,
         totalProducts: totalProductsAgg,
+        feesApplied: appliedFees,
         discount: parseFloat(discount || 0),
         addition: parseFloat(addition || 0),
         total: totalOS,
@@ -1275,12 +1314,12 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             ) : (
             <div className="mt-4 flex items-center gap-3">
               <div className="flex-1 flex items-center gap-2">
-                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
-                <button type="button" className="px-2 py-1 text-xs rounded border bg-green-50 text-green-700">Ativo</button>
-                <button type="button" className="px-2 py-1 text-xs rounded border">Inativo</button>
+                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-600 focus:border-transparent outline-none transition-all" />
+                <button type="button" className="px-2 py-1 text-xs rounded border bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">Ativo</button>
+                <button type="button" className="px-2 py-1 text-xs rounded border dark:border-gray-700 dark:text-gray-300">Inativo</button>
               </div>
               <div className="hidden md:block flex-1"></div>
-              <button onClick={()=>{ setServiceEditTarget(null); setServiceModalOpen(true) }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white">+ Novo</button>
+              <button onClick={()=>{ setServiceEditTarget(null); setServiceModalOpen(true) }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">+ Novo</button>
             </div>
             )}
           </div>
@@ -1291,9 +1330,9 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
             
             </>
           ) : (
-            <div className="mt-4 bg-white rounded shadow overflow-x-auto">
-              <div className="min-w-full divide-y divide-gray-200">
-                <div className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs font-medium text-gray-600 bg-gray-50 gap-1">
+            <div className="mt-4 bg-white dark:bg-gray-800 rounded shadow overflow-x-auto">
+              <div className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <div className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 gap-1">
                   <div>Serviço</div>
                   <div className="text-right">Preço</div>
                   <div>Status</div>
@@ -1303,11 +1342,11 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   const ql = query.trim().toLowerCase()
                   return (sv.name||'').toLowerCase().includes(ql)
                 }).map(sv => (
-                  <div key={sv.id} className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs hover:bg-gray-50 gap-1">
+                  <div key={sv.id} className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs hover:bg-gray-50 dark:hover:bg-gray-700/50 gap-1 text-gray-900 dark:text-gray-100">
                     <div className="">{sv.name}</div>
                     <div className="text-right">{Number(sv.price||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                    <div><span className={`inline-block px-2 py-1 rounded border ${sv.active ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-700'}`}>{sv.active ? 'Ativo' : 'Inativo'}</span></div>
-                    <button type="button" onClick={()=>{ setServiceEditTarget(sv); setServiceModalOpen(true) }} className="text-gray-500">›</button>
+                    <div><span className={`inline-block px-2 py-1 rounded border ${sv.active ? 'bg-green-50 text-green-700 border-green-100 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-gray-50 text-gray-700 border-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'}`}>{sv.active ? 'Ativo' : 'Inativo'}</span></div>
+                    <button type="button" onClick={()=>{ setServiceEditTarget(sv); setServiceModalOpen(true) }} className="text-gray-500 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400">›</button>
                   </div>
                 ))}
               </div>
@@ -1370,38 +1409,38 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
 
         {/* Cards de resumo */}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-white p-4 rounded shadow">
-            <div className="text-xs text-gray-500">Total</div>
-            <div className="text-green-700 font-semibold">{totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-            </div>
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-xs text-gray-500">OS's realizadas</div>
-              <div className="font-semibold">{qtdFinalizadas}</div>
-            </div>
-            <div className="bg-white p-4 rounded shadow">
-              <div className="text-xs text-gray-500">Ticket Médio</div>
-              <div className="font-semibold">{ticketMedio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-            </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400">Total</div>
+            <div className="text-green-700 dark:text-green-500 font-semibold">{totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
           </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400">OS's realizadas</div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100">{qtdFinalizadas}</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400">Ticket Médio</div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100">{ticketMedio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+          </div>
+        </div>
 
-          {/* Tabela de OS */}
-          <div className="mt-4 bg-white rounded-lg shadow overflow-visible">
-            <div className="overflow-x-auto">
-            <div
-              className="min-w-full grid items-center px-2 py-2 text-xs text-gray-600 font-bold bg-gray-50 border-b gap-1"
-              style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
-            >
-              {osColumns.filter(c=>c.visible).map(col => (
-                <div key={col.id} className={`text-${col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left')}`}>
-                  {col.label}
-                </div>
-              ))}
-              <div className="flex justify-center">
-                <button 
-                  onClick={(e) => { e.stopPropagation(); setSelectColumnsOpen(true) }}
-                  className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
-                  title="Configurar colunas"
-                >
+        {/* Tabela de OS */}
+        <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-none border dark:border-gray-700 overflow-visible">
+          <div className="overflow-x-auto">
+          <div
+            className="min-w-full grid items-center px-2 py-2 text-xs text-gray-600 dark:text-gray-300 font-bold bg-gray-50 dark:bg-gray-900/50 border-b dark:border-gray-700 gap-1"
+            style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
+          >
+            {osColumns.filter(c=>c.visible).map(col => (
+              <div key={col.id} className={`text-${col.align === 'right' ? 'right' : (col.align === 'center' ? 'center' : 'left')}`}>
+                {col.label}
+              </div>
+            ))}
+            <div className="flex justify-center">
+              <button 
+                onClick={(e) => { e.stopPropagation(); setSelectColumnsOpen(true) }}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                title="Configurar colunas"
+              >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1414,7 +1453,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                 <div 
                   key={o.id}
                   onClick={()=>openEdit(o)}
-                  className="grid items-center px-2 py-2 text-xs cursor-pointer hover:bg-gray-50 gap-1"
+                  className="grid items-center px-2 py-2 text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 gap-1 text-gray-900 dark:text-gray-100"
                   style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
                 >
                   {osColumns.filter(c=>c.visible).map(col => {
@@ -1439,26 +1478,33 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                       case 'updatedBy': return <div key={`${o.id}-updatedBy`}>{o.updatedBy || o.attendant || '-'}</div>
                       case 'value': return <div key={`${o.id}-value`} className="text-right">{((o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                       case 'status': return (
-                        <div key={`${o.id}-status`}>
-                          {(() => {
-                            const s = String(o.status||'').trim()
-                            const color = statusColorMap[s]
-                            if (color) {
-                              return <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: hexToRgba(color, 0.15), color: darkenColor(color, 40) }}>{s || '-'}</span>
-                            }
-                            
-                            const l = s.toLowerCase()
-                            let cls = 'bg-gray-200 text-gray-700'
-                            
-                            if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700'
-                            else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700'
-                            else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
-                            else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
-                            else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
-                            return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
-                          })()}
-                        </div>
-                      )
+          <div key={`${o.id}-status`}>
+            {(() => {
+              const s = String(o.status||'').trim()
+              const color = statusColorMap[s]
+              if (color) {
+                // In dark mode, we want the text to be lighter, not darker
+                const textColor = isDark ? lightenColor(color, 60) : darkenColor(color, 40)
+                // In dark mode, maybe we want the background a bit more opaque or same? 
+                // 0.15 on dark bg is subtle. Let's keep it but maybe slightly higher alpha if needed.
+                // Actually 0.15 is fine.
+                return <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: hexToRgba(color, 0.15), color: textColor }}>{s || '-'}</span>
+              }
+              
+              const l = s.toLowerCase()
+              let cls = 'bg-gray-200 text-gray-700'
+              
+              if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+              else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+              else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+              else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+              else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+              else cls = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+
+              return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
+            })()}
+          </div>
+        )
                       default: return null
                     }
                   })}
@@ -1472,7 +1518,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                         setRowMenuPos({ left, top })
                         setRowMenuOpenId(rowMenuOpenId===o.id ? null : o.id)
                       }}
-                      className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                      className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
                       title="Ações"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1481,20 +1527,20 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     </button>
                     {rowMenuOpenId === o.id && (
                       <div 
-                        className="fixed bg-white border rounded shadow-lg text-sm z-[1000] min-w-[180px]"
+                        className="fixed bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg text-sm z-[1000] min-w-[180px]"
                         style={{ left: rowMenuPos.left, top: rowMenuPos.top }}
                         onClick={(e)=>e.stopPropagation()}
                       >
                         <button 
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                           onClick={()=>{
                             setShareTargetOrder(o)
                             setShareModalOpen(true)
                             setRowMenuOpenId(null)
                           }}
                         >Compartilhar</button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>window.print()}>Imprimir</button>
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50" onClick={()=>{ 
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>window.print()}>Imprimir</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ 
                           if (o.status && o.status.toLowerCase().includes('faturada')) {
                             showAlert('Não é possível mudar o status de uma O.S. já faturada. Realize o cancelamento do movimento para alterar o status novamente.')
                             setRowMenuOpenId(null)
@@ -1503,14 +1549,14 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                           setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) 
                         }}>Alterar Status</button>
                         <button 
-                          className="w-full text-left px-3 py-2 hover:bg-gray-50 text-red-600 hover:text-red-700"
+                          className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
                           onClick={() => handleDeleteOrder(o)}
                         >
                           Excluir O.S.
                         </button>
                         {o.cashLaunched ? (
                           <button
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                             onClick={()=>{
                               if(!currentCash){ alert('Nenhum caixa aberto.'); return }
                               removeCashTransactionsByOrder(currentCash.id, o.id)
@@ -1520,7 +1566,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                           >Cancelar mov. caixa</button>
                         ) : (
                           <button 
-                            className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                            className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                             onClick={()=>{
                               if(!currentCash){ alert('Nenhum caixa aberto. Abra o caixa para lançar.'); return }
                               setCashTargetOrder(o)
@@ -1545,7 +1591,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
         <div className="mt-2">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <button onClick={()=>setView('list')} className="px-3 py-2 border rounded text-sm">← Voltar</button>
+              <button onClick={()=>setView('list')} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">← Voltar</button>
             </div>
             <div className="flex items-center gap-2">
               <button 
@@ -1559,24 +1605,24 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                   setStatusTargetOrder(t || null)
                   setStatusModalOpen(true)
                 }} 
-                className="px-3 py-2 border rounded text-sm hover:bg-gray-50"
+                className="px-3 py-2 border rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600"
               >
                 Alterar Status
               </button>
               {(() => {
                 const s = String(status||'').trim()
                 const l = s.toLowerCase()
-                let cls = 'bg-gray-200 text-gray-700'
+                let cls = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                 
-                if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700'
-                else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700'
-                else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700'
-                else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700'
-                else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700'
+                if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
                 
                 return <span className={`px-3 py-2 rounded text-sm font-medium ${cls}`}>{s || 'Iniciado'}</span>
               })()}
-              <button className="px-3 py-2 rounded text-sm bg-green-600 text-white">+ Nova</button>
+              <button className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">+ Nova</button>
             </div>
           </div>
 
@@ -1584,87 +1630,87 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Coluna esquerda */}
             <div className="space-y-6">
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Dados Gerais</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Dados Gerais</div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-600">Cliente</label>
-                    <input readOnly value={client} onClick={()=>setClientSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50" placeholder="Selecionar cliente" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Cliente</label>
+                    <input readOnly value={client} onClick={()=>setClientSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Selecionar cliente" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Técnico</label>
-                    <input readOnly value={technician} onClick={()=>setTechSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50" placeholder="Selecionar técnico" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Técnico</label>
+                    <input readOnly value={technician} onClick={()=>setTechSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Selecionar técnico" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Atendente</label>
-                    <input readOnly value={attendant} onClick={()=>setAttendantSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50" placeholder="Selecionar atendente" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Atendente</label>
+                    <input readOnly value={attendant} onClick={()=>setAttendantSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Selecionar atendente" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Data Entrada</label>
-                    <input type="datetime-local" value={dateIn} onChange={e=>setDateIn(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Data Entrada</label>
+                    <input type="datetime-local" value={dateIn} onChange={e=>setDateIn(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Previsão de entrega</label>
-                    <input type="datetime-local" value={expectedDate} onChange={e=>setExpectedDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Previsão de entrega</label>
+                    <input type="datetime-local" value={expectedDate} onChange={e=>setExpectedDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Marca</label>
-                    <input value={brand} onChange={e=>setBrand(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Marca</label>
+                    <input value={brand} onChange={e=>setBrand(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Modelo</label>
-                    <input value={model} onChange={e=>setModel(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Modelo</label>
+                    <input value={model} onChange={e=>setModel(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Número de série</label>
-                    <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Número de série</label>
+                    <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">IMEI 1</label>
-                    <input value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">IMEI 1</label>
+                    <input value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">IMEI 2</label>
-                    <input value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">IMEI 2</label>
+                    <input value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-600">Equipamento</label>
-                    <textarea value={equipment} onChange={e=>setEquipment(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Equipamento</label>
+                    <textarea value={equipment} onChange={e=>setEquipment(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Problema</label>
-                    <textarea value={problem} onChange={e=>setProblem(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Problema</label>
+                    <textarea value={problem} onChange={e=>setProblem(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-600">Observações de recebimento</label>
-                    <textarea value={receiptNotes} onChange={e=>setReceiptNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Observações de recebimento</label>
+                    <textarea value={receiptNotes} onChange={e=>setReceiptNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Observações internas</label>
-                    <textarea value={internalNotes} onChange={e=>setInternalNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Observações internas</label>
+                    <textarea value={internalNotes} onChange={e=>setInternalNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Outros</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Outros</div>
                 <div className="mt-4 flex gap-3">
-                  <button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Senha</button>
+                  <button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Senha</button>
                   {!selectedChecklist && (
-                    <button type="button" onClick={()=>setChecklistSelectOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Checklist</button>
+                    <button type="button" onClick={()=>setChecklistSelectOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Checklist</button>
                   )}
-                  <button type="button" className="px-3 py-2 border rounded text-sm">Adicionar Arquivo</button>
+                  <button type="button" className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Arquivo</button>
                 </div>
               </div>
 
               {selectedChecklist && (
                 <div>
-                  <div className="font-semibold text-lg mb-2">Checklist</div>
-                  <div className="bg-gray-50 p-4 rounded-lg mb-3">
+                  <div className="font-semibold text-lg mb-2 text-gray-900 dark:text-white">Checklist</div>
+                  <div className="bg-gray-50 dark:bg-gray-700/50 p-4 rounded-lg mb-3">
                     <div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
                       {(selectedChecklist.questions || []).map((q, idx) => {
                         const isChecked = !!checklistAnswers[q.id]
@@ -1675,9 +1721,9 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                             ) : (
                               <span className="text-gray-400 font-bold">✕</span>
                             )}
-                            <span className={isChecked ? 'text-green-700' : 'text-gray-500'}>{q.text}</span>
+                            <span className={isChecked ? 'text-green-700 dark:text-green-400' : 'text-gray-500 dark:text-gray-400'}>{q.text}</span>
                             {idx < (selectedChecklist.questions || []).length - 1 && (
-                              <span className="text-gray-300 ml-3">|</span>
+                              <span className="text-gray-300 dark:text-gray-600 ml-3">|</span>
                             )}
                           </div>
                         )
@@ -1688,7 +1734,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                     <button 
                       type="button" 
                       onClick={()=>setChecklistQuestionsOpen(true)} 
-                      className="px-4 py-2 border border-green-500 text-green-600 rounded text-sm hover:bg-green-50 font-medium"
+                      className="px-4 py-2 border border-green-500 text-green-600 dark:text-green-400 rounded text-sm hover:bg-green-50 dark:hover:bg-green-900/30 font-medium"
                     >
                       Editar Checklist
                     </button>
@@ -1698,7 +1744,7 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
                         setSelectedChecklist(null)
                         setChecklistAnswers({})
                       }} 
-                      className="px-4 py-2 border border-gray-300 text-gray-700 rounded text-sm hover:bg-gray-50"
+                      className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700"
                     >
                       Remover Checklist
                     </button>
@@ -1707,149 +1753,183 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
               )}
 
               {unlockType && (
-                <div className="rounded-lg bg-white p-6 shadow">
-                  <div className="font-semibold text-lg">Senha</div>
+                <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                  <div className="font-semibold text-lg text-gray-900 dark:text-white">Senha</div>
                   {unlockType === 'pattern' ? (
                     <div className="mt-3">
                       <PatternPreview pattern={unlockPattern} />
-                      <div className="mt-3"><button type="button" onClick={()=>setUnlockPattern([])} className="px-3 py-2 border rounded text-sm">Redefinir</button></div>
+                      <div className="mt-3"><button type="button" onClick={()=>setUnlockPattern([])} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Redefinir</button></div>
                     </div>
                   ) : (
                     <div className="mt-3">
-                      <div className="text-sm text-gray-700">{unlockType === 'pin' ? `PIN: ${unlockPin}` : `Senha: ${unlockPassword}`}</div>
+                      <div className="text-sm text-gray-700 dark:text-gray-300">{unlockType === 'pin' ? `PIN: ${unlockPin}` : `Senha: ${unlockPassword}`}</div>
                     </div>
                   )}
-                  <div className="mt-3"><button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm">Editar Senha</button></div>
+                  <div className="mt-3"><button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Editar Senha</button></div>
                 </div>
               )}
 
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Serviços</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Serviços</div>
                 {osServices.length === 0 ? (
-                  <div className="mt-3 text-sm text-gray-600">Nenhum serviço adicionado...</div>
+                  <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">Nenhum serviço adicionado...</div>
                 ) : (
                   <div className="mt-3">
                     {osServices.map((sv, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr_8rem_2rem] items-center gap-3 py-2 border-b last:border-0 text-sm">
+                      <div key={idx} className="grid grid-cols-[1fr_8rem_2rem] items-center gap-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm text-gray-900 dark:text-gray-100">
                         <div>
                           <div className="font-medium">{sv.name}</div>
                         </div>
                         <div className="text-right">{(sv.price * (sv.quantity||1)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                        <button type="button" onClick={()=>removeService(idx)} className="text-gray-500">✕</button>
+                        <button type="button" onClick={()=>removeService(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="mt-3"><button type="button" onClick={()=>setServiceSelectOpen(true)} className="px-3 py-2 border rounded text-sm">Adicionar Serviço</button></div>
+                <div className="mt-3"><button type="button" onClick={()=>setServiceSelectOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Serviço</button></div>
               </div>
 
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Produtos</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Produtos</div>
                 {osProducts.length === 0 ? (
-                  <div className="mt-3 text-sm text-gray-600">Nenhum produto adicionado...</div>
+                  <div className="mt-3 text-sm text-gray-600 dark:text-gray-400">Nenhum produto adicionado...</div>
                 ) : (
                   <div className="mt-3">
                     {osProducts.map((p, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr_6rem_8rem_2rem] items-center gap-3 py-2 border-b last:border-0 text-sm">
+                      <div key={idx} className="grid grid-cols-[1fr_6rem_8rem_2rem] items-center gap-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm text-gray-900 dark:text-gray-100">
                         <div>
                           <div className="font-medium">{p.name}</div>
-                          {p.variationName && <div className="text-xs text-gray-600">• {p.variationName}</div>}
+                          {p.variationName && <div className="text-xs text-gray-600 dark:text-gray-400">• {p.variationName}</div>}
                         </div>
                         <div className="text-right">{p.quantity}</div>
                         <div className="text-right">{(p.price * p.quantity).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                         {!isOrderLocked && (
-                          <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500">✕</button>
+                          <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
                         )}
                       </div>
                     ))}
                   </div>
                 )}
                 {!isOrderLocked && (
-                  <div className="mt-3"><button type="button" onClick={openAddProduct} className="px-3 py-2 border rounded text-sm">Adicionar Produto</button></div>
+                  <div className="mt-3"><button type="button" onClick={openAddProduct} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Produto</button></div>
                 )}
               </div>
 
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Adicionais</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Adicionais</div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-600">Acréscimo (R$)</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Acréscimo (R$)</label>
                     <input 
                       type="number" 
                       min="0" 
                       step="0.01" 
                       value={addition} 
                       onChange={e => setAddition(e.target.value)} 
-                      className="mt-1 w-full border rounded px-3 py-2 text-sm" 
+                      className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" 
                       placeholder="0,00"
                       disabled={isOrderLocked}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Desconto (R$)</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Desconto (R$)</label>
                     <input 
                       type="number" 
                       min="0" 
                       step="0.01" 
                       value={discount} 
                       onChange={e => setDiscount(e.target.value)} 
-                      className="mt-1 w-full border rounded px-3 py-2 text-sm" 
+                      className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" 
                       placeholder="0,00"
                       disabled={isOrderLocked}
                     />
                   </div>
                 </div>
+                {!isOrderLocked && (
+                  <div className="mt-4">
+                    <button 
+                      type="button" 
+                      onClick={()=>setFeesModalOpen(true)}
+                      className="flex items-center gap-2 text-sm text-green-600 hover:text-green-800 font-medium"
+                    >
+                      <span>🏷️</span>Adicionar Taxa
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* Coluna direita */}
             <div className="space-y-6">
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Total</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Total</div>
                 <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="p-3 border rounded">
-                    <div className="text-xs text-gray-500">Total de serviços</div>
-                    <div className="text-right">{(totalServicesAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  <div className="p-3 border dark:border-gray-700 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Total de serviços</div>
+                    <div className="text-right text-gray-900 dark:text-gray-100">{(totalServicesAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
-                  <div className="p-3 border rounded">
-                    <div className="text-xs text-gray-500">Total de produtos</div>
-                    <div className="text-right">{(totalProductsAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  <div className="p-3 border dark:border-gray-700 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Total de produtos</div>
+                    <div className="text-right text-gray-900 dark:text-gray-100">{(totalProductsAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
-                  <div className="p-3 border rounded">
-                    <div className="text-xs text-gray-500">Desconto</div>
-                    <div className="text-right">{(parseFloat(discount||0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  <div className="p-3 border dark:border-gray-700 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Taxas</div>
+                    <div className="text-right text-gray-900 dark:text-gray-100">{(totalFeesAgg).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
-                  <div className="p-3 border rounded">
-                    <div className="text-xs text-gray-500">Total da OS</div>
-                    <div className="text-right">{(totalProductsAgg + totalServicesAgg + parseFloat(addition||0) - parseFloat(discount||0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  <div className="p-3 border dark:border-gray-700 rounded">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Desconto</div>
+                    <div className="text-right text-gray-900 dark:text-gray-100">{(parseFloat(discount||0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  </div>
+                  <div className="p-3 border dark:border-gray-700 rounded col-span-2 md:col-span-4 bg-gray-50 dark:bg-gray-700/50">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 font-bold">Total da OS</div>
+                    <div className="text-right font-bold text-lg text-green-600 dark:text-green-400">{(totalProductsAgg + totalServicesAgg + totalFeesAgg + parseFloat(addition||0) - parseFloat(discount||0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                   </div>
                 </div>
+                {appliedFees.length > 0 && (
+                  <div className="mt-3 px-3 py-2 bg-gray-50 dark:bg-gray-700/50 rounded text-sm space-y-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Taxas aplicadas:</div>
+                    {appliedFees.map((f, idx) => {
+                       const val = f.type==='percent' ? ((totalProductsAgg+totalServicesAgg) * (Number(f.value||0)/100)) : Number(f.value||0)
+                       return (
+                         <div key={idx} className="flex justify-between items-center text-gray-700 dark:text-gray-300">
+                           <span>{f.name} {f.type==='percent' ? `(${Number(f.value)}%)` : ''}</span>
+                           <div className="flex items-center gap-3">
+                             <span>{val.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
+                             {!isOrderLocked && (
+                               <button type="button" onClick={()=>setAppliedFees(prev => prev.filter((_,i)=>i!==idx))} className="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300">✕</button>
+                             )}
+                           </div>
+                         </div>
+                       )
+                    })}
+                  </div>
+                )}
               </div>
 
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Pagamento</div>
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Pagamento</div>
                 <div className="mt-4">
-                  <label className="text-sm text-gray-600 block mb-1">Metódo de pagamento pré estabelecido com cliente</label>
+                  <label className="text-sm text-gray-600 dark:text-gray-400 block mb-1">Metódo de pagamento pré estabelecido com cliente</label>
                   <textarea
                     value={paymentInfo}
                     onChange={e => setPaymentInfo(e.target.value)}
                     rows={3}
-                    className="w-full border rounded px-3 py-2 text-sm"
+                    className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                     placeholder="Descreva o método de pagamento acordado..."
                   />
                 </div>
               </div>
 
-              <div className="rounded-lg bg-white p-6 shadow">
-                <div className="font-semibold text-lg">Observações</div>
-                <textarea rows={3} className="mt-3 w-full border rounded px-3 py-2 text-sm" placeholder="Observações do serviço" />
+              <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Observações</div>
+                <textarea rows={3} className="mt-3 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Observações do serviço" />
                 <div className="mt-6">
-                  <div className="text-sm text-gray-600">Informações de garantia</div>
-                  <textarea rows={6} value={warrantyInfo} onChange={e=>setWarrantyInfo(e.target.value)} className="mt-2 w-full border rounded px-3 py-2 text-sm" />
+                  <div className="text-sm text-gray-600 dark:text-gray-400">Informações de garantia</div>
+                  <textarea rows={6} value={warrantyInfo} onChange={e=>setWarrantyInfo(e.target.value)} className="mt-2 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
                 </div>
                 <div className="mt-6 flex items-center justify-end gap-3">
-                  <button type="button" className="px-3 py-2 border rounded text-sm">Salvar e Imprimir</button>
-                  <button disabled={saving} type="button" onClick={handleSave} className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Salvar</button>
+                  <button type="button" className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Salvar e Imprimir</button>
+                  <button disabled={saving} type="button" onClick={handleSave} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 disabled:opacity-60">Salvar</button>
                 </div>
               </div>
             </div>
@@ -2143,18 +2223,65 @@ const [editingOrderNumber, setEditingOrderNumber] = useState('')
       />
       {alertModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200 border dark:border-gray-700">
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
-                <span className="text-3xl text-red-500">⚠️</span>
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/20 rounded-full flex items-center justify-center mb-4">
+                <span className="text-3xl text-red-500 dark:text-red-400">⚠️</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Atenção</h3>
-              <p className="text-gray-600 mb-6">{alertMessage}</p>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">Atenção</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">{alertMessage}</p>
               <button 
                 onClick={() => setAlertModalOpen(false)}
-                className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded font-medium transition-colors"
+                className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white rounded font-medium transition-colors"
               >
                 Entendi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {feesModalOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b dark:border-gray-700">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white text-center">Adicionar taxas</div>
+            </div>
+            <div className="p-4 space-y-2">
+              {availableFees.map(f => {
+                const selected = appliedFees.some(af => af.id === f.id)
+                return (
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      if (selected) {
+                        setAppliedFees(prev => prev.filter(af => af.id !== f.id))
+                      } else {
+                        setAppliedFees(prev => [...prev, { id: f.id, name: f.name, type: f.type, value: Number(f.value||0) }])
+                      }
+                    }}
+                    className={`w-full px-4 py-3 rounded text-sm flex items-center justify-between ${selected ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600'}`}
+                  >
+                    <span className="truncate">{f.name}</span>
+                    <span className="shrink-0">{f.type==='percent' ? `${Number(f.value||0)}%` : Number(f.value||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
+                  </button>
+                )
+              })}
+              {availableFees.length === 0 && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">Nenhuma taxa configurada (Configurações → Taxas adicionais).</div>
+              )}
+            </div>
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-3">
+              <button
+                onClick={() => setFeesModalOpen(false)}
+                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 rounded text-sm font-medium"
+              >
+                ← Voltar
+              </button>
+              <button
+                onClick={() => setFeesModalOpen(false)}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
+              >
+                Salvar
               </button>
             </div>
           </div>
@@ -2181,35 +2308,35 @@ function FiltersModal({ open, onClose, clientName, technicianName, attendantName
   const allStatuses = availableStatuses || DEFAULT_STATUSES
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[2000]">
-      <div className="bg-white rounded-lg shadow-lg w-[640px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Filtrar</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[640px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Filtrar</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="text-xs text-gray-600">Cliente</label>
-            <button type="button" onClick={onChooseClient} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+            <label className="text-xs text-gray-600 dark:text-gray-400">Cliente</label>
+            <button type="button" onClick={onChooseClient} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <span>{clientName ? clientName : 'Selecionar'}</span>
               <span>›</span>
             </button>
           </div>
           <div>
-            <label className="text-xs text-gray-600">Técnico</label>
-            <button type="button" onClick={onChooseTechnician} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+            <label className="text-xs text-gray-600 dark:text-gray-400">Técnico</label>
+            <button type="button" onClick={onChooseTechnician} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <span>{technicianName ? technicianName : 'Selecionar'}</span>
               <span>›</span>
             </button>
           </div>
           <div>
-            <label className="text-xs text-gray-600">Atendente</label>
-            <button type="button" onClick={onChooseAttendant} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+            <label className="text-xs text-gray-600 dark:text-gray-400">Atendente</label>
+            <button type="button" onClick={onChooseAttendant} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <span>{attendantName ? attendantName : 'Selecionar'}</span>
               <span>›</span>
             </button>
           </div>
           <div>
-            <div className="text-xs text-gray-600 mb-2">Status:</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mb-2">Status:</div>
             <div className="flex flex-wrap gap-2">
               {allStatuses.map(s => {
                 const selected = (statuses || []).includes(s)
@@ -2218,7 +2345,7 @@ function FiltersModal({ open, onClose, clientName, technicianName, attendantName
                     key={s}
                     type="button"
                     onClick={()=>onToggleStatus && onToggleStatus(s)}
-                    className={`px-3 py-1 rounded-full text-xs border ${selected ? 'bg-green-100 text-green-700 border-green-200' : 'bg-gray-100 text-gray-700 border-gray-200'}`}
+                    className={`px-3 py-1 rounded-full text-xs border ${selected ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600'}`}
                   >
                     {s}
                   </button>
@@ -2226,13 +2353,13 @@ function FiltersModal({ open, onClose, clientName, technicianName, attendantName
               })}
             </div>
             <div className="mt-3">
-              <button type="button" onClick={onClear} className="text-sm text-green-600">Limpar Filtros</button>
+              <button type="button" onClick={onClear} className="text-sm text-green-600 dark:text-green-400">Limpar Filtros</button>
             </div>
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-          <button type="button" onClick={onApply} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Filtrar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="button" onClick={onApply} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">Filtrar</button>
         </div>
       </div>
     </div>
@@ -2250,34 +2377,34 @@ function UpdateStatusModal({ open, onClose, statuses: propStatuses, initialDate,
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[640px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Atualizar Status</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[640px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Atualizar Status</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="text-xs text-gray-600">Data de Entrada</label>
-            <input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-gray-600 dark:text-gray-400">Data de Entrada</label>
+            <input type="datetime-local" value={date} onChange={e=>setDate(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
           </div>
           <div>
-            <label className="text-xs text-gray-600">Status</label>
-            <select value={statusSel} onChange={e=>setStatusSel(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm">
+            <label className="text-xs text-gray-600 dark:text-gray-400">Status</label>
+            <select value={statusSel} onChange={e=>setStatusSel(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               {statuses.map(s => (<option key={s} value={s}>{s}</option>))}
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-600">Observações Internas</label>
-            <textarea rows={3} value={internal} onChange={e=>setInternal(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-gray-600 dark:text-gray-400">Observações Internas</label>
+            <textarea rows={3} value={internal} onChange={e=>setInternal(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           </div>
           <div>
-            <label className="text-xs text-gray-600">Observações para o cliente</label>
-            <textarea rows={3} value={receipt} onChange={e=>setReceipt(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-gray-600 dark:text-gray-400">Observações para o cliente</label>
+            <textarea rows={3} value={receipt} onChange={e=>setReceipt(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           </div>
-          <div className="text-xs text-gray-600">* As informações acima serão atualizadas após confirmar.</div>
+          <div className="text-xs text-gray-600 dark:text-gray-400">* As informações acima serão atualizadas após confirmar.</div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
           <button
             type="button"
             onClick={()=>onConfirm && onConfirm({
@@ -2286,7 +2413,7 @@ function UpdateStatusModal({ open, onClose, statuses: propStatuses, initialDate,
               internalNotes: internal,
               receiptNotes: receipt,
             })}
-            className="px-3 py-2 rounded text-sm bg-green-600 text-white"
+            className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
           >Confirmar</button>
         </div>
       </div>
@@ -2298,18 +2425,18 @@ function UnlockTypeModal({ open, onClose, onChoose }){
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[420px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Adicionar Senha</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[420px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Adicionar Senha</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4 grid grid-cols-1 gap-3">
-          <button className="px-3 py-2 border rounded text-sm" onClick={()=>onChoose && onChoose('pattern')}>Padrão</button>
-          <button className="px-3 py-2 border rounded text-sm" onClick={()=>onChoose && onChoose('pin')}>PIN</button>
-          <button className="px-3 py-2 border rounded text-sm" onClick={()=>onChoose && onChoose('password')}>Senha</button>
+          <button className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>onChoose && onChoose('pattern')}>Padrão</button>
+          <button className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>onChoose && onChoose('pin')}>PIN</button>
+          <button className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>onChoose && onChoose('password')}>Senha</button>
         </div>
-        <div className="p-4 border-t flex items-center justify-end">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
         </div>
       </div>
     </div>
@@ -2347,10 +2474,10 @@ function DrawPatternModal({ open, onClose, initial, onConfirm }){
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[520px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Desenhe o padrão de desbloqueio</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[520px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Desenhe o padrão de desbloqueio</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-6 flex items-center justify-center">
           <div
@@ -2377,7 +2504,7 @@ function DrawPatternModal({ open, onClose, initial, onConfirm }){
               return (
                 <button
                   key={id}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full ${active ? 'bg-green-600' : 'bg-green-100'}`}
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full ${active ? 'bg-green-600' : 'bg-green-100 dark:bg-green-900/30'}`}
                   style={{ left: c.x, top: c.y }}
                   onMouseEnter={()=>addPoint(id)}
                   onTouchMove={(e)=>{
@@ -2405,9 +2532,9 @@ function DrawPatternModal({ open, onClose, initial, onConfirm }){
             })}
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-          <button type="button" onClick={()=>onConfirm && onConfirm(points)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="button" onClick={()=>onConfirm && onConfirm(points)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">Confirmar</button>
         </div>
       </div>
     </div>
@@ -2419,23 +2546,23 @@ function TextUnlockModal({ open, onClose, type, initialValue, onConfirm }){
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[520px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">{type==='pin' ? 'Digite o PIN' : 'Digite a senha'}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[520px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{type==='pin' ? 'Digite o PIN' : 'Digite a senha'}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-6">
           <input
             value={val}
             onChange={e=>setVal(e.target.value)}
-            className="w-full border rounded px-3 py-2 text-sm"
+            className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
             placeholder={type==='pin' ? 'PIN do aparelho' : 'Senha do aparelho'}
             inputMode={type==='pin' ? 'numeric' : 'text'}
           />
         </div>
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-          <button type="button" onClick={()=>onConfirm && onConfirm(val)} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="button" onClick={()=>onConfirm && onConfirm(val)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">Confirmar</button>
         </div>
       </div>
     </div>
@@ -2480,7 +2607,7 @@ function PatternPreview({ pattern }){
         return (
           <div
             key={id}
-            className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full ${active ? 'bg-green-600' : 'bg-green-100'} flex items-center justify-center`}
+            className={`absolute -translate-x-1/2 -translate-y-1/2 w-8 h-8 rounded-full ${active ? 'bg-green-600' : 'bg-green-100 dark:bg-green-900/30'} flex items-center justify-center`}
             style={{ left: c.x, top: c.y }}
           >
             {active && <span className="text-white text-xs font-semibold">{pattern.indexOf(id)+1}</span>}
@@ -2505,37 +2632,37 @@ function NewServiceModal({ open, onClose, initial, onConfirm }){
   if (!open) return null
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[520px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Serviço</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[520px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Serviço</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="text-xs text-gray-600">Nome</label>
-            <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-gray-600 dark:text-gray-400">Nome</label>
+            <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-600">Custo do serviço</label>
-              <input value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              <label className="text-xs text-gray-600 dark:text-gray-400">Custo do serviço</label>
+              <input value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
             </div>
             <div>
-              <label className="text-xs text-gray-600">Preço</label>
-              <input value={price} onChange={e=>setPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              <label className="text-xs text-gray-600 dark:text-gray-400">Preço</label>
+              <input value={price} onChange={e=>setPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
             </div>
           </div>
           <div className="flex items-center gap-2">
             <input id="sv-active" type="checkbox" checked={active} onChange={e=>setActive(e.target.checked)} />
-            <label htmlFor="sv-active" className="text-sm">Ativo</label>
+            <label htmlFor="sv-active" className="text-sm text-gray-700 dark:text-gray-300">Ativo</label>
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
           <button
             type="button"
             onClick={()=>onConfirm && onConfirm({ name: name.trim(), cost: parseFloat(cost)||0, price: parseFloat(price)||0, active })}
-            className="px-3 py-2 rounded text-sm bg-green-600 text-white"
+            className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700"
           >Confirmar</button>
         </div>
       </div>
@@ -2549,27 +2676,27 @@ function SelectServiceModal({ open, onClose, services, onChoose }){
   const filtered = (services||[]).filter(sv => (sv.name||'').toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[680px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Selecionar Serviço</h3>
-          <button onClick={()=>onClose && onClose()} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[680px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Selecionar Serviço</h3>
+          <button onClick={()=>onClose && onClose()} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4">
-          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border rounded px-3 py-2 text-sm" />
-          <div className="mt-3 max-h-[60vh] overflow-y-auto">
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
+          <div className="mt-3 max-h-[60vh] overflow-y-auto custom-scrollbar">
             {filtered.map(sv => (
-              <div key={sv.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b last:border-0 text-sm cursor-pointer" onClick={()=>onChoose && onChoose(sv)}>
+              <div key={sv.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100" onClick={()=>onChoose && onChoose(sv)}>
                 <div>
                   <div className="font-medium">{sv.name}</div>
                 </div>
                 <div className="text-right">{Number(sv.price||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
               </div>
             ))}
-            {filtered.length===0 && (<div className="text-sm text-gray-600 px-2 py-3">Nenhum serviço encontrado.</div>)}
+            {filtered.length===0 && (<div className="text-sm text-gray-600 dark:text-gray-400 px-2 py-3">Nenhum serviço encontrado.</div>)}
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Voltar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end">
+          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Voltar</button>
         </div>
       </div>
     </div>
@@ -2583,26 +2710,26 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
   
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[640px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Adicionar Produto</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[640px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Adicionar Produto</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4 space-y-4">
           <div>
-            <label className="text-xs text-gray-600">Produto</label>
-            <button type="button" onClick={onOpenSelect} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between">
+            <label className="text-xs text-gray-600 dark:text-gray-400">Produto</label>
+            <button type="button" onClick={onOpenSelect} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
               <span>{product ? product.name : 'Selecionar produto'}</span>
               <span>›</span>
             </button>
           </div>
           {hasVariations && (
             <div>
-              <label className="text-xs text-gray-600">Variação</label>
+              <label className="text-xs text-gray-600 dark:text-gray-400">Variação</label>
               <button 
                 type="button" 
                 onClick={onOpenVariation} 
-                className="mt-1 w-full border rounded px-3 py-2 text-sm text-left flex items-center justify-between"
+                className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               >
                 <span>{variation ? variation.name : 'Selecionar variação'}</span>
                 <span>›</span>
@@ -2611,18 +2738,18 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
           )}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-xs text-gray-600">Quantidade</label>
-              <input type="number" min="1" step="1" value={qty} onChange={e=>setQty(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              <label className="text-xs text-gray-600 dark:text-gray-400">Quantidade</label>
+              <input type="number" min="1" step="1" value={qty} onChange={e=>setQty(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
             </div>
             <div>
-              <label className="text-xs text-gray-600">Preço</label>
-              <input type="number" step="0.01" value={price} onChange={e=>setPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              <label className="text-xs text-gray-600 dark:text-gray-400">Preço</label>
+              <input type="number" step="0.01" value={price} onChange={e=>setPrice(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100" />
             </div>
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end gap-2">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
-          <button type="button" onClick={onConfirm} className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+          <button type="button" onClick={onClose} className="px-3 py-2 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
+          <button type="button" onClick={onConfirm} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">Confirmar</button>
         </div>
       </div>
     </div>
@@ -2635,27 +2762,27 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew }){
   const filtered = (products||[]).filter(p => (p.name||'').toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[680px] max-w-[95vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">Selecionar Produto</h3>
-          <button onClick={onNew} className="px-3 py-1 rounded text-xs bg-green-600 text-white">+ Novo</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[680px] max-w-[95vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Selecionar Produto</h3>
+          <button onClick={onNew} className="px-3 py-1 rounded text-xs bg-green-600 text-white hover:bg-green-700">+ Novo</button>
         </div>
         <div className="p-4">
-          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border rounded px-3 py-2 text-sm" />
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           <div className="mt-3 max-h-[60vh] overflow-y-auto">
             {filtered.map(p => (
-              <div key={p.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b last:border-0 text-sm cursor-pointer" onClick={()=>onChoose(p)}>
+              <div key={p.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100" onClick={()=>onChoose(p)}>
                 <div>
                   <div className="font-medium">{p.name}</div>
                 </div>
                 <div className="text-right">{(p.priceMin ?? p.salePrice ?? 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
               </div>
             ))}
-            {filtered.length===0 && (<div className="text-sm text-gray-600 px-2 py-3">Nenhum produto encontrado.</div>)}
+            {filtered.length===0 && (<div className="text-sm text-gray-600 dark:text-gray-400 px-2 py-3">Nenhum produto encontrado.</div>)}
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end">
-          <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Voltar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end">
+          <button type="button" onClick={onClose} className="px-3 py-2 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Voltar</button>
         </div>
       </div>
     </div>

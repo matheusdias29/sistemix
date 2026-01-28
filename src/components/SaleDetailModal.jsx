@@ -40,47 +40,47 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
 
   return (
     <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
-      <div className="bg-white w-full max-w-2xl rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="p-6 border-b flex items-start justify-between bg-white">
+        <div className="p-6 border-b dark:border-gray-700 flex items-start justify-between bg-white dark:bg-gray-800">
           <div>
-            <h2 className="text-xl font-bold text-gray-800">{isOS ? 'Ordem de Serviço' : 'Venda'} {formatSaleNumber(sale)}</h2>
-            <div className="text-4xl font-bold text-green-600 mt-2">
+            <h2 className="text-xl font-bold text-gray-800 dark:text-white">{isOS ? 'Ordem de Serviço' : 'Venda'} {formatSaleNumber(sale)}</h2>
+            <div className="text-4xl font-bold text-green-600 dark:text-green-500 mt-2">
               {money(sale.total || sale.valor)}
             </div>
-            <div className="text-sm text-gray-500 mt-1 flex items-center gap-2">
+            <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
               <span>{formatDate(sale.createdAt)}</span>
               <span>|</span>
               <span>Vendedor: {sale.attendant || 'N/A'}</span>
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">
-             <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
+             <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 rounded-full text-sm font-semibold">
                {sale.status || 'Venda'}
              </span>
           </div>
         </div>
 
         {/* Actions Toolbar */}
-        <div className="px-6 py-3 border-b flex flex-wrap gap-2 bg-gray-50">
-          <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+        <div className="px-6 py-3 border-b dark:border-gray-700 flex flex-wrap gap-2 bg-gray-50 dark:bg-gray-700/50">
+          <button className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
             <span>📄</span> Recibo
           </button>
           <button 
-            className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1"
+            className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1"
             onClick={() => setShareModalOpen(true)}
           >
             <span>📤</span> Compartilhar
           </button>
-          <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+          <button className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
             <span>📝</span> Emitir NFCe
           </button>
-          <button className="px-3 py-1.5 bg-white border rounded text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-1">
+          <button className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
             <span>📋</span> Criar NFe
           </button>
           <button
-            className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded text-sm hover:bg-red-50 flex items-center gap-1"
+            className="px-3 py-1.5 bg-white dark:bg-gray-700 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 rounded text-sm hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1"
             onClick={async () => {
               try {
                 if ((sale.status || '').toLowerCase() !== 'cancelada') {
@@ -263,29 +263,29 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
           
           {/* Client */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Cliente</h3>
-            <div className="flex items-center gap-2 text-gray-700">
-              <span className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500">👤</span>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Cliente</h3>
+            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+              <span className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400">👤</span>
               <span className="font-medium">{sale.client || 'Consumidor Final'}</span>
             </div>
           </div>
 
           {/* Products */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Produtos ({totalProducts})</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Produtos ({totalProducts})</h3>
             <div className="space-y-3">
               {sale.products?.map((p, i) => (
-                <div key={i} className="flex justify-between items-start py-2 border-b border-gray-100 last:border-0">
+                <div key={i} className="flex justify-between items-start py-2 border-b border-gray-100 dark:border-gray-700 last:border-0">
                   <div className="flex-1">
-                    <div className="text-sm text-gray-800">
+                    <div className="text-sm text-gray-800 dark:text-gray-200">
                       <span className="font-medium">{p.quantity} x</span> {p.name}
                     </div>
                     {/* If we had unit price separate from total line, we could show it here. Assuming price is unit price. */}
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
                       {money(p.price)} un.
                     </div>
                   </div>
-                  <div className="font-medium text-gray-900">
+                  <div className="font-medium text-gray-900 dark:text-white">
                     {money(p.total || (p.price * p.quantity))}
                   </div>
                 </div>
@@ -293,10 +293,10 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
             </div>
             
             <div className="mt-4 flex justify-end">
-              <div className="w-48 bg-gray-50 p-3 rounded text-right">
+              <div className="w-48 bg-gray-50 dark:bg-gray-700/50 p-3 rounded text-right">
                 <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm text-gray-600 font-bold">Total</span>
-                  <span className="text-lg font-bold text-gray-900">{money(sale.total || sale.valor)}</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400 font-bold">Total</span>
+                  <span className="text-lg font-bold text-gray-900 dark:text-white">{money(sale.total || sale.valor)}</span>
                 </div>
                 {/* Placeholder for Profit if we had it */}
                 {/* <div className="text-xs text-gray-500">Lucro: R$ ...</div> */}
@@ -306,19 +306,19 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
 
           {/* Payments */}
           <div>
-            <h3 className="text-sm font-semibold text-gray-900 mb-2">Pagamento</h3>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Pagamento</h3>
             <div className="space-y-2">
               {sale.payments?.map((pay, i) => (
-                <div key={i} className="flex justify-between items-center text-sm">
+                <div key={i} className="flex justify-between items-center text-sm text-gray-700 dark:text-gray-300">
                   <div className="flex items-center gap-2">
                     <span>💳</span>
                     <span>{pay.method}</span>
                   </div>
-                  <span className="font-medium text-gray-900">{money(pay.amount)}</span>
+                  <span className="font-medium text-gray-900 dark:text-white">{money(pay.amount)}</span>
                 </div>
               ))}
               {(!sale.payments || sale.payments.length === 0) && (
-                <div className="text-sm text-gray-500 italic">Nenhum pagamento registrado</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhum pagamento registrado</div>
               )}
             </div>
           </div>
@@ -326,10 +326,10 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
         </div>
 
         {/* Footer Buttons */}
-        <div className="p-4 border-t bg-gray-50 flex justify-between">
+        <div className="p-4 border-t bg-gray-50 dark:bg-gray-700/50 dark:border-gray-700 flex justify-between">
           <button 
             onClick={onClose}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm flex items-center gap-1"
+            className="px-4 py-2 text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white font-medium text-sm flex items-center gap-1"
           >
             ← Voltar
           </button>

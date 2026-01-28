@@ -326,11 +326,11 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
       case 'value': return <div className="text-xs lg:text-sm text-right whitespace-nowrap">{formatCurrency(Number(o.valor || o.total || 0))}</div>
       case 'status': {
         const s = (o.status ?? '').toLowerCase()
-        let colorClass = 'bg-gray-200 text-gray-700'
-        if (s === 'venda' || s.includes('cliente final')) colorClass = 'bg-green-100 text-green-700'
-        else if (s.includes('lojista') || s.includes('logista')) colorClass = 'bg-blue-100 text-blue-700'
-        else if (s === 'pedido') colorClass = 'bg-yellow-100 text-yellow-700'
-        else if (s === 'cancelada') colorClass = 'bg-red-100 text-red-700'
+        let colorClass = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+        if (s === 'venda' || s.includes('cliente final')) colorClass = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+        else if (s.includes('lojista') || s.includes('logista')) colorClass = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+        else if (s === 'pedido') colorClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+        else if (s === 'cancelada') colorClass = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
 
         return (
           <div className="text-center">
@@ -345,81 +345,92 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
   return (
     <div>
       {/* Header */}
-      <div className="bg-white rounded-lg p-4 shadow">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow">
         <div className="flex items-center gap-3">
-          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
+          <input 
+            value={query} 
+            onChange={e=>setQuery(e.target.value)} 
+            placeholder="Pesquisar..." 
+            className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-600 focus:border-transparent outline-none transition-all" 
+          />
           <button 
             onClick={()=>setDateFilterOpen(true)} 
-            className="px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded-md text-sm font-medium flex items-center gap-2"
+            className="px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 dark:bg-green-900/20 dark:hover:bg-green-900/30 dark:text-green-300 border border-green-200 dark:border-green-800 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
           >
             <span>📅</span> {dateRange.label}
           </button>
           <button 
             onClick={()=>setAdvFiltersOpen(true)} 
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center gap-2"
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-200 border border-transparent dark:border-gray-600 rounded-md text-sm font-medium flex items-center gap-2 transition-colors"
           >
             <span>⚙️</span> Filtros
           </button>
         </div>
         {/* métricas */}
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-          <div>
-            <div className="text-xs text-gray-500">Total</div>
-            <div className="text-green-600 font-semibold">{formatCurrency(totalValor)}</div>
+          <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold">Total</div>
+            <div className="text-green-600 dark:text-green-400 font-bold text-lg">{formatCurrency(totalValor)}</div>
           </div>
-          <div>
-            <div className="text-xs text-gray-500">Vendas realizadas</div>
-            <div className="text-green-600 font-semibold">{vendasRealizadas}</div>
+          <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold">Vendas realizadas</div>
+            <div className="text-green-600 dark:text-green-400 font-bold text-lg">{vendasRealizadas}</div>
           </div>
-          <div>
-            <div className="text-xs text-gray-500">Ticket Médio</div>
-            <div className="text-green-600 font-semibold">{formatCurrency(ticketMedio)}</div>
+          <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
+            <div className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide font-semibold">Ticket Médio</div>
+            <div className="text-green-600 dark:text-green-400 font-bold text-lg">{formatCurrency(ticketMedio)}</div>
           </div>
         </div>
         {/* Tabs e ações */}
         <div className="mt-4 flex items-center justify-between">
-          <div className="flex items-center gap-6 text-sm">
+          <div className="flex items-center gap-6 text-sm overflow-x-auto pb-2 md:pb-0">
             {tabs.map(t => (
-              <button key={t.key} onClick={()=>setTab(t.key)} className={`pb-2 ${tab===t.key ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>{t.label}</button>
+              <button 
+                key={t.key} 
+                onClick={()=>setTab(t.key)} 
+                className={`pb-2 whitespace-nowrap transition-colors ${tab===t.key ? 'text-green-600 dark:text-green-400 border-b-2 border-green-600 dark:border-green-500 font-bold' : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}
+              >
+                {t.label}
+              </button>
             ))}
           </div>
           <div className="flex items-center gap-3 relative" ref={optionsRef}>
             <button 
               onClick={() => setOptionsOpen(!optionsOpen)}
-              className={`px-3 py-2 rounded text-sm font-medium border transition-colors ${optionsOpen ? 'bg-green-100 text-green-700 border-green-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}
+              className={`px-3 py-2 rounded text-sm font-medium border transition-colors ${optionsOpen ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'}`}
             >
               Opções
             </button>
             {optionsOpen && (
-              <div className="absolute top-full right-[calc(100%-5rem)] mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-100 z-50 py-1">
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+              <div className="absolute top-full right-[calc(100%-5rem)] mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-50 py-1">
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   Devolução
                 </button>
-                <div className="h-px bg-gray-100 my-1"></div>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   Relatório Resumido
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   Relatório Detalhado
                 </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   Relatório de Comissões
                 </button>
-                <div className="h-px bg-gray-100 my-1"></div>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   Meu link do catálogo
                 </button>
               </div>
             )}
-            <button onClick={()=>setNewSaleOpen(true)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 transition-colors">+ Nova Venda</button>
+            <button onClick={()=>setNewSaleOpen(true)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 shadow-sm transition-all hover:shadow-md font-medium whitespace-nowrap">+ Nova Venda</button>
           </div>
         </div>
       </div>
 
       {/* Lista */}
-      <div className="mt-4 bg-white rounded-lg shadow overflow-hidden overflow-x-auto">
+      <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden overflow-x-auto border border-gray-100 dark:border-gray-700">
         <div 
-          className="min-w-full grid items-center px-2 py-2 text-xs lg:text-sm text-gray-600 font-bold border-b bg-gray-50 gap-2"
+          className="min-w-full grid items-center px-2 py-2 text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-bold border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 gap-2"
           style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
         >
           {columns.filter(c => c.visible).map(col => (
@@ -433,7 +444,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
                 e.stopPropagation()
                 setSelectColumnsOpen(true)
               }} 
-              className="p-1 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-1 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-full text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               title="Configurar colunas"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -450,7 +461,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
               setSelectedSale(o)
               setDetailModalOpen(true)
             }}
-            className="min-w-full grid items-center px-2 py-2 border-b last:border-0 hover:bg-gray-50 cursor-pointer transition-colors gap-2"
+            className="min-w-full grid items-center px-2 py-2 border-b dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors gap-2"
             style={{ gridTemplateColumns: `${columns.filter(c => c.visible).map(c => c.width).join(' ')} 3rem` }}
           >
             {columns.filter(c => c.visible).map(col => (
@@ -466,31 +477,39 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
           </div>
         ))}
         {!filtered.length && (
-          <div className="px-4 py-6 text-sm text-gray-600">Nenhuma venda encontrada.</div>
+          <div className="px-4 py-6 text-sm text-gray-600 dark:text-gray-400">Nenhuma venda encontrada.</div>
         )}
       </div>
 
       {/* Pagination Controls */}
       {filtered.length > ITEMS_PER_PAGE && (
         <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
             Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} resultados
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
               disabled={currentPage === 1}
-              className={`px-3 py-1 rounded border text-sm ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1 rounded border text-sm transition-colors ${
+                currentPage === 1 
+                  ? 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed dark:border-gray-700' 
+                  : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
+              }`}
             >
               Anterior
             </button>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               Página {currentPage} de {totalPages}
             </span>
             <button
               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded border text-sm ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+              className={`px-3 py-1 rounded border text-sm transition-colors ${
+                currentPage === totalPages 
+                  ? 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed dark:border-gray-700' 
+                  : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
+              }`}
             >
               Próximo
             </button>

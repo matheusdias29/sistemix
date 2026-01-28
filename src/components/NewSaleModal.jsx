@@ -541,8 +541,8 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   // Loading state
   if (loadingCash) {
     return (
-      <div className="fixed inset-0 bg-gray-100 z-[60] flex flex-col items-center justify-center">
-        <div className="text-gray-500">Verificando caixa...</div>
+      <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[60] flex flex-col items-center justify-center">
+        <div className="text-gray-500 dark:text-gray-400">Verificando caixa...</div>
       </div>
     )
   }
@@ -550,22 +550,22 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   // Cashier Closed State
   if (!currentCash) {
     return (
-      <div className="fixed inset-0 bg-white z-[60] flex flex-col">
+      <div className="fixed inset-0 bg-white dark:bg-gray-900 z-[60] flex flex-col">
         {/* Header */}
-        <div className="h-14 border-b flex items-center justify-between px-4 shadow-sm shrink-0">
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 flex items-center gap-1 text-sm font-medium">
+        <div className="h-14 border-b dark:border-gray-700 flex items-center justify-between px-4 shadow-sm shrink-0 bg-white dark:bg-gray-900">
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1 text-sm font-medium">
             <span>&larr;</span> Voltar
           </button>
-          <h1 className="text-lg font-semibold text-gray-800">Venda</h1>
+          <h1 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Venda</h1>
           <div className="w-10"></div>
         </div>
 
         {/* Content */}
         <div className="flex-1 flex flex-col items-center justify-center text-center">
-          <div className="w-24 h-24 bg-green-50 rounded-full flex items-center justify-center mb-6">
-            <span className="text-4xl text-green-600">$</span>
+          <div className="w-24 h-24 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-6">
+            <span className="text-4xl text-green-600 dark:text-green-500">$</span>
           </div>
-          <h2 className="text-xl font-medium text-gray-800 mb-2">Ops... Seu caixa está fechado</h2>
+          <h2 className="text-xl font-medium text-gray-800 dark:text-gray-100 mb-2">Ops... Seu caixa está fechado</h2>
           <button 
             onClick={() => setOpenCashModalVisible(true)}
             className="mt-4 px-6 py-2 bg-green-500 hover:bg-green-600 text-white rounded font-medium transition-colors shadow-sm"
@@ -577,17 +577,17 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         {/* Open Cash Modal */}
         {openCashModalVisible && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md p-6 relative animate-in fade-in zoom-in duration-200">
               <div className="flex flex-col items-center mb-6">
-                <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mb-3">
-                  <span className="text-3xl text-green-600">$</span>
+                <div className="w-16 h-16 bg-green-50 dark:bg-green-900/20 rounded-full flex items-center justify-center mb-3">
+                  <span className="text-3xl text-green-600 dark:text-green-500">$</span>
                 </div>
-                <h3 className="text-lg font-semibold text-gray-800">Abertura de caixa</h3>
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Abertura de caixa</h3>
               </div>
 
               <form onSubmit={handleOpenCash}>
-                <div className="bg-gray-50 rounded-lg p-4 mb-6 border focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all">
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6 border dark:border-gray-600 focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all">
+                  <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
                     <span>R$</span>
                     <span>Informe o valor inicial</span>
                   </div>
@@ -596,7 +596,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                     type="number" 
                     step="0.01" 
                     min="0"
-                    className="w-full bg-transparent border-none p-0 text-right text-2xl font-semibold text-gray-800 focus:ring-0 placeholder-gray-300"
+                    className="w-full bg-transparent border-none p-0 text-right text-2xl font-semibold text-gray-800 dark:text-white focus:ring-0 placeholder-gray-300 dark:placeholder-gray-600"
                     placeholder="0,00"
                     value={initialCashValue}
                     onChange={e => setInitialCashValue(e.target.value)}
@@ -607,7 +607,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                   <button 
                     type="button"
                     onClick={() => setOpenCashModalVisible(false)}
-                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                    className="flex-1 py-2.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
                     disabled={openingCash}
                   >
                     ✕ Cancelar
@@ -633,29 +633,29 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-100 z-[60] flex flex-col">
+    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[60] flex flex-col">
       {/* 1. Header */}
-      <div className="bg-white h-14 border-b flex items-center justify-between px-4 shadow-sm shrink-0">
-        <button onClick={onClose} className="text-gray-500 hover:text-gray-700 flex items-center gap-1 text-sm font-medium">
+      <div className="bg-white dark:bg-gray-800 h-14 border-b dark:border-gray-700 flex items-center justify-between px-4 shadow-sm shrink-0">
+        <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1 text-sm font-medium">
           <span>&larr;</span> Voltar
         </button>
-        <h1 className="text-lg font-semibold text-gray-800">Nova Venda</h1>
-        <button onClick={onClose} className="text-gray-500 hover:text-red-500 text-xl font-bold">&times;</button>
+        <h1 className="text-lg font-semibold text-gray-800 dark:text-white">Nova Venda</h1>
+        <button onClick={onClose} className="text-gray-500 hover:text-red-500 dark:text-gray-400 dark:hover:text-red-400 text-xl font-bold">&times;</button>
       </div>
 
       {/* 2. Main Area */}
       <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
         
         {/* Left Section: Products */}
-        <div className="flex-1 flex flex-col border-r bg-gray-50 p-4 overflow-hidden">
+        <div className="flex-1 flex flex-col border-r dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 overflow-hidden">
           {/* Search */}
-          <div className="bg-white p-2 rounded shadow-sm mb-4 flex gap-2">
+          <div className="bg-white dark:bg-gray-800 p-2 rounded shadow-sm mb-4 flex gap-2 border dark:border-gray-700">
             <span className="text-gray-400 p-2">🔍</span>
             <input 
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Nome, código, referência..." 
-              className="flex-1 outline-none text-sm"
+              className="flex-1 outline-none text-sm bg-transparent dark:text-white dark:placeholder-gray-500"
               autoFocus
             />
           </div>
@@ -664,7 +664,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scrollbar-hide">
             <button 
               onClick={() => setSelectedCategory('todos')}
-              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedCategory === 'todos' ? 'bg-green-600 text-white' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}
+              className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedCategory === 'todos' ? 'bg-green-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
             >
               Todos
             </button>
@@ -672,7 +672,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               <button 
                 key={c.id} 
                 onClick={() => setSelectedCategory(c.id)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedCategory === c.id ? 'bg-green-600 text-white' : 'bg-white text-gray-600 border hover:bg-gray-50'}`}
+                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${selectedCategory === c.id ? 'bg-green-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
               >
                 {c.name}
               </button>
@@ -685,12 +685,12 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               <div 
                 key={p.id} 
                 onClick={() => addToCart(p)}
-                className="bg-white p-3 rounded border hover:border-green-500 cursor-pointer transition-all shadow-sm group flex flex-col h-24 justify-between"
+                className="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 cursor-pointer transition-all shadow-sm group flex flex-col h-24 justify-between"
               >
-                <div className="text-sm font-medium text-gray-800 line-clamp-2 leading-tight">{p.name}</div>
+                <div className="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 leading-tight">{p.name}</div>
                 <div className="flex items-end justify-between mt-2">
-                  <div className="text-xs text-gray-500">Estoque: <span className={p.stock > 0 ? 'text-gray-700' : 'text-red-500'}>{p.stock}</span></div>
-                  <div className="font-bold text-green-600">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Estoque: <span className={p.stock > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-red-500'}>{p.stock}</span></div>
+                  <div className="font-bold text-green-600 dark:text-green-400">
                     {(() => {
                       if (p.variations > 0 && p.variationsData && p.variationsData.length > 0) {
                         const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
@@ -706,21 +706,21 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               </div>
             ))}
             {filteredProducts.length === 0 && (
-              <div className="col-span-full text-center text-gray-500 mt-10">Nenhum produto encontrado.</div>
+              <div className="col-span-full text-center text-gray-500 dark:text-gray-400 mt-10">Nenhum produto encontrado.</div>
             )}
           </div>
         </div>
 
         {/* Right Section: Cart & Client */}
-        <div className="w-full md:w-[400px] bg-white flex flex-col shadow-lg z-10">
+        <div className="w-full md:w-[400px] bg-white dark:bg-gray-800 flex flex-col shadow-lg z-10 border-l dark:border-gray-700">
           
           {/* Client Selection */}
-          <div className="p-4 border-b bg-gray-50">
+          <div className="p-4 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
             <button 
               onClick={() => setClientSelectOpen(true)}
-              className="w-full border rounded px-3 py-2 text-sm bg-white text-left flex justify-between items-center hover:border-green-500 transition-colors"
+              className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-left flex justify-between items-center hover:border-green-500 dark:hover:border-green-500 transition-colors"
             >
-              <span className={selectedClient ? "text-gray-900 font-medium" : "text-gray-400"}>
+              <span className={selectedClient ? "text-gray-900 dark:text-white font-medium" : "text-gray-400 dark:text-gray-500"}>
                 {selectedClient ? selectedClient.name : "Selecionar Cliente (Opcional)"}
               </span>
               <span className="text-gray-400">🔍</span>
@@ -730,90 +730,90 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {cart.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-start group border-b pb-3 last:border-0 hover:bg-gray-50 transition-colors rounded p-1">
+              <div key={idx} className="flex justify-between items-start group border-b dark:border-gray-700 pb-3 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors rounded p-1">
                 <div className="flex-1 cursor-pointer" onClick={() => handleEditItemClick(idx)}>
-                  <div className="text-sm text-gray-800 font-medium">{item.product.name}</div>
-                  <div className="text-xs text-gray-500 mt-1">{money(item.price)} un.</div>
+                  <div className="text-sm text-gray-800 dark:text-gray-200 font-medium">{item.product.name}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{money(item.price)} un.</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <div className="font-bold text-gray-800 text-sm cursor-pointer" onClick={() => handleEditItemClick(idx)}>{money(item.total)}</div>
-                  <div className="flex items-center border rounded bg-white">
-                    <button onClick={() => updateQuantity(idx, -1)} className="px-2 py-0.5 text-gray-600 hover:bg-gray-100 text-sm">-</button>
-                    <span className="px-2 text-xs font-medium w-8 text-center cursor-pointer" onClick={() => handleEditItemClick(idx)}>{item.quantity}</span>
-                    <button onClick={() => updateQuantity(idx, 1)} className="px-2 py-0.5 text-gray-600 hover:bg-gray-100 text-sm">+</button>
+                  <div className="font-bold text-gray-800 dark:text-white text-sm cursor-pointer" onClick={() => handleEditItemClick(idx)}>{money(item.total)}</div>
+                  <div className="flex items-center border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
+                    <button onClick={() => updateQuantity(idx, -1)} className="px-2 py-0.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 text-sm">-</button>
+                    <span className="px-2 text-xs font-medium w-8 text-center text-gray-800 dark:text-gray-200 cursor-pointer" onClick={() => handleEditItemClick(idx)}>{item.quantity}</span>
+                    <button onClick={() => updateQuantity(idx, 1)} className="px-2 py-0.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 text-sm">+</button>
                   </div>
                 </div>
-                <button onClick={() => removeFromCart(idx)} className="ml-2 text-gray-400 hover:text-red-500 text-lg leading-none">&times;</button>
+                <button onClick={() => removeFromCart(idx)} className="ml-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-lg leading-none">&times;</button>
               </div>
             ))}
             {cart.length === 0 && (
-              <div className="text-center text-gray-400 mt-10 text-sm">Nenhum produto adicionado.</div>
+              <div className="text-center text-gray-400 dark:text-gray-500 mt-10 text-sm">Nenhum produto adicionado.</div>
             )}
           </div>
 
           {/* Footer Totals */}
-          <div className="p-4 bg-gray-50 border-t space-y-2">
+          <div className="p-4 bg-gray-50 dark:bg-gray-800/50 border-t dark:border-gray-700 space-y-2">
             {notesText && (
-              <div className="text-sm text-gray-700 flex items-center gap-2">
+              <div className="text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2">
                 <span>💬</span>
                 <button
                   onClick={() => setNotesOpen(true)}
-                  className="underline hover:text-gray-900"
+                  className="underline hover:text-gray-900 dark:hover:text-white"
                   title="Editar observações"
                 >
                   {notesText}
                 </button>
               </div>
             )}
-          <div className="flex justify-between text-sm text-gray-600">
+          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
             <span>Subtotal</span>
             <span>{money(subtotal)}</span>
           </div>
           {appliedFees.length > 0 && (
             <div className="space-y-1">
               {appliedFees.map((f, idx) => (
-                <div key={idx} className="flex justify-between text-sm text-gray-700">
+                <div key={idx} className="flex justify-between text-sm text-gray-700 dark:text-gray-300">
                   <span className="flex items-center gap-2">
                     <span>📎</span>{f.name} {f.type==='percent' ? `(${Number(f.value)}%)` : ''}
                   </span>
                   <span>{money(f.type==='percent' ? round2(subtotal * (Number(f.value||0)/100)) : Number(f.value||0))}</span>
-                  <button className="ml-2 text-xs text-red-600" onClick={()=>setAppliedFees(appliedFees.filter((_,i)=>i!==idx))}>remover</button>
+                  <button className="ml-2 text-xs text-red-600 dark:text-red-400" onClick={()=>setAppliedFees(appliedFees.filter((_,i)=>i!==idx))}>remover</button>
                 </div>
               ))}
-              <div className="flex justify-between text-sm text-gray-800">
+              <div className="flex justify-between text-sm text-gray-800 dark:text-gray-200">
                 <span>Total de taxas</span>
                 <span>{money(feesTotal)}</span>
               </div>
             </div>
           )}
           {discount.type && (
-            <div className="flex justify-between text-sm text-green-700">
+            <div className="flex justify-between text-sm text-green-700 dark:text-green-400">
               <span className="flex items-center gap-2">
                 <span>🏷️</span>Desconto {discount.type==='percent' ? `(${Number(discount.value)}%)` : ''}
                 <button className="text-xs underline" onClick={()=>setDiscountModalOpen(true)}>editar</button>
-                <button className="text-xs text-red-600 ml-2" onClick={()=>setDiscount({ type:null, value:0 })}>remover</button>
+                <button className="text-xs text-red-600 dark:text-red-400 ml-2" onClick={()=>setDiscount({ type:null, value:0 })}>remover</button>
               </span>
               <span>-{money(discountAmount)}</span>
             </div>
           )}
           {discount > 0 && (
-            <div className="flex justify-between text-sm text-green-600">
+            <div className="flex justify-between text-sm text-green-600 dark:text-green-400">
               <span>Desconto</span>
               <span>-{money(discount)}</span>
             </div>
           )}
-          <div className="flex justify-between text-lg font-bold text-gray-900 pt-2 border-t">
+          <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white pt-2 border-t dark:border-gray-700">
             <span>Total</span>
             <span>{money(total)}</span>
           </div>
-          <div className="flex justify-end gap-6 text-sm text-gray-600 mt-2">
-            <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setFeesModalOpen(true)}>
+          <div className="flex justify-end gap-6 text-sm text-gray-600 dark:text-gray-400 mt-2">
+            <button className="flex items-center gap-2 hover:text-gray-800 dark:hover:text-gray-200" onClick={()=>setFeesModalOpen(true)}>
               <span>🏷️</span>Adicionar Taxa
             </button>
-            <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setDiscountModalOpen(true)}>
+            <button className="flex items-center gap-2 hover:text-gray-800 dark:hover:text-gray-200" onClick={()=>setDiscountModalOpen(true)}>
               <span>🏷️</span>Adicionar Desconto
             </button>
-            <button className="flex items-center gap-2 hover:text-gray-800" onClick={()=>setAddValueModalOpen(true)}>
+            <button className="flex items-center gap-2 hover:text-gray-800 dark:hover:text-gray-200" onClick={()=>setAddValueModalOpen(true)}>
               <span>➕</span>Adicionar
             </button>
           </div>
@@ -821,18 +821,18 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
             <div className="flex gap-2 mt-4 relative">
               <button 
                 onClick={() => setOptionsOpen(!optionsOpen)}
-                className="flex-1 py-3 border border-green-600 text-green-600 rounded font-medium hover:bg-green-50 transition-colors"
+                className="flex-1 py-3 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
               >
                 Opções
               </button>
               
               {/* Options Popup */}
               {optionsOpen && (
-                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white shadow-xl rounded border z-30 overflow-hidden modal-card">
-                  <button onClick={() => { setOptionsOpen(false); setNotesOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Adicionar observações</button>
-                  <button onClick={() => handleSave('Pedido')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Salvar pedido</button>
-                  <button onClick={() => handleSave('Condicional')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm border-b text-gray-700">Salvar condicional</button>
-                  <button onClick={() => handleSave('Orçamento')} className="w-full text-left px-4 py-3 hover:bg-gray-50 text-sm text-gray-700">Salvar orçamento</button>
+                <div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 z-30 overflow-hidden modal-card">
+                  <button onClick={() => { setOptionsOpen(false); setNotesOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Adicionar observações</button>
+                  <button onClick={() => handleSave('Pedido')} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Salvar pedido</button>
+                  <button onClick={() => handleSave('Condicional')} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Salvar condicional</button>
+                  <button onClick={() => handleSave('Orçamento')} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm text-gray-700 dark:text-gray-200">Salvar orçamento</button>
                 </div>
               )}
 
@@ -879,22 +879,22 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
       {notesOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-4 border-b">
-              <div className="text-lg font-semibold text-gray-800 text-center">Observações</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b dark:border-gray-700">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white text-center">Observações</div>
             </div>
             <div className="p-4">
               <textarea
                 value={notesText}
                 onChange={e => setNotesText(e.target.value)}
                 placeholder="digite suas observações..."
-                className="w-full h-32 border rounded px-3 py-2 text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="w-full h-32 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500"
               />
             </div>
-            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
               <button
                 onClick={() => setNotesOpen(false)}
-                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+                className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
               >
                 × Cancelar
               </button>
@@ -910,9 +910,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       )}
       {feesModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-            <div className="p-4 border-b">
-              <div className="text-lg font-semibold text-gray-800 text-center">Adicionar taxas</div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md">
+            <div className="p-4 border-b dark:border-gray-700">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white text-center">Adicionar taxas</div>
             </div>
             <div className="p-4 space-y-2">
               {availableFees.map(f => {
@@ -927,7 +927,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                         setAppliedFees(prev => [...prev, { id: f.id, name: f.name, type: f.type, value: Number(f.value||0) }])
                       }
                     }}
-                    className={`w-full px-4 py-3 rounded text-sm flex items-center justify-between ${selected ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}
+                    className={`w-full px-4 py-3 rounded text-sm flex items-center justify-between ${selected ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
                   >
                     <span className="truncate">{f.name}</span>
                     <span className="shrink-0">{f.type==='percent' ? `${Number(f.value||0)}%` : money(f.value)}</span>
@@ -935,13 +935,13 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                 )
               })}
               {availableFees.length === 0 && (
-                <div className="text-sm text-gray-500">Nenhuma taxa configurada (Configurações → Taxas adicionais).</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">Nenhuma taxa configurada (Configurações → Taxas adicionais).</div>
               )}
             </div>
-            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
               <button
                 onClick={() => setFeesModalOpen(false)}
-                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+                className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
               >
                 ← Voltar
               </button>
@@ -957,14 +957,14 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       )}
       {discountModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
-          <div className="bg-white w-full max-w-sm rounded-lg shadow-xl overflow-hidden modal-card">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-800">Desconto geral</h3>
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-lg shadow-xl overflow-hidden modal-card">
+            <div className="p-4 border-b dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Desconto geral</h3>
             </div>
             <div className="p-4 space-y-4">
               <div className="flex justify-between items-center text-lg font-bold">
-                <span className="text-gray-600">Total</span>
-                <span className="text-green-600">{money(subtotal + feesTotal)}</span>
+                <span className="text-gray-600 dark:text-gray-400">Total</span>
+                <span className="text-green-600 dark:text-green-400">{money(subtotal + feesTotal)}</span>
               </div>
               
               {(() => {
@@ -980,7 +980,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                  return (
                    <>
                     <div className="relative">
-                      <label className="text-xs text-gray-600 mb-1 block">Desconto R$</label>
+                      <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Desconto R$</label>
                       <input
                         type="number"
                         min="0"
@@ -990,12 +990,12 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                           const v = Math.max(0, Number(e.target.value))
                           setDiscount({ type: 'fixed', value: v })
                         }}
-                        className="w-full border rounded px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
                         placeholder="0,00"
                       />
                     </div>
                     <div className="relative">
-                      <label className="text-xs text-gray-600 mb-1 block">Desconto (%)</label>
+                      <label className="text-xs text-gray-600 dark:text-gray-400 mb-1 block">Desconto (%)</label>
                       <input
                         type="number"
                         min="0"
@@ -1006,7 +1006,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                           const v = Math.max(0, Math.min(100, Number(e.target.value)))
                           setDiscount({ type: 'percent', value: v })
                         }}
-                        className="w-full border rounded px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-1 focus:ring-green-500"
+                        className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
                         placeholder="0,00"
                       />
                     </div>
@@ -1019,17 +1019,17 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                   <button
                     key={p}
                     onClick={()=>setDiscount({ type:'percent', value:p })}
-                    className="px-3 py-2 rounded border text-sm hover:bg-green-50"
+                    className="px-3 py-2 rounded border dark:border-gray-600 text-sm hover:bg-green-50 dark:hover:bg-green-900/30 dark:text-gray-200"
                   >
                     {p}%
                   </button>
                 ))}
               </div>
             </div>
-            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
               <button
                 onClick={() => setDiscountModalOpen(false)}
-                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+                className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
               >
                 × Cancelar
               </button>
@@ -1045,17 +1045,17 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       )}
       {addValueModalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
-          <div className="bg-white w-full max-w-sm rounded-lg shadow-xl overflow-hidden modal-card">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-800">Adicionar valor</h3>
+          <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-lg shadow-xl overflow-hidden modal-card">
+            <div className="p-4 border-b dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Adicionar valor</h3>
             </div>
             <div className="p-4 space-y-4">
               <div className="flex justify-between items-center text-lg font-bold">
-                <span className="text-gray-600">Total</span>
-                <span className="text-green-600">{money(subtotal + feesTotal)}</span>
+                <span className="text-gray-600 dark:text-gray-400">Total</span>
+                <span className="text-green-600 dark:text-green-400">{money(subtotal + feesTotal)}</span>
               </div>
-              <div className="bg-gray-50 rounded-lg p-3 border focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all">
-                <label className="text-xs text-gray-500 font-medium mb-1 block">Valor a adicionar</label>
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border dark:border-gray-600 focus-within:border-green-500 focus-within:ring-1 focus-within:ring-green-500 transition-all">
+                <label className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1 block">Valor a adicionar</label>
                 <input 
                   type="number"
                   step="0.01"
@@ -1063,15 +1063,15 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                   autoFocus
                   value={addValueInput}
                   onChange={e => setAddValueInput(e.target.value)}
-                  className="w-full bg-transparent border-none p-0 text-right text-2xl font-bold text-gray-800 focus:ring-0 placeholder-gray-400 outline-none"
+                  className="w-full bg-transparent border-none p-0 text-right text-2xl font-bold text-gray-800 dark:text-white focus:ring-0 placeholder-gray-400 outline-none"
                   placeholder="0,00"
                 />
               </div>
             </div>
-            <div className="p-4 border-t bg-gray-50 flex items-center gap-3">
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
               <button
                 onClick={() => { setAddValueModalOpen(false); setAddValueInput('') }}
-                className="flex-1 py-2 text-gray-600 hover:bg-gray-100 rounded text-sm font-medium"
+                className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
               >
                 × Cancelar
               </button>
@@ -1193,16 +1193,16 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       
       {alertModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
             <div className="flex flex-col items-center text-center">
-              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+              <div className="w-16 h-16 bg-red-50 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
                 <span className="text-3xl text-red-500">⚠️</span>
               </div>
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Atenção</h3>
-              <p className="text-gray-600 mb-6">{alertMessage}</p>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-2">Atenção</h3>
+              <p className="text-gray-600 dark:text-gray-300 mb-6">{alertMessage}</p>
               <button 
                 onClick={() => setAlertModalOpen(false)}
-                className="w-full py-2.5 bg-gray-800 hover:bg-gray-900 text-white rounded font-medium transition-colors"
+                className="w-full py-2.5 bg-gray-800 dark:bg-gray-700 hover:bg-gray-900 dark:hover:bg-gray-600 text-white rounded font-medium transition-colors"
               >
                 Entendi
               </button>
@@ -1243,9 +1243,9 @@ function ChooseClientTypeModal({ open, onClose, onChoose }) {
   if (!open) return null
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">Tipo de Cliente</h3>
-        <p className="text-sm text-gray-500 text-center mb-6">Selecione o tipo de cliente para finalizar a venda.</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-in fade-in zoom-in duration-200">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 text-center">Tipo de Cliente</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">Selecione o tipo de cliente para finalizar a venda.</p>
         <div className="flex flex-col gap-3">
           <button 
             onClick={() => onChoose('Cliente Final')} 
@@ -1262,7 +1262,7 @@ function ChooseClientTypeModal({ open, onClose, onChoose }) {
         </div>
         <button 
           onClick={onClose} 
-          className="mt-4 w-full py-2 text-gray-500 hover:text-gray-700 text-sm hover:underline"
+          className="mt-4 w-full py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm hover:underline"
         >
           Cancelar
         </button>

@@ -67,11 +67,11 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-[600px] max-w-[95vw] md:max-w-[80vw] max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b flex-shrink-0">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-[600px] max-w-[95vw] md:max-w-[80vw] max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
           <div className="text-center">
-            <div className="text-sm text-gray-600">Restante a pagar:</div>
-            <div className="text-3xl font-bold">R$ {Number(remaining||0).toFixed(2)}</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Restante a pagar:</div>
+            <div className="text-3xl font-bold dark:text-white">R$ {Number(remaining||0).toFixed(2)}</div>
           </div>
           {payments && payments.length > 0 && (
             <div className="mt-3">
@@ -79,25 +79,25 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
               {payments.map((p, idx) => {
                 const method = paymentMethods.find(m => m.label === p.method) || paymentMethods.find(m => m.code === p.methodCode) || {}
                 return (
-                  <div key={idx} className="flex items-center justify-between py-2">
+                  <div key={idx} className="flex items-center justify-between py-2 border-b dark:border-gray-700 last:border-0">
                     <div className="flex items-center">
                       <div className="mr-2">{method.icon || ICONS.default}</div>
-                      <span className="text-gray-700">{p.method}</span>
+                      <span className="text-gray-700 dark:text-gray-200">{p.method}</span>
                     </div>
                     <div className="flex items-center">
-                      <span className="mr-3 font-medium">{p.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      <span className="mr-3 font-medium dark:text-white">{p.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
                       {onRemovePayment && (
-                        <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 hover:text-red-600">✕</button>
+                        <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400">✕</button>
                       )}
                     </div>
                   </div>
                 )
               })}
               </div>
-              <div className="border-t"></div>
+              <div className="border-t dark:border-gray-700"></div>
             </div>
           )}
-          <h2 className="text-sm font-medium mt-2 text-center">Selecionar forma de pagamento:</h2>
+          <h2 className="text-sm font-medium mt-2 text-center dark:text-gray-300">Selecionar forma de pagamento:</h2>
         </div>
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -105,18 +105,18 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
               <button
                 key={method.id || method.code}
                 onClick={() => chooseHandler && chooseHandler(method)}
-                className="flex flex-col items-center p-3 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 hover:border-green-300 transition-colors min-h-[80px]"
+                className="flex flex-col items-center p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/40 hover:border-green-300 dark:hover:border-green-700 transition-colors min-h-[80px]"
               >
                 <div className="mb-1">
                   {method.icon}
                 </div>
-                <div className="text-xs font-medium text-center text-green-800 leading-tight">{method.label}</div>
+                <div className="text-xs font-medium text-center text-green-800 dark:text-green-300 leading-tight">{method.label}</div>
               </button>
             ))}
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2 flex-shrink-0 bg-white">
-          <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 rounded text-sm hover:bg-gray-50">
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end space-x-2 flex-shrink-0 bg-white dark:bg-gray-800 rounded-b-lg">
+          <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">
             ✕ Cancelar
           </button>
           <button type="button" onClick={onConfirm} className="px-4 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600">
@@ -153,10 +153,10 @@ export function PaymentAmountModal({ open, onClose, method, remaining, amount, s
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b flex-shrink-0">
-          <h2 className="text-lg font-semibold">Valor do pagamento</h2>
-          <div className="text-center mt-1 font-medium">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-96 max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-semibold dark:text-white">Valor do pagamento</h2>
+          <div className="text-center mt-1 font-medium dark:text-gray-300">
             {method?.label}
           </div>
         </div>
@@ -170,32 +170,32 @@ export function PaymentAmountModal({ open, onClose, method, remaining, amount, s
                 value={amount}
                 onChange={handleAmountChange}
                 placeholder="0,00"
-                className="flex-1 p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg"
+                className="flex-1 p-3 border dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg dark:bg-gray-700 dark:text-white"
                 autoFocus
               />
-              <div className="px-3 py-2 border rounded-lg text-sm">
-                <div className="text-gray-500">Valor</div>
-                <div className="font-semibold">R$ {currentAmount.toFixed(2)}</div>
+              <div className="px-3 py-2 border dark:border-gray-600 rounded-lg text-sm dark:bg-gray-700">
+                <div className="text-gray-500 dark:text-gray-400">Valor</div>
+                <div className="font-semibold dark:text-white">R$ {currentAmount.toFixed(2)}</div>
               </div>
             </div>
             {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
           </div>
 
-          <div className="text-sm text-gray-600">Restante a pagar: R$ {remaining.toFixed(2)}</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">Restante a pagar: R$ {remaining.toFixed(2)}</div>
 
           {currentAmount > 0 && (
             <div className="space-y-3 mt-3">
               {method?.code === 'cash' && willHaveChange && (
-                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <p className="text-sm text-green-800">
+                <div className="p-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg">
+                  <p className="text-sm text-green-800 dark:text-green-300">
                     💰 Troco de R$ {changeAmount.toFixed(2)} será registrado
                   </p>
                 </div>
               )}
 
               {method?.code !== 'cash' && currentAmount > remaining && (
-                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
                     ⚠️ Valor acima do restante. Será aplicado apenas R$ {remaining.toFixed(2)}
                   </p>
                 </div>
@@ -203,8 +203,8 @@ export function PaymentAmountModal({ open, onClose, method, remaining, amount, s
             </div>
           )}
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2 flex-shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end space-x-2 flex-shrink-0">
+          <button type="button" onClick={onClose} className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">Cancelar</button>
           <button type="button" onClick={handleConfirm} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">Confirmar</button>
         </div>
       </div>
@@ -219,9 +219,9 @@ export function AboveAmountConfirmModal({ open, amount, remaining, method, onCan
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[80vh] overflow-hidden">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold flex items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-96 max-h-[80vh] overflow-hidden">
+        <div className="p-4 border-b dark:border-gray-700">
+          <h2 className="text-lg font-semibold flex items-center dark:text-white">
             <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12,2L13.09,8.26L22,9L13.09,9.74L12,16L10.91,9.74L2,9L10.91,8.26L12,2Z"/>
             </svg>
@@ -229,19 +229,19 @@ export function AboveAmountConfirmModal({ open, amount, remaining, method, onCan
           </h2>
         </div>
         <div className="p-4">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+          <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Valor informado:</span>
-              <span className="font-bold text-lg">R$ {amount.toFixed(2)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Valor informado:</span>
+              <span className="font-bold text-lg dark:text-white">R$ {amount.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600">Valor restante:</span>
-              <span className="font-medium">R$ {remaining.toFixed(2)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Valor restante:</span>
+              <span className="font-medium dark:text-gray-200">R$ {remaining.toFixed(2)}</span>
             </div>
-            <div className="border-t border-yellow-300 pt-2 mt-2">
+            <div className="border-t border-yellow-300 dark:border-yellow-700 pt-2 mt-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Excesso:</span>
-                <span className="font-medium text-yellow-700">R$ {excessAmount.toFixed(2)}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">Excesso:</span>
+                <span className="font-medium text-yellow-700 dark:text-yellow-400">R$ {excessAmount.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -249,21 +249,21 @@ export function AboveAmountConfirmModal({ open, amount, remaining, method, onCan
           <div className="flex items-center mb-4">
             {method?.icon && <div className="mr-2">{method.icon}</div>}
             <div>
-              <p className="font-medium">Método: {method?.label}</p>
-              <p className="text-sm text-gray-600">
+              <p className="font-medium dark:text-white">Método: {method?.label}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Será aplicado apenas R$ {remaining.toFixed(2)} para este método
               </p>
             </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <p className="text-sm text-blue-800">
+          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+            <p className="text-sm text-blue-800 dark:text-blue-300">
               💡 O valor será ajustado automaticamente para não exceder o restante da compra.
             </p>
           </div>
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2">
-          <button type="button" onClick={onCancel} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end space-x-2">
+          <button type="button" onClick={onCancel} className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">
             Voltar e Corrigir
           </button>
           <button type="button" onClick={onConfirm} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">
@@ -282,9 +282,9 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b flex-shrink-0">
-          <h2 className="text-lg font-semibold flex items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-96 max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-semibold flex items-center dark:text-white">
             <svg className="w-5 h-5 text-orange-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,17A1.5,1.5 0 0,1 10.5,15.5A1.5,1.5 0 0,1 12,14A1.5,1.5 0 0,1 13.5,15.5A1.5,1.5 0 0,1 12,17M12,10A1,1 0 0,1 13,11V13A1,1 0 0,1 11,13V11A1,1 0 0,1 12,10Z"/>
             </svg>
@@ -293,18 +293,18 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
         </div>
         <div className="p-4 overflow-y-auto flex-1">
           <div className="text-center mb-4">
-            <div className="text-3xl font-bold text-orange-600 mb-2">
+            <div className="text-3xl font-bold text-orange-600 dark:text-orange-500 mb-2">
               R$ {remaining.toFixed(2)}
             </div>
-            <p className="text-gray-600">ainda resta para completar o pagamento</p>
+            <p className="text-gray-600 dark:text-gray-400">ainda resta para completar o pagamento</p>
           </div>
 
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+          <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg p-4 mb-4">
             <div className="flex items-center justify-between text-sm mb-2">
-              <span>Status do pagamento:</span>
-              <span className="font-medium text-orange-600">Parcial</span>
+              <span className="dark:text-gray-300">Status do pagamento:</span>
+              <span className="font-medium text-orange-600 dark:text-orange-400">Parcial</span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
               <div 
                 className="bg-orange-500 h-2 rounded-full transition-all duration-300" 
                 style={{ width: `${Math.max(percentagePaid, 10)}%` }}
@@ -312,12 +312,12 @@ export function PaymentRemainingModal({ open, remaining, onClose, onAddMore }) {
             </div>
           </div>
 
-          <p className="text-center text-gray-600 mb-4">
+          <p className="text-center text-gray-600 dark:text-gray-400 mb-4">
             Você pode finalizar com pagamento parcial ou adicionar outro método de pagamento.
           </p>
         </div>
-        <div className="p-4 border-t flex items-center justify-end space-x-2 flex-shrink-0">
-          <button type="button" onClick={onClose} className="px-4 py-2 border rounded-lg text-sm hover:bg-gray-50">
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end space-x-2 flex-shrink-0">
+          <button type="button" onClick={onClose} className="px-4 py-2 border dark:border-gray-600 rounded-lg text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">
             Finalizar Parcial
           </button>
           <button type="button" onClick={onAddMore} className="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm hover:bg-blue-600">
@@ -334,9 +334,9 @@ export function AfterAboveAdjustedModal({ open, method, remaining, onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
-      <div className="bg-white rounded-lg w-96 max-h-[90vh] flex flex-col">
-        <div className="p-4 border-b flex-shrink-0">
-          <h2 className="text-lg font-semibold flex items-center">
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-96 max-h-[90vh] flex flex-col">
+        <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+          <h2 className="text-lg font-semibold flex items-center dark:text-white">
             <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 24 24">
               <path d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/>
             </svg>
@@ -347,32 +347,32 @@ export function AfterAboveAdjustedModal({ open, method, remaining, onClose }) {
           <div className="flex items-center mb-4">
             {method?.icon && <div className="mr-2">{method.icon}</div>}
             <div>
-              <p className="font-medium">Método: {method?.label}</p>
-              <p className="text-sm text-gray-600">
+              <p className="font-medium dark:text-white">Método: {method?.label}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
                 Pagamento registrado com sucesso
               </p>
             </div>
           </div>
 
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-            <p className="text-sm text-green-800">
+          <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4">
+            <p className="text-sm text-green-800 dark:text-green-300">
               ✅ O pagamento foi ajustado automaticamente para não exceder o valor restante da compra.
             </p>
           </div>
 
           {remaining > 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Ainda resta:</span>
-                <span className="font-bold text-lg text-orange-600">R$ {remaining.toFixed(2)}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">Ainda resta:</span>
+                <span className="font-bold text-lg text-orange-600 dark:text-orange-500">R$ {remaining.toFixed(2)}</span>
               </div>
-              <p className="text-sm text-orange-700 mt-1">
+              <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">
                 Você pode adicionar mais formas de pagamento para completar.
               </p>
             </div>
           )}
         </div>
-        <div className="p-4 border-t flex items-center justify-end flex-shrink-0">
+        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end flex-shrink-0">
           <button type="button" onClick={onClose} className="px-4 py-2 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600">
             Continuar
           </button>

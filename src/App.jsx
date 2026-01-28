@@ -66,8 +66,22 @@ export default function App(){
   const [addNewOrderSignal, setAddNewOrderSignal] = useState(0)
   const [addNewClientSignal, setAddNewClientSignal] = useState(0)
   const [salesDayFilter, setSalesDayFilter] = useState(null)
-  const [darkMode, setDarkMode] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem('darkMode') === '1' } catch { return false }
+  })
   const [publicMode, setPublicMode] = useState(false)
+
+  // Sync Dark Mode with DOM and LocalStorage
+  useEffect(() => {
+    const root = document.documentElement
+    if (darkMode) {
+      root.classList.add('dark')
+      localStorage.setItem('darkMode', '1')
+    } else {
+      root.classList.remove('dark')
+      localStorage.setItem('darkMode', '0')
+    }
+  }, [darkMode])
 
   // Restaura sessão se ainda estiver dentro da janela de inatividade
   useEffect(() => {

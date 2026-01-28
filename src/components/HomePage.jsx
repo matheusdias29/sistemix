@@ -12,6 +12,8 @@ import {
   Info, 
   Calendar, 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   TrendingUp, 
   BarChart2,
   Users,
@@ -26,6 +28,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
   const [goals, setGoals] = useState([])
   const [showCommissions, setShowCommissions] = useState(false)
   const [store, setStore] = useState(null)
+  const [showAllTeamGoals, setShowAllTeamGoals] = useState(false)
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
@@ -252,19 +255,59 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
     return m || 1
   }, [last5DaysSalesProfit])
 
+  // Metas da Equipe
+  const teamGoals = useMemo(() => {
+    const relevant = goals.filter(g => g.monthYear === currentMonthStr && g.sellerId)
+    return relevant.map(g => {
+      const target = Number(g.target || 0)
+      
+      const currentVal = monthOrders.reduce((acc, o) => {
+        const status = (o.status || '').toLowerCase()
+        const isSale = status === 'venda' || status === 'cliente final' || status === 'cliente lojista'
+        const isOS = isOsFinalizadaFaturada(o.status)
+        
+        if (!isSale && !isOS) return acc
+
+        let match = false
+        if (g.includeSale && isSale) {
+           if (o.attendantId && o.attendantId === g.sellerId) match = true
+           else {
+             const name = o.attendant || o.attendantName
+             if (name && name === g.sellerName) match = true
+           }
+        }
+        if (g.includeServiceOrder && isOS) {
+           if (o.technicianId && o.technicianId === g.sellerId) match = true
+           else {
+             const name = o.technician || o.technicianName
+             if (name && name === g.sellerName) match = true
+           }
+        }
+
+        if (match) return acc + Number(o.total || o.valor || 0)
+        return acc
+      }, 0)
+
+      const pct = target ? Math.min(100, Math.round((currentVal / target) * 100)) : 0
+      return { ...g, current: currentVal, pct }
+    })
+  }, [goals, currentMonthStr, monthOrders])
+
+  const getInitials = (name) => name ? name.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase() : '?'
+
   return (
     <div className="space-y-6">
       {/* Resumo do Dia */}
-      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-green-50 text-green-600">
+            <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
               <Receipt size={24} />
             </div>
-            <h2 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Resumo do Dia</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Resumo do Dia</h2>
           </div>
           <button
-            className="h-10 w-10 rounded-full hover:bg-gray-50 flex items-center justify-center text-gray-500 transition-colors"
+            className="h-10 w-10 rounded-full hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 transition-colors"
             onClick={() => setHideValues(v => !v)}
             aria-label={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
             title={hideValues ? 'Mostrar valores' : 'Ocultar valores'}
@@ -277,86 +320,86 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
             {/* Card Total de Venda */}
             <button
               onClick={() => onNavigate && onNavigate('vendas')}
-              className="text-left p-6 border border-gray-100 rounded-xl bg-gray-50/50 hover:bg-white hover:shadow-md hover:border-green-100 transition-all group"
+              className="text-left p-6 border border-gray-100 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-700/50 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md hover:border-green-100 dark:hover:border-green-900 transition-all group"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-md bg-white shadow-sm text-green-600">
+                  <div className="p-1.5 rounded-md bg-white dark:bg-gray-800 shadow-sm text-green-600 dark:text-green-400">
                     <ShoppingCart size={18} />
                   </div>
-                  <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Total de Vendas ({vendasHoje.length})</span>
+                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">Total de Vendas ({vendasHoje.length})</span>
                 </div>
-                <ChevronRight size={18} className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                <ChevronRight size={18} className="text-gray-300 dark:text-gray-500 group-hover:text-green-500 dark:group-hover:text-green-400 transition-colors" />
               </div>
-              <div className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
+              <div className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-4">
                 {currencyOrHidden(totalVendasHoje)}
               </div>
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-500">
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-600">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400">
                   <span>Ticket Médio</span>
-                  <Info size={14} className="text-gray-400" />
+                  <Info size={14} className="text-gray-400 dark:text-gray-500" />
                 </div>
-                <div className="text-base font-bold text-green-600">{currencyOrHidden(ticketMedioVendasHoje)}</div>
+                <div className="text-base font-bold text-green-600 dark:text-green-400">{currencyOrHidden(ticketMedioVendasHoje)}</div>
               </div>
             </button>
 
             {/* Card OS Finalizada */}
             <button
               onClick={() => onNavigate && onNavigate('os')}
-              className="text-left p-6 border border-gray-100 rounded-xl bg-gray-50/50 hover:bg-white hover:shadow-md hover:border-green-100 transition-all group"
+              className="text-left p-6 border border-gray-100 dark:border-gray-700 rounded-xl bg-gray-50/50 dark:bg-gray-700/50 hover:bg-white dark:hover:bg-gray-700 hover:shadow-md hover:border-green-100 dark:hover:border-green-900 transition-all group"
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-md bg-white shadow-sm text-green-600">
+                  <div className="p-1.5 rounded-md bg-white dark:bg-gray-800 shadow-sm text-green-600 dark:text-green-400">
                     <Wrench size={18} />
                   </div>
-                  <span className="text-sm font-semibold text-gray-600 uppercase tracking-wide">OS Finalizadas ({osFinalizadasHoje.length})</span>
+                  <span className="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">OS Finalizadas ({osFinalizadasHoje.length})</span>
                 </div>
-                <ChevronRight size={18} className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                <ChevronRight size={18} className="text-gray-300 dark:text-gray-500 group-hover:text-green-500 dark:group-hover:text-green-400 transition-colors" />
               </div>
-              <div className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight mb-4">
+              <div className="text-3xl md:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight mb-4">
                 {currencyOrHidden(totalOsHoje)}
               </div>
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-500">
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-gray-600">
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gray-500 dark:text-gray-400">
                   <span>Ticket Médio</span>
-                  <Info size={14} className="text-gray-400" />
+                  <Info size={14} className="text-gray-400 dark:text-gray-500" />
                 </div>
-                <div className="text-base font-bold text-green-600">{currencyOrHidden(ticketMedioOsHoje)}</div>
+                <div className="text-base font-bold text-green-600 dark:text-green-400">{currencyOrHidden(ticketMedioOsHoje)}</div>
               </div>
             </button>
         </div>
       </section>
 
       {/* Últimos dias */}
-      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-green-50 text-green-600">
+          <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
             <Calendar size={24} />
           </div>
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Últimos dias</h3>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Últimos dias</h3>
         </div>
 
-        <div className="divide-y divide-gray-100">
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
           {lastDays.map((it, idx) => (
             <button
               key={idx}
               onClick={() => handleOpenDay(it.date)}
-              className="w-full text-left py-5 hover:bg-gray-50 transition-colors group px-2 rounded-lg"
+              className="w-full text-left py-5 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors group px-2 rounded-lg"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="p-2 rounded-full bg-gray-100 text-gray-500 group-hover:bg-white group-hover:text-green-600 transition-colors shadow-sm">
+                  <div className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 group-hover:bg-white dark:group-hover:bg-gray-600 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors shadow-sm">
                     <Calendar size={20} />
                   </div>
                   <div>
-                    <div className="text-base md:text-lg font-bold text-gray-900">{formatLongDate(it.date)}</div>
-                    <div className="text-sm font-medium text-gray-500">Ver vendas deste dia</div>
+                    <div className="text-base md:text-lg font-bold text-gray-900 dark:text-white">{formatLongDate(it.date)}</div>
+                    <div className="text-sm font-medium text-gray-500 dark:text-gray-400">Ver vendas deste dia</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
-                  <div className="text-base md:text-lg font-extrabold text-green-600 tracking-tight">{currencyOrHidden(it.total)}</div>
-                  <ChevronRight size={20} className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                  <div className="text-base md:text-lg font-extrabold text-green-600 dark:text-green-400 tracking-tight">{currencyOrHidden(it.total)}</div>
+                  <ChevronRight size={20} className="text-gray-300 dark:text-gray-500 group-hover:text-green-500 dark:group-hover:text-green-400 transition-colors" />
                 </div>
               </div>
             </button>
@@ -365,67 +408,67 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       </section>
 
       {/* Resumo por Tipo de Cliente */}
-      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+          <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400">
             <Briefcase size={24} />
           </div>
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Vendas por Cliente (Mês)</h3>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Vendas por Cliente (Mês)</h3>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Vendas */}
             <div>
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
                   Vendas
                 </h4>
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-white text-green-700 shadow-sm border border-green-100">
+                            <div className="p-2 rounded-full bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 shadow-sm border border-green-100 dark:border-green-900/50">
                                 <User size={16} />
                             </div>
-                            <span className="font-medium text-gray-900">Consumidor Final</span>
+                            <span className="font-medium text-gray-900 dark:text-white">Consumidor Final</span>
                         </div>
-                        <span className="font-bold text-green-600">{currencyOrHidden(clientTypeSummary.sales.final)}</span>
+                        <span className="font-bold text-green-600 dark:text-green-400">{currencyOrHidden(clientTypeSummary.sales.final)}</span>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-white text-blue-700 shadow-sm border border-blue-100">
+                            <div className="p-2 rounded-full bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-400 shadow-sm border border-blue-100 dark:border-blue-900/50">
                                 <Briefcase size={16} />
                             </div>
-                            <span className="font-medium text-gray-900">Lojista</span>
+                            <span className="font-medium text-gray-900 dark:text-white">Lojista</span>
                         </div>
-                        <span className="font-bold text-green-600">{currencyOrHidden(clientTypeSummary.sales.company)}</span>
+                        <span className="font-bold text-green-600 dark:text-green-400">{currencyOrHidden(clientTypeSummary.sales.company)}</span>
                     </div>
                 </div>
             </div>
 
             {/* OS */}
             <div>
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                   Ordens de Serviço
                 </h4>
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-white text-green-700 shadow-sm border border-green-100">
+                            <div className="p-2 rounded-full bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 shadow-sm border border-green-100 dark:border-green-900/50">
                                 <User size={16} />
                             </div>
-                            <span className="font-medium text-gray-900">Consumidor Final</span>
+                            <span className="font-medium text-gray-900 dark:text-white">Consumidor Final</span>
                         </div>
-                        <span className="font-bold text-blue-600">{currencyOrHidden(clientTypeSummary.os.final)}</span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">{currencyOrHidden(clientTypeSummary.os.final)}</span>
                     </div>
-                    <div className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                    <div className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-full bg-white text-blue-700 shadow-sm border border-blue-100">
+                            <div className="p-2 rounded-full bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-400 shadow-sm border border-blue-100 dark:border-blue-900/50">
                                 <Briefcase size={16} />
                             </div>
-                            <span className="font-medium text-gray-900">Lojista</span>
+                            <span className="font-medium text-gray-900 dark:text-white">Lojista</span>
                         </div>
-                        <span className="font-bold text-blue-600">{currencyOrHidden(clientTypeSummary.os.company)}</span>
+                        <span className="font-bold text-blue-600 dark:text-blue-400">{currencyOrHidden(clientTypeSummary.os.company)}</span>
                     </div>
                 </div>
             </div>
@@ -433,16 +476,16 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       </section>
 
       {/* Performance da Equipe */}
-      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-green-50 text-green-600">
+            <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
               <Users size={24} />
             </div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Performance da Equipe</h3>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Performance da Equipe</h3>
           </div>
           <button 
-            className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 transition-colors" 
+            className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 dark:bg-gray-700 dark:text-green-400 dark:hover:bg-gray-600 transition-colors" 
             onClick={() => onNavigate && onNavigate('comissoes')}
           >
             Ver comissões
@@ -452,7 +495,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {/* Vendas */}
             <div>
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
                   Vendas (Top 3)
                 </h4>
@@ -461,14 +504,14 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
                         <p className="text-sm text-gray-400 italic">Nenhuma venda registrada.</p>
                     ) : (
                         performanceSummary.attendants.map((a, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-white text-green-700 shadow-sm flex items-center justify-center text-xs font-bold border border-green-100">
+                                    <div className="w-6 h-6 rounded-full bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 shadow-sm flex items-center justify-center text-xs font-bold border border-green-100 dark:border-green-900/50">
                                         {i + 1}
                                     </div>
-                                    <span className="font-medium text-gray-900">{a.name}</span>
+                                    <span className="font-medium text-gray-900 dark:text-white">{a.name}</span>
                                 </div>
-                                <span className="font-bold text-green-600">{currencyOrHidden(a.total)}</span>
+                                <span className="font-bold text-green-600 dark:text-green-400">{currencyOrHidden(a.total)}</span>
                             </div>
                         ))
                     )}
@@ -477,7 +520,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
 
             {/* OS */}
             <div>
-                <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                   O.S. (Top 3)
                 </h4>
@@ -486,14 +529,14 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
                         <p className="text-sm text-gray-400 italic">Nenhuma O.S. finalizada.</p>
                     ) : (
                         performanceSummary.technicians.map((t, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 rounded-lg hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-6 h-6 rounded-full bg-white text-blue-700 shadow-sm flex items-center justify-center text-xs font-bold border border-blue-100">
+                                    <div className="w-6 h-6 rounded-full bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-400 shadow-sm flex items-center justify-center text-xs font-bold border border-blue-100 dark:border-blue-900/50">
                                         {i + 1}
                                     </div>
-                                    <span className="font-medium text-gray-900">{t.name}</span>
+                                    <span className="font-medium text-gray-900 dark:text-white">{t.name}</span>
                                 </div>
-                                <span className="font-bold text-blue-600">{currencyOrHidden(t.total)}</span>
+                                <span className="font-bold text-blue-600 dark:text-blue-400">{currencyOrHidden(t.total)}</span>
                             </div>
                         ))
                     )}
@@ -502,14 +545,91 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
         </div>
       </section>
 
-      {/* Metas do Mês */}
-      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+      {/* Metas da Equipe */}
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-green-50 text-green-600">
+            <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400">
+              <Users size={24} />
+            </div>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Metas da Equipe</h3>
+          </div>
+          <button 
+             className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline"
+             onClick={() => onNavigate && onNavigate('metas')}
+          >
+              Gerenciar
+          </button>
+        </div>
+
+        {teamGoals.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
+            Nenhuma meta de equipe definida para este mês.
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {(showAllTeamGoals ? teamGoals : teamGoals.slice(0, 2)).map(g => (
+              <div key={g.id} className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
+                 <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${g.includeSale ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
+                            {getInitials(g.sellerName)}
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{g.sellerName || 'Vendedor'}</h4>
+                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                              {g.includeSale && g.includeServiceOrder ? 'Vendas + OS' : g.includeSale ? 'Vendas' : 'OS'}
+                            </span>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                       <div className="text-base font-extrabold text-gray-900 dark:text-white">{currencyOrHidden(g.current)}</div>
+                       <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">meta: {currencyOrHidden(g.target)}</div>
+                    </div>
+                 </div>
+                 
+                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${g.includeSale ? 'bg-green-500' : 'bg-blue-500'}`} 
+                      style={{ width: `${g.pct}%` }} 
+                    />
+                 </div>
+                 <div className="mt-1.5 flex justify-end">
+                    <span className="text-xs font-bold text-gray-600 dark:text-gray-400">{g.pct}% atingido</span>
+                 </div>
+              </div>
+            ))}
+            
+            {teamGoals.length > 2 && (
+              <button 
+                onClick={() => setShowAllTeamGoals(prev => !prev)}
+                className="w-full py-2 flex items-center justify-center gap-2 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors border border-dashed border-gray-200 dark:border-gray-700"
+              >
+                {showAllTeamGoals ? (
+                  <>
+                    <span>Ver menos</span>
+                    <ChevronUp size={16} />
+                  </>
+                ) : (
+                  <>
+                    <span>Ver todos ({teamGoals.length})</span>
+                    <ChevronDown size={16} />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Metas do Mês */}
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
               <TrendingUp size={24} />
             </div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Metas do Mês</h3>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Metas do Mês</h3>
           </div>
         </div>
 
@@ -517,12 +637,12 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
             {/* Meta Vendas */}
             <div>
                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-green-500"></span>
                       Vendas
                     </h4>
                     <button 
-                        className="text-xs font-bold text-green-600 hover:text-green-700 hover:underline"
+                        className="text-xs font-bold text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 hover:underline"
                         onClick={() => onNavigate && onNavigate('metas', { type: 'sale' })}
                     >
                         Ver detalhes
@@ -530,26 +650,26 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
                  </div>
                  
                  {/* Progress Bar & Values */}
-                 <div className="mt-4 flex items-end gap-2 text-gray-900">
+                 <div className="mt-4 flex items-end gap-2 text-gray-900 dark:text-white">
                     <span className="text-2xl font-extrabold tracking-tight">{currencyOrHidden(monthSalesValue)}</span>
-                    <span className="text-lg font-medium text-gray-400 mb-1">/</span>
-                    <span className="text-lg font-bold text-gray-500 mb-1">{monthGoalSalesTarget ? currencyOrHidden(monthGoalSalesTarget) : 'Definir'}</span>
+                    <span className="text-lg font-medium text-gray-400 dark:text-gray-500 mb-1">/</span>
+                    <span className="text-lg font-bold text-gray-500 dark:text-gray-400 mb-1">{monthGoalSalesTarget ? currencyOrHidden(monthGoalSalesTarget) : 'Definir'}</span>
                  </div>
-                 <div className="mt-4 h-3 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${monthGoalSalesPct}%` }} />
+                 <div className="mt-4 h-3 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                    <div className="h-full bg-green-500 dark:bg-green-600 rounded-full" style={{ width: `${monthGoalSalesPct}%` }} />
                  </div>
-                 <div className="mt-2 text-right text-sm font-bold text-gray-500">{monthGoalSalesPct}%</div>
+                 <div className="mt-2 text-right text-sm font-bold text-gray-500 dark:text-gray-400">{monthGoalSalesPct}%</div>
             </div>
 
             {/* Meta OS */}
             <div>
                  <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                    <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-blue-500"></span>
                       Ordens de Serviço
                     </h4>
                     <button 
-                        className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline"
+                        className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline"
                         onClick={() => onNavigate && onNavigate('metas', { type: 'os' })}
                     >
                         Ver detalhes
@@ -557,26 +677,26 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
                  </div>
 
                  {/* Progress Bar & Values */}
-                 <div className="mt-4 flex items-end gap-2 text-gray-900">
+                 <div className="mt-4 flex items-end gap-2 text-gray-900 dark:text-white">
                     <span className="text-2xl font-extrabold tracking-tight">{currencyOrHidden(monthOsValue)}</span>
-                    <span className="text-lg font-medium text-gray-400 mb-1">/</span>
-                    <span className="text-lg font-bold text-gray-500 mb-1">{monthGoalOSTarget ? currencyOrHidden(monthGoalOSTarget) : 'Definir'}</span>
+                    <span className="text-lg font-medium text-gray-400 dark:text-gray-500 mb-1">/</span>
+                    <span className="text-lg font-bold text-gray-500 dark:text-gray-400 mb-1">{monthGoalOSTarget ? currencyOrHidden(monthGoalOSTarget) : 'Definir'}</span>
                  </div>
-                 <div className="mt-4 h-3 rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full" style={{ width: `${monthGoalOSPct}%` }} />
+                 <div className="mt-4 h-3 rounded-full bg-gray-100 dark:bg-gray-900/50 overflow-hidden">
+                    <div className="h-full bg-blue-500 dark:bg-blue-600 rounded-full" style={{ width: `${monthGoalOSPct}%` }} />
                  </div>
-                 <div className="mt-2 text-right text-sm font-bold text-gray-500">{monthGoalOSPct}%</div>
+                 <div className="mt-2 text-right text-sm font-bold text-gray-500 dark:text-gray-400">{monthGoalOSPct}%</div>
             </div>
         </div>
       </section>
 
       {/* Vendas x Lucro */}
-      <section className="rounded-xl bg-white p-5 md:p-8 shadow-sm border border-gray-100">
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-green-50 text-green-600">
+          <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
             <BarChart2 size={24} />
           </div>
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight">Vendas x Lucro</h3>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Vendas x Lucro</h3>
         </div>
         <div className="mt-6">
           <div className="grid grid-cols-5 gap-2 md:gap-8 items-end h-64">
@@ -590,19 +710,19 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
                 <div key={idx} className="flex flex-col items-center justify-end h-full group">
                   {/* valores compactos acima das barras */}
                   <div className="mb-2 text-[10px] md:text-xs font-bold flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
-                    <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{formatCompactCurrency(d.sales)}</span>
-                    <span className="text-green-800 bg-green-100 px-1.5 py-0.5 rounded">{formatCompactCurrency(d.profit)}</span>
+                    <span className="text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded">{formatCompactCurrency(d.sales)}</span>
+                    <span className="text-green-800 dark:text-green-300 bg-green-100 dark:bg-green-900/50 px-1.5 py-0.5 rounded">{formatCompactCurrency(d.profit)}</span>
                   </div>
                   
                   {/* Container das barras com altura fixa para o percentual funcionar */}
                   <div className="flex items-end gap-1 md:gap-2 w-full justify-center h-40">
-                    <div className="w-5 md:w-12 bg-green-300 rounded-t-sm hover:bg-green-400 transition-colors relative group/bar" style={{ height: `${salesH}%` }} title={`Vendas: ${formatCurrency(d.sales)}`}>
+                    <div className="w-5 md:w-12 bg-green-300 dark:bg-green-500/70 rounded-t-sm hover:bg-green-400 dark:hover:bg-green-400 transition-colors relative group/bar" style={{ height: `${salesH}%` }} title={`Vendas: ${formatCurrency(d.sales)}`}>
                     </div>
-                    <div className="w-5 md:w-12 bg-green-600 rounded-t-sm hover:bg-green-700 transition-colors relative group/bar" style={{ height: `${profitH}%` }} title={`Lucro: ${formatCurrency(d.profit)}`}>
+                    <div className="w-5 md:w-12 bg-green-600 dark:bg-green-600 rounded-t-sm hover:bg-green-700 dark:hover:bg-green-500 transition-colors relative group/bar" style={{ height: `${profitH}%` }} title={`Lucro: ${formatCurrency(d.profit)}`}>
                     </div>
                   </div>
 
-                  <div className="mt-2 text-[10px] md:text-xs font-bold text-gray-400 uppercase tracking-wide">
+                  <div className="mt-2 text-[10px] md:text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wide">
                     {dd}/{mm}
                   </div>
                 </div>

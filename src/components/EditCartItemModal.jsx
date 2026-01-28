@@ -66,81 +66,81 @@ export default function EditCartItemModal({ open, onClose, item, onSave, onRemov
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in duration-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-4">Editar Produto</h3>
-        <p className="text-sm text-gray-800 font-bold mb-6 uppercase border-b pb-4">{item.product.name}</p>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 relative animate-in fade-in zoom-in duration-200">
+        <h3 className="text-lg font-bold text-gray-800 dark:text-white mb-4">Editar Produto</h3>
+        <p className="text-sm text-gray-800 dark:text-gray-200 font-bold mb-6 uppercase border-b dark:border-gray-700 pb-4">{item.product.name}</p>
 
         <div className="grid grid-cols-2 gap-4 mb-2">
-          <div className="bg-gray-100 rounded p-2">
-             <label className="block text-xs text-gray-500 text-right mb-1">Quantidade</label>
+          <div className="bg-gray-100 dark:bg-gray-700 rounded p-2">
+             <label className="block text-xs text-gray-500 dark:text-gray-400 text-right mb-1">Quantidade</label>
              <input
                type="number"
                min="1"
                value={quantity}
                onChange={e => setQuantity(e.target.value)}
-               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800"
+               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800 dark:text-white"
              />
           </div>
-          <div className="bg-gray-100 rounded p-2">
-             <label className="block text-xs text-gray-500 text-right mb-1">Preço</label>
+          <div className="bg-gray-100 dark:bg-gray-700 rounded p-2">
+             <label className="block text-xs text-gray-500 dark:text-gray-400 text-right mb-1">Preço</label>
              <input
                type="number"
                step="0.01"
                value={price}
                onChange={e => handlePriceChange(e.target.value)}
-               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800"
+               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800 dark:text-white"
              />
           </div>
         </div>
 
         <div className="flex justify-between items-center mb-4 px-1">
-          <span className="text-gray-600">Subtotal</span>
-          <span className="text-xl font-medium text-gray-800">
+          <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+          <span className="text-xl font-medium text-gray-800 dark:text-white">
             {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-6">
-          <div className="bg-gray-100 rounded p-2">
-            <label className="block text-xs text-gray-500 text-right mb-1">Desc. item (%)</label>
+          <div className="bg-gray-100 dark:bg-gray-700 rounded p-2">
+            <label className="block text-xs text-gray-500 dark:text-gray-400 text-right mb-1">Desc. item (%)</label>
             <input
                type="number"
                step="0.01"
                value={discountPercent}
                onChange={e => handlePercentChange(e.target.value)}
-               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800"
+               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800 dark:text-white"
             />
           </div>
-          <div className="bg-gray-100 rounded p-2">
-            <label className="block text-xs text-gray-500 text-right mb-1">Desc. item (R$)</label>
+          <div className="bg-gray-100 dark:bg-gray-700 rounded p-2">
+            <label className="block text-xs text-gray-500 dark:text-gray-400 text-right mb-1">Desc. item (R$)</label>
             <input
                type="number"
                step="0.01"
                value={discountValue}
                onChange={e => handleValueChange(e.target.value)}
-               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800"
+               className="w-full bg-transparent border-none text-right font-medium focus:ring-0 p-0 text-gray-800 dark:text-white"
             />
           </div>
-          <div className="bg-gray-100 rounded p-2">
-            <label className="block text-xs text-gray-500 text-right mb-1">Total desc. (R$)</label>
-            <div className="w-full text-right font-medium text-gray-800">
+          <div className="bg-gray-100 dark:bg-gray-700 rounded p-2">
+            <label className="block text-xs text-gray-500 dark:text-gray-400 text-right mb-1">Total desc. (R$)</label>
+            <div className="w-full text-right font-medium text-gray-800 dark:text-white">
                 {totalDiscount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           </div>
         </div>
 
         <div className="flex justify-between items-center pt-2 mb-6 px-1">
-          <span className="text-lg font-medium text-gray-800">Total</span>
-          <span className="text-3xl font-bold text-green-600">
+          <span className="text-lg font-medium text-gray-800 dark:text-white">Total</span>
+          <span className="text-3xl font-bold text-green-600 dark:text-green-500">
             {total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
-        <div className="flex justify-between gap-3 pt-4 border-t">
+        <div className="flex justify-between gap-3 pt-4 border-t dark:border-gray-700">
           {onRemove && (
             <button
               onClick={onRemove}
-              className="flex items-center gap-2 text-gray-500 hover:text-red-600 text-sm transition-colors"
+              className="flex items-center gap-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 text-sm transition-colors"
             >
               🗑️ Remover
             </button>
@@ -148,7 +148,7 @@ export default function EditCartItemModal({ open, onClose, item, onSave, onRemov
           <div className="flex gap-4 ml-auto">
             <button
               onClick={onClose}
-              className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm font-medium transition-colors"
+              className="flex items-center gap-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-sm font-medium transition-colors"
             >
               ✕ Cancelar
             </button>
