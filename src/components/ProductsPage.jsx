@@ -1000,7 +1000,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           {tabs.map(t => (
             <button
               key={t.key}
-              className={`shrink-0 inline-flex px-2 py-1 ${tab===t.key ? 'text-green-700 font-medium border-b-2 border-green-600' : 'text-gray-600'}`}
+              className={`shrink-0 inline-flex px-2 py-1 ${tab===t.key ? 'text-green-700 dark:text-green-400 font-medium border-b-2 border-green-600 dark:border-green-500' : 'text-gray-600 dark:text-gray-400'}`}
               onClick={()=>setTab(t.key)}
             >{t.label}</button>
           ))}
@@ -1020,13 +1020,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               value={query} 
               onChange={e=>setQuery(e.target.value)} 
               placeholder="Pesquisar..." 
-              className="pl-10 pr-3 py-2 border rounded w-full bg-gray-100 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 border-gray-200" 
+              className="pl-10 pr-3 py-2 border rounded w-full bg-gray-100 dark:bg-gray-700 text-sm focus:outline-none focus:ring-1 focus:ring-green-500 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400" 
             />
           </div>
 
           {/* Filtros */}
           <button
-            className="md:hidden h-9 w-9 shrink-0 rounded border flex items-center justify-center bg-gray-50"
+            className="md:hidden h-9 w-9 shrink-0 rounded border flex items-center justify-center bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400"
             aria-label="Filtros"
             title="Filtros"
             onClick={()=>setShowFilters(x=>!x)}
@@ -1035,7 +1035,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
           </button>
-          <button className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded border text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100" onClick={()=>setShowFilters(x=>!x)}>
+          <button className="hidden md:inline-flex items-center gap-2 px-3 py-2 rounded border text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600" onClick={()=>setShowFilters(x=>!x)}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
             </svg>
@@ -1043,7 +1043,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           </button>
 
           {/* Alternador de visualização */}
-          <button className="px-3 py-2 rounded border text-sm text-gray-500 bg-gray-50 hover:bg-gray-100" onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}>
+          <button className="px-3 py-2 rounded border text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600" onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="3" width="7" height="7"></rect>
               <rect x="14" y="3" width="7" height="7"></rect>
@@ -1057,36 +1057,36 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           {/* Opções */}
           <div className="relative hidden md:inline-block">
             <button 
-              className="px-4 py-2 rounded border border-green-500 text-green-600 text-sm font-medium hover:bg-green-50"
+              className="px-4 py-2 rounded border border-green-500 text-green-600 dark:text-green-400 text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30"
               onClick={() => setOptionsOpen(!optionsOpen)}
             >
               Opções
             </button>
             {optionsOpen && (
-              <div className="absolute top-full left-0 mt-1 w-40 bg-white rounded-lg shadow-xl border z-50 py-1">
+              <div className="absolute top-full left-0 mt-1 w-40 bg-white dark:bg-gray-800 rounded-lg shadow-xl border dark:border-gray-700 z-50 py-1">
                  <button 
-                  className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                  className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                   onClick={() => { setOptionsOpen(false); setShowLabelsScreen(true); }}
                 >
-                  <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                    </svg>
                    Etiquetas
                  </button>
                  <button 
-                    className="w-full text-left px-4 py-2 hover:bg-gray-50 flex items-center gap-2 text-sm text-gray-700"
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
                     onClick={() => { setOptionsOpen(false); /* TODO: Exportar */ }}
                   >
-                    <svg className="w-4 h-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     Exportar
                   </button>
 
-                  <div className="border-t border-gray-100 my-1"></div>
-                  <div className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 cursor-pointer" onClick={() => setSyncProducts(!syncProducts)}>
-                    <span className="text-sm text-gray-700">Sincronizar produtos</span>
-                    <div className={`w-8 h-4 flex items-center rounded-full p-1 duration-300 ease-in-out ${syncProducts ? 'bg-green-500' : 'bg-gray-300'}`}>
+                  <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                  <div className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => setSyncProducts(!syncProducts)}>
+                    <span className="text-sm text-gray-700 dark:text-gray-200">Sincronizar produtos</span>
+                    <div className={`w-8 h-4 flex items-center rounded-full p-1 duration-300 ease-in-out ${syncProducts ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                       <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${syncProducts ? 'translate-x-3' : ''}`}></div>
                     </div>
                   </div>
@@ -1102,7 +1102,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       </div>
 
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
-      <div className={`mt-2 px-2 py-2 border-b bg-gray-50 text-xs lg:text-sm text-gray-600 font-bold overflow-x-auto ${tab==='produto' ? 'hidden md:block' : ''}`}>
+      <div className={`mt-2 px-2 py-2 border-b bg-gray-50 dark:bg-gray-700 text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-bold overflow-x-auto border-gray-200 dark:border-gray-600 ${tab==='produto' ? 'hidden md:block' : ''}`}>
         {tab==='produto' && (
           <div 
             className="grid gap-x-2 min-w-full"
@@ -1138,7 +1138,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
       <div className="mt-4">
         {(tab==='produto') ? (
-          <div className="bg-white rounded-lg shadow overflow-x-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
             {filtered.map(p => {
               const clientFinal = getClientFinalPrice(p)
               const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
@@ -1149,44 +1149,44 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 <>
                 <div 
                   key={p.id} 
-                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-2 items-center px-2 py-2 border-b last:border-0 min-w-full hover:bg-gray-50 transition-colors"
+                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-2 items-center px-2 py-2 border-b last:border-0 min-w-full hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors dark:border-gray-700"
                   style={gridCols ? { gridTemplateColumns: gridCols } : {}}
                 >
                   <div>
-                    <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} />
+                    <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} className="dark:bg-gray-700 dark:border-gray-600" />
                   </div>
                   <div className="text-xs lg:text-sm overflow-hidden">
-                    <div className="truncate" title={p.name}>
+                    <div className="truncate text-gray-900 dark:text-white" title={p.name}>
                       {p.name}
                     </div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
                       Estoque: {stock.toLocaleString('pt-BR')}
                       <span className={stockDotClass} />
                     </div>
                   </div>
                   {showExtras && (
-                    <div className="hidden md:block text-xs lg:text-sm text-gray-500 font-mono">
+                    <div className="hidden md:block text-xs lg:text-sm text-gray-500 dark:text-gray-400 font-mono">
                       {p.reference || '-'}
                     </div>
                   )}
                   {/* Data de atualização (substituindo prévia de variações) */}
                   {showExtras && (
-                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 justify-center items-center whitespace-nowrap">
+                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 dark:text-gray-300 justify-center items-center whitespace-nowrap">
                        {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
                     </div>
                   )}
                   {showExtras && (
-                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 justify-center items-center whitespace-nowrap">
+                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 dark:text-gray-300 justify-center items-center whitespace-nowrap">
                        {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </div>
                   )}
                   {showExtras && (
-                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
+                    <div className="hidden md:flex text-xs lg:text-sm text-gray-700 dark:text-gray-300 justify-center items-center truncate px-2" title={p.lastEditedBy || p.createdBy || ''}>
                        {p.lastEditedBy || p.createdBy || '—'}
                     </div>
                   )}
                   <div className="text-right whitespace-nowrap md:whitespace-normal md:text-right md:pl-0 pl-4 justify-self-end flex flex-col items-end justify-center">
-                    <div className="text-xs lg:text-sm whitespace-nowrap">{priceText}</div>
+                    <div className="text-xs lg:text-sm whitespace-nowrap text-gray-900 dark:text-white">{priceText}</div>
                     {/* Botão sanfona (mobile e desktop) abaixo do preço */}
                     {(Array.isArray(p.variationsData) && p.variationsData.length > 0) && (
                       <div className="mt-1">
@@ -1194,7 +1194,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                           type="button"
                           aria-label="Abrir precificações"
                           title="Abrir precificações"
-                          className="inline-flex h-6 w-6 items-center justify-center rounded border bg-white hover:bg-gray-50"
+                          className="inline-flex h-6 w-6 items-center justify-center rounded border bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400"
                           onClick={()=>toggleMobileRow(p.id)}
                         >
                           <svg
@@ -1209,16 +1209,16 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   </div>
                   {/* Div anterior do botão sanfona removida/esvaziada para manter grid, ou ajustada */}
                   <div className="md:hidden text-right hidden"></div>
-                  <div className={`hidden md:block text-right text-xs lg:text-sm whitespace-nowrap ${stock === 0 ? 'text-red-500' : ''}`}>{stock.toLocaleString('pt-BR')}</div>
+                  <div className={`hidden md:block text-right text-xs lg:text-sm whitespace-nowrap ${stock === 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>{stock.toLocaleString('pt-BR')}</div>
                   <div className="hidden md:block text-right text-xs lg:text-sm">
-                    <div className={`inline-block px-2 py-0.5 rounded text-xs lg:text-sm font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                    <div className={`inline-block px-2 py-0.5 rounded text-xs lg:text-sm font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/50' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/50'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
                   <div className="text-right text-sm relative">
                     <button
                       type="button"
                       aria-label="Mais ações"
                       title="Mais ações"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-600"
                       onClick={(e) => {
                         e.stopPropagation()
                         const rect = e.currentTarget.getBoundingClientRect()
@@ -1231,20 +1231,20 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     </button>
                     {openMenuId === p.id && (
                       <div 
-                        className="fixed z-[9999] w-56 bg-white border rounded-lg shadow-lg"
+                        className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg"
                         style={{ top: menuPos.top, left: menuPos.left }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="py-2">
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> { startEdit(p); setOpenMenuId(null); }}>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={()=> { startEdit(p); setOpenMenuId(null); }}>
                             <span>✏️</span>
                             <span>Editar</span>
                           </button>
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> handleClone(p)}>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={()=> handleClone(p)}>
                             <span>📄</span>
                             <span>Clonar</span>
                           </button>
-                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2" onClick={()=> handleToggleActive(p)}>
+                          <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={()=> handleToggleActive(p)}>
                             <span>{(p.active ?? true) ? '✖️' : '✔️'}</span>
                             <span>{(p.active ?? true) ? 'Inativar' : 'Ativar'}</span>
                           </button>
@@ -1278,35 +1278,34 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
                 </div>
                   {/* Painel sanfona com variações (somente mobile) com animação */}
-                  <div className={`md:hidden px-4 ${mobileOpenRows.has(p.id) ? 'py-2 bg-gray-50 border-b' : 'py-0'} last:border-0`}
-                  >
-                    <div className={`overflow-hidden transition-all duration-200 ease-in-out ${mobileOpenRows.has(p.id) ? 'max-h-[480px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                      {Array.isArray(p.variationsData) && p.variationsData.length > 0 ? (
-                        <div className="space-y-2">
-                          {p.variationsData.map((v, idx) => {
-                            const sale = Number(v?.salePrice ?? 0)
-                            const promo = v?.promoPrice != null ? Number(v.promoPrice) : null
-                            const price = promo != null ? promo : sale
-                            const stockVar = Number(v?.stock ?? 0)
-                            return (
-                              <div className="grid grid-cols-[1fr_6rem] items-center gap-2 text-xs">
-                                <div className="truncate" title={v?.name || v?.label || `Variação ${idx+1}`}>
-                                  <span className="font-medium">{v?.name || v?.label || `Variação ${idx+1}`}</span>
-                                  {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
-                                  {stockVar ? (<span className="ml-2 text-gray-500">Estoque: {stockVar.toLocaleString('pt-BR')}</span>) : null}
+                    <div className={`md:hidden px-4 ${mobileOpenRows.has(p.id) ? 'py-2 bg-gray-50 dark:bg-gray-700/50 border-b dark:border-gray-700' : 'py-0'} last:border-0`}>
+                      <div className={`overflow-hidden transition-all duration-200 ease-in-out ${mobileOpenRows.has(p.id) ? 'max-h-[480px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                        {Array.isArray(p.variationsData) && p.variationsData.length > 0 ? (
+                          <div className="space-y-2">
+                            {p.variationsData.map((v, idx) => {
+                              const sale = Number(v?.salePrice ?? 0)
+                              const promo = v?.promoPrice != null ? Number(v.promoPrice) : null
+                              const price = promo != null ? promo : sale
+                              const stockVar = Number(v?.stock ?? 0)
+                              return (
+                                <div key={idx} className="grid grid-cols-[1fr_6rem] items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+                                  <div className="truncate" title={v?.name || v?.label || `Variação ${idx+1}`}>
+                                    <span className="font-medium">{v?.name || v?.label || `Variação ${idx+1}`}</span>
+                                    {p.reference ? (<span className="ml-1 text-gray-500 dark:text-gray-400">({p.reference})</span>) : null}
+                                    {stockVar ? (<span className="ml-2 text-gray-500 dark:text-gray-400">Estoque: {stockVar.toLocaleString('pt-BR')}</span>) : null}
+                                  </div>
+                                  <div className="text-right whitespace-nowrap">
+                                    {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                  </div>
                                 </div>
-                                <div className="text-right whitespace-nowrap">
-                                  {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-600 py-2">Sem variações cadastradas</div>
-                      )}
+                              )
+                            })}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-gray-600 dark:text-gray-400 py-2">Sem variações cadastradas</div>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   {/* Painel sanfona com variações (somente desktop) com animação */}
                   <div className={`hidden md:block px-4 ${mobileOpenRows.has(p.id) ? 'py-2 bg-gray-50 border-b' : 'py-0'} last:border-0`}>
                     <div className={`overflow-hidden transition-all duration-200 ease-in-out ${mobileOpenRows.has(p.id) ? 'max-h-[480px] opacity-100' : 'max-h-0 opacity-0'}`}>
@@ -1351,22 +1350,22 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           </div>
         ) : (
           tab==='categorias' ? (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
               {/* Mantém listagem de categorias */}
-              <div className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
+              <div className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                 <div></div>
                 <div>Nome</div>
                 <div className="text-right">Status</div>
                 <div></div>
               </div>
               {filteredCategories.map(c => (
-                <div key={c.id} className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 border-b last:border-0">
+                <div key={c.id} className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 border-b dark:border-gray-700 last:border-0">
                   <div></div>
-                  <div className="text-sm">
+                  <div className="text-sm text-gray-900 dark:text-white">
                     <div className="font-medium cursor-pointer" onClick={()=>startCategoryEdit(c)}>{c.name}</div>
                   </div>
                   <div className="hidden md:block text-sm text-right">
-                    <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active ?? true) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                    <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active ?? true) ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'}`}>
                       {(c.active ?? true) ? 'Ativo' : 'Inativo'}
                     </div>
                   </div>
@@ -1375,17 +1374,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       type="button"
                       aria-label="Mais ações de categoria"
                       title="Mais ações"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded border"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded border dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
                       onClick={() => setCategoryMenuId(categoryMenuId === c.id ? null : c.id)}
                     >
                       ⋯
                     </button>
                     {categoryMenuId === c.id && (
-                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow">
+                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow">
                         <div className="py-2">
                           <button
                             type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200"
                             onClick={() => openBulkPricing(c)}
                           >
                             <span>⚙️</span>
@@ -1393,7 +1392,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                           </button>
                           <button
                             type="button"
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400"
                             onClick={() => openConfirmRemoveCategory(c)}
                           >
                             <span>🗑️</span>
@@ -1407,23 +1406,23 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               ))}
             </div>
           ) : tab==='fornecedores' ? (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                 <div></div>
                 <div>Fornecedor ({suppliers.length})</div>
                 <div className="text-right">Status</div>
                 <div></div>
               </div>
               {suppliers.map(s => (
-                <div key={s.id} className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 border-b last:border-0">
+                <div key={s.id} className="grid grid-cols-[1.5rem_1fr_8rem_2rem] items-center px-4 py-3 border-b dark:border-gray-700 last:border-0">
                   <div></div>
-                  <div className="text-sm">
+                  <div className="text-sm text-gray-900 dark:text-white">
                     <div className="font-medium cursor-pointer" onClick={()=>startSupplierEdit(s)}>{s.name}</div>
                   </div>
                   <div className="hidden md:block text-sm text-right">
-                    <div className={`px-2 py-1 rounded text-xs ${(s.active ?? true) ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-700'}`}>{(s.active ?? true) ? 'Ativo' : 'Inativo'}</div>
+                    <div className={`px-2 py-1 rounded text-xs ${(s.active ?? true) ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-400'}`}>{(s.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
-                  <div className="text-right text-sm">⋯</div>
+                  <div className="text-right text-sm text-gray-500 dark:text-gray-400">⋯</div>
                 </div>
               ))}
             </div>
@@ -1442,21 +1441,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       
       {/* Modal de Feedback de Sincronização */}
       {syncFeedback.open && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative flex flex-col max-h-[90vh]">
-            <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 relative flex flex-col max-h-[90vh]">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
               {syncFeedback.loading ? <span className="animate-spin">⏳</span> : (syncFeedback.successCount > 0 ? '✅' : 'ℹ️')}
               {syncFeedback.loading ? 'Sincronizando...' : 'Sincronização Concluída'}
             </h3>
             
-            <div className="bg-gray-100 p-3 rounded flex-1 overflow-y-auto mb-4 text-xs font-mono border min-h-[200px]">
+            <div className="bg-gray-100 dark:bg-gray-900 p-3 rounded flex-1 overflow-y-auto mb-4 text-xs font-mono border dark:border-gray-700 min-h-[200px] text-gray-800 dark:text-gray-200">
               {syncFeedback.logs.map((log, idx) => (
-                <div key={idx} className="mb-1 border-b border-gray-200 last:border-0 pb-1 break-words">
+                <div key={idx} className="mb-1 border-b border-gray-200 dark:border-gray-700 last:border-0 pb-1 break-words">
                   {log}
                 </div>
               ))}
               {syncFeedback.loading && (
-                 <div className="animate-pulse text-blue-600 font-bold mt-2">Processando...</div>
+                 <div className="animate-pulse text-blue-600 dark:text-blue-400 font-bold mt-2">Processando...</div>
               )}
             </div>
 
@@ -1464,7 +1463,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                {!syncFeedback.loading && (
                   <button 
                     onClick={() => setSyncFeedback(prev => ({ ...prev, open: false }))}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                   >
                     Fechar
                   </button>
@@ -1477,29 +1476,29 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {/* Modal de Confirmação de Sync */}
       {syncConfirm.open && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm">
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl p-6 relative flex flex-col animate-fade-in">
-            <h3 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl p-6 relative flex flex-col animate-fade-in">
+            <h3 className="text-xl font-bold mb-4 text-gray-800 dark:text-white border-b dark:border-gray-700 pb-2">
               Confirmar Sincronização
             </h3>
             
-            <p className="mb-4 text-gray-600">
-              Um produto similar foi encontrado na loja <strong className="text-blue-600">{syncConfirm.storeName}</strong>.
+            <p className="mb-4 text-gray-600 dark:text-gray-300">
+              Um produto similar foi encontrado na loja <strong className="text-blue-600 dark:text-blue-400">{syncConfirm.storeName}</strong>.
               Confira se trata-se do mesmo item antes de prosseguir.
             </p>
 
             <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-blue-50 p-4 rounded border border-blue-100">
-                <h4 className="font-bold text-blue-800 mb-2 text-sm uppercase">Produto de Origem (Esta Loja)</h4>
-                <div className="text-sm space-y-1">
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded border border-blue-100 dark:border-blue-800">
+                <h4 className="font-bold text-blue-800 dark:text-blue-300 mb-2 text-sm uppercase">Produto de Origem (Esta Loja)</h4>
+                <div className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
                   <p><span className="font-semibold">Nome:</span> {syncConfirm.source?.name}</p>
                   <p><span className="font-semibold">Ref:</span> {syncConfirm.source?.reference || '-'}</p>
                   <p><span className="font-semibold">Fornecedor:</span> {syncConfirm.source?.supplier || '-'}</p>
                 </div>
               </div>
 
-              <div className="bg-yellow-50 p-4 rounded border border-yellow-100">
-                <h4 className="font-bold text-yellow-800 mb-2 text-sm uppercase">Produto Encontrado (Destino)</h4>
-                <div className="text-sm space-y-1">
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded border border-yellow-100 dark:border-yellow-800">
+                <h4 className="font-bold text-yellow-800 dark:text-yellow-300 mb-2 text-sm uppercase">Produto Encontrado (Destino)</h4>
+                <div className="text-sm space-y-1 text-gray-700 dark:text-gray-300">
                   <p><span className="font-semibold">Nome:</span> {syncConfirm.target?.name}</p>
                   <p><span className="font-semibold">Ref:</span> {syncConfirm.target?.reference || '-'}</p>
                   <p><span className="font-semibold">Fornecedor:</span> {syncConfirm.target?.supplier || '-'}</p>
@@ -1508,10 +1507,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-auto pt-4 border-t">
+            <div className="flex justify-end gap-3 mt-auto pt-4 border-t dark:border-gray-700">
                <button 
                  onClick={() => handleConfirmSync(false)}
-                 className="px-5 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 font-medium transition-colors"
+                 className="px-5 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
                >
                  Não, é diferente (Pular)
                </button>
@@ -1560,11 +1559,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {confirmRemoveOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setConfirmRemoveOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-base font-medium">Excluir do catálogo</h3>
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-base font-medium text-gray-900 dark:text-white">Excluir do catálogo</h3>
             </div>
-            <div className="p-4 space-y-3 text-sm">
+            <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <div>
                 Tem certeza que deseja excluir “{confirmRemoveProduct?.name}” do catálogo?
               </div>
@@ -1572,9 +1571,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 Esta ação também zera o estoque do produto{Array.isArray(confirmRemoveProduct?.variationsData) && (confirmRemoveProduct?.variationsData?.length||0) > 0 ? ' e de todas as variações' : ''}.
               </div>
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
-              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemoveFromCatalog} disabled={savingAction}>Excluir</button>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={confirmRemoveFromCatalog} disabled={savingAction}>Excluir</button>
             </div>
           </div>
         </div>
@@ -1583,21 +1582,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {confirmRemoveCategoryOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setConfirmRemoveCategoryOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-base font-medium">Excluir categoria</h3>
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-base font-medium text-gray-900 dark:text-white">Excluir categoria</h3>
             </div>
-            <div className="p-4 space-y-3 text-sm">
+            <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <div>
                 Tem certeza que deseja excluir a categoria “{categoryToRemove?.name}”?
               </div>
-              <div className="text-gray-500">
+              <div className="text-gray-500 dark:text-gray-400">
                 Isso não excluirá os produtos, mas eles ficarão sem categoria.
               </div>
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveCategoryOpen(false)} disabled={savingAction}>Cancelar</button>
-              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={handleRemoveCategory} disabled={savingAction}>Excluir</button>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>setConfirmRemoveCategoryOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={handleRemoveCategory} disabled={savingAction}>Excluir</button>
             </div>
           </div>
         </div>
@@ -1605,26 +1604,26 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {stockModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setStockModalOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[560px]">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-base font-medium">Adicionar / Remover Estoque</h3>
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[560px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-base font-medium text-gray-900 dark:text-white">Adicionar / Remover Estoque</h3>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <div className="text-xs text-gray-600 mb-1">Tipo</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Tipo</div>
                 <div className="flex items-center gap-2">
-                  <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='entrada' ? 'bg-green-50 border-green-300 text-green-700' : ''}`} onClick={()=>setStockType('entrada')}>Entrada</button>
-                  <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='saida' ? 'bg-red-50 border-red-300 text-red-700' : ''}`} onClick={()=>setStockType('saida')}>Saida</button>
+                  <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='entrada' ? 'bg-green-50 border-green-300 text-green-700 dark:bg-green-900/30 dark:border-green-800 dark:text-green-400' : 'dark:border-gray-600 dark:text-gray-300'}`} onClick={()=>setStockType('entrada')}>Entrada</button>
+                  <button type="button" className={`px-3 py-1 rounded border text-sm ${stockType==='saida' ? 'bg-red-50 border-red-300 text-red-700 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400' : 'dark:border-gray-600 dark:text-gray-300'}`} onClick={()=>setStockType('saida')}>Saida</button>
                 </div>
               </div>
-              <div className="text-sm text-gray-800">
+              <div className="text-sm text-gray-800 dark:text-gray-200">
                 {stockTargetProduct?.name} {Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length || 0) > 0 ? ` - ${(stockTargetProduct?.variationsData?.[0]?.name || stockTargetProduct?.variationsData?.[0]?.label || '')}` : ''}
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Quantidade</div>
-                <input type="number" value={stockQty} onChange={e=>setStockQty(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Quantidade</div>
+                <input type="number" value={stockQty} onChange={e=>setStockQty(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
               </div>
-              <div className="text-sm text-gray-700">
+              <div className="text-sm text-gray-700 dark:text-gray-300">
                 {(() => {
                   const hasVars = Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length||0) > 0
                   const base = hasVars ? Number(stockTargetProduct?.variationsData?.[0]?.stock ?? 0) : Number(stockTargetProduct?.stock ?? 0)
@@ -1635,13 +1634,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 })()}
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Descrição (opcional)</div>
-                <input value={stockDesc} onChange={e=>setStockDesc(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Descrição (opcional)</div>
+                <input value={stockDesc} onChange={e=>setStockDesc(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white" />
               </div>
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setStockModalOpen(false)} disabled={savingAction}>Cancelar</button>
-              <button className="px-3 py-2 text-sm rounded bg-green-600 text-white" onClick={confirmStockAdjust} disabled={savingAction}>Confirmar</button>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>setStockModalOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700" onClick={confirmStockAdjust} disabled={savingAction}>Confirmar</button>
             </div>
           </div>
         </div>
@@ -1649,9 +1648,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {reservedOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setReservedOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[640px]">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-base font-medium">Reservados</h3>
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[640px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-base font-medium text-gray-900 dark:text-white">Reservados</h3>
             </div>
             <div className="p-4">
               {(() => {
@@ -1719,23 +1718,23 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       const label = isOSCandidate ? `O.S:${ref}` : `PV:${ref}`
 
                       return (
-                        <div key={o.id} className="grid grid-cols-[6rem_1fr_6rem] items-center gap-3 text-sm border-b last:border-0 px-2 py-2">
-                          <div>{label}</div>
+                        <div key={o.id} className="grid grid-cols-[6rem_1fr_6rem] items-center gap-3 text-sm border-b dark:border-gray-700 last:border-0 px-2 py-2 text-gray-700 dark:text-gray-300">
+                          <div className="font-bold text-gray-900 dark:text-white">{label}</div>
                           <div className="leading-tight">
-                            <div className="font-medium">{o.client || 'Consumidor Final'}</div>
-                            <div className="text-xs text-gray-500">{ds} • {o.status || (isOSCandidate ? 'Iniciado' : 'Pedido')}</div>
+                            <div className="font-medium text-gray-900 dark:text-white">{o.client || 'Consumidor Final'}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{ds} • {o.status || (isOSCandidate ? 'Iniciado' : 'Pedido')}</div>
                           </div>
-                          <div className="text-right">{qty}</div>
+                          <div className="text-right font-mono">{qty}</div>
                         </div>
                       )
                     })}
-                    {list.length === 0 && <div className="text-sm text-gray-600">Nenhum pedido ou ordem de serviço encontrado reservando este item.</div>}
+                    {list.length === 0 && <div className="text-sm text-gray-600 dark:text-gray-400">Nenhum pedido ou ordem de serviço encontrado reservando este item.</div>}
                   </div>
                 )
               })()}
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end">
-              <button type="button" className="px-3 py-2 border rounded text-sm" onClick={()=>setReservedOpen(false)}>Fechar</button>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end">
+              <button type="button" className="px-3 py-2 border rounded text-sm dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={()=>setReservedOpen(false)}>Fechar</button>
             </div>
           </div>
         </div>
@@ -1743,29 +1742,29 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {bulkModalOpen && bulkCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setBulkModalOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-medium">Precificação em massa</h3>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <h3 className="text-base font-medium dark:text-white">Precificação em massa</h3>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   Categoria: {bulkCategory.name}
                 </div>
               </div>
             </div>
             <div className="p-4 space-y-4">
               <div className="flex items-center gap-2 text-sm">
-                <span className="text-gray-600">Tipo:</span>
-                <div className="inline-flex rounded border overflow-hidden">
+                <span className="text-gray-600 dark:text-gray-300">Tipo:</span>
+                <div className="inline-flex rounded border dark:border-gray-600 overflow-hidden">
                   <button
                     type="button"
-                    className={`px-3 py-1 text-sm ${bulkType === 'add' ? 'bg-green-50 text-green-700' : 'bg-white text-gray-700'}`}
+                    className={`px-3 py-1 text-sm ${bulkType === 'add' ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}
                     onClick={()=>setBulkType('add')}
                   >
                     Adicionar
                   </button>
                   <button
                     type="button"
-                    className={`px-3 py-1 text-sm border-l ${bulkType === 'remove' ? 'bg-red-50 text-red-700' : 'bg-white text-gray-700'}`}
+                    className={`px-3 py-1 text-sm border-l dark:border-gray-600 ${bulkType === 'remove' ? 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-white text-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'}`}
                     onClick={()=>setBulkType('remove')}
                   >
                     Remover
@@ -1773,29 +1772,29 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Ajuste R$</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Ajuste R$</div>
                 <input
                   type="text"
                   value={bulkAmount}
                   onChange={e=>setBulkAmount(e.target.value)}
                   placeholder="0,00"
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white"
                 />
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Ajuste (%)</div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Ajuste (%)</div>
                 <input
                   type="number"
                   value={bulkPercent}
                   onChange={e=>setBulkPercent(e.target.value)}
-                  className="w-full border rounded px-3 py-2 text-sm"
+                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white"
                 />
                 <div className="flex items-center gap-2 mt-2">
                   {[5,10,15,20].map(v => (
                     <button
                       key={v}
                       type="button"
-                      className="flex-1 border rounded px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                      className="flex-1 border dark:border-gray-600 rounded px-2 py-1 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                       onClick={()=>setBulkPercent(String(v))}
                     >
                       {v}%
@@ -1804,10 +1803,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
               </div>
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
               <button
                 type="button"
-                className="px-3 py-2 text-sm rounded border"
+                className="px-3 py-2 text-sm rounded border dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 onClick={()=>setBulkModalOpen(false)}
                 disabled={bulkSaving}
               >
@@ -1815,7 +1814,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               </button>
               <button
                 type="button"
-                className="px-3 py-2 text-sm rounded bg-green-600 text-white"
+                className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700"
                 onClick={confirmBulkPricing}
                 disabled={bulkSaving}
               >
@@ -1828,11 +1827,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       {bulkReviewOpen && bulkCategory && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={()=>setBulkReviewOpen(false)} />
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[900px]">
-            <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[900px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-medium">Aplicar ajuste em massa</h3>
-                <div className="text-xs text-gray-500 mt-0.5">
+                <h3 className="text-base font-medium dark:text-white">Aplicar ajuste em massa</h3>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   Categoria: {bulkCategory.name} • {bulkCandidates.length} produtos encontrados
                 </div>
               </div>
@@ -1840,10 +1839,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             <div className="p-4 space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300 text-green-600"
+                      className="h-4 w-4 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700 text-green-600"
                       checked={
                         bulkFilteredCandidates.length > 0 &&
                         bulkFilteredCandidates.every(p => bulkSelectedIds.has(p.id))
@@ -1862,36 +1861,36 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     <span>Selecionar todos os listados</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-600">Buscar:</span>
+                    <span className="text-xs text-gray-600 dark:text-gray-300">Buscar:</span>
                     <input
                       value={bulkReviewQuery}
                       onChange={e => setBulkReviewQuery(e.target.value)}
                       placeholder="Nome ou código"
-                      className="border rounded px-2 py-1 text-xs w-48"
+                      className="border dark:border-gray-600 rounded px-2 py-1 text-xs w-48 dark:bg-gray-700 dark:text-white"
                     />
                   </div>
                 </div>
-                <div className="max-h-80 overflow-auto border rounded bg-gray-50/60">
+                <div className="max-h-80 overflow-auto border dark:border-gray-700 rounded bg-gray-50/60 dark:bg-gray-900/30">
                   {bulkCandidates.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-gray-600">
+                    <div className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
                       Nenhum produto encontrado nesta categoria.
                     </div>
                   )}
                   {bulkCandidates.length > 0 && bulkFilteredCandidates.length === 0 && (
-                    <div className="px-3 py-2 text-sm text-gray-600">
+                    <div className="px-3 py-2 text-sm text-gray-600 dark:text-gray-400">
                       Nenhum produto encontrado para a busca.
                     </div>
                   )}
                   {bulkFilteredCandidates.map(p => (
                     <label
                       key={p.id}
-                      className={`flex items-start gap-3 px-4 py-3 border-b last:border-0 text-sm bg-white transition-colors ${
-                        bulkSelectedIds.has(p.id) ? 'bg-green-50/60' : ''
+                      className={`flex items-start gap-3 px-4 py-3 border-b dark:border-gray-700 last:border-0 text-sm bg-white dark:bg-gray-800 transition-colors ${
+                        bulkSelectedIds.has(p.id) ? 'bg-green-50/60 dark:bg-green-900/20' : ''
                       }`}
                     >
                       <input
                         type="checkbox"
-                        className="mt-1 h-4 w-4 text-green-600 rounded border-gray-300"
+                        className="mt-1 h-4 w-4 text-green-600 rounded border-gray-300 dark:border-gray-600 dark:bg-gray-700"
                         checked={bulkSelectedIds.has(p.id)}
                         onChange={() => {
                           const next = new Set(bulkSelectedIds)
@@ -1902,8 +1901,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       <div className="flex-1">
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <div className="font-medium truncate">{p.name}</div>
-                            <div className="text-xs text-gray-500">
+                            <div className="font-medium truncate dark:text-white">{p.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
                               {p.reference || ''}
                             </div>
                           </div>
@@ -1924,7 +1923,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                                     className={`h-6 w-6 inline-flex items-center justify-center rounded-full border text-xs font-semibold ${
                                       active
                                         ? 'bg-green-600 border-green-600 text-white'
-                                        : 'bg-white border-gray-300 text-gray-700'
+                                        : 'bg-white border-gray-300 text-gray-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300'
                                     }`}
                                   >
                                     {idx+1}
@@ -1940,9 +1939,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
               </div>
               <div>
-                <div className="text-xs text-gray-600 mb-1">Quais precificações ajustar</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">Quais precificações ajustar</div>
                 {bulkMaxSlots === 0 ? (
-                  <div className="text-xs text-gray-500">
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
                     Os produtos selecionados não possuem precificações cadastradas.
                   </div>
                 ) : (
@@ -1957,7 +1956,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             className={`px-4 py-2 rounded-lg border text-xs font-medium min-w-[44px] ${
                               active
                                 ? 'bg-green-600 border-green-600 text-white'
-                                : 'bg-white border-gray-300 text-gray-700'
+                                : 'bg-white border-gray-300 text-gray-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300'
                             }`}
                             onClick={() => {
                               setBulkSelectedSlots(prev => prev.map((v, i) => i === idx ? !v : v))
@@ -1968,17 +1967,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         )
                       })}
                     </div>
-                    <div className="mt-1 text-[11px] text-gray-500">
+                    <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
                       Se nenhuma precificação for marcada, apenas o preço principal será ajustado.
                     </div>
                   </>
                 )}
               </div>
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
               <button
                 type="button"
-                className="px-3 py-2 text-sm rounded border"
+                className="px-3 py-2 text-sm rounded border dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                 onClick={()=>setBulkReviewOpen(false)}
                 disabled={bulkSaving}
               >
@@ -1986,7 +1985,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               </button>
               <button
                 type="button"
-                className="px-3 py-2 text-sm rounded bg-green-600 text-white"
+                className="px-3 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700"
                 onClick={applyBulkPricing}
                 disabled={bulkSaving || !bulkSelectedIds || bulkSelectedIds.size === 0}
               >

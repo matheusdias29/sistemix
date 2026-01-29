@@ -147,25 +147,25 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 font-sans">
-      <div className="w-full max-w-xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-xl bg-white dark:bg-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 pb-2">
-          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+        <div className="p-6 pb-2 border-b dark:border-gray-700 bg-white dark:bg-gray-800">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-white">{title}</h2>
         </div>
 
         {/* Body */}
-        <div className="p-6 pt-4 overflow-y-auto space-y-5">
+        <div className="p-6 pt-4 overflow-y-auto space-y-5 bg-white dark:bg-gray-800">
           
           {/* Cliente Selector */}
           <div 
-            className="bg-gray-50 p-3 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-100 transition-colors flex justify-between items-center group"
+            className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors flex justify-between items-center group"
             onClick={() => setShowClientSelect(true)}
           >
             <div className="flex flex-col">
-              {!client && <span className="text-gray-500 font-medium">Cliente</span>}
-              {client && <span className="text-gray-900 font-bold">{client.name}</span>}
+              {!client && <span className="text-gray-500 dark:text-gray-400 font-medium">Cliente</span>}
+              {client && <span className="text-gray-900 dark:text-white font-bold">{client.name}</span>}
             </div>
-            <span className="text-gray-400 group-hover:text-gray-600">›</span>
+            <span className="text-gray-400 dark:text-gray-500 group-hover:text-gray-600 dark:group-hover:text-gray-300">›</span>
           </div>
 
           {!isCredit && (
@@ -173,13 +173,13 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
              <div className="flex gap-2">
                 <button 
                   onClick={() => setPaymentMode('single')}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${paymentMode === 'single' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${paymentMode === 'single' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}`}
                 >
                   Lançamento único
                 </button>
                 <button 
                   onClick={() => setPaymentMode('installment')}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${paymentMode === 'installment' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${paymentMode === 'installment' ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'}`}
                 >
                   Parcelado
                 </button>
@@ -187,16 +187,16 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
           )}
 
           {/* Valor */}
-          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 flex flex-col">
+          <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600 flex flex-col">
              <div className="flex justify-between mb-1">
-                <span className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+                <span className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">
                     {isCredit ? 'Valor' : 'Valor Lançamento'}
                 </span>
              </div>
              <input 
                type="number"
                step="0.01"
-               className="w-full bg-transparent text-right text-gray-900 font-bold text-xl outline-none placeholder-gray-300"
+               className="w-full bg-transparent text-right text-gray-900 dark:text-white font-bold text-xl outline-none placeholder-gray-300 dark:placeholder-gray-500"
                placeholder="0,00"
                value={value}
                onChange={e => setValue(e.target.value)}
@@ -208,20 +208,20 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
             <div className="grid grid-cols-12 gap-4">
                {paymentMode === 'single' ? (
                    <>
-                       <div className="col-span-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                          <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">Dias</label>
+                       <div className="col-span-4 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <label className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1 block">Dias</label>
                           <input 
                             type="number"
-                            className="w-full bg-transparent text-gray-900 font-medium outline-none"
+                            className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none"
                             value={daysToDue}
                             onChange={handleDaysChange}
                           />
                        </div>
-                       <div className="col-span-8 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                          <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">Data de Vencimento</label>
+                       <div className="col-span-8 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <label className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1 block">Data de Vencimento</label>
                           <input 
                             type="date"
-                            className="w-full bg-transparent text-gray-900 font-medium outline-none"
+                            className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none dark:[color-scheme:dark]"
                             value={dueDate}
                             onChange={handleDateChange}
                           />
@@ -229,24 +229,24 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
                    </>
                ) : (
                    <>
-                       <div className="col-span-5 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                       <div className="col-span-5 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
                           <div className="flex justify-between items-center mb-1">
-                             <label className="text-xs text-gray-500 font-medium uppercase tracking-wider block">Dias</label>
-                             <span className="text-[10px] text-gray-400">Intervalo (dias)</span>
+                             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider block">Dias</label>
+                             <span className="text-[10px] text-gray-400 dark:text-gray-500">Intervalo (dias)</span>
                           </div>
                           <input 
                             type="number"
-                            className="w-full bg-transparent text-gray-900 font-medium outline-none"
+                            className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none"
                             value={daysToDue}
                             onChange={handleDaysChange} // Reuse handleDaysChange to update dueDate internally, though we just need the days value
                             placeholder="30"
                           />
                        </div>
-                       <div className="col-span-7 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                          <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">Quantidade de parcelas</label>
+                       <div className="col-span-7 bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                          <label className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1 block">Quantidade de parcelas</label>
                           <input 
                             type="number"
-                            className="w-full bg-transparent text-gray-900 font-medium outline-none"
+                            className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none"
                             value={installmentCount}
                             onChange={e => setInstallmentCount(e.target.value)}
                             placeholder="Ex: 2"
@@ -258,11 +258,11 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
           )}
 
           {/* Descrição */}
-          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-             <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">Descrição</label>
+          <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1 block">Descrição</label>
              <input 
                type="text"
-               className="w-full bg-transparent text-gray-900 font-medium outline-none placeholder-gray-400"
+               className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none placeholder-gray-400 dark:placeholder-gray-500"
                placeholder={isCredit ? "Ex: Devolução" : "Ex: Venda Balcão"}
                value={description}
                onChange={e => setDescription(e.target.value)}
@@ -270,10 +270,10 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
           </div>
 
           {/* Detalhes */}
-          <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-             <label className="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1 block">Detalhes (opcional)</label>
+          <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-lg border border-gray-200 dark:border-gray-600">
+             <label className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider mb-1 block">Detalhes (opcional)</label>
              <textarea 
-               className="w-full bg-transparent text-gray-900 font-medium outline-none placeholder-gray-400 resize-none h-20"
+               className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none placeholder-gray-400 dark:placeholder-gray-500 resize-none h-20"
                value={details}
                onChange={e => setDetails(e.target.value)}
              />
@@ -282,17 +282,17 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
         </div>
 
         {/* Footer */}
-        <div className="p-4 px-6 border-t bg-white flex justify-end items-center gap-3">
+        <div className="p-4 px-6 border-t dark:border-gray-700 bg-white dark:bg-gray-800 flex justify-end items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-gray-500 font-medium hover:text-gray-700 transition-colors flex items-center gap-2"
+              className="px-4 py-2 text-gray-500 dark:text-gray-400 font-medium hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center gap-2"
             >
               ✕ Cancelar
             </button>
             <button
               onClick={handleSubmit}
               disabled={isLoading}
-              className="px-6 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 shadow-md transition-all transform active:scale-95 disabled:opacity-50"
+              className="px-6 py-2 bg-green-500 text-white font-medium rounded hover:bg-green-600 dark:bg-green-600 dark:hover:bg-green-700 shadow-md transition-all transform active:scale-95 disabled:opacity-50"
             >
               {isLoading ? 'Salvando...' : '✓ Salvar'}
             </button>

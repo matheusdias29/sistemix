@@ -74,14 +74,28 @@ export default function App(){
   // Sync Dark Mode with DOM and LocalStorage
   useEffect(() => {
     const root = document.documentElement
+    
+    // Persist preference
     if (darkMode) {
-      root.classList.add('dark')
       localStorage.setItem('darkMode', '1')
     } else {
-      root.classList.remove('dark')
       localStorage.setItem('darkMode', '0')
     }
-  }, [darkMode])
+
+    // Apply visual class ONLY if not in Login or SelectStore pages
+    // Login: (!user)
+    // SelectStore: (user && !store)
+    // PublicMode: (publicMode) - assume we want dark mode if enabled
+    // Authenticated: (user && store) - assume we want dark mode if enabled
+    
+    const shouldApplyDark = darkMode && (!!store || publicMode)
+
+    if (shouldApplyDark) {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
+  }, [darkMode, store, publicMode])
 
   // Restaura sessão se ainda estiver dentro da janela de inatividade
   useEffect(() => {
@@ -170,14 +184,7 @@ export default function App(){
     } catch {}
   }, [])
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('darkMode', darkMode ? '1' : '0')
-      const root = document.documentElement
-      if (darkMode) root.classList.add('dark')
-      else root.classList.remove('dark')
-    } catch {}
-  }, [darkMode])
+
 
   // Monitora atividade do usuário e aplica logout após 60 min sem interação
   useEffect(() => {

@@ -399,13 +399,13 @@ export default function AccountsReceivablePage({ storeId, user }) {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mt-6">
           <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1 items-center">
              {/* Search Bar */}
-             <div className="relative w-full md:max-w-xs bg-gray-100 rounded-lg">
+             <div className="relative w-full md:max-w-xs bg-gray-100 dark:bg-gray-700 rounded-lg">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <span className="text-gray-400">🔍</span>
+                  <span className="text-gray-400 dark:text-gray-500">🔍</span>
                 </div>
                 <input
                   type="text"
-                  className="block w-full pl-10 pr-3 py-2 bg-transparent border-none focus:ring-0 text-gray-700 placeholder-gray-400 text-base"
+                  className="block w-full pl-10 pr-3 py-2 bg-transparent border-none focus:ring-0 text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 text-base"
                   placeholder="Pesquisar..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -417,8 +417,8 @@ export default function AccountsReceivablePage({ storeId, user }) {
                 onClick={() => setDateFilterOpen(true)}
                 className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   dateRange.label !== 'Todos' 
-                    ? 'bg-green-50 text-green-700 border-green-200' 
-                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800' 
+                    : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'
                 }`}
               >
                 <span>📅</span> {dateRange.label === 'Todos' ? 'Filtrar Vencimento' : dateRange.label}
@@ -427,7 +427,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
 
           {/* Action Buttons */}
           <div className="flex gap-3 w-full md:w-auto justify-end items-center relative">
-             <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">
+             <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
                Opções
              </button>
              
@@ -442,7 +442,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
 
                {/* Dropdown Menu */}
                {isDropdownOpen && (
-                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-100 z-20 overflow-hidden animate-in fade-in zoom-in duration-200">
+                 <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-20 overflow-hidden animate-in fade-in zoom-in duration-200">
                    <button 
                      onClick={() => {
                        setModalType('receivable')
@@ -450,10 +450,10 @@ export default function AccountsReceivablePage({ storeId, user }) {
                        setIsModalOpen(true)
                        setIsDropdownOpen(false)
                      }}
-                     className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-50 transition-colors"
+                     className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-3 border-b border-gray-50 dark:border-gray-700 transition-colors"
                    >
                      <span className="text-green-600 font-bold text-lg">↓$</span>
-                     <span className="text-sm font-medium text-gray-700">Conta a receber</span>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Conta a receber</span>
                    </button>
                    <button 
                      onClick={() => {
@@ -462,10 +462,10 @@ export default function AccountsReceivablePage({ storeId, user }) {
                        setIsModalOpen(true)
                        setIsDropdownOpen(false)
                      }}
-                     className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 transition-colors"
+                     className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-3 transition-colors"
                    >
                      <span className="text-green-600 font-bold text-lg">+$</span>
-                     <span className="text-sm font-medium text-gray-700">Crédito ao cliente</span>
+                     <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Crédito ao cliente</span>
                    </button>
                  </div>
                )}
@@ -475,16 +475,16 @@ export default function AccountsReceivablePage({ storeId, user }) {
 
         {/* Status Filters */}
         <div className="flex flex-wrap items-center gap-4">
-           <div className="flex bg-gray-200 rounded-full p-1">
+           <div className="flex bg-gray-200 dark:bg-gray-700 rounded-full p-1">
               <button 
                 onClick={() => setFilterType('pending')}
-                className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${filterType === 'pending' ? 'bg-green-100 text-green-700 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${filterType === 'pending' ? 'bg-green-100 text-green-700 shadow-sm dark:bg-green-900/30 dark:text-green-300' : 'text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white'}`}
               >
                 ✓ A Receber
               </button>
               <button 
                 onClick={() => setFilterType('all')}
-                className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${filterType === 'all' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-600 hover:text-gray-800'}`}
+                className={`px-4 py-1 rounded-full text-sm font-medium transition-colors ${filterType === 'all' ? 'bg-white text-gray-800 shadow-sm dark:bg-gray-600 dark:text-white' : 'text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white'}`}
               >
                 Todos
               </button>
@@ -494,35 +494,35 @@ export default function AccountsReceivablePage({ storeId, user }) {
         {/* Totals Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
            <div>
-             <span className="text-sm text-gray-500 font-medium block mb-1">Total A Receber</span>
-             <span className="text-2xl font-bold text-green-600">{money(totalReceivable)}</span>
+             <span className="text-sm text-gray-500 dark:text-gray-400 font-medium block mb-1">Total A Receber</span>
+             <span className="text-2xl font-bold text-green-600 dark:text-green-400">{money(totalReceivable)}</span>
            </div>
            <div>
-             <span className="text-sm text-gray-500 font-medium block mb-1">Total Vencido</span>
-             <span className="text-2xl font-bold text-red-500">{money(totalOverdue)}</span>
+             <span className="text-sm text-gray-500 dark:text-gray-400 font-medium block mb-1">Total Vencido</span>
+             <span className="text-2xl font-bold text-red-500 dark:text-red-400">{money(totalOverdue)}</span>
            </div>
            <div>
-             <span className="text-sm text-gray-500 font-medium block mb-1">Total Créditos</span>
-             <span className="text-2xl font-bold text-green-600">{money(totalCredits)}</span>
+             <span className="text-sm text-gray-500 dark:text-gray-400 font-medium block mb-1">Total Créditos</span>
+             <span className="text-2xl font-bold text-green-600 dark:text-green-400">{money(totalCredits)}</span>
            </div>
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-           <table className="min-w-full divide-y divide-gray-100">
-             <thead className="bg-gray-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+           <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
+             <thead className="bg-gray-50 dark:bg-gray-700/50">
                <tr>
-                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600">Cliente / Descrição</th>
-                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Débito</th>
-                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Vencido</th>
-                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Valor Crédito</th>
-                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600">Status</th>
+                 <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600 dark:text-gray-300">Cliente / Descrição</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Valor Débito</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Valor Vencido</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Valor Crédito</th>
+                 <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Status</th>
                </tr>
              </thead>
-             <tbody className="bg-white divide-y divide-gray-100">
+             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
                {grouped.length === 0 ? (
                  <tr>
-                   <td colSpan="5" className="px-6 py-10 text-center text-gray-500">
+                   <td colSpan="5" className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
                      Nenhuma conta encontrada.
                    </td>
                  </tr>
@@ -533,17 +533,17 @@ export default function AccountsReceivablePage({ storeId, user }) {
                    return (
                      <tr
                        key={groupKey}
-                       className="hover:bg-gray-50 transition-colors cursor-pointer group"
+                       className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
                        onClick={() => {
                          setDetailGroup(group)
                          setDetailTab('receivable')
                        }}
                      >
                        <td className="px-6 py-4 whitespace-nowrap">
-                         <div className="text-sm text-gray-700">{group.clientName}</div>
+                         <div className="text-sm text-gray-700 dark:text-gray-200">{group.clientName}</div>
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                         <div className="text-sm text-red-500">{money(group.totalDebit)}</div>
+                         <div className="text-sm text-red-500 dark:text-red-400">{money(group.totalDebit)}</div>
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-right">
                          <div className="text-sm text-red-500">{group.totalOverdue > 0 ? money(group.totalOverdue) : '-'}</div>

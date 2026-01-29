@@ -299,13 +299,13 @@ export default function AccountsPayablePage({ storeId }) {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1">
                 {/* Search */}
-                <div className="relative w-full md:max-w-xs bg-gray-100 rounded-lg">
+                <div className="relative w-full md:max-w-xs bg-gray-100 dark:bg-gray-700 rounded-lg">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <span className="text-gray-400">🔍</span>
                   </div>
                   <input
                     type="text"
-                    className="block w-full pl-10 pr-3 py-2 bg-transparent border-none focus:ring-0 text-sm placeholder-gray-400"
+                    className="block w-full pl-10 pr-3 py-2 bg-transparent border-none focus:ring-0 text-sm placeholder-gray-400 dark:text-white"
                     placeholder="Pesquisar..."
                     value={search}
                     onChange={e => setSearch(e.target.value)}
@@ -318,8 +318,8 @@ export default function AccountsPayablePage({ storeId }) {
                      onClick={() => setIsDateFilterOpen(true)}
                      className={`px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 ${
                        dateFilterLabel !== 'Todos' 
-                         ? 'bg-green-50 text-green-700 border-green-200' 
-                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                         ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700' 
+                         : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                      }`}
                    >
                      📄 {dateFilterLabel !== 'Todos' ? dateFilterLabel : 'Filtrar Vencimento'}
@@ -328,8 +328,8 @@ export default function AccountsPayablePage({ storeId }) {
                      onClick={() => setIsFilterModalOpen(true)}
                      className={`px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 ${
                        (filterSupplierId || filterCategoryId)
-                         ? 'bg-green-50 text-green-700 border-green-200' 
-                         : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                         ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700' 
+                         : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                      }`}
                    >
                      ⚙ Filtros {(filterSupplierId || filterCategoryId) ? '(Ativo)' : ''}
@@ -338,12 +338,12 @@ export default function AccountsPayablePage({ storeId }) {
                      <button
                        type="button"
                        onClick={() => setIsSortOpen(prev => !prev)}
-                       className="px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 font-medium hover:bg-gray-50 shadow-sm flex items-center gap-2"
+                       className="px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm flex items-center gap-2"
                      >
                        ⇅
                      </button>
                      {isSortOpen && (
-                       <div className="absolute right-0 mt-2 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20">
+                       <div className="absolute right-0 mt-2 w-44 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20">
                          <button
                            type="button"
                            onClick={() => {
@@ -352,8 +352,8 @@ export default function AccountsPayablePage({ storeId }) {
                            }}
                            className={`w-full text-left px-3 py-2 text-xs ${
                              sortBy === 'dueDate'
-                               ? 'bg-green-50 text-green-700'
-                               : 'text-gray-700 hover:bg-gray-50'
+                               ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                            }`}
                          >
                            Data de Vencimento
@@ -364,10 +364,10 @@ export default function AccountsPayablePage({ storeId }) {
                              setSortBy('createdAt')
                              setIsSortOpen(false)
                            }}
-                           className={`w-full text-left px-3 py-2 text-xs border-t border-gray-100 ${
+                           className={`w-full text-left px-3 py-2 text-xs border-t border-gray-100 dark:border-gray-700 ${
                              sortBy === 'createdAt'
-                               ? 'bg-green-50 text-green-700'
-                               : 'text-gray-700 hover:bg-gray-50'
+                               ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                               : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                            }`}
                          >
                            Data de Criação
@@ -379,7 +379,7 @@ export default function AccountsPayablePage({ storeId }) {
               </div>
 
               <div className="flex gap-3 w-full md:w-auto justify-end">
-                <button className="px-4 py-2 bg-white border border-green-600 text-green-600 rounded-lg text-sm font-medium hover:bg-green-50 shadow-sm">
+                <button className="px-4 py-2 bg-white dark:bg-gray-800 border border-green-600 dark:border-green-500 text-green-600 dark:text-green-500 rounded-lg text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 shadow-sm">
                   Exportar
                 </button>
                 <button 

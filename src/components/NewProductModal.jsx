@@ -713,35 +713,35 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-lg w-[980px] max-w-[98vw]">
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="font-semibold text-lg">{isEdit ? 'Editar produto' : 'Novo produto'}</h3>
-          <button onClick={close} className="text-gray-500 hover:text-gray-700">✕</button>
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[980px] max-w-[98vw]">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+          <h3 className="font-semibold text-lg dark:text-white">{isEdit ? 'Editar produto' : 'Novo produto'}</h3>
+          <button onClick={close} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
-        <div className="px-4 pt-3 border-b flex items-center gap-6 text-sm">
-          <button onClick={()=>setTab('cadastro')} className={`pb-2 ${tab==='cadastro' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Cadastro</button>
-          <button onClick={isEdit ? ()=>setTab('estoque') : undefined} className={`pb-2 ${tab==='estoque' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'} ${isEdit ? '' : 'opacity-50 cursor-not-allowed'}`}>Estoque</button>
+        <div className="px-4 pt-3 border-b dark:border-gray-700 flex items-center gap-6 text-sm">
+          <button onClick={()=>setTab('cadastro')} className={`pb-2 ${tab==='cadastro' ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400 dark:border-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>Cadastro</button>
+          <button onClick={isEdit ? ()=>setTab('estoque') : undefined} className={`pb-2 ${tab==='estoque' ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400 dark:border-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'} ${isEdit ? '' : 'opacity-50 cursor-not-allowed'}`}>Estoque</button>
         </div>
         <form onSubmit={handleSubmit}><div className="p-4"><div className="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
-          {error && <div className="text-sm text-red-600">{error}</div>}
+          {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
 
 {tab==='cadastro' ? (
   <>
     <div>
-      <div className="font-semibold mb-2">Dados do produto</div>
+      <div className="font-semibold mb-2 dark:text-white">Dados do produto</div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 order-2 md:order-none">
-          <input value={name} onChange={e=>setName(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome do produto" />
+          <input value={name} onChange={e=>setName(e.target.value)} className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Nome do produto" />
           <div className="mt-3 grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-600">Categoria</label>
-              <button type="button" onClick={()=>setCatSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left">
+              <label className="text-xs text-gray-600 dark:text-gray-300">Categoria</label>
+              <button type="button" onClick={()=>setCatSelectOpen(true)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left dark:bg-gray-700 dark:text-white">
                 {categories.find(c=>c.id===categoryId)?.name || 'Selecionar categoria'}
               </button>
             </div>
             <div>
-              <label className="text-xs text-gray-600">Fornecedor</label>
-              <button type="button" onClick={()=>setSupSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm text-left">
+              <label className="text-xs text-gray-600 dark:text-gray-300">Fornecedor</label>
+              <button type="button" onClick={()=>setSupSelectOpen(true)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left dark:bg-gray-700 dark:text-white">
                 {supplier || 'Selecionar fornecedor'}
               </button>
             </div>
@@ -749,26 +749,26 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <div className="mt-3">
             <div className="flex flex-wrap items-center gap-6">
               <div className="flex items-center gap-3">
-                <span className="text-sm">Smarthphone</span>
-                <button type="button" onClick={()=>setIsSmartphone(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSmartphone ? 'bg-green-500' : 'bg-gray-300'}`}>
+                <span className="text-sm dark:text-gray-300">Smarthphone</span>
+                <button type="button" onClick={()=>setIsSmartphone(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSmartphone ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isSmartphone ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm">Peças</span>
-                <button type="button" onClick={()=>setIsParts(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isParts ? 'bg-green-500' : 'bg-gray-300'}`}>
+                <span className="text-sm dark:text-gray-300">Peças</span>
+                <button type="button" onClick={()=>setIsParts(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isParts ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isParts ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm">Acessórios</span>
-                <button type="button" onClick={()=>setIsAccessories(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isAccessories ? 'bg-green-500' : 'bg-gray-300'}`}>
+                <span className="text-sm dark:text-gray-300">Acessórios</span>
+                <button type="button" onClick={()=>setIsAccessories(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isAccessories ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isAccessories ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <span className="text-sm">Diversos</span>
-                <button type="button" onClick={()=>setIsSundries(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSundries ? 'bg-green-500' : 'bg-gray-300'}`}>
+                <span className="text-sm dark:text-gray-300">Diversos</span>
+                <button type="button" onClick={()=>setIsSundries(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSundries ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isSundries ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
@@ -779,60 +779,60 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                   <>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs text-gray-600">Marca do celular</label>
-                        <input value={phoneBrand} onChange={e=>setPhoneBrand(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Ex.: Samsung" />
+                        <label className="text-xs text-gray-600 dark:text-gray-300">Marca do celular</label>
+                        <input value={phoneBrand} onChange={e=>setPhoneBrand(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Ex.: Samsung" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-600">Cor</label>
-                        <input value={phoneColor} onChange={e=>setPhoneColor(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Ex.: Preto" />
+                        <label className="text-xs text-gray-600 dark:text-gray-300">Cor</label>
+                        <input value={phoneColor} onChange={e=>setPhoneColor(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Ex.: Preto" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-600">Número de série</label>
-                        <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                        <label className="text-xs text-gray-600 dark:text-gray-300">Número de série</label>
+                        <input value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-gray-600">IMEI 1</label>
-                        <input value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                        <label className="text-xs text-gray-600 dark:text-gray-300">IMEI 1</label>
+                        <input value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                       </div>
                       <div>
-                        <label className="text-xs text-gray-600">IMEI 2</label>
-                        <input value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                        <label className="text-xs text-gray-600 dark:text-gray-300">IMEI 2</label>
+                        <input value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                       </div>
                     </div>
                   </>
                 )}
                 <div>
-                  <div className="text-xs text-gray-600 mb-1">Condição</div>
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">Condição</div>
+                  <div className="flex items-center gap-4 text-sm dark:text-gray-300">
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="condicao" checked={condition==='novo'} onChange={()=>setCondition('novo')} />
+                      <input type="radio" name="condicao" checked={condition==='novo'} onChange={()=>setCondition('novo')} className="dark:bg-gray-700 dark:border-gray-600" />
                       <span>Novo</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="condicao" checked={condition==='vitrine'} onChange={()=>setCondition('vitrine')} />
+                      <input type="radio" name="condicao" checked={condition==='vitrine'} onChange={()=>setCondition('vitrine')} className="dark:bg-gray-700 dark:border-gray-600" />
                       <span>Vitrine</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="condicao" checked={condition==='usado'} onChange={()=>setCondition('usado')} />
+                      <input type="radio" name="condicao" checked={condition==='usado'} onChange={()=>setCondition('usado')} className="dark:bg-gray-700 dark:border-gray-600" />
                       <span>Usado</span>
                     </label>
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs text-gray-600 mb-1">Garantia</div>
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">Garantia</div>
+                  <div className="flex items-center gap-4 text-sm dark:text-gray-300">
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="garantia" checked={warrantyMonths===3} onChange={()=>setWarrantyMonths(3)} />
+                      <input type="radio" name="garantia" checked={warrantyMonths===3} onChange={()=>setWarrantyMonths(3)} className="dark:bg-gray-700 dark:border-gray-600" />
                       <span>3m</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="garantia" checked={warrantyMonths===6} onChange={()=>setWarrantyMonths(6)} />
+                      <input type="radio" name="garantia" checked={warrantyMonths===6} onChange={()=>setWarrantyMonths(6)} className="dark:bg-gray-700 dark:border-gray-600" />
                       <span>6m</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="garantia" checked={warrantyMonths===12} onChange={()=>setWarrantyMonths(12)} />
+                      <input type="radio" name="garantia" checked={warrantyMonths===12} onChange={()=>setWarrantyMonths(12)} className="dark:bg-gray-700 dark:border-gray-600" />
                       <span>12m</span>
                     </label>
                   </div>
@@ -842,8 +842,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           </div>
         </div>
         <div className="order-first md:order-none">
-          <div className="h-32 border rounded flex items-center justify-center text-gray-400 text-sm">Sem imagem</div>
-          <button type="button" disabled className="mt-2 px-3 py-2 border rounded text-xs text-gray-400">Adicionar fotos</button>
+          <div className="h-32 border dark:border-gray-600 rounded flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">Sem imagem</div>
+          <button type="button" disabled className="mt-2 px-3 py-2 border dark:border-gray-600 rounded text-xs text-gray-400 dark:text-gray-500">Adicionar fotos</button>
         </div>
       </div>
     </div>
@@ -926,62 +926,62 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
     <div>
       <div className="flex items-center gap-4 mb-3">
-        <span className="text-sm font-medium text-gray-700">Quantidade de Precificações:</span>
-        <div className="flex items-center bg-gray-100 rounded-lg p-1 border">
+        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Quantidade de Precificações:</span>
+        <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border dark:border-gray-600">
           <button 
             type="button" 
             onClick={() => { setVariationMode('4P'); setVariationsData(generateVariations('4P', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
           >
             P1
           </button>
           <button 
             type="button" 
             onClick={() => { setVariationMode('5P'); setVariationsData(generateVariations('5P', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
           >
             P2
           </button>
         </div>
       </div>
       <div className="flex items-center justify-between mb-2">
-        <div className="font-semibold">Precificações</div>
-        <button type="button" onClick={()=> setVarModalOpen(true)} className="px-3 py-2 border rounded text-sm">Gerenciar precificações</button>
+        <div className="font-semibold dark:text-white">Precificações</div>
+        <button type="button" onClick={()=> setVarModalOpen(true)} className="px-3 py-2 border dark:border-gray-600 rounded text-sm dark:text-gray-300 dark:hover:bg-gray-700">Gerenciar precificações</button>
       </div>
       {/* Mobile list */}
       <div className="md:hidden">
-        <div className="text-xs text-gray-600">{variationsData.length} precificações</div>
-        <div className="mt-2 border rounded overflow-hidden">
+        <div className="text-xs text-gray-600 dark:text-gray-400">{variationsData.length} precificações</div>
+        <div className="mt-2 border dark:border-gray-600 rounded overflow-hidden">
           {variationsData.map((v, idx) => (
-            <div key={idx} className="px-3 py-3 border-b last:border-0">
+            <div key={idx} className="px-3 py-3 border-b dark:border-gray-700 last:border-0">
               <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3">
                 <div>
-                  <div className="text-sm font-medium leading-tight truncate" title={v.name}>{v.name || '-'}</div>
+                  <div className="text-sm font-medium leading-tight truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
                   {idx === 0 && (
-                    <div className="mt-1 text-xs text-gray-600">
+                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
                       <span>Estoque: {v.stock ?? 0}</span>
                     </div>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 pt-[1px]">{(reference || '').trim() ? reference : ''}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 pt-[1px]">{(reference || '').trim() ? reference : ''}</div>
                 <div className="text-right">
-                  <div className="text-base font-semibold leading-tight">{((v.promoPrice ?? v.salePrice) ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-                  <div className="text-xs text-gray-600">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+                  <div className="text-base font-semibold leading-tight dark:text-white">{((v.promoPrice ?? v.salePrice) ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+                  <div className="text-xs text-gray-600 dark:text-gray-400">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
                 </div>
               </div>
             </div>
           ))}
           {variationsData.length === 0 && (
-            <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+            <div className="px-3 py-6 text-sm text-gray-500 dark:text-gray-400">Nenhuma variação adicionada ainda.</div>
           )}
         </div>
       </div>
 
       {/* Desktop table */}
       <div className="hidden md:block">
-        <div className="text-xs text-gray-600">{variationsData.length} precificações</div>
-        <div className="mt-2 border rounded overflow-hidden">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 border-b">
+        <div className="text-xs text-gray-600 dark:text-gray-400">{variationsData.length} precificações</div>
+        <div className="mt-2 border dark:border-gray-600 rounded overflow-hidden">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
             <div>Nome</div>
             <div className="text-right">Custo</div>
             <div className="text-right">Preço</div>
@@ -989,34 +989,34 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             <div className="text-right">Estoque</div>
           </div>
           {variationsData.map((v, idx) => (
-            <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 border-b last:border-0 text-sm">
-              <div className="truncate" title={v.name}>{v.name || '-'}</div>
-              <div className="text-right">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-              <div className="text-right">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-              <div className="text-right">{idx === 0 ? (v.stockMin ?? 0) : ''}</div>
-              <div className={`text-right ${(v.stock ?? 0) > 0 ? '' : 'text-red-600'}`}>{idx === 0 ? (v.stock ?? 0) : ''}</div>
+            <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm">
+              <div className="truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
+              <div className="text-right dark:text-gray-300">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+              <div className="text-right dark:text-gray-300">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+              <div className="text-right dark:text-gray-300">{idx === 0 ? (v.stockMin ?? 0) : ''}</div>
+              <div className={`text-right ${(v.stock ?? 0) > 0 ? 'dark:text-gray-300' : 'text-red-600 dark:text-red-400'}`}>{idx === 0 ? (v.stock ?? 0) : ''}</div>
             </div>
           ))}
           {variationsData.length === 0 && (
-            <div className="px-3 py-6 text-sm text-gray-500">Nenhuma variação adicionada ainda.</div>
+            <div className="px-3 py-6 text-sm text-gray-500 dark:text-gray-400">Nenhuma variação adicionada ainda.</div>
           )}
         </div>
       </div>
 
-      <div className="font-semibold mb-2">Dados adicionais</div>
-      <textarea value={description} onChange={e=>setDescription(e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Descrição do produto" rows={3} />
+      <div className="font-semibold mb-2 dark:text-white">Dados adicionais</div>
+      <textarea value={description} onChange={e=>setDescription(e.target.value)} className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Descrição do produto" rows={3} />
       <div className="mt-3 grid grid-cols-1 md:grid-cols-4 gap-4">
         <div>
-          <label className="text-xs text-gray-600">Código</label>
-          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          <label className="text-xs text-gray-600 dark:text-gray-300">Código</label>
+          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
         </div>
         <div>
-          <label className="text-xs text-gray-600">Comissão (%)</label>
-          <input type="number" step="0.01" value={commissionPercent} onChange={e=>setCommissionPercent(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          <label className="text-xs text-gray-600 dark:text-gray-300">Comissão (%)</label>
+          <input type="number" step="0.01" value={commissionPercent} onChange={e=>setCommissionPercent(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
         </div>
         <div>
-          <label className="text-xs text-gray-600">Unidade de venda</label>
-          <select value={unit} onChange={e=>setUnit(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm">
+          <label className="text-xs text-gray-600 dark:text-gray-300">Unidade de venda</label>
+          <select value={unit} onChange={e=>setUnit(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white">
             <option>Unidade</option>
             <option>Caixa</option>
             <option>Pacote</option>
@@ -1025,24 +1025,24 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         </div>
         <div className="flex items-end">
           {/* Switch: Permite vender fracionado */}
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm dark:text-gray-300">
             <span>Permite vender fracionado</span>
-            <button type="button" onClick={()=>setAllowFraction(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${allowFraction ? 'bg-green-500' : 'bg-gray-300'}`}>
+            <button type="button" onClick={()=>setAllowFraction(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${allowFraction ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${allowFraction ? 'translate-x-4' : 'translate-x-1'}`}></span>
             </button>
           </div>
         </div>
       </div>
       <div className="mt-3">
-        <label className="text-xs text-gray-600">Observações internas</label>
-        <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" rows={2} />
+        <label className="text-xs text-gray-600 dark:text-gray-300">Observações internas</label>
+        <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" rows={2} />
       </div>
       <div className="mt-3">
-        <div className="font-semibold mb-2">Dados Fiscais</div>
+        <div className="font-semibold mb-2 dark:text-white">Dados Fiscais</div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="text-xs text-gray-600">Origem da mercadoria</label>
-            <select value={origin} onChange={e=>setOrigin(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm">
+            <label className="text-xs text-gray-600 dark:text-gray-300">Origem da mercadoria</label>
+            <select value={origin} onChange={e=>setOrigin(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white">
               <option value="">Selecionar...</option>
               <option value="0">0 - Nacional</option>
               <option value="1">1 - Estrangeira - Importação direta</option>
@@ -1050,12 +1050,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-600">NCM</label>
-            <input value={ncm} onChange={e=>setNcm(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-gray-600 dark:text-gray-300">NCM</label>
+            <input value={ncm} onChange={e=>setNcm(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
           </div>
           <div>
-            <label className="text-xs text-gray-600">CEST</label>
-            <input value={cest} onChange={e=>setCest(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            <label className="text-xs text-gray-600 dark:text-gray-300">CEST</label>
+            <input value={cest} onChange={e=>setCest(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
           </div>
         </div>
       </div>
@@ -1063,33 +1063,33 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   </>
 ) : (
   <>
-    <div className="font-semibold mb-2">Estoque</div>
+    <div className="font-semibold mb-2 dark:text-white">Estoque</div>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label className="text-xs text-gray-600">Estoque inicial</label>
-        <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        <label className="text-xs text-gray-600 dark:text-gray-300">Estoque inicial</label>
+        <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
       </div>
       <div>
-        <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
-        <input type="number" value={stockMin} onChange={e=>setStockMin(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+        <label className="text-xs text-gray-600 dark:text-gray-300">Estoque mínimo (alerta)</label>
+        <input type="number" value={stockMin} onChange={e=>setStockMin(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
       </div>
     </div>
-    <div className="mt-3 flex items-center gap-8 text-sm">
+    <div className="mt-3 flex items-center gap-8 text-sm dark:text-gray-300">
       <div className="flex items-center gap-2">
         <span>Controlar estoque</span>
-        <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300'}`}>
+        <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${controlStock ? 'translate-x-4' : 'translate-x-1'}`}></span>
         </button>
       </div>
       <div className="flex items-center gap-2">
         <span>Exibir no catálogo</span>
-        <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300'}`}>
+        <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
         </button>
       </div>
       <div className="flex items-center gap-2">
         <span>Destacar produto</span>
-        <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300'}`}>
+        <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
         </button>
       </div>
@@ -1099,17 +1099,17 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 </div>
 </div>
 
-<div className="px-6 py-3 border-t">
-  <label className="flex items-center gap-2 text-sm">
+<div className="px-6 py-3 border-t dark:border-gray-700">
+  <label className="flex items-center gap-2 text-sm dark:text-gray-300">
     <span>Cadastro Ativo</span>
-    <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>
+    <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
     </button>
   </label>
  </div>
 
 <div className="flex items-center justify-end gap-3 pt-2 px-6">
-  <button type="button" onClick={close} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+  <button type="button" onClick={close} className="px-3 py-2 border dark:border-gray-600 rounded text-sm dark:text-gray-300 dark:hover:bg-gray-700">Cancelar</button>
   <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Confirmar</button>
 </div>
         </form>

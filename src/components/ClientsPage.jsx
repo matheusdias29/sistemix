@@ -100,7 +100,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       )}
 
       {/* Header */}
-      <div className="bg-white rounded-lg p-4 shadow mb-4">
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow mb-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
            {/* Esquerda: Pesquisa + Filtros */}
            <div className="flex items-center gap-2 flex-1 max-w-2xl">
@@ -110,12 +110,12 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                    value={query} 
                    onChange={e=>setQuery(e.target.value)} 
                    placeholder="Pesquisar nome, telefone..." 
-                   className="w-full pl-9 pr-3 py-2 border rounded-md text-sm bg-gray-50 focus:bg-white focus:ring-1 focus:ring-green-500 outline-none" 
+                   className="w-full pl-9 pr-3 py-2 border dark:border-gray-700 rounded-md text-sm bg-gray-50 dark:bg-gray-700 dark:text-white focus:bg-white dark:focus:bg-gray-600 focus:ring-1 focus:ring-green-500 outline-none" 
                  />
               </div>
               <button 
                 onClick={()=>setFilterOpen(true)} 
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md text-sm font-medium flex items-center gap-2"
+                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium flex items-center gap-2"
               >
                 <span>⚙️</span> Filtros
               </button>
@@ -123,7 +123,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
 
            {/* Direita: Opções + Novo */}
            <div className="flex items-center gap-2">
-              <button className="hidden md:inline-flex px-4 py-2 border border-green-600 text-green-600 rounded-md text-sm font-medium hover:bg-green-50">
+              <button className="hidden md:inline-flex px-4 py-2 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded-md text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30">
                 Opções
               </button>
               <button onClick={()=>setModalOpen(true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium flex items-center gap-1">
@@ -134,9 +134,9 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       </div>
 
       {/* Lista */}
-      <div className="bg-white rounded-lg shadow overflow-visible">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-visible">
         {/* Cabeçalho (apenas desktop) */}
-        <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 text-sm text-gray-600 font-bold border-b bg-gray-50">
+        <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 text-sm text-gray-600 dark:text-gray-300 font-bold border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <div>Clientes ({filtered.length})</div>
           <div>Código</div>
           <div className="text-center">Atualizado</div>
@@ -154,28 +154,28 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
           <React.Fragment key={c.id}>
             {/* Linha mobile: apenas código + nome */}
             <div
-              className="md:hidden px-4 py-3 border-b last:border-0"
+              className="md:hidden px-4 py-3 border-b dark:border-gray-700 last:border-0"
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="text-sm font-medium flex items-center gap-2 truncate">
+                <div className="text-sm font-medium flex items-center gap-2 truncate text-gray-800 dark:text-gray-100">
                   <span className="truncate">{c.name}</span>
                   {c.code ? (<span className="text-gray-500 text-xs shrink-0">#{c.code}</span>) : null}
                 </div>
                 
                 <div className="relative">
                    <button 
-                     className="p-1 rounded-full hover:bg-gray-100 relative z-20"
+                     className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 relative z-20"
                      onClick={(e)=>{ e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id) }}
                    >
                      <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
                    </button>
                    {openMenuId === c.id && (
-                     <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1`}>
-                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
+                     <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white dark:bg-gray-800 rounded shadow-xl border dark:border-gray-700 z-30 py-1`}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
                         <span>Editar</span>
                       </button>
-                      <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={()=> openConfirmRemove(c)}>
                          <span>🗑️</span>
                          <span>Remover cliente</span>
                        </button>
@@ -186,8 +186,8 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
             </div>
 
             {/* Linha desktop completa */}
-            <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b last:border-0">
-              <div className="text-sm">
+            <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 border-b dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors">
+              <div className="text-sm text-gray-800 dark:text-gray-200">
                 <div className="uppercase">
                   {c.name}
                 </div>
@@ -195,13 +195,13 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
               <div className="text-xs text-gray-500 font-mono">
                 {c.code || '-'}
               </div>
-              <div className="text-xs text-gray-700 text-center">
+              <div className="text-xs text-gray-700 dark:text-gray-300 text-center">
                  {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
               </div>
-              <div className="text-xs text-gray-700 text-center">
+              <div className="text-xs text-gray-700 dark:text-gray-300 text-center">
                  {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
               </div>
-              <div className="hidden md:flex text-xs text-gray-700 justify-center items-center truncate px-2" title={c.lastEditedBy || c.createdBy || ''}>
+              <div className="hidden md:flex text-xs text-gray-700 dark:text-gray-300 justify-center items-center truncate px-2" title={c.lastEditedBy || c.createdBy || ''}>
                  {c.lastEditedBy || c.createdBy || '—'}
               </div>
               <div className="text-sm text-left">
@@ -210,7 +210,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                     href={`https://wa.me/${(c.whatsapp.replace(/\D/g,'').length >= 10 && c.whatsapp.replace(/\D/g,'').length <= 11) ? '55' : ''}${c.whatsapp.replace(/\D/g,'')}`} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    className="flex items-center justify-start gap-2 hover:underline text-gray-700 hover:text-green-700"
+                    className="flex items-center justify-start gap-2 hover:underline text-gray-700 dark:text-gray-300 hover:text-green-700 dark:hover:text-green-400"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-500 shrink-0">
@@ -223,25 +223,25 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                 )}
               </div>
               <div className="text-sm text-right">
-                <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active!==false) ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active!==false) ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'}`}>
                   {(c.active!==false) ? 'Ativo' : 'Inativo'}
                 </div>
               </div>
               
               <div className="relative text-right">
                  <button 
-                   className="p-1 rounded-full hover:bg-gray-100 relative z-20"
+                   className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 relative z-20"
                    onClick={(e)=>{ e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id) }}
                  >
                    <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
                  </button>
                  {openMenuId === c.id && (
-                    <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white rounded shadow-xl border z-30 py-1 text-left`}>
-                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2" onClick={()=> startEdit(c)}>
+                    <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white dark:bg-gray-800 rounded shadow-xl border dark:border-gray-700 z-30 py-1 text-left`}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
                         <span>Editar</span>
                       </button>
-                      <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2 text-red-600" onClick={()=> openConfirmRemove(c)}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={()=> openConfirmRemove(c)}>
                        <span>🗑️</span>
                        <span>Remover cliente</span>
                      </button>
@@ -258,11 +258,11 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       {/* Modal Confirmar Exclusão */}
       {confirmRemoveOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="relative bg-white rounded-lg shadow-lg w-[95vw] max-w-[520px]">
-            <div className="px-4 py-3 border-b">
-              <h3 className="text-base font-medium">Remover cliente</h3>
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700">
+              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">Remover cliente</h3>
             </div>
-            <div className="p-4 space-y-3 text-sm">
+            <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
               <div>
                 Tem certeza que deseja remover “{confirmRemoveClient?.name}”?
               </div>
@@ -270,9 +270,9 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                 Esta ação é irreversível.
               </div>
             </div>
-            <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-              <button className="px-3 py-2 text-sm rounded border" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
-              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white" onClick={confirmRemove} disabled={savingAction}>Remover</button>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+              <button className="px-3 py-2 text-sm rounded border dark:border-gray-600 dark:text-gray-300" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
+              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={confirmRemove} disabled={savingAction}>Remover</button>
             </div>
           </div>
         </div>

@@ -255,10 +255,12 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
     return m || 1
   }, [last5DaysSalesProfit])
 
-  // Metas da Equipe
+  // Metas da Equipe (Agrupadas por vendedor)
   const teamGoals = useMemo(() => {
     const relevant = goals.filter(g => g.monthYear === currentMonthStr && g.sellerId)
-    return relevant.map(g => {
+    const grouped = {}
+
+    relevant.forEach(g => {
       const target = Number(g.target || 0)
       
       const currentVal = monthOrders.reduce((acc, o) => {
@@ -289,8 +291,31 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
       }, 0)
 
       const pct = target ? Math.min(100, Math.round((currentVal / target) * 100)) : 0
-      return { ...g, current: currentVal, pct }
+      
+      if (!grouped[g.sellerId]) {
+        grouped[g.sellerId] = {
+          sellerId: g.sellerId,
+          sellerName: g.sellerName,
+          sales: null,
+          os: null
+        }
+      }
+
+      const goalData = { ...g, current: currentVal, pct }
+
+      if (g.includeSale && !g.includeServiceOrder) {
+        grouped[g.sellerId].sales = goalData
+      } else if (g.includeServiceOrder && !g.includeSale) {
+        grouped[g.sellerId].os = goalData
+      } else {
+        // Se for misto (incomum com a nova logica, mas suportado), define como Sales por padrao ou ambos se duplicar lógica
+        // Assumindo separação estrita conforme memória do projeto
+        if (g.includeSale) grouped[g.sellerId].sales = goalData
+        else grouped[g.sellerId].os = goalData
+      }
     })
+
+    return Object.values(grouped)
   }, [goals, currentMonthStr, monthOrders])
 
   const getInitials = (name) => name ? name.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase() : '?'
@@ -568,34 +593,67 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay }){
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {(showAllTeamGoals ? teamGoals : teamGoals.slice(0, 2)).map(g => (
-              <div key={g.id} className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
-                 <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${g.includeSale ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
-                            {getInitials(g.sellerName)}
-                        </div>
-                        <div>
-                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">{g.sellerName || 'Vendedor'}</h4>
-                            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                              {g.includeSale && g.includeServiceOrder ? 'Vendas + OS' : g.includeSale ? 'Vendas' : 'OS'}
-                            </span>
-                        </div>
+            {(showAllTeamGoals ? teamGoals : teamGoals.slice(0, 2)).map(group => (
+              <div key={group.sellerId} className="p-4 rounded-lg bg-gray-50 dark:bg-gray-700/30 border border-gray-100 dark:border-gray-700">
+                 <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shadow-sm bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-gray-200">
+                        {getInitials(group.sellerName)}
                     </div>
-                    <div className="text-right">
-                       <div className="text-base font-extrabold text-gray-900 dark:text-white">{currencyOrHidden(g.current)}</div>
-                       <div className="text-xs text-gray-500 dark:text-gray-400 font-medium">meta: {currencyOrHidden(g.target)}</div>
+                    <div>
+                        <h4 className="text-sm font-bold text-gray-900 dark:text-white">{group.sellerName || 'Vendedor'}</h4>
                     </div>
                  </div>
-                 
-                 <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full transition-all duration-500 ${g.includeSale ? 'bg-green-500' : 'bg-blue-500'}`} 
-                      style={{ width: `${g.pct}%` }} 
-                    />
-                 </div>
-                 <div className="mt-1.5 flex justify-end">
-                    <span className="text-xs font-bold text-gray-600 dark:text-gray-400">{g.pct}% atingido</span>
+
+                 <div className="space-y-4">
+                    {/* Barra de Vendas */}
+                    {group.sales && (
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                            Vendas
+                          </span>
+                          <div className="text-right">
+                             <span className="text-sm font-extrabold text-gray-900 dark:text-white mr-1">{currencyOrHidden(group.sales.current)}</span>
+                             <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">/ {currencyOrHidden(group.sales.target)}</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden relative">
+                           <div 
+                             className="h-full rounded-full transition-all duration-500 bg-green-500"
+                             style={{ width: `${group.sales.pct}%` }} 
+                           />
+                        </div>
+                        <div className="mt-0.5 text-right">
+                          <span className="text-[10px] font-bold text-green-600 dark:text-green-400">{group.sales.pct}%</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Barra de OS */}
+                    {group.os && (
+                      <div>
+                        <div className="flex justify-between items-end mb-1">
+                          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                            OS
+                          </span>
+                          <div className="text-right">
+                             <span className="text-sm font-extrabold text-gray-900 dark:text-white mr-1">{currencyOrHidden(group.os.current)}</span>
+                             <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">/ {currencyOrHidden(group.os.target)}</span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden relative">
+                           <div 
+                             className="h-full rounded-full transition-all duration-500 bg-blue-500"
+                             style={{ width: `${group.os.pct}%` }} 
+                           />
+                        </div>
+                        <div className="mt-0.5 text-right">
+                           <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">{group.os.pct}%</span>
+                        </div>
+                      </div>
+                    )}
                  </div>
               </div>
             ))}

@@ -183,48 +183,48 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
             </div>
 
             {/* Sanfona: Endereço (fechada por padrão) */}
-            <div className="mt-4 border rounded">
-              <button type="button" onClick={()=>setAddrOpen(v=>!v)} className="w-full px-3 py-2 text-left flex items-center justify-between">
+            <div className="mt-4 border dark:border-gray-600 rounded">
+              <button type="button" onClick={()=>setAddrOpen(v=>!v)} className="w-full px-3 py-2 text-left flex items-center justify-between dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
                 <span className="font-semibold text-sm">Endereço (opcional)</span>
-                <span className="text-gray-500">{addrOpen ? '▴' : '▾'}</span>
+                <span className="text-gray-500 dark:text-gray-400">{addrOpen ? '▴' : '▾'}</span>
               </button>
               {addrOpen && (
-                <div className="px-3 pt-2 pb-3 space-y-3">
+                <div className="px-3 pt-2 pb-3 space-y-3 border-t dark:border-gray-600">
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-start md:items-end">
                     <div>
-                      <label className="text-xs text-gray-600">CEP</label>
+                      <label className="text-xs text-gray-600 dark:text-gray-300">CEP</label>
                       <div className="mt-1 flex items-center gap-2">
-                        <input value={cep} onChange={e=>setCep(e.target.value)} className="flex-1 border rounded px-3 py-2 text-sm" />
-                        <button type="button" onClick={handleSearchCep} className="px-3 py-2 border rounded text-sm hover:bg-gray-50">🔎</button>
+                        <input value={cep} onChange={e=>setCep(e.target.value)} className="flex-1 border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
+                        <button type="button" onClick={handleSearchCep} className="px-3 py-2 border dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-300">🔎</button>
                       </div>
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-gray-600">Endereço</label>
-                      <input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Endereço</label>
+                      <input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Número</label>
-                      <input value={number} onChange={e=>setNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Número</label>
+                      <input value={number} onChange={e=>setNumber(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Complemento</label>
-                      <input value={complement} onChange={e=>setComplement(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Complemento</label>
+                      <input value={complement} onChange={e=>setComplement(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-gray-600">Bairro</label>
-                      <input value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Bairro</label>
+                      <input value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Cidade</label>
-                      <input value={city} onChange={e=>setCity(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Cidade</label>
+                      <input value={city} onChange={e=>setCity(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Estado</label>
-                      <input value={state} onChange={e=>setState(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Estado</label>
+                      <input value={state} onChange={e=>setState(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                   </div>
                 </div>
@@ -232,30 +232,30 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
             </div>
 
             {/* Sanfona: Informações adicionais (fechada por padrão) */}
-            <div className="mt-4 border rounded">
-              <button type="button" onClick={()=>setInfoOpen(v=>!v)} className="w-full px-3 py-2 text-left flex items-center justify-between">
+            <div className="mt-4 border dark:border-gray-600 rounded">
+              <button type="button" onClick={()=>setInfoOpen(v=>!v)} className="w-full px-3 py-2 text-left flex items-center justify-between dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded">
                 <span className="font-semibold text-sm">Informações adicionais (opcional)</span>
-                <span className="text-gray-500">{infoOpen ? '▴' : '▾'}</span>
+                <span className="text-gray-500 dark:text-gray-400">{infoOpen ? '▴' : '▾'}</span>
               </button>
               {infoOpen && (
-                <div className="px-3 pt-2 pb-3 space-y-3">
+                <div className="px-3 pt-2 pb-3 space-y-3 border-t dark:border-gray-600">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
-                      <label className="text-xs text-gray-600">Código</label>
-                      <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Código</label>
+                      <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Inscrição Estadual</label>
-                      <input value={stateRegistration} onChange={e=>setStateRegistration(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Inscrição Estadual</label>
+                      <input value={stateRegistration} onChange={e=>setStateRegistration(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-600">Email</label>
-                      <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                      <label className="text-xs text-gray-600 dark:text-gray-300">Email</label>
+                      <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
                     </div>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600">Observações</label>
-                    <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" rows={3} />
+                    <label className="text-xs text-gray-600 dark:text-gray-300">Observações</label>
+                    <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" rows={3} />
                   </div>
                 </div>
               )}
@@ -263,14 +263,14 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
 
             {/* Switch de Cadastro Ativo */}
             <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <label className="flex items-center gap-3 text-sm">
+              <label className="flex items-center gap-3 text-sm dark:text-gray-300">
                 <span>Cadastro Ativo</span>
-                <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>
+                <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                   <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </label>
               <div className="flex items-center gap-3 md:justify-end">
-                <button type="button" onClick={close} className="px-3 py-2 border rounded text-sm">Cancelar</button>
+                <button type="button" onClick={close} className="px-3 py-2 border dark:border-gray-600 rounded text-sm dark:text-gray-300 dark:hover:bg-gray-700">Cancelar</button>
                 <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Salvar</button>
               </div>
             </div>
