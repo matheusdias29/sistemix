@@ -92,6 +92,7 @@ export default function GoalsPage({ storeId, owner, viewParams }){
   const sellerRows = useMemo(() => {
     return goals.filter(g => !!g.sellerId).map(g => {
       const parsed = parseMonthYear(g.monthYear)
+
       const sellerName = g.sellerName || (sellers.find(s => s.id===g.sellerId)?.name) || '-'
       let total = 0
       if (parsed) {
