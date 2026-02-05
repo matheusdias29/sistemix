@@ -1,0 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Opcional: ajuda durante desenvolvimento local com Netlify CLI
+[dev]
+  command = "vite"
+  port = 5173
+
+# Redirect para SPA (React/Vite) evitando 404 em rotas client-side
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

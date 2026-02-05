@@ -1,0 +1,366 @@
+import React, { useEffect, useState } from 'react'
+import { addClient, updateClient, getNextClientCode } from '../services/clients'
+import { searchCep } from '../services/cep'
+
+export default function NewClientModal({ open, onClose, isEdit=false, client=null, storeId, onSuccess, user }){
+  const [name, setName] = useState('')
+  const [whatsapp, setWhatsapp] = useState('')
+  const [phone, setPhone] = useState('')
+  const [cpf, setCpf] = useState('')
+  const [cnpj, setCnpj] = useState('')
+  const [allowCredit, setAllowCredit] = useState(false)
+  const [isCompany, setIsCompany] = useState(false)
+
+  // Sanfonas
+  const [addrOpen, setAddrOpen] = useState(false)
+  const [infoOpen, setInfoOpen] = useState(false)
+
+  // Endereço
+  const [cep, setCep] = useState('')
+  const [address, setAddress] = useState('')
+  const [number, setNumber] = useState('')
+  const [complement, setComplement] = useState('')
+  const [neighborhood, setNeighborhood] = useState('')
+  const [city, setCity] = useState('')
+  const [state, setState] = useState('')
+
+  // Informações adicionais
+  const [email, setEmail] = useState('')
+  const [notes, setNotes] = useState('')
+  const [code, setCode] = useState('')
+  const [identity, setIdentity] = useState('')
+  const [stateRegistrationIndicator, setStateRegistrationIndicator] = useState('')
+  const [motherName, setMotherName] = useState('')
+  const [birthDate, setBirthDate] = useState('')
+
+  const [active, setActive] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (open && isEdit && client){
+      setName(client.name || '')
+      setWhatsapp(client.whatsapp || '')
+      setPhone(client.phone || '')
+      setCpf(client.cpf || '')
+      setCnpj(client.cnpj || '')
+      setAllowCredit(!!client.allowCredit)
+      setIsCompany(!!client.isCompany)
+      setCep(client.cep || '')
+      setAddress(client.address || '')
+      setNumber(client.number || '')
+      setComplement(client.complement || '')
+      setNeighborhood(client.neighborhood || '')
+      setCity(client.city || '')
+      setState(client.state || '')
+      setEmail(client.email || '')
+      setNotes(client.notes || '')
+      setCode(client.code || '')
+      setIdentity(client.identity || '')
+      setStateRegistrationIndicator(client.stateRegistrationIndicator || '')
+      setMotherName(client.motherName || '')
+      setBirthDate(client.birthDate || '')
+      setActive(client.active !== false)
+      setError('')
+    }
+  }, [open, isEdit, client])
+
+  if(!open) return null
+
+  const reset = () => {
+    setName('')
+    setWhatsapp('')
+    setPhone('')
+    setCpf('')
+    setCnpj('')
+    setAllowCredit(false)
+    setIsCompany(false)
+    setAddrOpen(false)
+    setInfoOpen(false)
+    setCep('')
+    setAddress('')
+    setNumber('')
+    setComplement('')
+    setNeighborhood('')
+    setCity('')
+    setState('')
+    setEmail('')
+    setNotes('')
+    setCode('')
+    setIdentity('')
+    setStateRegistrationIndicator('')
+    setMotherName('')
+    setBirthDate('')
+    setActive(true)
+    setError('')
+  }
+
+  const close = () => {
+    if(saving) return
+    onClose && onClose()
+    reset()
+  }
+
+  const handleSearchCep = async () => {
+    if(!cep) return
+    try {
+      const data = await searchCep(cep)
+      if(data){
+        setAddress(data.address)
+        setNeighborhood(data.neighborhood)
+        setCity(data.city)
+        setState(data.state)
+        // setComplement(data.complement) // Opcional, se quiser sobrescrever
+      }
+    } catch(err){
+      console.error(err)
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    if(!name.trim()){
+      setError('Informe o nome do cliente.')
+      return
+    }
+
+    const isOwnerUser = user && !user.memberId
+    const perms = user?.permissions || {}
+    const canCreate = isOwnerUser || perms.clients?.create
+    const canEdit = isOwnerUser || perms.clients?.edit
+
+    if (isEdit && !canEdit) {
+      setError('Sem permissão para editar cliente.')
+      return
+    }
+    if (!isEdit && !canCreate) {
+      setError('Sem permissão para cadastrar cliente.')
+      return
+    }
+
+    setSaving(true)
+    try{
+      let finalCode = code.trim()
+      if (!finalCode) {
+         finalCode = await getNextClientCode(storeId)
+      }
+
+      const payload = {
+        name: name.trim(),
+        whatsapp: whatsapp.trim(),
+        phone: phone.trim(),
+        cpf: cpf.trim(),
+        cnpj: cnpj.trim(),
+        allowCredit,
+        isCompany,
+        // Endereço
+        cep: cep.trim(),
+        address: address.trim(),
+        number: number.trim(),
+        complement: complement.trim(),
+        neighborhood: neighborhood.trim(),
+        city: city.trim(),
+        state: state.trim(),
+        // Info adicional
+        email: email.trim(),
+        notes: notes.trim(),
+        code: finalCode,
+        identity: identity.trim(),
+        stateRegistrationIndicator,
+        motherName: motherName.trim(),
+        birthDate,
+        // Status
+        active,
+        lastEditedBy: user?.name || 'Sistema',
+      }
+      if(isEdit && client?.id){
+        await updateClient(client.id, payload)
+        if (onSuccess) onSuccess({ id: client.id, ...payload })
+      } else {
+        payload.createdBy = user?.name || 'Sistema'
+        const newId = await addClient(payload, storeId)
+        if (onSuccess) onSuccess({ id: newId, ...payload })
+      }
+      close()
+    } catch(err){
+      console.error(err)
+      setError('Não foi possível salvar. Verifique sua conexão e regras do Firestore.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[840px] max-w-[98vw] max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-4 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10">
+          <h3 className="font-semibold text-lg">
+            <span className="text-gray-500 dark:text-gray-400">Clientes</span>
+            <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
+            <span className="dark:text-white">{isEdit ? 'Editar Cliente' : 'Novo Cliente'}</span>
+          </h3>
+          <button onClick={close} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="p-4">
+            {error && <div className="text-sm text-red-600 dark:text-red-400 mb-2">{error}</div>}
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Nome</label>
+                <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Whatsapp</label>
+                <input value={whatsapp} onChange={e=>setWhatsapp(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Telefone</label>
+                <input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+              </div>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto_auto] gap-3 items-end">
+              <div>
+                <label className="text-xs text-gray-600 dark:text-gray-400">{isCompany ? 'CNPJ' : 'CPF'}</label>
+                <div className="mt-1 flex items-center gap-2">
+                  <input value={isCompany ? cnpj : cpf} onChange={e=> (isCompany ? setCnpj(e.target.value) : setCpf(e.target.value))} className="flex-1 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  <button type="button" className="px-3 py-2 border dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-600">🔎</button>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 text-sm dark:text-gray-200">
+                <span>Permitir crediário</span>
+                <button type="button" onClick={()=>setAllowCredit(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${allowCredit ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${allowCredit ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                </button>
+              </label>
+              <label className="flex items-center gap-2 text-sm dark:text-gray-200">
+                <span>É empresa</span>
+                <button type="button" onClick={()=>setIsCompany(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isCompany ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isCompany ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                </button>
+              </label>
+            </div>
+
+            {/* Endereço */}
+            <div className="mt-4 border dark:border-gray-600 rounded">
+              <button type="button" onClick={()=>setAddrOpen(v=>!v)} className="w-full px-3 py-2 text-left flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                <span className="font-semibold text-sm dark:text-white">Endereço (opcional)</span>
+                <span className="text-gray-500 dark:text-gray-400">{addrOpen ? '▴' : '▾'}</span>
+              </button>
+              {addrOpen && (
+                <div className="px-3 pt-2 pb-3 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">CEP</label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input value={cep} onChange={e=>setCep(e.target.value)} className="flex-1 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                        <button type="button" onClick={handleSearchCep} className="px-3 py-2 border dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-600 bg-white dark:bg-gray-700 dark:text-white">🔎</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Endereço</label>
+                      <input value={address} onChange={e=>setAddress(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Número</label>
+                      <input value={number} onChange={e=>setNumber(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Complemento</label>
+                      <input value={complement} onChange={e=>setComplement(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Bairro</label>
+                      <input value={neighborhood} onChange={e=>setNeighborhood(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Cidade</label>
+                      <input value={city} onChange={e=>setCity(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Estado</label>
+                      <input value={state} onChange={e=>setState(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Informações adicionais */}
+            <div className="mt-4 border dark:border-gray-600 rounded">
+              <button type="button" onClick={()=>setInfoOpen(v=>!v)} className="w-full px-3 py-2 text-left flex items-center justify-between bg-gray-50 dark:bg-gray-700/50 rounded hover:bg-gray-100 dark:hover:bg-gray-700">
+                <span className="font-semibold text-sm dark:text-white">Informações adicionais (opcional)</span>
+                <span className="text-gray-500 dark:text-gray-400">{infoOpen ? '▴' : '▾'}</span>
+              </button>
+              {infoOpen && (
+                <div className="px-3 pt-2 pb-3 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Código</label>
+                      <input value={code} onChange={e=>setCode(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" placeholder="Automático se vazio" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Identidade</label>
+                      <input value={identity} onChange={e=>setIdentity(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Email</label>
+                    <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                  </div>
+
+                  <div>
+                     <label className="text-xs text-gray-600 dark:text-gray-400">Indicador Inscrição Estadual</label>
+                     <select value={stateRegistrationIndicator} onChange={e=>setStateRegistrationIndicator(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500">
+                        <option value="">Selecione</option>
+                        <option value="Contribuinte">Contribuinte</option>
+                        <option value="Não Contribuinte">Não Contribuinte</option>
+                        <option value="Isento">Isento</option>
+                     </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Nome da mãe</label>
+                      <input value={motherName} onChange={e=>setMotherName(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-600 dark:text-gray-400">Data de nascimento</label>
+                      <input type="date" value={birthDate} onChange={e=>setBirthDate(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Observações</label>
+                    <textarea value={notes} onChange={e=>setNotes(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500" rows={3} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Cadastro ativo + ações */}
+            <div className="mt-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <label className="flex items-center gap-3 text-sm dark:text-gray-200">
+                <span>Cadastro Ativo</span>
+                <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                </button>
+              </label>
+              <div className="flex items-center gap-3">
+                <button type="button" onClick={close} className="px-3 py-2 border dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 transition-colors">Cancelar</button>
+                <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60 hover:bg-green-700 transition-colors">Salvar</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
