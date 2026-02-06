@@ -2,8 +2,6 @@ import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot,
 import { db } from '../lib/firebase'
 import { addStore } from './stores'
 import { listStoresByOwner } from './stores'
-// import { signInWithEmailAndPassword } from 'firebase/auth'
-// import { auth } from '../lib/firebase'
 
 const usersCol = collection(db, 'users')
 
@@ -196,4 +194,38 @@ export async function updateUserPresence(uid, ownerId, isMember) {
       await updateDoc(ref, { lastSeen: now })
     }
   } catch {}
+}
+
+export async function login(email, password){
+  const emailTrim = String(email || '').trim()
+  const pass = String(password || '')
+  const owner = await findUserByEmail(emailTrim)
+  if (owner) {
+    const status = owner.status || (owner.active === false ? 'cancelado' : 'ativo')
+    if (status === 'cancelado') throw new Error('Acesso cancelado')
+    const cur = String(owner.password || '')
+    if (cur !== pass) throw new Error('Senha incorreta')
+    return owner
+  }
+  const member = await findMemberByEmail(emailTrim)
+  if (member) {
+    const status = member.status || (member.active === false ? 'cancelado' : 'ativo')
+    if (status === 'cancelado') throw new Error('Acesso cancelado')
+    const cur = String(member.password || '')
+    if (cur !== pass) throw new Error('Senha incorreta')
+    return {
+      id: member.ownerId,
+      ownerId: member.ownerId,
+      memberId: member.id,
+      name: member.name || 'Usuário',
+      email: member.email || emailTrim,
+      role: member.role || 'staff',
+      isSeller: !!member.isSeller,
+      isTech: !!member.isTech,
+      isAdmin: !!member.isAdmin,
+      active: member.active !== false,
+      permissions: member.permissions || {},
+    }
+  }
+  throw new Error('Usuário não encontrado')
 }

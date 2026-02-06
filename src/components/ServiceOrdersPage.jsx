@@ -2018,7 +2018,6 @@ const canEditService = isOwner || perms.services?.edit
               setQty={setQtyInput}
               price={priceInput}
               setPrice={setPriceInput}
-              canChangeValues={isOwner || perms.serviceOrders?.changeValues}
               onConfirm={()=>{
                 if(!selectedProduct) return;
 
