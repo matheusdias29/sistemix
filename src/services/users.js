@@ -187,95 +187,13 @@ export async function changeMemberPassword(ownerUserId, memberId, currentPasswor
 export async function updateUserPresence(uid, ownerId, isMember) {
   if (!uid) return
   const now = serverTimestamp()
-  let ref
-  if (isMember && ownerId) {
-    ref = doc(db, 'users', ownerId, 'members', uid)
-  } else {
-    ref = doc(db, 'users', uid)
-  }
-  // Use updateDoc and catch error silently (e.g. if user deleted)
-  await updateDoc(ref, { lastSeen: now }).catch(() => {})
-}
-
-// Login baseado em dados no Firestore, com autenticação anônima já ativa
-export async function login(email, password){
-  const owner = await findUserByEmail(email)
-  if (owner){
-    const ok = String(owner.password || '') === String(password || '')
-    if (!ok) throw new Error('Senha incorreta')
-    const status = owner.status || (owner.active === false ? 'cancelado' : 'ativo')
-    if (status === 'cancelado') throw new Error('Seu acesso foi cancelado. Entre em contato com o suporte.')
-    return owner
-  }
-
-  // 2) Se não for dono, tenta membro
-  const member = await findMemberByEmail(email)
-  if (!member) throw new Error('Usuário não encontrado no banco de dados')
-  const ok = String(member.password || '') === String(password || '')
-  if (!ok) throw new Error('Senha incorreta')
-
-  return {
-    id: member.ownerId,
-    ownerId: member.ownerId,
-    memberId: member.id,
-    name: member.name || 'Usuário',
-    email: member.email || email,
-    role: member.role || 'staff',
-    isSeller: !!member.isSeller,
-    isTech: !!member.isTech,
-    isAdmin: !!member.isAdmin,
-    active: member.active !== false,
-    permissions: member.permissions || {},
-  }
-}
-
-// Semente de dados: cria vários usuários e uma loja para cada novo usuário
-export async function seedDemoUsersAndStores(){
-  const demos = [
-    { email: 'bob@example.com',    password: '123456', name: 'Bob',    storeName: 'Loja do Bob',    role: 'manager' },
-  ]
-
-  for (const d of demos){
-    let owner = await findUserByEmail(d.email)
-    if (!owner){
-      const id = await addUser({ email: d.email, password: d.password, name: d.name, role: d.role, active: true })
-      owner = { id, email: d.email, name: d.name }
-      await addStore({ name: d.storeName, ownerId: id, adminId: id })
+  try {
+    if (isMember && ownerId) {
+      const ref = doc(db, 'users', ownerId, 'members', uid)
+      await updateDoc(ref, { lastSeen: now })
+    } else {
+      const ref = doc(db, 'users', uid)
+      await updateDoc(ref, { lastSeen: now })
     }
-
-    // Adiciona membros (subusuários) sob o dono
-    const membersToEnsure = [
-      { email: 'atendente1@example.com', name: 'Atendente 1', role: 'staff' },
-      { email: 'vendedor1@example.com',  name: 'Vendedor 1',  role: 'manager', isSeller: true },
-      { email: 'tecnico1@example.com',   name: 'Técnico 1',   role: 'staff',   isTech: true },
-    ]
-    for (const m of membersToEnsure){
-      // evita duplicar verificando por email
-      const existingQ = query(collection(db, 'users', owner.id, 'members'), where('email','==',m.email))
-      const existingSnap = await getDocs(existingQ)
-      if (existingSnap.empty){
-        await addSubUser(owner.id, m)
-      }
-    }
-  }
+  } catch {}
 }
-
-export async function ensureSecondStoreForOwners(){
-  const snap = await getDocs(usersCol)
-  for (const d of snap.docs){
-    const u = { id: d.id, ...d.data() }
-    if (u.active === false) continue
-    try {
-      const stores = await listStoresByOwner(u.id)
-      if ((stores?.length || 0) < 2){
-        const baseName = u.name || 'Usuário'
-        const newName = `${baseName} — Loja 2`
-        await addStore({ name: newName, ownerId: u.id, adminId: u.id })
-      }
-    } catch (e) {
-      console.warn('Falha ao garantir segunda loja para', u.id, e)
-    }
-  }
-}
-
-

@@ -13,8 +13,10 @@ import EditCartItemModal from './EditCartItemModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 
 export default function NewSaleModal({ open, onClose, storeId, user, isEdit = false, sale = null }) {
+
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
+
 
   // Data
   const [products, setProducts] = useState([])

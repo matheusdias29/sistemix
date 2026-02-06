@@ -30,7 +30,6 @@ const defaultColumns = [
 export default function SalesPage({ initialDayFilter = null, storeId, store, user, openNewSaleSignal = 0 }){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
-
   const [orders, setOrders] = useState([])
   const [products, setProducts] = useState([])
   const [query, setQuery] = useState('')
@@ -416,6 +415,10 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
                 {(isOwner || perms.sales?.viewAll) && (
                 <>
                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  Devolução
+                </button>
+                <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                   Relatório Resumido
                 </button>
                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
@@ -540,7 +543,10 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
         storeId={storeId}
         store={store}
         products={products}
+<<<<<<< HEAD
         user={user}
+=======
+>>>>>>> ca5c2cd24f5fae7d51b7849a386f70adcf3c650a
         onEdit={(s) => { 
           setDetailModalOpen(false)
           setEditSale(s)

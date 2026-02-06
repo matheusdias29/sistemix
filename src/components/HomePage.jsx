@@ -25,6 +25,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
 
+
   const [orders, setOrders] = useState([])
   const [clients, setClients] = useState([])
   const [hideValues, setHideValues] = useState(false)
@@ -404,7 +405,6 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
             )}
         </div>
       </section>
-      )}
       )}
 
       {/* Últimos dias */}

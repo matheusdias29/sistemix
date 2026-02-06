@@ -394,7 +394,6 @@ const canChangeStatus = isOwner || perms.serviceOrders?.changeStatus
 const canChangeValues = isOwner || perms.serviceOrders?.changeValues
 const canCreateService = isOwner || perms.services?.create
 const canEditService = isOwner || perms.services?.edit
-
   useEffect(()=>{
     if(selectedProduct){
       let base = selectedProduct.salePrice ?? selectedProduct.priceMin ?? 0
@@ -584,7 +583,6 @@ const canEditService = isOwner || perms.services?.edit
 
   const handleSave = async () => {
     if (saving) return
-
     if (editingOrderId) {
       if (!isOwner && !perms.serviceOrders?.edit) {
         alert('Sem permissão para editar ordens de serviço.')
@@ -596,7 +594,6 @@ const canEditService = isOwner || perms.services?.edit
         return
       }
     }
-
     setSaving(true)
     try {
       // Calculate Commission
@@ -926,7 +923,6 @@ const canEditService = isOwner || perms.services?.edit
       showAlert('Você não tem permissão para excluir ordens de serviço.')
       return
     }
-
     // Validar se pode excluir
     const s = String(order.status || '').toLowerCase()
     
@@ -1402,7 +1398,7 @@ const canEditService = isOwner || perms.services?.edit
 
         {listTab==='os' && canView && (
           <>
-        <SalesDateFilterModal 
+        <SalesDateFilterModal  
           open={dateFilterOpen} 
           onClose={()=>setDateFilterOpen(false)} 
           onApply={setDateRange}

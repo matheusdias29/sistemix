@@ -103,8 +103,8 @@ export default function ManageUsers() {
 
       {showModal && (
         <CreateUserModal 
-          onClose={() => setShowModal(false)} 
-          onSave={handleCreateUser} 
+          onClose={() => setShowModal(false)}
+          onSave={handleCreateUser}
         />
       )}
     </div>
