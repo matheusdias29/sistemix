@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { getClientsPaginated, searchClients, removeClient } from '../services/clients'
+import { getClientsByPage, searchClientsByPage, getTotalClientsCount, removeClient, getAllClients } from '../services/clients'
 import NewClientModal from './NewClientModal'
 import ClientsFilterModal from './ClientsFilterModal'
 
@@ -23,11 +23,15 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const [editOpen, setEditOpen] = useState(false)
   const [editingClient, setEditingClient] = useState(null)
   
+  // Smart Cache
+  const [cachedClients, setCachedClients] = useState(null)
+  const [isCaching, setIsCaching] = useState(false)
+  
   // Paginação
+  const PAGE_SIZE = 30
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
-  const [lastVisibleDocs, setLastVisibleDocs] = useState([]) // Stack of last docs for each page
-  const [hasMore, setHasMore] = useState(true)
+  const [totalResults, setTotalResults] = useState(0)
   
   // Menu e Ações
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -41,35 +45,86 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
 
   const initialAddSignal = useRef(addNewSignal)
 
-  // Carrega clientes (Paginação ou Busca)
+  // Carrega contagem total inicial e inicia Cache Inteligente
+  useEffect(() => {
+    if (!storeId) return
+    
+    // 1. Carrega contagem inicial do servidor (para mostrar algo rápido)
+    getTotalClientsCount(storeId).then(count => {
+      if (!query.trim() && !cachedClients) {
+        setTotalResults(count)
+      }
+    }).catch(console.error)
+
+    // 2. Inicia o "Smart Cache" em background
+    if (!cachedClients && !isCaching) {
+        setIsCaching(true)
+        console.log('Iniciando Smart Cache de clientes...')
+        getAllClients(storeId).then(all => {
+            console.log(`Smart Cache concluído: ${all.length} clientes baixados.`)
+            setCachedClients(all)
+            setTotalResults(all.length)
+            setIsCaching(false)
+        }).catch(err => {
+            console.error('Erro no Smart Cache:', err)
+            setIsCaching(false)
+        })
+    }
+  }, [storeId])
+
+  // Lógica principal de exibição (Híbrida: Servidor ou Cache Local)
   useEffect(() => {
     let isMounted = true
 
     const load = async () => {
+      // Se já temos cache, usamos ele (Instantâneo!)
+      if (cachedClients) {
+          // Filtra localmente
+          let result = cachedClients
+          
+          if (query.trim()) {
+              const lower = query.trim().toLowerCase()
+              result = result.filter(c => 
+                  (c.nameLower && c.nameLower.includes(lower)) ||
+                  (c.phoneDigits && c.phoneDigits.includes(lower)) ||
+                  (c.whatsappDigits && c.whatsappDigits.includes(lower)) ||
+                  (c.cpfDigits && c.cpfDigits.includes(lower)) ||
+                  (c.name && c.name.toLowerCase().includes(lower)) // fallback
+              )
+          }
+
+          // Atualiza total
+          if (isMounted) setTotalResults(result.length)
+
+          // Pagina localmente
+          const start = (page - 1) * PAGE_SIZE
+          const end = start + PAGE_SIZE
+          const pageData = result.slice(start, end)
+          
+          if (isMounted) {
+              setClients(pageData)
+              setLoading(false)
+          }
+          return
+      }
+
+      // Se não temos cache, vai no servidor (Legado/Fallback enquanto carrega)
       setLoading(true)
       try {
         if (query.trim()) {
-           // Modo Busca
-           const results = await searchClients(storeId, query)
+           const { clients: newClients, total } = await searchClientsByPage(storeId, query, page, PAGE_SIZE)
            if(isMounted) {
-             setClients(results)
-             setHasMore(false) // Busca não tem paginação por enquanto
+             setClients(newClients)
+             setTotalResults(total)
            }
         } else {
-           // Modo Paginação
-           const lastDoc = page > 1 ? lastVisibleDocs[page - 2] : null
-           const { clients: newClients, lastVisible } = await getClientsPaginated(storeId, lastDoc, 50)
+           // Modo Paginação Normal
+           const newClients = await getClientsByPage(storeId, page, PAGE_SIZE)
            
            if(isMounted) {
              setClients(newClients)
-             if (lastVisible) {
-               // Atualiza stack apenas se for uma nova página adiante
-               if (page > lastVisibleDocs.length) {
-                 setLastVisibleDocs(prev => [...prev, lastVisible])
-               }
-               setHasMore(newClients.length === 50)
-             } else {
-               setHasMore(false)
+             if (page === 1) {
+                getTotalClientsCount(storeId).then(c => isMounted && setTotalResults(c))
              }
            }
         }
@@ -80,22 +135,23 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       }
     }
 
-    // Debounce para busca
+    // Debounce apenas se for busca no servidor (sem cache)
+    // Com cache é instantâneo, mas um pequeno debounce de 50ms evita travamento na digitação se tiver 50k items
+    const delay = (cachedClients) ? 50 : (query.trim() ? 300 : 0)
+
     const timeoutId = setTimeout(() => {
         load()
-    }, query.trim() ? 500 : 0)
+    }, delay)
 
     return () => {
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [storeId, page, query])
+  }, [storeId, page, query, cachedClients]) // Re-roda quando cachedClients mudar
 
-  // Reset paginação ao mudar query ou store
+  // Reset paginação ao mudar query
   useEffect(() => {
      setPage(1)
-     setLastVisibleDocs([])
-     setHasMore(true)
   }, [storeId, query])
 
   // Abre modal de novo cliente somente quando o sinal mudar (ignora montagem inicial)
@@ -106,7 +162,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   }, [addNewSignal])
 
   const filtered = useMemo(() => {
-    // A filtragem principal agora é no backend (ou na busca),
+    // A filtragem principal agora é feita no useEffect (load),
     // mas mantemos filtros de status/crédito no cliente sobre a página atual
     return clients.filter(c => {
       // Filtro de Status
@@ -130,14 +186,6 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
     })
   }, [clients, filters])
 
-  const nextPage = () => {
-      if(hasMore && !loading) setPage(p => p + 1)
-  }
-
-  const prevPage = () => {
-      if(page > 1 && !loading) setPage(p => p - 1)
-  }
-
   const startEdit = (c) => {
     if(!isOwner && !perms.clients?.edit) return
     setEditingClient(c)
@@ -159,12 +207,145 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       await removeClient(confirmRemoveClient.id)
       setConfirmRemoveOpen(false)
       setConfirmRemoveClient(null)
+      
+      // Atualiza Cache Local se existir
+      if (cachedClients) {
+          const newCache = cachedClients.filter(c => c.id !== confirmRemoveClient.id)
+          setCachedClients(newCache)
+          // O useEffect vai rodar automaticamente e atualizar a lista
+      } else {
+          // Recarrega do servidor
+          const newClients = await getClientsByPage(storeId, page, PAGE_SIZE)
+          setClients(newClients)
+      }
     } catch(e) {
       console.error(e)
       alert('Erro ao remover cliente')
     } finally {
       setSavingAction(false)
     }
+  }
+
+  // Helper para atualizar cache após Edição/Criação
+  const refreshCache = async () => {
+      if (cachedClients) {
+          // Opção A: Re-baixar tudo (mais seguro, mas gasta leitura)
+          // getAllClients(storeId).then(setCachedClients)
+          
+          // Opção B: Tentar ser esperto (complexo se mudou ordenação)
+          // Vamos re-baixar por enquanto para garantir consistência
+          const all = await getAllClients(storeId)
+          setCachedClients(all)
+      } else {
+          // Refresh normal
+          getTotalClientsCount(storeId).then(setTotalResults)
+          getClientsByPage(storeId, page, PAGE_SIZE).then(setClients)
+      }
+  }
+
+  // Componente de Paginação Numérica
+  const Pagination = () => {
+    const totalPages = Math.ceil(totalResults / PAGE_SIZE) || 1
+    if (totalPages <= 1) return null
+
+    const renderPageNumbers = () => {
+        const pages = []
+        const maxVisible = 5 // Quantos números mostrar
+        
+        // Sempre mostra página 1
+        pages.push(
+            <button
+                key={1}
+                onClick={() => setPage(1)}
+                className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                    page === 1 
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+            >
+                1
+            </button>
+        )
+
+        // Lógica para intervalo intermediário
+        let start = Math.max(2, page - 1)
+        let end = Math.min(totalPages - 1, page + 1)
+        
+        // Ajuste para mostrar mais se estiver perto do início ou fim
+        if (page <= 3) {
+            end = Math.min(totalPages - 1, 4)
+        }
+        if (page >= totalPages - 2) {
+            start = Math.max(2, totalPages - 3)
+        }
+
+        if (start > 2) {
+            pages.push(<span key="dots1" className="text-gray-400 px-1">...</span>)
+        }
+
+        for (let i = start; i <= end; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setPage(i)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        page === i 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {i}
+                </button>
+            )
+        }
+
+        if (end < totalPages - 1) {
+            pages.push(<span key="dots2" className="text-gray-400 px-1">...</span>)
+        }
+
+        // Sempre mostra última página se > 1
+        if (totalPages > 1) {
+            pages.push(
+                <button
+                    key={totalPages}
+                    onClick={() => setPage(totalPages)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        page === totalPages 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {totalPages}
+                </button>
+            )
+        }
+
+        return pages
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-2 py-4">
+            <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &lt;
+            </button>
+            
+            <div className="flex items-center gap-1">
+                {renderPageNumbers()}
+            </div>
+
+            <button 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &gt;
+            </button>
+        </div>
+    )
   }
 
   return (
@@ -217,7 +398,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-visible">
         {/* Cabeçalho (apenas desktop) */}
         <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center px-4 py-3 text-sm text-gray-600 dark:text-gray-300 font-bold border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div>Clientes ({filtered.length})</div>
+          <div>Clientes ({totalResults})</div>
           <div>Código</div>
           <div className="text-center">Atualizado</div>
           <div className="text-center">Hora</div>
@@ -276,51 +457,35 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                   {c.name}
                 </div>
               </div>
-              <div className="text-xs text-gray-500 font-mono">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
                 {c.code || '-'}
               </div>
-              <div className="text-xs text-gray-700 dark:text-gray-300 text-center">
-                 {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+                {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleDateString() : '-'}
               </div>
-              <div className="text-xs text-gray-700 dark:text-gray-300 text-center">
-                 {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+                 {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
               </div>
-              <div className="hidden md:flex text-xs text-gray-700 dark:text-gray-300 justify-center items-center truncate px-2" title={c.lastEditedBy || c.createdBy || ''}>
-                 {c.lastEditedBy || c.createdBy || '—'}
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400">
+                —
               </div>
-              <div className="text-sm text-left">
-                {c.whatsapp ? (
-                  <a 
-                    href={`https://wa.me/${(c.whatsapp.replace(/\D/g,'').length >= 10 && c.whatsapp.replace(/\D/g,'').length <= 11) ? '55' : ''}${c.whatsapp.replace(/\D/g,'')}`} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    className="flex items-center justify-start gap-2 hover:underline text-gray-700 dark:text-gray-300 hover:text-green-700 dark:hover:text-green-400"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-green-500 shrink-0">
-                      <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.463 1.065 2.876 1.213 3.074.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
-                    </svg>
-                    <span>{c.whatsapp}</span>
-                  </a>
-                ) : (
-                  <span className="text-gray-400">-</span>
-                )}
+              <div className="text-left text-sm text-gray-500 dark:text-gray-400">
+                {c.whatsapp || c.phone || '-'}
               </div>
-              <div className="text-sm text-right">
-                <div className={`inline-block px-2 py-0.5 rounded text-xs font-semibold border ${(c.active!==false) ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'}`}>
-                  {(c.active!==false) ? 'Ativo' : 'Inativo'}
-                </div>
+              <div className="text-right">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${c.active !== false ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
+                  {c.active !== false ? 'Ativo' : 'Inativo'}
+                </span>
               </div>
-              
               <div className="relative text-right">
-                 <button 
-                   className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 relative z-20"
-                   onClick={(e)=>{ e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id) }}
-                 >
-                   <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
-                 </button>
-                 {openMenuId === c.id && (
-                    <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white dark:bg-gray-800 rounded shadow-xl border dark:border-gray-700 z-30 py-1 text-left`}>
+                   <button 
+                     className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 relative z-20"
+                     onClick={(e)=>{ e.stopPropagation(); setOpenMenuId(openMenuId === c.id ? null : c.id) }}
+                   >
+                     <span className="text-gray-500 text-lg font-bold px-2">⋯</span>
+                   </button>
+                   {openMenuId === c.id && (
+                     <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white dark:bg-gray-800 rounded shadow-xl border dark:border-gray-700 z-30 py-1 text-left`}>
                       {(isOwner || perms.clients?.edit) && (
                       <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
@@ -329,80 +494,95 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                       )}
                       {(isOwner || perms.clients?.delete) && (
                       <button type="button" className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-red-600 dark:text-red-400" onClick={()=> openConfirmRemove(c)}>
-                       <span>🗑️</span>
-                       <span>Remover cliente</span>
-                     </button>
+                         <span>🗑️</span>
+                         <span>Remover cliente</span>
+                       </button>
                       )}
-                   </div>
-                 )}
+                     </div>
+                   )}
               </div>
             </div>
           </React.Fragment>
           )
         })}
-        
-        {filtered.length === 0 && !loading && (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                {query ? 'Nenhum cliente encontrado para esta busca.' : 'Nenhum cliente cadastrado.'}
+
+        {/* Loading Indicator */}
+        {loading && (
+            <div className="p-4 text-center text-gray-500">
+                Carregando...
             </div>
         )}
+        
+        {!loading && filtered.length === 0 && (
+            <div className="p-8 text-center text-gray-500">
+                Nenhum cliente encontrado.
+            </div>
+        )}
+        
+        {/* Paginação Numérica */}
+        <Pagination />
+
       </div>
 
-      {/* Paginação (Apenas se não estiver buscando) */}
-      {!query && (
-          <div className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 rounded-lg shadow mt-4">
-              <button 
-                onClick={prevPage} 
-                disabled={page === 1 || loading}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-              >
-                ← Anterior
-              </button>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                  {loading ? 'Carregando...' : `Página ${page}`}
-              </span>
-              <button 
-                onClick={nextPage} 
-                disabled={!hasMore || loading}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
-              >
-                Próxima →
-              </button>
-          </div>
+      <NewClientModal 
+        isOpen={modalOpen} 
+        onClose={()=>setModalOpen(false)} 
+        storeId={storeId}
+        onSuccess={() => {
+            setModalOpen(false)
+            refreshCache()
+        }}
+      />
+
+      {editOpen && editingClient && (
+        <NewClientModal 
+          isOpen={editOpen} 
+          onClose={()=>{setEditOpen(false); setEditingClient(null)}} 
+          storeId={storeId}
+          clientToEdit={editingClient}
+          onSuccess={() => {
+              setEditOpen(false)
+              setEditingClient(null)
+              refreshCache()
+          }}
+        />
       )}
 
-      {/* Modais */}
-      {/* Modal Confirmar Exclusão */}
+      {/* Modal Filtros */}
+      <ClientsFilterModal
+        isOpen={filterOpen}
+        onClose={()=>setFilterOpen(false)}
+        filters={filters}
+        setFilters={setFilters}
+      />
+
+      {/* Modal Confirmação Remoção */}
       {confirmRemoveOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
-            <div className="px-4 py-3 border-b dark:border-gray-700">
-              <h3 className="text-base font-medium text-gray-900 dark:text-gray-100">Remover cliente</h3>
-            </div>
-            <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
-              <div>
-                Tem certeza que deseja remover “{confirmRemoveClient?.name}”?
-              </div>
-              <div>
-                Esta ação é irreversível.
-              </div>
-            </div>
-            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
-              <button className="px-3 py-2 text-sm rounded border dark:border-gray-600 dark:text-gray-300" onClick={()=>setConfirmRemoveOpen(false)} disabled={savingAction}>Cancelar</button>
-              <button className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700" onClick={confirmRemove} disabled={savingAction}>Remover</button>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm w-full shadow-xl">
+            <h3 className="text-lg font-bold mb-2 dark:text-white">Remover Cliente</h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Tem certeza que deseja remover <b>{confirmRemoveClient?.name}</b>?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={()=>setConfirmRemoveOpen(false)}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                disabled={savingAction}
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmRemove}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded flex items-center gap-2"
+                disabled={savingAction}
+              >
+                {savingAction ? 'Removendo...' : 'Remover'}
+              </button>
             </div>
           </div>
         </div>
       )}
-
-      <NewClientModal open={modalOpen} onClose={()=>setModalOpen(false)} storeId={storeId} user={user} />
-      <NewClientModal open={editOpen} onClose={()=>setEditOpen(false)} isEdit={true} client={editingClient} storeId={storeId} user={user} />
-      <ClientsFilterModal  
-        open={filterOpen} 
-        onClose={()=>setFilterOpen(false)} 
-        onApply={setFilters} 
-        initialFilters={filters} 
-      />
     </div>
   )
 }

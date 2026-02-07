@@ -16,8 +16,8 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 export const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
-  useFetchStreams: false,
+  experimentalForceLongPolling: false,
+  useFetchStreams: true,
   ignoreUndefinedProperties: true,
 }, "sistemix")
 export const storage = getStorage(app)

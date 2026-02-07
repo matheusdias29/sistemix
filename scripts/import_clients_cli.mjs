@@ -1,6 +1,6 @@
 
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, writeBatch, serverTimestamp } from 'firebase/firestore';
+import { initializeFirestore, collection, getDocs, doc, writeBatch, serverTimestamp, addDoc, query, where } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously } from 'firebase/auth';
 import * as XLSX from 'xlsx';
 import path from 'path';
@@ -12,18 +12,19 @@ const __dirname = path.dirname(__filename);
 
 // Configuração do Firebase (copiada do .env.local)
 const firebaseConfig = {
-  apiKey: "AIzaSyDU0B1lAVcRBcFPxvF66FheMFTXDgIbRgQ",
-  authDomain: "sistemix-9fe75.firebaseapp.com",
-  projectId: "sistemix-9fe75",
-  storageBucket: "sistemix-9fe75.firebasestorage.app",
-  messagingSenderId: "188178661955",
-  appId: "1:188178661955:web:e48719efb1bf9bdf64caf6",
-  measurementId: "G-F2P48VMKLP",
-  databaseURL: "https://sistemix-9fe75-default-rtdb.firebaseio.com"
+  apiKey: "AIzaSyDm61fcXbemFSUIiTEATy47SBD5PvsCpaI",
+  authDomain: "sixtemix.firebaseapp.com",
+  projectId: "sixtemix",
+  storageBucket: "sixtemix.firebasestorage.app",
+  messagingSenderId: "322849102175",
+  appId: "1:322849102175:web:a3aef88707c94ff257beea",
+  measurementId: "G-W3XDS34DZ8"
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const dbId = process.env.FIRESTORE_DB_ID || 'sistemix';
+const db = initializeFirestore(app, { ignoreUndefinedProperties: true }, dbId);
+console.log(`Usando Firestore databaseId: ${dbId}`);
 const auth = getAuth(app);
 
 const rl = readline.createInterface({
@@ -55,10 +56,35 @@ async function main() {
   });
 
   if (stores.length === 0) {
-    console.log("Nenhuma loja encontrada.");
-    rl.close();
-    setTimeout(() => process.exit(1), 100);
-    return;
+    console.log("Nenhuma loja encontrada. Vamos criar uma loja rapidamente.");
+    const name = await question("Nome da loja: ");
+    const ownerEmail = await question("E-mail do dono (opcional): ");
+    let ownerId = null;
+    try {
+      if (ownerEmail && ownerEmail.trim()) {
+        const usersQ = query(collection(db, "users"), where("email","==", ownerEmail.trim()));
+        const usersSnap = await getDocs(usersQ);
+        if (!usersSnap.empty) {
+          ownerId = usersSnap.docs[0].id;
+          console.log(`Dono encontrado: ${ownerEmail} (id ${ownerId})`);
+        } else {
+          console.log("Nenhum usuário com esse e-mail foi encontrado; criando loja sem ownerId.");
+        }
+      }
+    } catch (e) {
+      console.log("Falha ao buscar dono por e-mail; prosseguindo sem ownerId.");
+    }
+    const data = {
+      name: name?.trim() || "Nova Loja",
+      ownerId: ownerId || null,
+      adminId: ownerId || null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    const res = await addDoc(collection(db, "stores"), data);
+    const created = { id: res.id, ...data };
+    console.log(`Loja criada: ${created.name} (ID: ${created.id})`);
+    stores.push(created);
   }
 
   console.log("\nLojas disponíveis:");
@@ -131,7 +157,7 @@ async function main() {
         cpf: str(row['CPF']),
         city,
         neighborhood,
-        address: str(row['ENDERECO']) || '', // Adicionando endereço se houver
+        address: str(row['ENDEREÇO']) || str(row['ENDERECO']) || '',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
