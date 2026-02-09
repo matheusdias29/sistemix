@@ -40,7 +40,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [products, setProducts] = useState([])
   const [selected, setSelected] = useState(() => new Set())
   const [query, setQuery] = useState('')
-  const [viewMode, setViewMode] = useState('list')
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined') return localStorage.getItem('sistemix_view_mode') || 'list'
+    return 'list'
+  })
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') localStorage.setItem('sistemix_view_mode', viewMode)
+  }, [viewMode])
+
   const [showFilters, setShowFilters] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
   const [modalOpen, setModalOpen] = useState(false)
@@ -1118,13 +1126,28 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           </button>
 
           {/* Alternador de visualização */}
-          <button className="px-3 py-2 rounded border text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600" onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
+          <button 
+            className="px-3 py-2 rounded border text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600 transition-colors" 
+            onClick={()=>setViewMode(viewMode==='list'?'grid':'list')}
+            title={viewMode === 'list' ? "Visualizar em Grade" : "Visualizar em Lista"}
+          >
+            {viewMode === 'list' ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6"></line>
+                <line x1="8" y1="12" x2="21" y2="12"></line>
+                <line x1="8" y1="18" x2="21" y2="18"></line>
+                <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                <line x1="3" y1="18" x2="3.01" y2="18"></line>
+              </svg>
+            )}
           </button>
         </div>
 
@@ -1187,7 +1210,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       </div>
 
       {/* Barra fina de cabeçalho da listagem (oculta no mobile quando tab=produto) */}
-      <div className={`mt-2 px-2 py-2 border-b bg-gray-50 dark:bg-gray-700 text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-bold overflow-x-auto border-gray-200 dark:border-gray-600 ${tab==='produto' ? 'hidden md:block' : ''}`}>
+      <div className={`mt-2 px-2 py-2 border-b bg-gray-50 dark:bg-gray-700 text-xs lg:text-sm text-gray-600 dark:text-gray-300 font-bold overflow-x-auto border-gray-200 dark:border-gray-600 ${tab==='produto' ? (viewMode === 'list' ? 'hidden md:block' : 'hidden') : ''}`}>
         {tab==='produto' && (isOwner || perms.products?.view) && (
           <div 
             className="grid gap-x-2 min-w-full"
@@ -1223,6 +1246,58 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
       <div className="mt-4">
         {(tab==='produto' && (isOwner || perms.products?.view)) ? (
+          viewMode === 'grid' ? (
+             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+               {filtered.map(p => {
+                 const clientFinal = getClientFinalPrice(p)
+                 const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+                 return (
+                   <div 
+                     key={p.id}
+                     className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-all p-3 flex flex-col h-full cursor-pointer group animate-fade-in"
+                     onClick={() => (isOwner || perms.products?.edit) && startEdit(p)}
+                   >
+                     {/* Imagem */}
+                     <div className="relative aspect-square mb-2 bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden flex items-center justify-center">
+                       {p.imageUrl ? (
+                         <img src={p.imageUrl} alt={p.name} className="object-cover w-full h-full" />
+                       ) : (
+                         <svg className="w-10 h-10 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                         </svg>
+                       )}
+                       {/* Star Icon (Top Left) */}
+                      {p.featured && (
+                      <div className="absolute top-1 left-1">
+                         <svg className="w-5 h-5 text-yellow-400 drop-shadow-sm" fill="currentColor" viewBox="0 0 20 20">
+                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                         </svg>
+                      </div>
+                      )}
+                    </div>
+
+                     {/* Nome */}
+                     <h3 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-tight mb-1" title={p.name}>
+                       {p.name}
+                     </h3>
+
+                     {/* Footer (Preço e Ícone) */}
+                     <div className="mt-auto pt-2 flex items-end justify-between">
+                       <div className="font-bold text-gray-900 dark:text-white">
+                         {priceText}
+                       </div>
+                       <div className="flex flex-col items-end">
+                          {/* Tag Icon */}
+                          <svg className="w-4 h-4 text-gray-400 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                          </svg>
+                       </div>
+                     </div>
+                   </div>
+                 )
+               })}
+             </div>
+          ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
             {filtered.map(p => {
               const clientFinal = getClientFinalPrice(p)
@@ -1241,7 +1316,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} className="dark:bg-gray-700 dark:border-gray-600" />
                   </div>
                   <div className="text-xs lg:text-sm overflow-hidden">
-                    <div className="truncate text-gray-900 dark:text-white" title={p.name}>
+                    <div className="truncate text-gray-900 dark:text-white flex items-center gap-1" title={p.name}>
+                      {p.featured && (
+                        <span className="text-yellow-400 text-base">★</span>
+                      )}
                       {p.name}
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
@@ -1451,6 +1529,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               )
             })}
           </div>
+          )
         ) : (
           tab==='categorias' ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">

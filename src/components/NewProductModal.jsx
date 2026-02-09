@@ -4,7 +4,8 @@ import { getStoreById, listStoresByOwner } from '../services/stores'
 import { addCategory } from '../services/categories'
 import { addSupplier } from '../services/suppliers'
 import { collection, query, where, getDocs } from 'firebase/firestore'
-import { db } from '../lib/firebase'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { db, storage } from '../lib/firebase'
 import VariationsModal from './VariationsModal'
 import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
@@ -61,6 +62,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [priceMax, setPriceMax] = useState('0')
   const [stock, setStock] = useState('0')
   const [variations, setVariations] = useState('0')
+  // Imagem
+  const [imageFile, setImageFile] = useState(null)
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploading, setUploading] = useState(false)
+  
   // Novos campos do pop-up
   const [tab, setTab] = useState('cadastro')
   const [categoryId, setCategoryId] = useState('')
@@ -216,6 +222,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         setStockMin(String(product.stockMin ?? 0))
         setShowInCatalog(!!product.showInCatalog)
         setFeatured(!!product.featured)
+        setImageUrl(product.imageUrl || '')
         setVariations(String(product.variations ?? 0))
         
         const vData = Array.isArray(product.variationsData) ? product.variationsData : []
@@ -307,6 +314,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     setFeatured(false)
     setVariations('0')
     setVariationsData([])
+    setImageFile(null)
+    setImageUrl('')
+    setUploading(false)
     setDescription('')
     setCommissionPercent('0')
     setUnit('Unidade')
@@ -334,6 +344,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     setIsSundries(false)
   }
 
+  const handleImageChange = (e) => {
+    if (e.target.files[0]) {
+      const file = e.target.files[0]
+      setImageFile(file)
+      setImageUrl(URL.createObjectURL(file))
+    }
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
@@ -343,6 +361,21 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     }
     setSaving(true)
     try{
+      let finalImageUrl = imageUrl
+      if (imageFile) {
+        setUploading(true)
+        try {
+          const storageRef = ref(storage, `products/${storeId}/${Date.now()}_${imageFile.name}`)
+          const snapshot = await uploadBytes(storageRef, imageFile)
+          finalImageUrl = await getDownloadURL(snapshot.ref)
+        } catch (err) {
+          console.error("Erro ao fazer upload da imagem", err)
+          alert('Erro ao fazer upload da imagem. O produto será salvo sem a nova imagem.')
+        } finally {
+          setUploading(false)
+        }
+      }
+
       let finalReference = reference.trim()
       if (!finalReference) {
         finalReference = await getNextProductReference(storeId)
@@ -370,6 +403,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
       const data = {
         name: name.trim(),
+        imageUrl: finalImageUrl,
         categoryId: categoryId || null,
         supplier: supplier.trim(),
         cost: parseFloat(cost) || 0,
@@ -842,8 +876,34 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           </div>
         </div>
         <div className="order-first md:order-none">
-          <div className="h-32 border dark:border-gray-600 rounded flex items-center justify-center text-gray-400 dark:text-gray-500 text-sm">Sem imagem</div>
-          <button type="button" disabled className="mt-2 px-3 py-2 border dark:border-gray-600 rounded text-xs text-gray-400 dark:text-gray-500">Adicionar fotos</button>
+          <div className="w-full h-40 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center overflow-hidden bg-gray-50 dark:bg-gray-800 relative">
+            {uploading ? (
+              <div className="flex flex-col items-center">
+                <div className="w-6 h-6 border-2 border-green-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">Enviando...</span>
+              </div>
+            ) : imageUrl ? (
+                <img src={imageUrl} alt="Preview" className="w-full h-full object-contain" />
+            ) : (
+                <span className="text-gray-400 dark:text-gray-500 text-xs text-center p-2">Clique para adicionar imagem</span>
+            )}
+             <input 
+                type="file" 
+                accept="image/*"
+                onChange={handleImageChange} 
+                disabled={uploading}
+                className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+            />
+          </div>
+          {imageUrl && (
+            <button 
+              type="button" 
+              onClick={(e) => { e.preventDefault(); setImageUrl(''); setImageFile(null); }}
+              className="mt-2 text-xs text-red-500 hover:text-red-700 underline w-full text-center"
+            >
+              Remover imagem
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -1087,25 +1147,28 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
         </button>
       </div>
-      <div className="flex items-center gap-2">
-        <span>Destacar produto</span>
-        <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
-        </button>
-      </div>
     </div>
   </>
 )}
 </div>
 </div>
 
-<div className="px-6 py-3 border-t dark:border-gray-700">
-  <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-    <span>Cadastro Ativo</span>
-    <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
-    </button>
-  </label>
+<div className="px-6 py-3 border-t dark:border-gray-700 flex items-center justify-between">
+  <div className="flex items-center gap-6">
+    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
+      <span>Cadastro Ativo</span>
+      <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+      </button>
+    </label>
+    
+    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
+      <span>Destacar Produto</span>
+      <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
+      </button>
+    </label>
+  </div>
  </div>
 
 <div className="flex items-center justify-end gap-3 pt-2 px-6">

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { listenSubUsers, addSubUser, updateSubUser, removeSubUser } from '../services/users'
 import UserModal from './UserModal'
 
@@ -11,6 +12,7 @@ export default function UsersPage({ owner }){
   
   // Menu e ações
   const [menuOpenId, setMenuOpenId] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0, bottom: 'auto' })
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
   const [userToRemove, setUserToRemove] = useState(null)
 
@@ -28,13 +30,22 @@ export default function UsersPage({ owner }){
 
   async function handleSave(user){
     if (!owner?.id) return
-    if (editingUser) {
-      await updateSubUser(owner.id, editingUser.id, user)
-    } else {
-      await addSubUser(owner.id, user)
+    try {
+      if (editingUser) {
+        await updateSubUser(owner.id, editingUser.id, user)
+      } else {
+        await addSubUser(owner.id, user)
+      }
+      setModalOpen(false)
+      setEditingUser(null)
+    } catch (error) {
+      console.error('Erro ao salvar usuário:', error)
+      if (error.code === 'permission-denied') {
+        alert('Você não tem permissão para realizar esta ação.')
+      } else {
+        alert('Erro ao salvar usuário.')
+      }
     }
-    setModalOpen(false)
-    setEditingUser(null)
   }
 
   async function handleRemove() {
@@ -54,7 +65,9 @@ export default function UsersPage({ owner }){
   // Helpers para detecção de badges quando não há flags setadas
   const isSeller = (u) => (u.isSeller ?? false) || (String(u.role || '').toLowerCase() === 'manager') || /vendedor/i.test(String(u.name||''))
   const isTech = (u) => (u.isTech ?? false) || /t[eé]cnico/i.test(String(u.name||''))
-  const isAdmin = (u) => (u.isAdmin ?? false) || (String(u.role || '').toLowerCase() === 'admin')
+  const activeUser = useMemo(() => {
+    return members.find(u => u.id === menuOpenId)
+  }, [members, menuOpenId])
 
   return (
     <div>
@@ -74,7 +87,7 @@ export default function UsersPage({ owner }){
       </div>
 
       {/* Lista estilo do print */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-lg shadow">
         <div className="grid grid-cols-[1.5rem_1fr_10rem_8rem_2rem] items-center px-4 py-3 text-xs text-gray-500 border-b">
           <div></div>
           <div>Usuários ({filtered.length})</div>
@@ -88,7 +101,7 @@ export default function UsersPage({ owner }){
             <div className="text-sm">
               <div className="font-medium">{u.name || '-'}</div>
               <div className="mt-1 flex flex-wrap gap-1">
-                {isAdmin(u) && (
+                {(u.isAdmin || (String(u.role||'').toLowerCase()==='admin')) && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-green-50 text-green-700 border border-green-200">Administrador</span>
                 )}
                 {isSeller(u) && (
@@ -108,34 +121,27 @@ export default function UsersPage({ owner }){
                 className="p-1 rounded hover:bg-gray-100"
                 onClick={(e) => {
                   e.stopPropagation()
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const spaceBelow = window.innerHeight - rect.bottom
+                  const menuHeight = 110 // Altura estimada do menu
+                  
+                  let newPos = { right: window.innerWidth - rect.right, top: 0, bottom: 'auto' }
+                  
+                  // Se não tiver espaço embaixo, abre pra cima
+                  if (spaceBelow < menuHeight) {
+                    newPos.bottom = window.innerHeight - rect.top
+                    newPos.top = 'auto'
+                  } else {
+                    newPos.top = rect.bottom
+                    newPos.bottom = 'auto'
+                  }
+                  
+                  setMenuPos(newPos)
                   setMenuOpenId(menuOpenId === u.id ? null : u.id)
                 }}
               >
                 ⋯
               </button>
-              {menuOpenId === u.id && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded shadow-lg border z-10 py-1">
-                  <button
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
-                    onClick={() => {
-                      setMenuOpenId(null)
-                      startEdit(u)
-                    }}
-                  >
-                    ✏️ Editar
-                  </button>
-                  <button
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
-                    onClick={() => {
-                      setMenuOpenId(null)
-                      setUserToRemove(u)
-                      setConfirmRemoveOpen(true)
-                    }}
-                  >
-                    🗑️ Excluir
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -159,8 +165,41 @@ export default function UsersPage({ owner }){
       )}
       
       {/* Backdrop para fechar menu */}
-      {menuOpenId && (
-        <div className="fixed inset-0 z-0" onClick={() => setMenuOpenId(null)} />
+      {menuOpenId && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setMenuOpenId(null)} />
+          <div 
+            className="fixed bg-white rounded shadow-lg border z-[9999] py-1 w-40"
+            style={{ 
+              top: menuPos.top, 
+              right: menuPos.right,
+              bottom: menuPos.bottom
+            }}
+          >
+            <button
+              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+              onClick={() => {
+                setMenuOpenId(null)
+                if (activeUser) startEdit(activeUser)
+              }}
+            >
+              ✏️ Editar
+            </button>
+            <button
+              className="w-full text-left px-4 py-2 text-sm hover:bg-gray-50 text-red-600 flex items-center gap-2"
+              onClick={() => {
+                setMenuOpenId(null)
+                if (activeUser) {
+                  setUserToRemove(activeUser)
+                  setConfirmRemoveOpen(true)
+                }
+              }}
+            >
+              🗑️ Excluir
+            </button>
+          </div>
+        </>,
+        document.body
       )}
 
       {/* Modal de confirmação de exclusão */}

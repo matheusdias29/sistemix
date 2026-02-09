@@ -525,9 +525,10 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       </div>
 
       <NewClientModal 
-        isOpen={modalOpen} 
+        open={modalOpen} 
         onClose={()=>setModalOpen(false)} 
         storeId={storeId}
+        user={user}
         onSuccess={() => {
             setModalOpen(false)
             refreshCache()
@@ -536,10 +537,12 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
 
       {editOpen && editingClient && (
         <NewClientModal 
-          isOpen={editOpen} 
+          open={editOpen} 
           onClose={()=>{setEditOpen(false); setEditingClient(null)}} 
           storeId={storeId}
-          clientToEdit={editingClient}
+          isEdit={true}
+          client={editingClient}
+          user={user}
           onSuccess={() => {
               setEditOpen(false)
               setEditingClient(null)
@@ -550,10 +553,10 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
 
       {/* Modal Filtros */}
       <ClientsFilterModal
-        isOpen={filterOpen}
+        open={filterOpen}
         onClose={()=>setFilterOpen(false)}
-        filters={filters}
-        setFilters={setFilters}
+        initialFilters={filters}
+        onApply={setFilters}
       />
 
       {/* Modal Confirmação Remoção */}
