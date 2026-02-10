@@ -1732,12 +1732,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       aria-label="Mais ações de categoria"
                       title="Mais ações"
                       className="inline-flex h-8 w-8 items-center justify-center rounded border dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      onClick={() => setCategoryMenuId(categoryMenuId === c.id ? null : c.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setMenuPos({ top: rect.bottom + 2, left: rect.right - 224 })
+                        setCategoryMenuId(categoryMenuId === c.id ? null : c.id)
+                      }}
                     >
                       ⋯
                     </button>
                     {categoryMenuId === c.id && (
-                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow">
+                      <div 
+                        className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg"
+                        style={{ top: menuPos.top, left: menuPos.left }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="py-2">
                           {(isOwner || perms.categories?.bulkPricing) && (
                           <button
@@ -1789,12 +1798,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       aria-label="Mais ações de fornecedor"
                       title="Mais ações"
                       className="inline-flex h-8 w-8 items-center justify-center rounded border dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      onClick={() => setSupplierMenuId(supplierMenuId === s.id ? null : s.id)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        setMenuPos({ top: rect.bottom + 2, left: rect.right - 224 })
+                        setSupplierMenuId(supplierMenuId === s.id ? null : s.id)
+                      }}
                     >
                       ⋯
                     </button>
                     {supplierMenuId === s.id && (
-                      <div className="absolute z-50 right-0 top-full mt-1 w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow">
+                      <div 
+                        className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg"
+                        style={{ top: menuPos.top, left: menuPos.left }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         <div className="py-2">
                           {(isOwner || perms.suppliers?.delete) && (
                           <button

@@ -119,9 +119,15 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
                 <div className="col-span-3 text-xs text-gray-500 dark:text-gray-400 mb-1">
                   Defina a margem de lucro (%) padrão para cada precificação ao selecionar esta categoria.
                 </div>
-                {[1, 2, 3, 4, 5].map(num => (
+                {[
+                  { num: 1, label: 'P/cliente final' },
+                  { num: 2, label: 'cartão 7x Até 12x' },
+                  { num: 3, label: 'cartão 13x até 18x' },
+                  { num: 4, label: 'Lojista Levar' },
+                  { num: 5, label: 'P/instalar na loja' }
+                ].map(({ num, label }) => (
                   <div key={num}>
-                    <label className="text-xs text-gray-600 dark:text-gray-300 font-medium block">Preço {num} (%)</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-300 font-medium block">{label} (%)</label>
                     <input 
                       type="number" 
                       step="0.1" 
