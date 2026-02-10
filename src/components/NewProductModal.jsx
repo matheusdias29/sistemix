@@ -1181,6 +1181,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               open={varModalOpen}
               commissionPercent={commissionPercent}
               initialItems={variationsData.length ? variationsData : [makeVarFromProduct()]}
+              defaultMarkups={categories.find(c => c.id === categoryId)?.defaultMarkups || null}
               onClose={()=> setVarModalOpen(false)}
               onConfirm={(items) => {
                 setVariationsData(items)

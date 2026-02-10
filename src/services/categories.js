@@ -25,6 +25,7 @@ export async function addCategory(category, storeId){
     commissionRate: Number(category.commissionRate ?? 0),
     active: category.active ?? true,
     imageUrl: category.imageUrl ?? null,
+    defaultMarkups: category.defaultMarkups ?? null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }

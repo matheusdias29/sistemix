@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [] }){
+export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null }){
   const toEditable = (it = {}) => ({
     name: it.name ?? '',
     cost: String(it.cost ?? '0'),
@@ -150,6 +150,13 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     onClose && onClose()
   }
 
+  const calculateBasePrice = (costStr, markupStr) => {
+    const cost = parseFloat(String(costStr).replace(',', '.')) || 0
+    const markup = parseFloat(String(markupStr).replace(',', '.')) || 0
+    if (cost <= 0) return 0
+    return cost + (cost * markup / 100)
+  }
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
       <div className="bg-white rounded-lg shadow-lg w-[900px] max-w-[98vw]">
@@ -202,6 +209,21 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             <div>
                               <label className="text-xs text-gray-600">Preço de venda</label>
                               <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                              {defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
+                                <div className="mt-1 text-[10px] text-blue-600 bg-blue-50 p-1 rounded border border-blue-100">
+                                  <div>Margem Cat.: <b>{defaultMarkups[`p${idx+1}`]}%</b></div>
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <span>Base: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]))}</b></span>
+                                    <button 
+                                      type="button"
+                                      onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]).toFixed(2))}
+                                      className="text-blue-700 underline hover:text-blue-900 ml-auto"
+                                    >
+                                      Aplicar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                             <div>
                               <label className="text-xs text-gray-600">Preço promocional</label>
@@ -273,6 +295,21 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                       <div>
                         <label className="text-xs text-gray-600">Preço de venda</label>
                         <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                        {defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
+                          <div className="mt-1 text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100 flex items-center justify-between gap-2">
+                            <div>
+                              <div>Margem Categoria: <b>{defaultMarkups[`p${idx+1}`]}%</b></div>
+                              <div className="mt-0.5">Base Calculada: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]))}</b></div>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]).toFixed(2))}
+                              className="text-blue-700 underline hover:text-blue-900 text-xs whitespace-nowrap"
+                            >
+                              Aplicar Valor
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div>
                         <label className="text-xs text-gray-600">Preço promocional</label>

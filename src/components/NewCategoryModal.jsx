@@ -5,6 +5,8 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
   const [name, setName] = useState('')
   const [commissionRate, setCommissionRate] = useState('0')
   const [active, setActive] = useState(true)
+  const [showMarkups, setShowMarkups] = useState(false)
+  const [defaultMarkups, setDefaultMarkups] = useState({ p1: '', p2: '', p3: '', p4: '', p5: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -13,6 +15,24 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
       setName(category.name || '')
       setCommissionRate(String(category.commissionRate ?? 0))
       setActive(category.active !== false)
+      
+      const dm = category.defaultMarkups || {}
+      setDefaultMarkups({
+        p1: dm.p1 || '',
+        p2: dm.p2 || '',
+        p3: dm.p3 || '',
+        p4: dm.p4 || '',
+        p5: dm.p5 || ''
+      })
+      if (Object.values(dm).some(v => v)) setShowMarkups(true)
+      
+      setError('')
+    } else if (open && !isEdit) {
+      setName('')
+      setCommissionRate('0')
+      setActive(true)
+      setShowMarkups(false)
+      setDefaultMarkups({ p1: '', p2: '', p3: '', p4: '', p5: '' })
       setError('')
     }
   }, [open, isEdit, category])
@@ -41,6 +61,13 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
         name: name.trim(),
         commissionRate: parseFloat(commissionRate) || 0,
         active,
+        defaultMarkups: {
+          p1: parseFloat(defaultMarkups.p1) || 0,
+          p2: parseFloat(defaultMarkups.p2) || 0,
+          p3: parseFloat(defaultMarkups.p3) || 0,
+          p4: parseFloat(defaultMarkups.p4) || 0,
+          p5: parseFloat(defaultMarkups.p5) || 0,
+        }
       }
       if(isEdit && category?.id){
         await updateCategory(category.id, data)
@@ -76,6 +103,37 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
           <div>
             <label className="text-sm text-gray-600 dark:text-gray-300">Taxa de comissão</label>
             <input type="number" step="0.01" value={commissionRate} onChange={e=>setCommissionRate(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="0" />
+          </div>
+
+          <div>
+            <button 
+              type="button" 
+              onClick={() => setShowMarkups(!showMarkups)}
+              className="text-sm text-green-600 dark:text-green-400 font-medium hover:underline flex items-center gap-1 focus:outline-none"
+            >
+              <span className="text-xs">{showMarkups ? '▼' : '▶'}</span> Definir % de Precificação Padrão
+            </button>
+            
+            {showMarkups && (
+              <div className="mt-2 grid grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-700/30 p-3 rounded border dark:border-gray-700 transition-all">
+                <div className="col-span-3 text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Defina a margem de lucro (%) padrão para cada precificação ao selecionar esta categoria.
+                </div>
+                {[1, 2, 3, 4, 5].map(num => (
+                  <div key={num}>
+                    <label className="text-xs text-gray-600 dark:text-gray-300 font-medium block">Preço {num} (%)</label>
+                    <input 
+                      type="number" 
+                      step="0.1" 
+                      value={defaultMarkups[`p${num}`]} 
+                      onChange={e => setDefaultMarkups(prev => ({ ...prev, [`p${num}`]: e.target.value }))}
+                      className="mt-1 w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-green-500 outline-none" 
+                      placeholder="0" 
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between">
