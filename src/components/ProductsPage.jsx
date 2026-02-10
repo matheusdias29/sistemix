@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react'
-import { listenProducts, updateProduct, addProduct, removeProduct } from '../services/products'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
+import { getProductsByPage, searchProductsByPage, getTotalProductsCount, updateProduct, addProduct, removeProduct, getAllProducts } from '../services/products'
 import NewProductModal, { ensureSupplierInStore } from './NewProductModal'
 import { listenCategories, updateCategory, addCategory, removeCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
@@ -48,6 +48,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   useEffect(() => {
     if (typeof window !== 'undefined') localStorage.setItem('sistemix_view_mode', viewMode)
   }, [viewMode])
+
+  // Pagination & Smart Cache
+  const PAGE_SIZE = 30
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [totalResults, setTotalResults] = useState(0)
+  const [cachedProducts, setCachedProducts] = useState(null)
+  const [isCaching, setIsCaching] = useState(false)
 
   const [showFilters, setShowFilters] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
@@ -120,10 +128,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       if (w < 768) {
         setGridCols(null) // mobile default via class
         setShowExtras(false)
-      } else if (w < 1300) {
-        setGridCols('1.5rem minmax(0, 1fr) 8rem 5rem 5.5rem 2rem')
-        setShowExtras(false)
       } else {
+        // Desktop/Tablet - Show all 8 requested columns + checkbox/actions
+        // Checkbox | Produto | Código | Atualizado | Hora | Funcionário | Preço | Estoque | Status | Actions
         setGridCols('1.5rem minmax(0, 1fr) 5rem 5rem 3rem minmax(0, 1fr) 8rem 5rem 5.5rem 2rem')
         setShowExtras(true)
       }
@@ -190,15 +197,76 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkReviewQuery, setBulkReviewQuery] = useState('')
 
   useEffect(() => {
-    const unsubProd = listenProducts(items => setProducts(items), storeId)
+    // Categories and Suppliers (Listeners)
     const unsubCat = listenCategories(items => setCategories(items), storeId)
     const unsubSup = listenSuppliers(items => setSuppliers(items), storeId)
     return () => {
-      unsubProd && unsubProd()
       unsubCat && unsubCat()
       unsubSup && unsubSup()
     }
   }, [storeId])
+
+  // Products Pagination Logic
+  useEffect(() => {
+    if (!storeId) return
+    
+    // Initial Count
+    getTotalProductsCount(storeId).then(count => {
+      if (!query.trim() && !cachedProducts) {
+        setTotalResults(count)
+      }
+    }).catch(console.error)
+
+    // Smart Cache (Optional - keeping it disabled by default for 14k items unless explicitly requested, 
+    // but the code is here if we want to enable it later or for smaller stores)
+    // For now, let's NOT enable full cache for 14k items to avoid memory issues on low-end devices.
+    // If user insists on "instant search", we might need it, but let's stick to server search for now.
+  }, [storeId])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const load = async () => {
+      setLoading(true)
+      try {
+        if (query.trim()) {
+           const { products: newProducts, total } = await searchProductsByPage(storeId, query, page, PAGE_SIZE)
+           if(isMounted) {
+             setProducts(newProducts)
+             setTotalResults(total)
+           }
+        } else {
+           const newProducts = await getProductsByPage(storeId, page, PAGE_SIZE)
+           if(isMounted) {
+             setProducts(newProducts)
+             // If page 1, refresh total count
+             if (page === 1) {
+                getTotalProductsCount(storeId).then(c => isMounted && setTotalResults(c))
+             }
+           }
+        }
+      } catch (err) {
+        console.error(err)
+      } finally {
+        if(isMounted) setLoading(false)
+      }
+    }
+
+    const delay = query.trim() ? 300 : 0
+    const timeoutId = setTimeout(() => {
+        load()
+    }, delay)
+
+    return () => {
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
+  }, [storeId, page, query])
+
+  // Reset page on query change
+  useEffect(() => {
+     setPage(1)
+  }, [storeId, query])
 
   useEffect(() => {
     if (!storeId) return
@@ -1039,6 +1107,109 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     }
   }
 
+  const Pagination = () => {
+    const totalPages = Math.ceil(totalResults / PAGE_SIZE) || 1
+    if (totalPages <= 1) return null
+
+    const renderPageNumbers = () => {
+        const pages = []
+        
+        // Sempre mostra página 1
+        pages.push(
+            <button
+                key={1}
+                onClick={() => setPage(1)}
+                className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                    page === 1 
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+            >
+                1
+            </button>
+        )
+
+        // Lógica para intervalo intermediário
+        let start = Math.max(2, page - 1)
+        let end = Math.min(totalPages - 1, page + 1)
+        
+        // Ajuste para mostrar mais se estiver perto do início ou fim
+        if (page <= 3) {
+            end = Math.min(totalPages - 1, 4)
+        }
+        if (page >= totalPages - 2) {
+            start = Math.max(2, totalPages - 3)
+        }
+
+        if (start > 2) {
+            pages.push(<span key="dots1" className="text-gray-400 px-1">...</span>)
+        }
+
+        for (let i = start; i <= end; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setPage(i)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        page === i 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {i}
+                </button>
+            )
+        }
+
+        if (end < totalPages - 1) {
+            pages.push(<span key="dots2" className="text-gray-400 px-1">...</span>)
+        }
+
+        // Sempre mostra última página se > 1
+        if (totalPages > 1) {
+            pages.push(
+                <button
+                    key={totalPages}
+                    onClick={() => setPage(totalPages)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        page === totalPages 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {totalPages}
+                </button>
+            )
+        }
+
+        return pages
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-2 py-4">
+            <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &lt;
+            </button>
+            
+            <div className="flex items-center gap-1">
+                {renderPageNumbers()}
+            </div>
+
+            <button 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &gt;
+            </button>
+        </div>
+    )
+  }
+
   if (showLabelsScreen) {
     return (
       <ProductLabelsPage 
@@ -1246,7 +1417,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
       <div className="mt-4">
         {(tab==='produto' && (isOwner || perms.products?.view)) ? (
-          viewMode === 'grid' ? (
+          <>
+          {viewMode === 'grid' ? (
              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                {filtered.map(p => {
                  const clientFinal = getClientFinalPrice(p)
@@ -1322,7 +1494,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       )}
                       {p.name}
                     </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
+                    <div className="md:hidden text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
                       Estoque: {stock.toLocaleString('pt-BR')}
                       <span className={stockDotClass} />
                     </div>
@@ -1530,6 +1702,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             })}
           </div>
           )
+          }
+          <Pagination />
+          </>
         ) : (
           tab==='categorias' ? (
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
