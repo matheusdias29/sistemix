@@ -193,11 +193,14 @@ export async function addProduct(product, storeId){
     // Mídia (desabilitado por enquanto)
     imageUrl: product.imageUrl ?? null,
 
+    createdBy: product.createdBy ?? '',
+    lastEditedBy: product.lastEditedBy ?? '',
+
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
   const res = await addDoc(colRef, baseData)
-  return res.id
+  return { id: res.id, ...baseData, createdAt: new Date(), updatedAt: new Date() }
 }
 
 export async function updateProduct(id, partial){
@@ -207,6 +210,7 @@ export async function updateProduct(id, partial){
     data.nameLower = partial.name.toLowerCase()
   }
   await updateDoc(ref, data)
+  return { ...data, updatedAt: new Date() }
 }
 
 export async function removeProduct(id){

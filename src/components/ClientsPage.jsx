@@ -212,11 +212,13 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       if (cachedClients) {
           const newCache = cachedClients.filter(c => c.id !== confirmRemoveClient.id)
           setCachedClients(newCache)
+          setTotalResults(prev => Math.max(0, prev - 1))
           // O useEffect vai rodar automaticamente e atualizar a lista
       } else {
           // Recarrega do servidor
           const newClients = await getClientsByPage(storeId, page, PAGE_SIZE)
           setClients(newClients)
+          getTotalClientsCount(storeId).then(setTotalResults)
       }
     } catch(e) {
       console.error(e)
@@ -227,20 +229,26 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   }
 
   // Helper para atualizar cache após Edição/Criação
-  const refreshCache = async () => {
-      if (cachedClients) {
-          // Opção A: Re-baixar tudo (mais seguro, mas gasta leitura)
-          // getAllClients(storeId).then(setCachedClients)
-          
-          // Opção B: Tentar ser esperto (complexo se mudou ordenação)
-          // Vamos re-baixar por enquanto para garantir consistência
-          const all = await getAllClients(storeId)
-          setCachedClients(all)
-      } else {
-          // Refresh normal
-          getTotalClientsCount(storeId).then(setTotalResults)
-          getClientsByPage(storeId, page, PAGE_SIZE).then(setClients)
-      }
+  const handleClientSave = (clientData) => {
+    if (cachedClients) {
+      setCachedClients(prev => {
+        const index = prev.findIndex(c => c.id === clientData.id)
+        if (index !== -1) {
+          // Update
+          const newCache = [...prev]
+          newCache[index] = { ...newCache[index], ...clientData }
+          return newCache
+        } else {
+          // New
+          setTotalResults(prevTotal => prevTotal + 1)
+          return [clientData, ...prev]
+        }
+      })
+    } else {
+      // Se não tem cache, recarrega a página atual
+      getTotalClientsCount(storeId).then(setTotalResults)
+      getClientsByPage(storeId, page, PAGE_SIZE).then(setClients)
+    }
   }
 
   // Componente de Paginação Numérica
@@ -461,13 +469,21 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                 {c.code || '-'}
               </div>
               <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleDateString() : '-'}
+                {(() => {
+                  if (!c.updatedAt) return '—';
+                  const d = c.updatedAt.seconds ? new Date(c.updatedAt.seconds * 1000) : new Date(c.updatedAt);
+                  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+                })()}
               </div>
               <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                 {c.updatedAt?.seconds ? new Date(c.updatedAt.seconds * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-'}
+                {(() => {
+                  if (!c.updatedAt) return '—';
+                  const d = c.updatedAt.seconds ? new Date(c.updatedAt.seconds * 1000) : new Date(c.updatedAt);
+                  return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                })()}
               </div>
-              <div className="text-center text-sm text-gray-500 dark:text-gray-400">
-                —
+              <div className="text-center text-sm text-gray-500 dark:text-gray-400 truncate px-2" title={c.lastEditedBy || c.createdBy || ''}>
+                {c.lastEditedBy || c.createdBy || '—'}
               </div>
               <div className="text-left text-sm text-gray-500 dark:text-gray-400">
                 {c.whatsapp || c.phone || '-'}
@@ -529,9 +545,9 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
         onClose={()=>setModalOpen(false)} 
         storeId={storeId}
         user={user}
-        onSuccess={() => {
+        onSuccess={(newClient) => {
             setModalOpen(false)
-            refreshCache()
+            handleClientSave(newClient)
         }}
       />
 
@@ -543,10 +559,10 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
           isEdit={true}
           client={editingClient}
           user={user}
-          onSuccess={() => {
+          onSuccess={(updatedClient) => {
               setEditOpen(false)
               setEditingClient(null)
-              refreshCache()
+              handleClientSave(updatedClient)
           }}
         />
       )}

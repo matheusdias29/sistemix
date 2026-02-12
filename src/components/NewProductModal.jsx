@@ -442,12 +442,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         isParts: !!isParts,
         isAccessories: !!isAccessories,
         isSundries: !!isSundries,
-        lastEditedBy: user?.name || 'Desconhecido',
+        lastEditedBy: user?.name || 'Sistema',
         rootId: product?.rootId || crypto.randomUUID(),
       }
       if(isEdit && product?.id){
-        await updateProduct(product.id, data)
-        if (onSuccess) onSuccess({ ...data, id: product.id })
+        const updatedProduct = await updateProduct(product.id, data)
+        if (onSuccess) onSuccess({ ...data, ...updatedProduct, id: product.id })
 
         // Sincronização na edição
         if (syncProducts) {
@@ -570,11 +570,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                       // Preservar estoque original da loja destino
                       const updatePayload = {
                         ...data,
+                        createdBy: targetProduct.createdBy || data.createdBy || user?.name || 'Sistema',
                         storeId: store.id,
                         categoryId: targetCategoryId,
                         stock: targetProduct.stock, // Preserva estoque total
                         stockInitial: targetProduct.stockInitial, // Preserva inicial
-                        createdBy: targetProduct.createdBy, // Preserva criador original
                         createdAt: targetProduct.createdAt // Preserva data criação
                       }
                       
@@ -619,9 +619,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         }
 
       } else {
-        data.createdBy = user?.name || 'Desconhecido'
-        const newId = await addProduct(data, storeId)
-        if (onSuccess) onSuccess({ ...data, id: newId })
+        data.createdBy = user?.name || 'Sistema'
+        const result = await addProduct(data, storeId)
+        if (onSuccess) onSuccess(result)
 
         // Sincronização entre lojas (somente na criação)
         if (syncProducts) {

@@ -175,12 +175,12 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
         lastEditedBy: user?.name || 'Sistema',
       }
       if(isEdit && client?.id){
-        await updateClient(client.id, payload)
-        if (onSuccess) onSuccess({ id: client.id, ...payload })
+        const updatedData = await updateClient(client.id, payload)
+        if (onSuccess) onSuccess({ ...payload, ...updatedData, id: client.id })
       } else {
         payload.createdBy = user?.name || 'Sistema'
-        const newId = await addClient(payload, storeId)
-        if (onSuccess) onSuccess({ id: newId, ...payload })
+        const result = await addClient(payload, storeId)
+        if (onSuccess) onSuccess(result)
       }
       close()
     } catch(err){

@@ -171,6 +171,8 @@ export async function addClient(client, storeId){
     motherName: client.motherName ?? '',
     birthDate: client.birthDate ?? '',
     active: client.active ?? true,
+    createdBy: client.createdBy ?? '',
+    lastEditedBy: client.lastEditedBy ?? '',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -181,16 +183,17 @@ export async function addClient(client, storeId){
   data.cpfDigits = digits(data.cpf)
   data.cnpjDigits = digits(data.cnpj)
   const res = await addDoc(colRef, data)
-  return res.id
+  return { id: res.id, ...data, createdAt: new Date(), updatedAt: new Date() }
 }
 
 export async function updateClient(id, partial){
   const ref = doc(db, 'clients', id)
+  let normalized = {}
   try {
     const snap = await getDoc(ref)
     const cur = snap.exists() ? snap.data() : {}
     const merged = { ...cur, ...partial }
-    const normalized = {
+    normalized = {
       nameLower: normalize(merged.name),
       codeLower: normalize(merged.code),
       phoneDigits: digits(merged.phone),
@@ -202,6 +205,7 @@ export async function updateClient(id, partial){
   } catch {
     await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
   }
+  return { ...partial, ...normalized, updatedAt: new Date() }
 }
 
 export async function removeClient(id){

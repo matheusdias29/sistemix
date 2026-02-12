@@ -647,12 +647,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     try {
       setSavingAction(true)
       const next = !(product.active ?? true)
-      await updateProduct(product.id, { active: next })
+      const updateResult = await updateProduct(product.id, { active: next })
       
       // Atualiza o cache se disponível
       if (cachedProducts) {
         setCachedProducts(prev => prev.map(p => 
-          p.id === product.id ? { ...p, active: next } : p
+          p.id === product.id ? { ...p, active: next, updatedAt: updateResult.updatedAt } : p
         ))
       }
 
@@ -675,6 +675,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           return next
         } else {
           // Create: add new product to cache
+          setTotalResults(prev => prev + 1)
           return [productData, ...prev]
         }
       })
@@ -723,6 +724,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       // Atualiza o cache se disponível
       if (cachedProducts) {
         setCachedProducts(prev => prev.filter(item => item.id !== p.id))
+        setTotalResults(prev => Math.max(0, prev - 1))
       }
 
       setConfirmRemoveOpen(false)
@@ -783,7 +785,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       // Atualiza o cache se disponível
       if (cachedProducts) {
         setCachedProducts(prev => prev.map(item => 
-          item.id === p.id ? { ...item, ...updateData } : item
+          item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item
         ))
       }
 
@@ -1597,12 +1599,20 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   {/* Data de atualização (substituindo prévia de variações) */}
                   {showExtras && (
                     <div className="hidden md:flex text-xs lg:text-sm text-gray-700 dark:text-gray-300 justify-center items-center whitespace-nowrap">
-                       {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleDateString('pt-BR') : '—'}
+                       {(() => {
+                         if (!p.updatedAt) return '—';
+                         const d = p.updatedAt.seconds ? new Date(p.updatedAt.seconds * 1000) : new Date(p.updatedAt);
+                         return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
+                       })()}
                     </div>
                   )}
                   {showExtras && (
                     <div className="hidden md:flex text-xs lg:text-sm text-gray-700 dark:text-gray-300 justify-center items-center whitespace-nowrap">
-                       {p.updatedAt?.seconds ? new Date(p.updatedAt.seconds * 1000).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                       {(() => {
+                         if (!p.updatedAt) return '—';
+                         const d = p.updatedAt.seconds ? new Date(p.updatedAt.seconds * 1000) : new Date(p.updatedAt);
+                         return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                       })()}
                     </div>
                   )}
                   {showExtras && (
