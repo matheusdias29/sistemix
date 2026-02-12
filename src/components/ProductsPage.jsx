@@ -648,10 +648,44 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       setSavingAction(true)
       const next = !(product.active ?? true)
       await updateProduct(product.id, { active: next })
+      
+      // Atualiza o cache se disponível
+      if (cachedProducts) {
+        setCachedProducts(prev => prev.map(p => 
+          p.id === product.id ? { ...p, active: next } : p
+        ))
+      }
+
       setOpenMenuId(null)
     } finally {
       setSavingAction(false)
     }
+  }
+
+  const handleProductSave = (productData) => {
+    if (!productData || !productData.id) return
+
+    if (cachedProducts) {
+      setCachedProducts(prev => {
+        const index = prev.findIndex(p => p.id === productData.id)
+        if (index !== -1) {
+          // Edit: update existing product in cache
+          const next = [...prev]
+          next[index] = { ...next[index], ...productData }
+          return next
+        } else {
+          // Create: add new product to cache
+          return [productData, ...prev]
+        }
+      })
+    }
+    
+    // Se não estiver usando cache (ainda carregando), o useEffect de load() cuidará disso
+    // ou o usuário verá ao mudar de página/pesquisa.
+    
+    // Fecha os modais
+    setModalOpen(false)
+    setEditModalOpen(false)
   }
 
   const openStockModal = (product) => {
@@ -685,6 +719,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     try {
       setSavingAction(true)
       await removeProduct(p.id)
+      
+      // Atualiza o cache se disponível
+      if (cachedProducts) {
+        setCachedProducts(prev => prev.filter(item => item.id !== p.id))
+      }
+
       setConfirmRemoveOpen(false)
     } finally {
       setSavingAction(false)
@@ -697,15 +737,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const q = Math.max(0, parseInt(String(stockQty), 10) || 0)
     const delta = stockType === 'entrada' ? q : -q
     const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-    const varIndex = hasVars ? 0 : -1
+    const varIndex = hasVars ? selectedVarIdx : -1
     try {
       setSavingAction(true)
+      let updateData = {}
       if (hasVars && varIndex >= 0) {
         const items = p.variationsData.map((v) => ({ ...v }))
         const cur = Number(items[varIndex]?.stock ?? 0)
         items[varIndex].stock = Math.max(0, cur + delta)
         const total = items.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
-        await updateProduct(p.id, { variationsData: items, stock: total })
+        updateData = { variationsData: items, stock: total }
+        await updateProduct(p.id, updateData)
         
         await recordStockMovement({
           productId: p.id,
@@ -723,7 +765,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       } else {
         const cur = Number(p.stock ?? 0)
         const next = Math.max(0, cur + delta)
-        await updateProduct(p.id, { stock: next })
+        updateData = { stock: next }
+        await updateProduct(p.id, updateData)
         
         await recordStockMovement({
           productId: p.id,
@@ -736,6 +779,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           userName: user?.name
         })
       }
+
+      // Atualiza o cache se disponível
+      if (cachedProducts) {
+        setCachedProducts(prev => prev.map(item => 
+          item.id === p.id ? { ...item, ...updateData } : item
+        ))
+      }
+
       setStockModalOpen(false)
     } finally {
       setSavingAction(false)
@@ -1980,6 +2031,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         syncProducts={syncProducts}
         canCreateCategory={isOwner || perms.categories?.create}
         canCreateSupplier={isOwner || perms.suppliers?.create}
+        onSuccess={handleProductSave}
       />
       <NewProductModal 
         open={editModalOpen} 
@@ -1993,6 +2045,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         syncProducts={syncProducts}
         canCreateCategory={isOwner || perms.categories?.create}
         canCreateSupplier={isOwner || perms.suppliers?.create}
+        onSuccess={handleProductSave}
       />
       <NewCategoryModal open={catModalOpen} onClose={()=>setCatModalOpen(false)} storeId={storeId} />
       <NewCategoryModal open={catEditOpen} onClose={()=>setCatEditOpen(false)} isEdit={true} category={editingCategory} storeId={storeId} />

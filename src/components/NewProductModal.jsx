@@ -56,7 +56,7 @@ export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   }
 }
 
-export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false, canCreateCategory=true, canCreateSupplier=true }){
+export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false, canCreateCategory=true, canCreateSupplier=true, onSuccess }){
   const [name, setName] = useState('')
   const [priceMin, setPriceMin] = useState('0')
   const [priceMax, setPriceMax] = useState('0')
@@ -447,6 +447,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       }
       if(isEdit && product?.id){
         await updateProduct(product.id, data)
+        if (onSuccess) onSuccess({ ...data, id: product.id })
 
         // Sincronização na edição
         if (syncProducts) {
@@ -620,6 +621,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       } else {
         data.createdBy = user?.name || 'Desconhecido'
         const newId = await addProduct(data, storeId)
+        if (onSuccess) onSuccess({ ...data, id: newId })
 
         // Sincronização entre lojas (somente na criação)
         if (syncProducts) {
