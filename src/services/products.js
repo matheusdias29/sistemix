@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'products')
@@ -23,9 +23,39 @@ export async function getTotalProductsCount(storeId) {
 }
 
 export async function getAllProducts(storeId) {
-  const q = query(colRef, where('storeId', '==', storeId), orderBy('name'))
-  const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+  const all = []
+  let lastDoc = null
+  const CHUNK_SIZE = 5000 
+
+  try {
+    while (true) {
+      // REMOVIDO orderBy('name') para evitar necessidade de índice composto com storeId
+      // O Firestore permite startAfter sem orderBy explícito (usa o ID do documento por padrão)
+      let q = query(
+        colRef, 
+        where('storeId', '==', storeId), 
+        limit(CHUNK_SIZE)
+      )
+      
+      if (lastDoc) {
+        q = query(q, startAfter(lastDoc))
+      }
+
+      const snap = await getDocs(q)
+      if (snap.empty) break
+      
+      snap.docs.forEach(d => all.push({ id: d.id, ...d.data() }))
+      if (snap.docs.length < CHUNK_SIZE) break
+      
+      lastDoc = snap.docs[snap.docs.length - 1]
+    }
+  } catch (err) {
+    console.error('Erro em getAllProducts:', err)
+    // Se falhar a busca otimizada, tenta uma busca simples sem limite ou chunks se for pequeno,
+    // mas aqui o ideal é retornar o que conseguimos ou erro.
+  }
+  
+  return all
 }
 
 export async function getProductsByPage(storeId, page, pageSize) {
@@ -43,84 +73,69 @@ export async function searchProductsByPage(storeId, searchTerm, page, pageSize) 
   if (!term) return { products: [], total: 0 }
   
   const lower = term.toLowerCase()
-  
-  // Try to determine if it's a barcode (numeric) or name
-  // This is a simple heuristic
   const isNumeric = /^\d+$/.test(term)
   
-  let total = 0
-  let qCount
-  
-  if (isNumeric) {
-    // Search by barcode
-    qCount = query(
-      colRef,
-      where('storeId', '==', storeId),
-      where('barcode', '>=', term),
-      where('barcode', '<=', term + '\uf8ff')
-    )
-    // Note: Firestore doesn't support multiple range filters on different fields easily without composite indexes
-    // We'll stick to one field.
-  } else {
-    // Search by name (assuming we have nameLower or just doing client side filter if not available?)
-    // Products don't seem to have nameLower in addProduct. 
-    // We should probably rely on the existing 'name' field but it's case sensitive in Firestore.
-    // However, ClientsPage uses nameLower. 
-    // Let's assume for now we might need to filter client side or use 'name' range if possible.
-    // 'name' is usually capitalized. 
-    // Let's try to search by name >= term.
+  try {
+    let total = 0
+    let qCount
     
-    // Ideally we should update addProduct to include nameLower.
-    // For now, let's just search by name.
-    qCount = query(
-      colRef,
-      where('storeId', '==', storeId),
-      orderBy('name'),
-      startAt(term),
-      endAt(term + '\uf8ff')
-    )
-  }
+    if (isNumeric) {
+      qCount = query(
+        colRef,
+        where('storeId', '==', storeId),
+        where('barcode', '>=', term),
+        where('barcode', '<=', term + '\uf8ff')
+      )
+    } else {
+      // Tenta busca pelo nameLower
+      // IMPORTANTE: Isso exige índice composto (storeId, nameLower). 
+      // Se falhar (catch), tentaremos um fallback mais simples.
+      qCount = query(
+        colRef,
+        where('storeId', '==', storeId),
+        orderBy('nameLower'),
+        startAt(lower),
+        endAt(lower + '\uf8ff')
+      )
+    }
 
-  // Count
-  // Note: Searching by name case-sensitive is tricky.
-  // Let's try to get all matching documents and slice (since we don't have nameLower yet).
-  // Wait, if we don't have nameLower, we can't do case-insensitive search effectively on server.
-  // Given 14k items, we should probably add nameLower.
-  // But for now, I will implement a simpler search that might be case-sensitive
-  // OR since the user said "puxe somente o necessario", maybe they accept a slightly different search behavior?
-  // Actually, I'll fetch with a larger limit and filter in memory if needed, or just use the server query.
-  
-  // Let's use the same strategy as clients: getDocs with limit.
-  
-  // IMPORTANT: For 14k products, we really need nameLower. 
-  // I will add nameLower to addProduct/updateProduct in the future or now.
-  // But for existing data, it won't be there.
-  // So I will try to use the 'name' field directly.
-  
-  const snapCount = await getCountFromServer(qCount)
-  total = snapCount.data().count
-  
-  const targetIndex = (page - 1) * pageSize
-  
-  let qData = query(qCount, limit(targetIndex + pageSize))
-  
-  const snap = await getDocs(qData)
-  const allDocs = snap.docs
-  const pageDocs = allDocs.slice(targetIndex, targetIndex + pageSize)
-  const products = pageDocs.map(d => ({ id: d.id, ...d.data() }))
-  
-  return { products, total }
+    const snapCount = await getCountFromServer(qCount)
+    total = snapCount.data().count
+    
+    const targetIndex = (page - 1) * pageSize
+    let qData = query(qCount, limit(targetIndex + pageSize))
+    
+    const snap = await getDocs(qData)
+    const allDocs = snap.docs
+    const pageDocs = allDocs.slice(targetIndex, targetIndex + pageSize)
+    const products = pageDocs.map(d => ({ id: d.id, ...d.data() }))
+    
+    return { products, total }
+  } catch (err) {
+    console.error('Erro na busca servidor (provável falta de índice):', err)
+    // Fallback: Retorna vazio para forçar o uso do Smart Cache no frontend
+    // sem travar a interface com erro de índice do Firestore.
+    return { products: [], total: 0 }
+  }
 }
 
+// Helper para garantir nameLower em novos produtos/atualizações
+function normalizeProductData(product) {
+  return {
+    ...product,
+    nameLower: (product.name || '').toLowerCase()
+  }
+}
 
 export async function addProduct(product, storeId){
   if (!storeId) throw new Error('storeId é obrigatório ao criar produto')
-  const data = {
+  const baseData = {
     // Identificação da loja
     storeId,
 
     // Básico
     name: product.name ?? 'Novo Produto',
+    nameLower: (product.name ?? 'Novo Produto').toLowerCase(),
     active: product.active ?? true,
 
     // Classificação
@@ -181,13 +196,17 @@ export async function addProduct(product, storeId){
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
-  const res = await addDoc(colRef, data)
+  const res = await addDoc(colRef, baseData)
   return res.id
 }
 
 export async function updateProduct(id, partial){
   const ref = doc(db, 'products', id)
-  await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+  const data = { ...partial, updatedAt: serverTimestamp() }
+  if (partial.name) {
+    data.nameLower = partial.name.toLowerCase()
+  }
+  await updateDoc(ref, data)
 }
 
 export async function removeProduct(id){

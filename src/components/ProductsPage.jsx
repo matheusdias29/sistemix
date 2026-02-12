@@ -207,42 +207,74 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   }, [storeId])
 
   // Products Pagination Logic
+  // Efeito para Smart Cache (igual ao de clientes)
   useEffect(() => {
     if (!storeId) return
     
-    // Initial Count
+    // Reset cache on store change
+    setCachedProducts(null)
+    setIsCaching(false)
+
+    // Atualiza o total inicial baseado no que o servidor diz
     getTotalProductsCount(storeId).then(count => {
-      if (!query.trim() && !cachedProducts) {
+      if (!query.trim()) {
         setTotalResults(count)
       }
     }).catch(console.error)
-
-    // Smart Cache (Optional - keeping it disabled by default for 14k items unless explicitly requested, 
-    // but the code is here if we want to enable it later or for smaller stores)
-    // For now, let's NOT enable full cache for 14k items to avoid memory issues on low-end devices.
-    // If user insists on "instant search", we might need it, but let's stick to server search for now.
   }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+
+    // Se não tiver cache, inicia o download em segundo plano
+    if (!cachedProducts && !isCaching) {
+        setIsCaching(true)
+        console.log('Iniciando Smart Cache de produtos...')
+        getAllProducts(storeId).then(all => {
+            console.log(`Smart Cache concluído: ${all.length} produtos baixados.`)
+            setCachedProducts(all)
+            // Se não estiver pesquisando, o total é o tamanho do cache
+            if (!query.trim()) {
+                setTotalResults(all.length)
+            } else {
+                // Se já estiver pesquisando, o useMemo 'filtered' vai cuidar do total via useEffect de sincronização
+            }
+            setIsCaching(false)
+        }).catch(err => {
+            console.error('Erro no Smart Cache:', err)
+            // Se falhar o cache, garante que o isCaching volte a false para tentar novamente se necessário
+            setIsCaching(false)
+        })
+    }
+  }, [storeId, cachedProducts, isCaching, query])
 
   useEffect(() => {
     let isMounted = true
 
     const load = async () => {
+      // Se tiver cache, a busca e paginação são locais via useMemo 'filtered' e 'paginatedResults'
+      // Portanto, não precisamos fazer nada aqui se houver cache.
+      if (cachedProducts) {
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       try {
         if (query.trim()) {
+           // Busca inicial enquanto o cache não carrega (legado/fallback)
            const { products: newProducts, total } = await searchProductsByPage(storeId, query, page, PAGE_SIZE)
            if(isMounted) {
              setProducts(newProducts)
              setTotalResults(total)
            }
         } else {
+           // Carregamento normal por página (sem busca e sem cache ainda)
            const newProducts = await getProductsByPage(storeId, page, PAGE_SIZE)
            if(isMounted) {
              setProducts(newProducts)
-             // If page 1, refresh total count
-             if (page === 1) {
-                getTotalProductsCount(storeId).then(c => isMounted && setTotalResults(c))
-             }
+             // O total vem do servidor
+             getTotalProductsCount(storeId).then(c => isMounted && setTotalResults(c))
            }
         }
       } catch (err) {
@@ -261,12 +293,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [storeId, page, query])
+  }, [storeId, page, query, cachedProducts])
 
-  // Reset page on query change
+  // Reset page on query or filter change
   useEffect(() => {
      setPage(1)
-  }, [storeId, query])
+  }, [storeId, query, activeFilters])
 
   useEffect(() => {
     if (!storeId) return
@@ -301,72 +333,79 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     return map
   }, [allOrders])
 
-  const filtered = useMemo(()=>{
+  // Lógica de filtragem (usando cache se disponível)
+  const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let res = products.filter(p => 
-      (p.name || '').toLowerCase().includes(q) || 
-      (p.reference || '').toLowerCase().includes(q)
-    )
-
-    // Apply filters
-    if (activeFilters.categoryId) {
-       res = res.filter(p => p.categoryId === activeFilters.categoryId)
-    }
-    if (activeFilters.supplier) {
-       // Check if supplier is stored as name or ID. Usually name in this codebase based on previous context.
-       // But let's check strict match or includes.
-       // NewProductModal stores supplier name string.
-       res = res.filter(p => p.supplier === activeFilters.supplier)
-    }
-    if (activeFilters.origin) {
-       res = res.filter(p => String(p.origin) === String(activeFilters.origin))
-    }
-    if (activeFilters.ncm) {
-       res = res.filter(p => (p.ncm || '').includes(activeFilters.ncm))
-    }
-    if (activeFilters.cest) {
-       res = res.filter(p => (p.cest || '').includes(activeFilters.cest))
-    }
-    if (activeFilters.validityStart) {
-       res = res.filter(p => p.validityDate && p.validityDate >= activeFilters.validityStart)
-    }
-    if (activeFilters.validityEnd) {
-       res = res.filter(p => p.validityDate && p.validityDate <= activeFilters.validityEnd)
-    }
-    if (activeFilters.lowStock) {
-       res = res.filter(p => {
-          const s = Number(p.stock||0)
-          const m = Number(p.stockMin||0)
-          return s <= m
-       })
-    }
-    if (activeFilters.noStock) {
-       res = res.filter(p => Number(p.stock||0) === 0)
-    }
-
-    // Status
-    const fActive = activeFilters.filterActive ?? true // default true if not set
-    const fInactive = activeFilters.filterInactive ?? false // default false if not set? 
-    // Wait, earlier I decided default is All? 
-    // If activeFilters is empty, defaults are not set.
-    // If user opens modal and clicks filter, activeFilters will be populated.
-    // If activeFilters is empty, I show all.
-    // If activeFilters is NOT empty, I follow the logic.
-    // But how do I distinguish "empty" from "user selected Active only"?
-    // I can check if keys exist.
     
-    if (Object.keys(activeFilters).length > 0) {
-        if (fActive && !fInactive) {
-           res = res.filter(p => (p.active ?? true) === true)
-        } else if (!fActive && fInactive) {
-           res = res.filter(p => (p.active ?? true) === false)
-        } else if (!fActive && !fInactive) {
-           res = []
+    // Se temos cache, filtramos sobre TUDO (Busca Global)
+    if (cachedProducts) {
+      return cachedProducts.filter(p => {
+        const nameMatch = (p.name || '').toLowerCase().includes(q)
+        const refMatch = (p.reference || '').toLowerCase().includes(q)
+        const barcodeMatch = (p.barcode || '').toLowerCase().includes(q)
+        const nameLowerMatch = (p.nameLower || '').includes(q)
+        
+        // Filtros adicionais
+        const categoryMatch = !activeFilters.categoryId || p.categoryId === activeFilters.categoryId
+        const supplierMatch = !activeFilters.supplier || p.supplier === activeFilters.supplier
+        const originMatch = !activeFilters.origin || String(p.origin) === String(activeFilters.origin)
+        const ncmMatch = !activeFilters.ncm || (p.ncm || '').includes(activeFilters.ncm)
+        const cestMatch = !activeFilters.cest || (p.cest || '').includes(activeFilters.cest)
+        
+        // Validade
+        let validityMatch = true
+        if (activeFilters.validityStart && (!p.validityDate || p.validityDate < activeFilters.validityStart)) validityMatch = false
+        if (activeFilters.validityEnd && (!p.validityDate || p.validityDate > activeFilters.validityEnd)) validityMatch = false
+        
+        // Estoque
+        let stockMatch = true
+        if (activeFilters.lowStock) {
+          const s = Number(p.stock || 0)
+          const m = Number(p.stockMin || 0)
+          stockMatch = s <= m
         }
+        if (activeFilters.noStock) {
+          stockMatch = Number(p.stock || 0) === 0
+        }
+
+        const matchesSearch = nameMatch || refMatch || barcodeMatch || nameLowerMatch
+        const matchesFilters = categoryMatch && supplierMatch && originMatch && ncmMatch && cestMatch && validityMatch && stockMatch
+        
+        // Status filter
+        let statusMatch = true
+        const fActive = activeFilters.filterActive ?? true
+        const fInactive = activeFilters.filterInactive ?? false
+        
+        if (fActive && !fInactive) statusMatch = (p.active !== false)
+        else if (!fActive && fInactive) statusMatch = (p.active === false)
+        else if (!fActive && !fInactive) statusMatch = false
+
+        return (q ? matchesSearch : true) && matchesFilters && statusMatch
+      })
     }
-    
-    return res
-  }, [products, query, activeFilters])
+
+    // Caso contrário, retorna os produtos carregados do servidor (que já vêm filtrados se houver busca)
+    return products
+  }, [products, query, activeFilters, cachedProducts])
+
+  // Paginação inteligente
+  const paginatedResults = useMemo(() => {
+    // Se temos cache, a filtragem é global, então precisamos paginar o array 'filtered' localmente
+    if (cachedProducts) {
+        const start = (page - 1) * PAGE_SIZE
+        return filtered.slice(start, start + PAGE_SIZE)
+    }
+    // Se não temos cache, os 'products' (e portanto 'filtered') já representam a página correta vinda do servidor
+    return filtered
+  }, [filtered, page, cachedProducts])
+
+  // Sincronização do total de resultados para o componente de Paginação
+  useEffect(() => {
+    if (cachedProducts) {
+        // Se estamos usando cache, o total é o tamanho do array filtrado globalmente
+        setTotalResults(filtered.length)
+    }
+  }, [filtered.length, cachedProducts])
 
   const filteredCategories = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -1388,7 +1427,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             style={gridCols ? { gridTemplateColumns: gridCols } : {}}
           >
             <div></div>
-            <div>Produto ({filtered.length})</div>
+            <div>Produto ({totalResults})</div>
             {showExtras && <div>Código</div>}
             {showExtras && <div className="text-center">Atualizado </div>}
             {showExtras && <div className="text-center">Hora</div>}
@@ -1420,7 +1459,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           <>
           {viewMode === 'grid' ? (
              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-               {filtered.map(p => {
+               {paginatedResults.map(p => {
                  const clientFinal = getClientFinalPrice(p)
                  const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
                  return (
@@ -1471,7 +1510,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
              </div>
           ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
-            {filtered.map(p => {
+            {paginatedResults.map(p => {
               const clientFinal = getClientFinalPrice(p)
               const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
