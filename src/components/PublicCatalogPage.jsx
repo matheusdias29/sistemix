@@ -36,13 +36,18 @@ export default function PublicCatalogPage({ storeId, store }) {
   }, [products, categoriesData])
 
   const categories = useMemo(() => {
-    const cats = new Set(productsWithCategory.map(p => p.categoryName).filter(Boolean))
+    const cats = new Set(
+      productsWithCategory
+        .filter(p => (p.active ?? true) && p.showInCatalog === true)
+        .map(p => p.categoryName)
+        .filter(Boolean)
+    )
     return ['Todos', ...Array.from(cats).sort()]
   }, [productsWithCategory])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let list = productsWithCategory.filter(p => (p.active ?? true))
+    let list = productsWithCategory.filter(p => (p.active ?? true) && p.showInCatalog === true)
     
     if (selectedCategory !== 'Todos') {
       list = list.filter(p => p.categoryName === selectedCategory)
