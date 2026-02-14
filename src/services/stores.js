@@ -86,6 +86,28 @@ export async function updateStore(id, partial){
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
 }
 
+export async function isSlugAvailable(slug, excludeId){
+  if(!slug) return false
+  const q = query(storesCol, where('catalogSlug','==',slug))
+  const snap = await getDocs(q)
+  if (snap.empty) return true
+  if (excludeId) {
+    const others = snap.docs.filter(d => d.id !== excludeId)
+    return others.length === 0
+  }
+  return false
+}
+
+export async function ensureUniqueSlug(baseSlug, currentId){
+  const clean = String(baseSlug || '').trim()
+  if (!clean) return ''
+  if (await isSlugAvailable(clean, currentId)) return clean
+  for (let i = 2; i < 1000; i++){
+    const candidate = `${clean}-${i}`
+    if (await isSlugAvailable(candidate, currentId)) return candidate
+  }
+  return `${clean}-${Date.now()}`
+}
 // ---- Taxas adicionais (por loja) ----
 function feesCollection(storeId){
   return collection(db, 'stores', storeId, 'fees')

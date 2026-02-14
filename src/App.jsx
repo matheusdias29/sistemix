@@ -171,6 +171,7 @@ export default function App(){
       const trackingMatch = rawPath.match(/^\/comprovantes\/ordem-servico\/(.+)$/)
       if (trackingMatch) {
         setPublicMode(true)
+        setStore(null)
         setView('orderTracking')
         setViewParams({ id: trackingMatch[1] })
         return
@@ -180,6 +181,7 @@ export default function App(){
       const saleMatch = rawPath.match(/^\/comprovantes\/venda\/(.+)$/)
       if (saleMatch) {
         setPublicMode(true)
+        setStore(null)
         setView('saleTracking')
         setViewParams({ id: saleMatch[1] })
         return
@@ -188,6 +190,7 @@ export default function App(){
       const path = String(rawPath || '/').replace(/^\/+|\/+$/g, '')
       if (path) {
         setPublicMode(true)
+        setStore(null)
         setView('publicCatalog')
         getStoreBySlug(path).then(found => {
           if (found) {

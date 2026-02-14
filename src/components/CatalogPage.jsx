@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { updateStore } from '../services/stores'
+import { updateStore, ensureUniqueSlug } from '../services/stores'
 
 export default function CatalogPage({ storeId, store, onNavigate }) {
   const [catalogEnabled, setCatalogEnabled] = useState(!!(store?.catalogEnabled))
@@ -65,8 +65,14 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
       .replace(/-+/g, '-')
       .replace(/^-+|-+$/g, '')
     const s = toSlug(v)
-    setSlug(s)
-    await save({ catalogSlug: s })
+    try {
+      const unique = await ensureUniqueSlug(s, storeId)
+      setSlug(unique)
+      await save({ catalogSlug: unique })
+    } catch {
+      setSlug(s)
+      await save({ catalogSlug: s })
+    }
   }
 
   const onChangeOutOfStock = async (v) => {
