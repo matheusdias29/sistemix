@@ -420,8 +420,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     if (!bulkCategory) return []
     if (!Array.isArray(bulkCandidateIds) || bulkCandidateIds.length === 0) return []
     const ids = new Set(bulkCandidateIds)
-    return products.filter(p => ids.has(p.id))
-  }, [products, bulkCategory, bulkCandidateIds])
+    const source = cachedProducts && cachedProducts.length ? cachedProducts : products
+    return source.filter(p => ids.has(p.id))
+  }, [products, cachedProducts, bulkCategory, bulkCandidateIds])
 
   const bulkFilteredCandidates = useMemo(() => {
     const list = bulkCandidates
@@ -1097,7 +1098,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     if (!amountValue && !percentValue) {
       return
     }
-    const affected = products.filter(p => p.categoryId === bulkCategory.id)
+    const source = (cachedProducts && cachedProducts.length) ? cachedProducts : products
+    const affected = source.filter(p => p.categoryId === bulkCategory.id)
     if (!affected.length) {
       setBulkModalOpen(false)
       return
@@ -1126,7 +1128,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       setBulkReviewOpen(false)
       return
     }
-    const affected = products.filter(p => p.categoryId === bulkCategory.id && bulkSelectedIds.has(p.id))
+    const source = (cachedProducts && cachedProducts.length) ? cachedProducts : products
+    const affected = source.filter(p => p.categoryId === bulkCategory.id && bulkSelectedIds.has(p.id))
     if (!affected.length) {
       setBulkReviewOpen(false)
       return
