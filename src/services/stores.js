@@ -49,11 +49,25 @@ export async function getStoreById(id){
 
 export async function getStoreBySlug(slug){
   if(!slug) return null
-  const q = query(storesCol, where('catalogSlug','==',slug), limit(1))
+  const q = query(storesCol, where('catalogSlug','==',slug))
   const snap = await getDocs(q)
   if (snap.empty) return null
-  const d = snap.docs[0]
-  return { id: d.id, ...d.data() }
+  const docs = snap.docs.map(d => ({ id: d.id, ...d.data(), _ref: d }))
+  let best = null
+  for (const it of docs) {
+    if (!best) { best = it; continue }
+    const aEnabled = !!it.catalogEnabled
+    const bEnabled = !!best.catalogEnabled
+    const au = it.updatedAt?.toMillis?.() ?? it.updatedAt?.toDate?.()?.getTime?.() ?? 0
+    const bu = best.updatedAt?.toMillis?.() ?? best.updatedAt?.toDate?.()?.getTime?.() ?? 0
+    const ac = it.createdAt?.toMillis?.() ?? it.createdAt?.toDate?.()?.getTime?.() ?? 0
+    const bc = best.createdAt?.toMillis?.() ?? best.createdAt?.toDate?.()?.getTime?.() ?? 0
+    if (aEnabled !== bEnabled) { best = aEnabled ? it : best; continue }
+    if (au !== bu) { best = au > bu ? it : best; continue }
+    if (ac !== bc) { best = ac > bc ? it : best; continue }
+    best = it.id > best.id ? it : best
+  }
+  return best ? { id: best.id, ...best } : null
 }
 
 export function listenStore(storeId, callback){
