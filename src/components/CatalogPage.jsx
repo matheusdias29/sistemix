@@ -5,9 +5,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const [catalogEnabled, setCatalogEnabled] = useState(!!(store?.catalogEnabled))
   const [slug, setSlug] = useState(store?.catalogSlug || '')
   const [outOfStock, setOutOfStock] = useState(store?.catalogOutOfStock || 'show')
-  const [payDescription, setPayDescription] = useState(store?.catalogPayDescription || '')
-  const [installments, setInstallments] = useState(String(store?.catalogInstallments || ''))
-  const [promoInstallments, setPromoInstallments] = useState(!!(store?.catalogPromoInstallments))
   const [banners, setBanners] = useState(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
   const [openingHours, setOpeningHours] = useState(store?.catalogOpeningHours || '')
   const [openingDays, setOpeningDays] = useState(store?.catalogOpeningDays || '')
@@ -17,9 +14,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     setCatalogEnabled(!!(store?.catalogEnabled))
     setSlug(store?.catalogSlug || '')
     setOutOfStock(store?.catalogOutOfStock || 'show')
-    setPayDescription(store?.catalogPayDescription || '')
-    setInstallments(String(store?.catalogInstallments || ''))
-    setPromoInstallments(!!(store?.catalogPromoInstallments))
     setBanners(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
     setOpeningHours(store?.catalogOpeningHours || '')
     setOpeningDays(store?.catalogOpeningDays || '')
@@ -78,29 +72,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const onChangeOutOfStock = async (v) => {
     setOutOfStock(v)
     await save({ catalogOutOfStock: v })
-  }
-
-  const onChangePayDescription = async (v) => {
-    setPayDescription(v)
-    await save({ catalogPayDescription: v })
-  }
-
-  const onInsertVar = (key) => {
-    const t = key === 'parcelas' ? '{{parcelas}}' : '{{valor_parcela}}'
-    const next = `${payDescription}${payDescription ? ' ' : ''}${t}`
-    onChangePayDescription(next)
-  }
-
-  const onChangeInstallments = async (v) => {
-    setInstallments(v)
-    const n = parseInt(String(v), 10) || 0
-    await save({ catalogInstallments: n })
-  }
-
-  const onTogglePromoInstallments = async () => {
-    const next = !promoInstallments
-    setPromoInstallments(next)
-    await save({ catalogPromoInstallments: next })
   }
 
   const onChangeOpeningHours = async (v) => {
@@ -189,36 +160,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
             <option value="hide">Ocultar do catálogo</option>
             <option value="disabled">Mostrar como indisponível</option>
           </select>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow p-4">
-        <div className="text-sm font-semibold">Configure o parcelamento dos produtos</div>
-        <div className="mt-3 grid gap-3">
-          <div className="text-xs text-gray-600">Descrição de pagamento</div>
-          <div className="flex items-center gap-2">
-            <button className="px-3 py-1 rounded bg-gray-100 text-sm" onClick={() => onInsertVar('parcelas')}>Número de parcelas</button>
-            <button className="px-3 py-1 rounded bg-gray-100 text-sm" onClick={() => onInsertVar('valor')}>Valor da parcela</button>
-          </div>
-          <textarea
-            value={payDescription}
-            onChange={e => onChangePayDescription(e.target.value)}
-            placeholder="Basta clicar nos botões acima para adicionar as variáveis disponíveis"
-            className="mt-2 w-full border rounded px-3 py-2 text-sm h-24"
-          />
-          <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] items-center gap-2">
-            <input
-              type="number"
-              value={installments}
-              onChange={e => onChangeInstallments(e.target.value)}
-              placeholder="Número de parcelas"
-              className="border rounded px-3 py-2 text-sm"
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={promoInstallments} onChange={onTogglePromoInstallments} />
-              Parcelar produtos em promoção
-            </label>
-          </div>
         </div>
       </div>
 

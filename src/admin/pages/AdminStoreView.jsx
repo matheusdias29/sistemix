@@ -88,6 +88,8 @@ export default function AdminStoreView({ storeId, onExit }) {
     return () => unsub()
   }, [storeId])
 
+  // Removido preloader global
+
   // Sync Dark Mode
   useEffect(() => {
     const root = document.documentElement

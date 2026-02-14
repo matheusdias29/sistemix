@@ -1106,9 +1106,15 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             <label className="text-xs text-gray-600 dark:text-gray-300">Origem da mercadoria</label>
             <select value={origin} onChange={e=>setOrigin(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white">
               <option value="">Selecionar...</option>
-              <option value="0">0 - Nacional</option>
-              <option value="1">1 - Estrangeira - Importação direta</option>
-              <option value="2">2 - Estrangeira - Adquirida no mercado interno</option>
+              <option value="0">0 - Nacional, exceto as indicadas nos códigos 3, 4, 5 e 8;</option>
+              <option value="1">1 - Estrangeira - Importação direta, exceto a indicada no código 6;</option>
+              <option value="2">2 - Estrangeira - Adquirida no mercado interno, exceto a indicada no código 7;</option>
+              <option value="3">3 - Nacional, mercadoria ou bem com Conteúdo de Importação &gt; 40% e ≤ 70%;</option>
+              <option value="4">4 - Nacional, produção feita conforme Processos Produtivos Básicos (PPB);</option>
+              <option value="5">5 - Nacional, mercadoria ou bem com Conteúdo de Importação ≤ 40%;</option>
+              <option value="6">6 - Estrangeira - Importação direta, sem similar nacional, lista CAMEX; gás natural;</option>
+              <option value="7">7 - Estrangeira - Adquirida no mercado interno, sem similar nacional, lista CAMEX; gás natural;</option>
+              <option value="8">8 - Nacional, mercadoria ou bem com Conteúdo de Importação &gt; 70%;</option>
             </select>
           </div>
           <div>

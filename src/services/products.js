@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'products')
@@ -78,6 +78,13 @@ export async function getProductsByPage(storeId, page, pageSize) {
   const allDocs = snap.docs
   const pageDocs = allDocs.slice(targetIndex, targetIndex + pageSize)
   return pageDocs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export async function getProductById(id) {
+  const ref = doc(db, 'products', id)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() }
 }
 
 export async function searchProductsByPage(storeId, searchTerm, page, pageSize) {

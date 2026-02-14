@@ -208,6 +208,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
   // Products Pagination Logic
   // Efeito para Smart Cache (igual ao de clientes)
+  // (Sem cache global; carregamento ocorre somente dentro da página)
+
   useEffect(() => {
     if (!storeId) return
     
@@ -556,9 +558,19 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     }
   }, [addNewSignal])
 
-  const startEdit = (product) => {
+  const startEdit = async (product) => {
     if(!isOwner && !perms.products?.edit) return
-    setEditingProduct(product)
+    try {
+      // Busca detalhes completos sob demanda
+      const mod = await (async ()=>{
+        const m = await import('../services/products')
+        return m
+      })()
+      const full = await mod.getProductById(product.id)
+      setEditingProduct(full || product)
+    } catch {
+      setEditingProduct(product)
+    }
     setEditModalOpen(true)
   }
 
@@ -1186,6 +1198,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           })
           payload.variationsData = items
         }
+        // Registrar responsável e momento da precificação em massa
+        payload.lastEditedBy = (user && (user.name || user.email || user.id)) || 'Sistema'
         if (Object.keys(payload).length > 0) {
           await updateProduct(p.id, payload)
         }
@@ -1414,7 +1428,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          {loading && (
+            <div className="hidden md:flex items-center gap-2 text-gray-500 dark:text-gray-300 text-sm">
+              <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+              <span>Carregando…</span>
+            </div>
+          )}
           {/* Opções */}
           <div className="relative hidden md:inline-block">
             <button 
@@ -1512,7 +1532,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           <>
           {viewMode === 'grid' ? (
              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-               {paginatedResults.map(p => {
+               {loading && paginatedResults.length === 0 && Array.from({length: 12}).map((_,i)=>(
+                 <div key={`sk-${i}`} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 animate-pulse">
+                   <div className="aspect-square mb-2 bg-gray-100 dark:bg-gray-700 rounded-md"></div>
+                   <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-3/4 mb-2"></div>
+                   <div className="h-3 bg-gray-200 dark:bg-gray-600 rounded w-1/3"></div>
+                 </div>
+               ))}
+               {!loading && paginatedResults.map(p => {
                  const clientFinal = getClientFinalPrice(p)
                  const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
                  return (
@@ -1540,8 +1567,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       )}
                     </div>
 
-                     {/* Nome */}
-                     <h3 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 leading-tight mb-1" title={p.name}>
+                    {/* Nome */}
+                    <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 leading-tight mb-1" title={p.name}>
                        {p.name}
                      </h3>
 
@@ -1563,7 +1590,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
              </div>
           ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
-            {paginatedResults.map(p => {
+            {loading && paginatedResults.length === 0 && (
+              <div className="divide-y dark:divide-gray-700">
+                {Array.from({length: 8}).map((_,i)=>(
+                  <div key={`row-sk-${i}`} className="grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-2 items-center px-2 py-3 animate-pulse">
+                    <div className="h-4 w-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+                    <div className="hidden md:block h-3 bg-gray-200 dark:bg-gray-700 rounded w-24"></div>
+                    <div className="hidden md:block h-3 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+                    <div className="hidden md:block h-3 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+                    <div className="hidden md:block h-3 bg-gray-200 dark:bg-gray-700 rounded w-10"></div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!loading && paginatedResults.map(p => {
               const clientFinal = getClientFinalPrice(p)
               const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
@@ -1579,7 +1620,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   <div>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} className="dark:bg-gray-700 dark:border-gray-600" />
                   </div>
-                  <div className="text-xs lg:text-sm overflow-hidden">
+                  <div className="text-xs overflow-hidden">
                     <div className="truncate text-gray-900 dark:text-white flex items-center gap-1" title={p.name}>
                       {p.featured && (
                         <span className="text-yellow-400 text-base">★</span>

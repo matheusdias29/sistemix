@@ -26,6 +26,8 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   // Smart Cache
   const [cachedClients, setCachedClients] = useState(null)
   const [isCaching, setIsCaching] = useState(false)
+
+  // (Sem cache global; carregamento ocorre somente dentro da página)
   
   // Paginação
   const PAGE_SIZE = 30
@@ -186,9 +188,18 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
     })
   }, [clients, filters])
 
-  const startEdit = (c) => {
+  const startEdit = async (c) => {
     if(!isOwner && !perms.clients?.edit) return
-    setEditingClient(c)
+    try {
+      const mod = await (async () => {
+        const m = await import('../services/clients')
+        return m
+      })()
+      const full = await mod.getClientById(c.id)
+      setEditingClient(full || c)
+    } catch {
+      setEditingClient(c)
+    }
     setEditOpen(true)
     setOpenMenuId(null)
   }
@@ -389,7 +400,13 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
            </div>
 
            {/* Direita: Opções + Novo */}
-           <div className="flex items-center gap-2">
+           <div className="flex items-center gap-3">
+              {loading && (
+                <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300 text-sm">
+                  <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+                  <span>Carregando…</span>
+                </div>
+              )}
               <button className="hidden md:inline-flex px-4 py-2 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded-md text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30">
                 Opções
               </button>
@@ -486,7 +503,28 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                 {c.lastEditedBy || c.createdBy || '—'}
               </div>
               <div className="text-left text-sm text-gray-500 dark:text-gray-400">
-                {c.whatsapp || c.phone || '-'}
+                {c.whatsapp ? (
+                  (() => {
+                    const raw = String(c.whatsapp || '')
+                    const digits = raw.replace(/\D/g, '')
+                    const withCountry = digits.startsWith('55') ? digits : `55${digits}`
+                    const url = `https://wa.me/${withCountry}`
+                    return (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-green-600 dark:text-green-400 hover:underline"
+                        title="Abrir conversa no WhatsApp"
+                        onClick={(e)=> e.stopPropagation()}
+                      >
+                        {c.whatsapp}
+                      </a>
+                    )
+                  })()
+                ) : (
+                  (c.phone || '-')
+                )}
               </div>
               <div className="text-right">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${c.active !== false ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'}`}>
@@ -522,11 +560,31 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
           )
         })}
 
-        {/* Loading Indicator */}
+        {/* Loading Skeleton */}
         {loading && (
-            <div className="p-4 text-center text-gray-500">
-                Carregando...
-            </div>
+          <div className="divide-y dark:divide-gray-700">
+            {Array.from({length: 8}).map((_, i) => (
+              <div key={`cli-sk-${i}`} className="px-4 py-3 animate-pulse">
+                <div className="hidden md:grid grid-cols-[1fr_6rem_5.5rem_3.5rem_1fr_12rem_6rem_2rem] gap-x-4 items-center">
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-2/3"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-12"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-16 justify-self-center"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-10 justify-self-center"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+                  <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-28"></div>
+                  <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-16 justify-self-end"></div>
+                  <div className="h-5 w-5 bg-gray-200 dark:bg-gray-700 rounded-full justify-self-end"></div>
+                </div>
+                <div className="md:hidden flex items-center justify-between">
+                  <div className="space-y-2 w-2/3">
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+                  </div>
+                  <div className="h-6 w-6 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
         
         {!loading && filtered.length === 0 && (

@@ -240,3 +240,10 @@ export async function getAllClients(storeId) {
   const snap = await getDocs(q)
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
+
+export async function getClientById(id) {
+  const ref = doc(db, 'clients', id)
+  const snap = await getDoc(ref)
+  if (!snap.exists()) return null
+  return { id: snap.id, ...snap.data() }
+}
