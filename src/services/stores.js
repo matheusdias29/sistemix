@@ -1,5 +1,7 @@
 import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, orderBy, onSnapshot, limit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { signInAnonymously } from 'firebase/auth'
+import { auth } from '../lib/firebase'
 
 const storesCol = collection(db, 'stores')
 
@@ -49,25 +51,40 @@ export async function getStoreById(id){
 
 export async function getStoreBySlug(slug){
   if(!slug) return null
-  const q = query(storesCol, where('catalogSlug','==',slug))
-  const snap = await getDocs(q)
-  if (snap.empty) return null
-  const docs = snap.docs.map(d => ({ id: d.id, ...d.data(), _ref: d }))
-  let best = null
-  for (const it of docs) {
-    if (!best) { best = it; continue }
-    const aEnabled = !!it.catalogEnabled
-    const bEnabled = !!best.catalogEnabled
-    const au = it.updatedAt?.toMillis?.() ?? it.updatedAt?.toDate?.()?.getTime?.() ?? 0
-    const bu = best.updatedAt?.toMillis?.() ?? best.updatedAt?.toDate?.()?.getTime?.() ?? 0
-    const ac = it.createdAt?.toMillis?.() ?? it.createdAt?.toDate?.()?.getTime?.() ?? 0
-    const bc = best.createdAt?.toMillis?.() ?? best.createdAt?.toDate?.()?.getTime?.() ?? 0
-    if (aEnabled !== bEnabled) { best = aEnabled ? it : best; continue }
-    if (au !== bu) { best = au > bu ? it : best; continue }
-    if (ac !== bc) { best = ac > bc ? it : best; continue }
-    best = it.id > best.id ? it : best
+  async function fetchOnce() {
+    const q = query(storesCol, where('catalogSlug','==',slug))
+    const snap = await getDocs(q)
+    if (snap.empty) return null
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data(), _ref: d }))
+    let best = null
+    for (const it of docs) {
+      if (!best) { best = it; continue }
+      const aEnabled = !!it.catalogEnabled
+      const bEnabled = !!best.catalogEnabled
+      const au = it.updatedAt?.toMillis?.() ?? it.updatedAt?.toDate?.()?.getTime?.() ?? 0
+      const bu = best.updatedAt?.toMillis?.() ?? best.updatedAt?.toDate?.()?.getTime?.() ?? 0
+      const ac = it.createdAt?.toMillis?.() ?? it.createdAt?.toDate?.()?.getTime?.() ?? 0
+      const bc = best.createdAt?.toMillis?.() ?? best.createdAt?.toDate?.()?.getTime?.() ?? 0
+      if (aEnabled !== bEnabled) { best = aEnabled ? it : best; continue }
+      if (au !== bu) { best = au > bu ? it : best; continue }
+      if (ac !== bc) { best = ac > bc ? it : best; continue }
+      best = it.id > best.id ? it : best
+    }
+    return best ? { id: best.id, ...best } : null
   }
-  return best ? { id: best.id, ...best } : null
+  try {
+    const r = await fetchOnce()
+    if (r) return r
+    return null
+  } catch (e) {
+    try {
+      await signInAnonymously(auth)
+      const r2 = await fetchOnce()
+      return r2
+    } catch {
+      return null
+    }
+  }
 }
 
 export function listenStore(storeId, callback){
