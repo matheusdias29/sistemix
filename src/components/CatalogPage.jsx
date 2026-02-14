@@ -27,12 +27,21 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   }, [store?.id])
 
   const displaySlug = useMemo(() => {
-    const baseName = String(store?.name || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9\s-]/g, '').trim().replace(/\s+/g, '-')
-    const base = slug && slug.trim() ? slug.trim() : baseName
+    const toSlug = (v) => String(v || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    const baseName = toSlug(store?.name || '')
+    const base = slug && slug.trim() ? toSlug(slug) : baseName
     return base
   }, [slug, store?.name])
 
-  const catalogLink = `https://sistemix.netlify.app/${displaySlug || ''}`
+  const catalogLink = `https://sistmix.app.br/${displaySlug || ''}`
 
   const save = async (partial) => {
     if (!storeId) return
@@ -46,8 +55,18 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   }
 
   const onChangeSlug = async (v) => {
-    setSlug(v)
-    await save({ catalogSlug: v })
+    const toSlug = (val) => String(val || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '')
+    const s = toSlug(v)
+    setSlug(s)
+    await save({ catalogSlug: s })
   }
 
   const onChangeOutOfStock = async (v) => {
