@@ -217,17 +217,39 @@ export default function PublicCatalogPage({ storeId, store }) {
           {/* Product Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filtered.map(p => {
-              const variations = p.variationsData || []
+              const variations = Array.isArray(p.variationsData) ? p.variationsData : []
               
               // Pricing Logic
-              const var4 = variations.find(v => v.name && (v.name.startsWith('4 -') || v.name.startsWith('4-')))
-              const var5 = variations.find(v => v.name && (v.name.startsWith('5 -') || v.name.startsWith('5-')))
+              const findVarPriceBySlot = (slot) => {
+                const slotRegex = new RegExp(`^${slot}\\s*-`)
+                const synonyms = slot === 1 
+                  ? [
+                      '1- PREÇO DO PRODUTO',
+                      '1- VALOR DO PRODUTO',
+                      '1 - PREÇO P/ CLIENTE FINAL'
+                    ]
+                  : [
+                      '5 - PREÇO P/ LOJISTA INSTALAR NA LOJA',
+                      '5 - PREÇO MAO DE OBRA P/INSTALAR NA LOJA',
+                      '5-PREÇO P/INSTALAR NA LOJA',
+                      '5-VALOR P/INSTALAR NA LOJA'
+                    ]
+                const v = variations.find(v => {
+                  if (!v?.name) return false
+                  return slotRegex.test(v.name) || synonyms.includes(v.name)
+                })
+                if (!v) return null
+                const val = Number(v.salePrice ?? v.promoPrice ?? 0)
+                return isFinite(val) ? val : null
+              }
               
-              const price4 = var4 ? Number(var4.salePrice || 0) : null
-              const price5 = var5 ? Number(var5.salePrice || 0) : null
+              const priceCarry = findVarPriceBySlot(1) // (P/Levar) = Precificação 1
+              const priceInstall = findVarPriceBySlot(5) // (P/Instalar) = Precificação 5
               
-              const defaultPrice = Number(p.priceMin ?? p.salePrice ?? 0)
-              const hasCustomPricing = price4 !== null || price5 !== null
+              const defaultPrice = priceCarry != null 
+                ? priceCarry 
+                : Number(p.priceMin ?? p.salePrice ?? 0)
+              const hasCustomPricing = priceCarry != null || priceInstall != null
               const stockZero = Number(p.stock || 0) === 0
               const isUnavailable = stockZero && outOfStockSetting === 'disabled'
 
@@ -235,10 +257,19 @@ export default function PublicCatalogPage({ storeId, store }) {
                 <div key={p.id} className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative">
                   {/* Image Area */}
                   <div className="aspect-square bg-gray-50 relative overflow-hidden">
-                    <div className="absolute inset-0 flex items-center justify-center text-gray-300">
-                       {/* Placeholder for image */}
-                       <ShoppingBag size={48} opacity={0.2} />
-                    </div>
+                    {p.imageUrl ? (
+                      <img 
+                        src={p.imageUrl} 
+                        alt={p.name} 
+                        loading="lazy"
+                        className="absolute inset-0 w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none' }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-300">
+                        <ShoppingBag size={48} opacity={0.2} />
+                      </div>
+                    )}
                     {/* Badge Overlay */}
                     {isUnavailable && (
                       <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
@@ -259,16 +290,16 @@ export default function PublicCatalogPage({ storeId, store }) {
                     <div className="mt-auto pt-3 border-t border-dashed border-gray-100">
                       {hasCustomPricing ? (
                         <div className="space-y-1.5 mb-3">
-                          {price4 !== null && (
+                          {priceCarry !== null && (
                             <div className="flex justify-between items-baseline">
                                <span className="text-[10px] uppercase font-bold text-gray-400">(P/Levar)</span>
-                               <span className="text-sm font-bold text-green-700">{price4.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
+                               <span className="text-sm font-bold text-green-700">{priceCarry.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                             </div>
                           )}
-                          {price5 !== null && (
+                          {priceInstall !== null && (
                             <div className="flex justify-between items-baseline">
                                <span className="text-[10px] uppercase font-bold text-gray-400">(P/Instalar)</span>
-                               <span className="text-sm font-bold text-blue-700">{price5.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
+                               <span className="text-sm font-bold text-blue-700">{priceInstall.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                             </div>
                           )}
                         </div>
