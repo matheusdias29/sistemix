@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { listenProducts } from '../services/products'
+import { listenCatalogProducts } from '../services/products'
 import { listenCategories } from '../services/categories'
 import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart } from 'lucide-react'
 import logoWhite from '../assets/logofundobranco.png'
@@ -15,7 +15,7 @@ export default function PublicCatalogPage({ storeId, store }) {
 
   useEffect(() => {
     if (!storeId) return
-    const unsubProd = listenProducts(items => setProducts(items), storeId)
+    const unsubProd = listenCatalogProducts(items => setProducts(items), storeId)
     const unsubCat = listenCategories(items => setCategoriesData(items), storeId)
     return () => { 
       unsubProd && unsubProd()

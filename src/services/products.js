@@ -16,6 +16,18 @@ export function listenProducts(callback, storeId){
   })
 }
 
+export function listenCatalogProducts(callback, storeId){
+  if (!storeId) return () => {}
+  // Igualdade em storeId e showInCatalog evita necessidade de índice composto com orderBy
+  const q = query(colRef, where('storeId','==',storeId), where('showInCatalog','==', true), limit(200))
+  return onSnapshot(q, (snap) => {
+    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    callback(items)
+  }, (err) => {
+    console.error('listenCatalogProducts error', err)
+  })
+}
+
 export async function getTotalProductsCount(storeId) {
   const q = query(colRef, where('storeId', '==', storeId))
   const snap = await getCountFromServer(q)
