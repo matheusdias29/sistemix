@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { listenCatalogProducts } from '../services/products'
 import { listenCategories } from '../services/categories'
 import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart } from 'lucide-react'
@@ -10,8 +10,11 @@ export default function PublicCatalogPage({ storeId, store }) {
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [bannerIndex, setBannerIndex] = useState(0)
+  const hoverRef = useRef(false)
 
   const outOfStockSetting = store?.catalogOutOfStock || 'show'
+  const banners = Array.isArray(store?.catalogBanners) ? store.catalogBanners.filter(b => !!b?.url) : []
 
   useEffect(() => {
     if (!storeId) return
@@ -22,6 +25,18 @@ export default function PublicCatalogPage({ storeId, store }) {
       unsubCat && unsubCat()
     }
   }, [storeId])
+
+  useEffect(() => {
+    if (!banners.length) return
+    const id = setInterval(() => {
+      if (hoverRef.current) return
+      setBannerIndex(i => (i + 1) % banners.length)
+    }, 5000)
+    return () => clearInterval(id)
+  }, [banners.length])
+
+  const nextBanner = () => setBannerIndex(i => (i + 1) % (banners.length || 1))
+  const prevBanner = () => setBannerIndex(i => (i - 1 + (banners.length || 1)) % (banners.length || 1))
 
   // Map category names to products
   const productsWithCategory = useMemo(() => {
@@ -139,6 +154,62 @@ export default function PublicCatalogPage({ storeId, store }) {
            </div>
         )}
       </header>
+
+      {banners.length > 0 && (
+        <div 
+          className="bg-white border-b border-gray-100"
+          onMouseEnter={() => { hoverRef.current = true }}
+          onMouseLeave={() => { hoverRef.current = false }}
+        >
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <div className="relative overflow-hidden rounded-2xl shadow-sm group">
+              <div className="relative w-full h-[140px] sm:h-[180px] md:h-[220px]">
+                {banners.map((b, i) => (
+                  <img
+                    key={i}
+                    src={b.url}
+                    alt={store?.name || 'Banner'}
+                    loading="lazy"
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === bannerIndex ? 'opacity-100' : 'opacity-0'}`}
+                    onError={(e) => { e.currentTarget.style.display = 'none' }}
+                  />
+                ))}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-black/10 to-transparent pointer-events-none"></div>
+                <div className="absolute inset-y-0 left-0 flex items-center">
+                  {banners.length > 1 && (
+                    <button
+                      onClick={prevBanner}
+                      className="m-2 sm:m-3 p-2 rounded-full bg-white/80 hover:bg-white text-gray-700 shadow transition hidden sm:flex"
+                    >
+                      <ChevronRight className="rotate-180" size={18} />
+                    </button>
+                  )}
+                </div>
+                <div className="absolute inset-y-0 right-0 flex items-center">
+                  {banners.length > 1 && (
+                    <button
+                      onClick={nextBanner}
+                      className="m-2 sm:m-3 p-2 rounded-full bg-white/80 hover:bg-white text-gray-700 shadow transition hidden sm:flex"
+                    >
+                      <ChevronRight size={18} />
+                    </button>
+                  )}
+                </div>
+                {banners.length > 1 && (
+                  <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                    {banners.map((_, i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 rounded-full transition-all ${i === bannerIndex ? 'w-5 bg-white' : 'w-2 bg-white/70'}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex gap-8">
         {/* Sidebar (Desktop) */}
