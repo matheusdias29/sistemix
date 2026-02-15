@@ -1,4 +1,4 @@
-import { collection, doc, setDoc, addDoc, getDocs, query, where, orderBy, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { collection, doc, setDoc, addDoc, getDocs, query, where, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { addUser, updateUser } from './users'
 import { addStore } from './stores'
@@ -53,11 +53,25 @@ export async function createTrialRequest(payload) {
   return ref.id
 }
 
-export function listenPendingTrials(cb) {
-  const q = query(trialsCol, where('status','==','pending'), orderBy('createdAt','desc'))
-  return onSnapshot(q, (snap) => {
-    cb(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-  })
+export function listenPendingTrials(cb, onError) {
+  const q = query(trialsCol, where('status','==','pending'))
+  return onSnapshot(
+    q,
+    (snap) => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      // Ordena no cliente por createdAt desc
+      items.sort((a, b) => {
+        const ta = a.createdAt?.seconds || a.createdAt?.toMillis?.() || 0
+        const tb = b.createdAt?.seconds || b.createdAt?.toMillis?.() || 0
+        return tb - ta
+      })
+      cb(items)
+    },
+    (err) => {
+      console.error('listenPendingTrials error', err)
+      onError && onError(err)
+    }
+  )
 }
 
 export async function approveTrial(request, adminUser) {

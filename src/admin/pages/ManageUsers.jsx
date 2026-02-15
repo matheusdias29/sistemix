@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Search, Loader2 } from 'lucide-react'
-import { listenUsers, addUser } from '../../services/users'
+import { listenUsers, addUser, deleteUser, updateUser } from '../../services/users'
 import CreateUserModal from '../components/CreateUserModal'
 
 export default function ManageUsers() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingUser, setEditingUser] = useState(null)
   const [search, setSearch] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     const unsub = listenUsers((data) => {
@@ -30,6 +32,46 @@ export default function ManageUsers() {
       console.error('Erro ao criar usuário:', error)
       const msg = [error?.code, error?.message].filter(Boolean).join(' — ')
       alert(`Erro ao criar usuário${msg ? `: ${msg}` : ''}`)
+    }
+  }
+
+  const handleDeleteUser = async (userId) => {
+    const ok = window.confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')
+    if (!ok) return
+    setDeletingId(userId)
+    try {
+      await deleteUser(userId)
+    } catch (error) {
+      console.error('Erro ao excluir usuário:', error)
+      const msg = [error?.code, error?.message].filter(Boolean).join(' — ')
+      alert(`Erro ao excluir usuário${msg ? `: ${msg}` : ''}`)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleOpenEdit = (user) => {
+    setEditingUser(user)
+  }
+
+  const handleUpdateUser = async (formData) => {
+    if (!editingUser?.id) return
+    try {
+      const partial = {
+        name: formData.name,
+        email: formData.email,
+        whatsapp: formData.whatsapp,
+        active: formData.active
+      }
+      if (formData.password && formData.password.trim()) {
+        partial.password = formData.password.trim()
+      }
+      await updateUser(editingUser.id, partial)
+      setEditingUser(null)
+    } catch (error) {
+      console.error('Erro ao atualizar usuário:', error)
+      const msg = [error?.code, error?.message].filter(Boolean).join(' — ')
+      alert(`Erro ao atualizar usuário${msg ? `: ${msg}` : ''}`)
     }
   }
 
@@ -69,11 +111,12 @@ export default function ManageUsers() {
                 <th className="px-6 py-4">WhatsApp</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Criado em</th>
+                <th className="px-6 py-4 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredUsers.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleOpenEdit(user)}>
                   <td className="px-6 py-4 font-medium text-gray-900">{user.name}</td>
                   <td className="px-6 py-4 text-gray-600">{user.email}</td>
                   <td className="px-6 py-4 text-gray-600">{user.whatsapp || '-'}</td>
@@ -87,11 +130,20 @@ export default function ManageUsers() {
                   <td className="px-6 py-4 text-gray-500 text-sm">
                     {user.createdAt?.seconds ? new Date(user.createdAt.seconds * 1000).toLocaleDateString() : '-'}
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id) }}
+                      disabled={deletingId === user.id}
+                      className="px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60"
+                    >
+                      {deletingId === user.id ? 'Excluindo...' : 'Excluir'}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {filteredUsers.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                     Nenhum usuário encontrado.
                   </td>
                 </tr>
@@ -105,6 +157,15 @@ export default function ManageUsers() {
         <CreateUserModal 
           onClose={() => setShowModal(false)}
           onSave={handleCreateUser}
+          mode="create"
+        />
+      )}
+      {editingUser && (
+        <CreateUserModal
+          onClose={() => setEditingUser(null)}
+          onSave={handleUpdateUser}
+          initialData={editingUser}
+          mode="edit"
         />
       )}
     </div>

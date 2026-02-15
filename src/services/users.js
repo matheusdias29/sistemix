@@ -153,6 +153,12 @@ export async function removeSubUser(ownerUserId, id){
   await deleteDoc(ref)
 }
 
+export async function deleteUser(id){
+  if (!id) throw new Error('Usuário inválido')
+  const ref = doc(db, 'users', id)
+  await deleteDoc(ref)
+}
+
 // Alteração de senha para usuário dono
 export async function changeOwnerPassword(userId, currentPassword, newPassword){
   if (!userId) throw new Error('Usuário inválido')

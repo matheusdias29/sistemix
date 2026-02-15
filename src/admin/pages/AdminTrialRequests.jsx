@@ -8,10 +8,16 @@ export default function AdminTrialRequests({ adminUser }) {
   const [rejectingId, setRejectingId] = useState(null)
 
   useEffect(() => {
-    const unsub = listenPendingTrials((list) => {
-      setItems(list)
-      setLoading(false)
-    })
+    const unsub = listenPendingTrials(
+      (list) => {
+        setItems(list)
+        setLoading(false)
+      },
+      (err) => {
+        setError('Não foi possível carregar as solicitações (permissão ou índice ausente).')
+        setLoading(false)
+      }
+    )
     return () => unsub && unsub()
   }, [])
 

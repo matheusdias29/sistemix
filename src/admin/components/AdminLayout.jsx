@@ -5,7 +5,10 @@ import { listenPendingTrials } from '../../services/trialRequests'
 export default function AdminLayout({ children, user, onViewChange, currentView, onLogout }) {
   const [pendingTrials, setPendingTrials] = useState(0)
   useEffect(() => {
-    const unsub = listenPendingTrials((list) => setPendingTrials(list.length))
+    const unsub = listenPendingTrials(
+      (list) => setPendingTrials(list.length),
+      () => setPendingTrials(0)
+    )
     return () => unsub && unsub()
   }, [])
 
