@@ -341,7 +341,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     
     // Se temos cache, filtramos sobre TUDO (Busca Global)
     if (cachedProducts) {
-      return cachedProducts.filter(p => {
+      const arr = cachedProducts.filter(p => {
         const nameMatch = (p.name || '').toLowerCase().includes(q)
         const refMatch = (p.reference || '').toLowerCase().includes(q)
         const barcodeMatch = (p.barcode || '').toLowerCase().includes(q)
@@ -384,10 +384,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
         return (q ? matchesSearch : true) && matchesFilters && statusMatch
       })
+      return arr.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'pt-BR', { sensitivity:'base' }))
     }
 
-    // Caso contrário, retorna os produtos carregados do servidor (que já vêm filtrados se houver busca)
-    return products
+    const arr = products
+    return arr.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'pt-BR', { sensitivity:'base' }))
   }, [products, query, activeFilters, cachedProducts])
 
   // Paginação inteligente

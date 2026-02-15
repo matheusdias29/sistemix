@@ -166,7 +166,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const filtered = useMemo(() => {
     // A filtragem principal agora é feita no useEffect (load),
     // mas mantemos filtros de status/crédito no cliente sobre a página atual
-    return clients.filter(c => {
+    const arr = clients.filter(c => {
       // Filtro de Status
       if(filters.status === 'active' && c.active === false) return false
       if(filters.status === 'inactive' && c.active !== false) return false
@@ -186,6 +186,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
 
       return true
     })
+    return arr.slice().sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'pt-BR', { sensitivity:'base' }))
   }, [clients, filters])
 
   const startEdit = async (c) => {

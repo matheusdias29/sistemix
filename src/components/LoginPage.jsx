@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { login, findUserByEmail, findMemberByEmail, addUser } from '../services/users'
-import { addStore } from '../services/stores'
+import { login, findUserByEmail, findMemberByEmail } from '../services/users'
+import { createTrialRequest } from '../services/trialRequests'
 import { searchCep } from '../services/cep'
 import { auth } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
@@ -23,6 +23,7 @@ export default function LoginPage({ onLoggedIn }){
   const [regEmail, setRegEmail] = useState('')
   const [regPassword, setRegPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
 
   // Estados de endereço (Cadastro)
   const [regCep, setRegCep] = useState('')
@@ -213,61 +214,32 @@ export default function LoginPage({ onLoggedIn }){
     try {
         const existing = await findUserByEmail(regEmail)
         if(existing) {
-            setError('Este e-mail já está em uso.')
+            setError('Este e-mail já está em uso em uma conta ativa.')
             setLoading(false)
             return
         }
-
-        const userId = await addUser({
-            name: regName,
-            email: regEmail,
-            password: regPassword,
-            whatsapp: regWhatsapp,
-            role: 'manager', 
-            isAdmin: true,
-            active: true,
-            // Endereço
-            cep: regCep,
-            address: regAddress,
-            number: regNumber,
-            neighborhood: regNeighborhood,
-            city: regCity,
-            state: regState
+        const reqId = await createTrialRequest({
+          name: regName,
+          email: regEmail,
+          whatsapp: regWhatsapp,
+          // senha provisória para quando aprovado
+          tempPassword: regPassword,
+          cep: regCep,
+          address: regAddress,
+          number: regNumber,
+          neighborhood: regNeighborhood,
+          city: regCity,
+          state: regState
         })
-
-        await addStore({
-            name: `Loja de ${regName}`,
-            ownerId: userId,
-            adminId: userId,
-            // Endereço
-            cep: regCep,
-            address: regAddress,
-            number: regNumber,
-            neighborhood: regNeighborhood,
-            city: regCity,
-            state: regState
-        })
-
-        onLoggedIn({
-            id: userId,
-            name: regName,
-            email: regEmail,
-            role: 'manager',
-            isAdmin: true,
-            active: true,
-            whatsapp: regWhatsapp,
-            // Endereço no objeto local também
-            cep: regCep,
-            address: regAddress,
-            number: regNumber,
-            neighborhood: regNeighborhood,
-            city: regCity,
-            state: regState
-        })
+        setInfo('Solicitação enviada! Você será notificado por e-mail após análise.')
+        // Redireciona para WhatsApp com mensagem pré-formatada
+        const msg = `quero ativar meu teste gratis%0Aemail: ${encodeURIComponent(regEmail)}%0Aprotocolo: ${encodeURIComponent(reqId)}`
+        const phone = '5518996003093'
+        window.location.href = `https://wa.me/${phone}?text=${msg}`
 
     } catch (err) {
         console.error(err)
-        setError('Erro ao criar conta. Tente novamente.')
+        setError(err?.message || 'Não foi possível enviar sua solicitação. Tente novamente.')
     } finally {
         setLoading(false)
     }
@@ -610,14 +582,32 @@ export default function LoginPage({ onLoggedIn }){
                   </div>
                   
                   {!useEmailLink && (
-                    <div>
+                    <div className="relative">
                       <input 
-                        className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
-                        type="password" 
+                        className="w-full bg-gray-100 border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 pr-12 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                        type={showLoginPassword ? 'text' : 'password'}
                         value={password} 
                         onChange={e=>setPassword(e.target.value)} 
                         placeholder="••••••••" 
                       />
+                      <button 
+                        type="button"
+                        aria-label={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        title={showLoginPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                        onClick={() => setShowLoginPassword(v=>!v)}
+                        className="absolute inset-y-0 right-0 w-10 flex items-center justify-center bg-gray-200 text-gray-600 rounded-r-lg hover:bg-gray-300"
+                      >
+                        {showLoginPassword ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                      </button>
                     </div>
                   )}
 

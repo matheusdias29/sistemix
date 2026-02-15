@@ -46,7 +46,16 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     setItems(prev => ([...prev, { name:'', cost:'0', salePrice:'0', promoPrice:'', barcode:'', validityDate:'', stockInitial:'0', stockMin:'0', active:true }]))
   }
   const updateItem = (idx, field, value) => {
-    setItems(prev => prev.map((it, i) => i===idx ? { ...it, [field]: value } : it))
+    if (field === 'cost' && idx <= 3) {
+      setItems(prev => prev.map((it, i) => {
+        if (i <= 3) {
+          return { ...it, cost: value }
+        }
+        return it
+      }))
+    } else {
+      setItems(prev => prev.map((it, i) => i===idx ? { ...it, [field]: value } : it))
+    }
   }
 
   const openCalc = (idx) => {

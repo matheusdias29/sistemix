@@ -1,11 +1,19 @@
-import React from 'react'
-import { LayoutDashboard, Users, Store, LogOut } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { LayoutDashboard, Users, Store, LogOut, Bell } from 'lucide-react'
+import { listenPendingTrials } from '../../services/trialRequests'
 
 export default function AdminLayout({ children, user, onViewChange, currentView, onLogout }) {
+  const [pendingTrials, setPendingTrials] = useState(0)
+  useEffect(() => {
+    const unsub = listenPendingTrials((list) => setPendingTrials(list.length))
+    return () => unsub && unsub()
+  }, [])
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stores', label: 'Lojas', icon: Store },
     { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'trials', label: 'Solicitações', icon: Bell, badge: pendingTrials },
   ]
 
   return (
@@ -31,7 +39,10 @@ export default function AdminLayout({ children, user, onViewChange, currentView,
                 }`}
               >
                 <Icon size={20} />
-                <span>{item.label}</span>
+                <span className="flex-1 text-left">{item.label}</span>
+                {!!item.badge && item.badge > 0 && (
+                  <span className="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{item.badge}</span>
+                )}
               </button>
             )
           })}

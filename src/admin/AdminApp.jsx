@@ -5,6 +5,7 @@ import ManageStores from './pages/ManageStores'
 import ManageUsers from './pages/ManageUsers'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminStoreView from './pages/AdminStoreView'
+import AdminTrialRequests from './pages/AdminTrialRequests'
 
 export default function AdminApp() {
   const [user, setUser] = useState(null)
@@ -45,6 +46,7 @@ export default function AdminApp() {
       {view === 'dashboard' && <AdminDashboard />}
       {view === 'stores' && <ManageStores onManageStore={setManagedStoreId} />}
       {view === 'users' && <ManageUsers />}
+      {view === 'trials' && <AdminTrialRequests adminUser={user} />}
     </AdminLayout>
   )
 }
