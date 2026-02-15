@@ -1,7 +1,6 @@
 import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import { addStore } from './stores'
-import { listStoresByOwner } from './stores'
+import { addStore, deleteStoresByOwner } from './stores'
 
 const usersCol = collection(db, 'users')
 
@@ -155,6 +154,12 @@ export async function removeSubUser(ownerUserId, id){
 
 export async function deleteUser(id){
   if (!id) throw new Error('Usuário inválido')
+  try {
+    await deleteStoresByOwner(id)
+  } catch (e) {
+    // Continua tentando deletar o usuário mesmo se alguma loja falhar, mas loga o erro
+    console.error('Erro ao excluir lojas do usuário:', e)
+  }
   const ref = doc(db, 'users', id)
   await deleteDoc(ref)
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { listenUsers, updateUser } from '../../services/users'
 import { listenAllStores } from '../../services/stores'
-import { Users, Store, ChevronDown, ChevronRight, User, MoreVertical } from 'lucide-react'
+import { Users, Store, ChevronDown, ChevronRight, User, MoreVertical, UserCheck, Clock, Ban } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState([])
@@ -79,28 +79,55 @@ export default function AdminDashboard() {
     <div>
       <h2 className="text-2xl font-bold mb-6 text-gray-800">Dashboard</h2>
 
-      {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="p-3 bg-blue-100 text-blue-600 rounded-full">
-            <Users size={24} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Total Usuários</p>
-            <p className="text-2xl font-bold text-gray-800">{users.length}</p>
+      {/* Indicadores de Status de Usuários */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="relative overflow-hidden rounded-xl border border-green-100 bg-gradient-to-br from-green-50 to-white p-6 shadow-sm">
+          <div className="absolute -right-6 -top-6 w-28 h-28 bg-green-100 rounded-full opacity-60"></div>
+          <div className="flex items-center gap-4 relative">
+            <div className="p-3 bg-green-200 text-green-800 rounded-xl">
+              <UserCheck size={28} />
+            </div>
+            <div>
+              <div className="text-sm text-green-800 font-medium">Usuários Ativos</div>
+              <div className="text-4xl font-extrabold text-green-900 leading-none">
+                {users.filter(u => (u.status || (u.active === false ? 'cancelado' : 'ativo')) === 'ativo').length}
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="p-3 bg-green-100 text-green-600 rounded-full">
-            <Store size={24} />
+        <div className="relative overflow-hidden rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-6 shadow-sm">
+          <div className="absolute -right-6 -top-6 w-28 h-28 bg-amber-100 rounded-full opacity-60"></div>
+          <div className="flex items-center gap-4 relative">
+            <div className="p-3 bg-amber-200 text-amber-800 rounded-xl">
+              <Clock size={28} />
+            </div>
+            <div>
+              <div className="text-sm text-amber-800 font-medium">Usuários Pendentes</div>
+              <div className="text-4xl font-extrabold text-amber-900 leading-none">
+                {users.filter(u => (u.status || (u.active === false ? 'cancelado' : 'ativo')) === 'em_atraso').length}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-gray-500">Total Lojas</p>
-            <p className="text-2xl font-bold text-gray-800">{stores.length}</p>
+        </div>
+
+        <div className="relative overflow-hidden rounded-xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-6 shadow-sm">
+          <div className="absolute -right-6 -top-6 w-28 h-28 bg-red-100 rounded-full opacity-60"></div>
+          <div className="flex items-center gap-4 relative">
+            <div className="p-3 bg-red-200 text-red-800 rounded-xl">
+              <Ban size={28} />
+            </div>
+            <div>
+              <div className="text-sm text-red-800 font-medium">Usuários Cancelados</div>
+              <div className="text-4xl font-extrabold text-red-900 leading-none">
+                {users.filter(u => (u.status || (u.active === false ? 'cancelado' : 'ativo')) === 'cancelado').length}
+              </div>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* (Resumo antigo removido conforme solicitação) */}
 
       <h3 className="text-lg font-semibold mb-4 text-gray-700">Usuários e Lojas</h3>
 

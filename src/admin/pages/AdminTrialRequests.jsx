@@ -68,6 +68,17 @@ export default function AdminTrialRequests({ adminUser }) {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {!!it.whatsapp && (
+                  <a
+                    href={`https://wa.me/${(() => { const d = String(it.whatsapp||'').replace(/\\D/g,''); return d.startsWith('55') ? d : '55' + d })()}?text=${encodeURIComponent(`Olá, sobre sua solicitação de teste grátis (Protocolo ${it.requestId})`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1.5 bg-emerald-600 text-white rounded text-sm hover:bg-emerald-700"
+                    title={it.whatsapp}
+                  >
+                    WhatsApp
+                  </a>
+                )}
                 <button onClick={() => handleApprove(it)} className="px-3 py-1.5 bg-green-600 text-white rounded text-sm hover:bg-green-700">
                   Aprovar
                 </button>

@@ -178,7 +178,7 @@ export default function LoginPage({ onLoggedIn }){
     setLoading(true)
     setError('')
     
-    if(!regName || !regEmail || !regPassword) {
+    if(!regName || !regEmail || !regPassword || !regWhatsapp) {
       setError('Preencha todos os campos obrigatórios.')
       setLoading(false)
       return
@@ -402,7 +402,8 @@ export default function LoginPage({ onLoggedIn }){
                     type="text" 
                     value={regWhatsapp} 
                     onChange={e=>setRegWhatsapp(e.target.value)} 
-                    placeholder="Seu WHATSAPP" 
+                    placeholder="Seu WHATSAPP"
+                    required 
                   />
                   <input 
                     className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 

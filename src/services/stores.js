@@ -1,4 +1,4 @@
-import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, orderBy, onSnapshot, limit } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, serverTimestamp, doc, getDoc, updateDoc, orderBy, onSnapshot, limit, deleteDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { signInAnonymously } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -169,4 +169,17 @@ export async function addFee(storeId, fee){
 export async function updateFee(storeId, id, partial){
   const ref = doc(db, 'stores', storeId, 'fees', id)
   await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+}
+
+export async function deleteStoresByOwner(ownerId){
+  if (!ownerId) return
+  const q = query(storesCol, where('ownerId', '==', ownerId))
+  const snap = await getDocs(q)
+  const batchDeletes = []
+  for (const d of snap.docs){
+    // Remove documento da loja
+    batchDeletes.push(deleteDoc(doc(db, 'stores', d.id)))
+  }
+  // Executa em paralelo com limite implícito
+  await Promise.allSettled(batchDeletes)
 }

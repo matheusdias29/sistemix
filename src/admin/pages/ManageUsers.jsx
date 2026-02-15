@@ -10,6 +10,7 @@ export default function ManageUsers() {
   const [editingUser, setEditingUser] = useState(null)
   const [search, setSearch] = useState('')
   const [deletingId, setDeletingId] = useState(null)
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   useEffect(() => {
     const unsub = listenUsers((data) => {
@@ -36,11 +37,10 @@ export default function ManageUsers() {
   }
 
   const handleDeleteUser = async (userId) => {
-    const ok = window.confirm('Tem certeza que deseja excluir este usuário? Esta ação não pode ser desfeita.')
-    if (!ok) return
     setDeletingId(userId)
     try {
       await deleteUser(userId)
+      setDeleteTarget(null)
     } catch (error) {
       console.error('Erro ao excluir usuário:', error)
       const msg = [error?.code, error?.message].filter(Boolean).join(' — ')
@@ -132,7 +132,7 @@ export default function ManageUsers() {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDeleteUser(user.id) }}
+                      onClick={(e) => { e.stopPropagation(); setDeleteTarget(user) }}
                       disabled={deletingId === user.id}
                       className="px-3 py-1.5 rounded bg-red-600 text-white text-sm hover:bg-red-700 disabled:opacity-60"
                     >
@@ -167,6 +167,36 @@ export default function ManageUsers() {
           initialData={editingUser}
           mode="edit"
         />
+      )}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-5 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">Excluir usuário?</h3>
+            </div>
+            <div className="p-5 text-sm text-gray-700 space-y-2">
+              <p>Tem certeza que deseja excluir o usuário <b>{deleteTarget.name || deleteTarget.email}</b>?</p>
+              <p className="text-red-700 bg-red-50 p-2 rounded border border-red-100">
+                Isto irá excluir <b>todas as lojas</b> pertencentes a este usuário. Esta ação não pode ser desfeita.
+              </p>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 rounded border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deleteTarget && handleDeleteUser(deleteTarget.id)}
+                disabled={deletingId === deleteTarget.id}
+                className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+              >
+                {deletingId === deleteTarget.id ? 'Excluindo...' : 'Excluir definitivamente'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
