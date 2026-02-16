@@ -25,6 +25,7 @@ import Calculator from '../../components/Calculator'
 import PaymentMethodsPage from '../../components/PaymentMethodsPage'
 import StatisticsPage from '../../components/StatisticsPage'
 import CommissionsPage from '../../components/CommissionsPage'
+import SubscriptionPage from '../../components/SubscriptionPage'
 import { listenStore } from '../../services/stores'
 
 const labels = {
@@ -144,6 +145,7 @@ export default function AdminStoreView({ storeId, onExit }) {
           darkMode={darkMode}
           onOpenNewSale={handleOpenNewSale}
           user={user}
+          allowedPages={store?.sidebarPages}
         />
 
         {/* Overlay for mobile */}
@@ -222,6 +224,8 @@ export default function AdminStoreView({ storeId, onExit }) {
                 <FiscalNotesPage storeId={store.id} />
             ) : view === 'configuracoes' ? (
                 <SettingsPage user={user} store={store} onNavigate={onNavigate} onLogout={onExit} darkMode={darkMode} onToggleDark={()=>setDarkMode(v=>!v)} />
+            ) : view === 'assinatura' ? (
+                <SubscriptionPage user={user} onBack={() => onNavigate('configuracoes')} />
             ) : view === 'dadosEmpresa' ? (
                 <CompanyPage storeId={store.id} onBack={() => onNavigate('configuracoes')} />
             ) : view === 'taxas' ? (

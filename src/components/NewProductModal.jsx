@@ -115,6 +115,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
   // Variation Config
   const [variationMode, setVariationMode] = useState('4P')
+  const [pricingConfig, setPricingConfig] = useState({ groups: [] })
+  const [activePricingGroupIdx, setActivePricingGroupIdx] = useState(0)
   const VAR_NAMES_3P = [
     '1 - PREÇO P/ CLIENTE FINAL',
     '2 - PREÇO PARCELADO CARTAO CREDITO 7X ATÉ 12X',
@@ -131,6 +133,27 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     ...VAR_NAMES_4P,
     '5 - PREÇO P/ LOJISTA INSTALAR NA LOJA'
   ]
+
+  const generateFromLabels = (labels = [], currentVars = []) => {
+    const names = Array.isArray(labels) ? labels : []
+    return names.map((name, idx) => {
+      let existing = currentVars.find(v => v.name === name)
+      if (existing) return existing
+      return {
+        name,
+        cost: Number(currentVars[idx]?.cost ?? 0),
+        salePrice: Number(currentVars[idx]?.salePrice ?? 0),
+        promoPrice: currentVars[idx]?.promoPrice ?? null,
+        barcode: currentVars[idx]?.barcode ?? '',
+        reference: currentVars[idx]?.reference ?? '',
+        validityDate: currentVars[idx]?.validityDate ?? null,
+        stockInitial: Number(currentVars[idx]?.stockInitial ?? 0),
+        stockMin: Number(currentVars[idx]?.stockMin ?? 0),
+        stock: Number(currentVars[idx]?.stock ?? 0),
+        active: currentVars[idx]?.active ?? true,
+      }
+    })
+  }
 
   const generateVariations = (mode, currentVars = []) => {
     let targetNames = VAR_NAMES_4P
@@ -203,6 +226,33 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     })
   }
 
+  useEffect(() => {
+    async function loadPricing() {
+      if (!storeId) return
+      try {
+        const store = await getStoreById(storeId)
+        const cfg = store?.pricingConfig
+        if (cfg?.groups && Array.isArray(cfg.groups) && cfg.groups.length > 0) {
+          setPricingConfig({ groups: cfg.groups })
+          setActivePricingGroupIdx(0)
+        }
+      } catch (e) {
+        console.error('Erro ao carregar pricingConfig na modal de produto', e)
+      }
+    }
+    loadPricing()
+  }, [storeId])
+
+  
+  useEffect(() => {
+    if (!open) return
+    if (!(pricingConfig.groups && pricingConfig.groups.length)) return
+    if (isEdit && product?.pricingGroupKey) {
+      const idx = pricingConfig.groups.findIndex(g => (g.key || '') === product.pricingGroupKey)
+      if (idx >= 0) setActivePricingGroupIdx(idx)
+    }
+  }, [open, isEdit, product, pricingConfig])
+
   // Pré-carregar dados ao editar um produto
   useEffect(() => {
     if(open){
@@ -265,8 +315,13 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         setIsSundries(!!product.isSundries)
       } else {
         // Modo Novo Produto
-        setVariationMode('4P')
-        setVariationsData(generateVariations('4P', []))
+        if (pricingConfig.groups && pricingConfig.groups.length > 0) {
+          const labels = pricingConfig.groups[activePricingGroupIdx]?.labels || []
+          setVariationsData(generateFromLabels(labels, []))
+        } else {
+          setVariationMode('4P')
+          setVariationsData(generateVariations('4P', []))
+        }
         
         if (storeId) {
           getNextProductReference(storeId).then(ref => {
@@ -444,6 +499,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         isSundries: !!isSundries,
         lastEditedBy: user?.name || 'Sistema',
         rootId: product?.rootId || crypto.randomUUID(),
+        pricingGroupKey: (pricingConfig.groups && pricingConfig.groups[activePricingGroupIdx]?.key) || null,
       }
       if(isEdit && product?.id){
         const updatedProduct = await updateProduct(product.id, data)
@@ -989,22 +1045,40 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     <div>
       <div className="flex items-center gap-4 mb-3">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Quantidade de Precificações:</span>
-        <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border dark:border-gray-600">
-          <button 
-            type="button" 
-            onClick={() => { setVariationMode('4P'); setVariationsData(generateVariations('4P', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-          >
-            P1
-          </button>
-          <button 
-            type="button" 
-            onClick={() => { setVariationMode('5P'); setVariationsData(generateVariations('5P', variationsData)); }}
-            className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
-          >
-            P2
-          </button>
-        </div>
+        {pricingConfig.groups && pricingConfig.groups.length > 0 ? (
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border dark:border-gray-600">
+            {pricingConfig.groups.map((g, idx) => (
+              <button
+                key={g.key || idx}
+                type="button"
+                onClick={() => { 
+                  setActivePricingGroupIdx(idx)
+                  setVariationsData(generateFromLabels(g.labels || [], variationsData))
+                }}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${activePricingGroupIdx === idx ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+              >
+                {g.key || `P${idx+1}`}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="flex items-center bg-gray-100 dark:bg-gray-700 rounded-lg p-1 border dark:border-gray-600">
+            <button 
+              type="button" 
+              onClick={() => { setVariationMode('4P'); setVariationsData(generateVariations('4P', variationsData)); }}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '4P' ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+            >
+              P1
+            </button>
+            <button 
+              type="button" 
+              onClick={() => { setVariationMode('5P'); setVariationsData(generateVariations('5P', variationsData)); }}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${variationMode === '5P' ? 'bg-white text-green-700 shadow-sm border border-gray-200 dark:bg-gray-800 dark:text-green-400 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'}`}
+            >
+              P2
+            </button>
+          </div>
+        )}
       </div>
       <div className="flex items-center justify-between mb-2">
         <div className="font-semibold dark:text-white">Precificações</div>

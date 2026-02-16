@@ -183,3 +183,9 @@ export async function deleteStoresByOwner(ownerId){
   // Executa em paralelo com limite implícito
   await Promise.allSettled(batchDeletes)
 }
+
+export async function deleteStore(storeId){
+  if (!storeId) return
+  const ref = doc(db, 'stores', storeId)
+  await deleteDoc(ref)
+}

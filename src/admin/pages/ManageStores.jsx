@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { Plus, Search, Loader2, Store } from 'lucide-react'
-import { listenAllStores, addStore } from '../../services/stores'
+import { listenAllStores, addStore, deleteStore } from '../../services/stores'
 import { listenUsers } from '../../services/users'
 import CreateStoreModal from '../components/CreateStoreModal'
-import ImportClientsModal from '../../components/ImportClientsModal'
 
-export default function ManageStores({ onManageStore }) {
+export default function ManageStores({ onManageStore, onOpenSettings }) {
   const [stores, setStores] = useState([])
   const [users, setUsers] = useState([]) // Para mapear ownerId -> nome
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [importStoreId, setImportStoreId] = useState(null)
   const [search, setSearch] = useState('')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     const unsubStores = listenAllStores((data) => {
@@ -49,6 +50,26 @@ export default function ManageStores({ onManageStore }) {
     }
   }
 
+  const handleDeleteStore = (store) => {
+    setDeleteTarget(store)
+    setConfirmDeleteOpen(true)
+  }
+  
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    try {
+      setDeleting(true)
+      await deleteStore(deleteTarget.id)
+      setDeleting(false)
+      setConfirmDeleteOpen(false)
+      setDeleteTarget(null)
+    } catch (error) {
+      setDeleting(false)
+      console.error('Erro ao excluir loja:', error)
+      alert('Erro ao excluir loja')
+    }
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -78,7 +99,11 @@ export default function ManageStores({ onManageStore }) {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredStores.map(store => (
-            <div key={store.id} className="bg-white rounded-lg shadow p-6 border border-gray-100 hover:shadow-md transition-shadow">
+            <div 
+              key={store.id} 
+              className="bg-white rounded-lg shadow p-6 border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => onOpenSettings && onOpenSettings(store.id)}
+            >
               <div className="flex items-start justify-between mb-4">
                 <div className="p-3 bg-blue-50 text-blue-600 rounded-lg">
                   <Store size={24} />
@@ -103,18 +128,17 @@ export default function ManageStores({ onManageStore }) {
               
               <div className="mt-6 pt-4 border-t border-gray-50 flex justify-end gap-2">
                  <button 
-                   onClick={() => setImportStoreId(store.id)}
-                   className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
-                   title="Importar Clientes via Excel"
-                 >
-                   <span>📥</span> Importar
-                 </button>
-                 <button 
-                   onClick={() => onManageStore && onManageStore(store.id)}
+                   onClick={(e) => { e.stopPropagation(); onManageStore && onManageStore(store.id) }}
                    className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                  >
                    Gerenciar
                  </button>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleDeleteStore(store) }}
+                  className="text-red-600 hover:text-red-700 text-sm font-medium"
+                >
+                  Excluir
+                </button>
               </div>
             </div>
           ))}
@@ -134,13 +158,38 @@ export default function ManageStores({ onManageStore }) {
           onSave={handleCreateStore} 
         />
       )}
-
-      {importStoreId && (
-        <ImportClientsModal 
-          open={true}
-          onClose={() => setImportStoreId(null)}
-          storeId={importStoreId}
-        />
+      
+      {confirmDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40"></div>
+          <div className="relative bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-6">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center">!</div>
+                <div>
+                  <div className="text-lg font-semibold text-gray-900">Excluir loja</div>
+                  <div className="text-sm text-gray-600">Tem certeza que deseja excluir {deleteTarget?.name || 'esta loja'}? Esta ação não pode ser desfeita.</div>
+                </div>
+              </div>
+              <div className="mt-6 flex justify-end gap-3">
+                <button 
+                  className="px-4 py-2 rounded bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  onClick={() => { if (!deleting) { setConfirmDeleteOpen(false); setDeleteTarget(null) } }}
+                  disabled={deleting}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  className={`px-4 py-2 rounded bg-red-600 text-white ${deleting ? 'opacity-60' : 'hover:bg-red-700'}`}
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                >
+                  {deleting ? 'Excluindo...' : 'Excluir'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

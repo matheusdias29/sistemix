@@ -30,6 +30,9 @@ import { getStoreBySlug, listenStore } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
 import CommissionsPage from './components/CommissionsPage'
 import { updateUserPresence, listenUser } from './services/users'
+import SubscriptionPage from './components/SubscriptionPage'
+import { listenSubscription, computeStatusWithInvoices } from './services/subscriptions'
+import { listenInvoices } from './services/invoices'
 
 const labels = {
   inicio: 'Início',
@@ -70,6 +73,9 @@ export default function App(){
     try { return localStorage.getItem('darkMode') === '1' } catch { return false }
   })
   const [publicMode, setPublicMode] = useState(false)
+  const [invoiceReminderOpen, setInvoiceReminderOpen] = useState(false)
+  const [subscriptionState, setSubscriptionState] = useState(null)
+  const [ownerInvoices, setOwnerInvoices] = useState([])
 
   // Sync Dark Mode with DOM and LocalStorage
   useEffect(() => {
@@ -150,6 +156,27 @@ export default function App(){
     })
     return () => unsub()
   }, [user?.id, user?.memberId]) // Recria listener apenas se mudar a identidade do usuário
+
+  // Lembrete de fatura próxima ao vencimento (sempre ao entrar no app)
+  useEffect(() => {
+    const ownerId = user?.memberId ? user?.ownerId : user?.id
+    if (!ownerId) return
+    const stopSub = listenSubscription(ownerId, (sub) => {
+      setSubscriptionState(sub || null)
+    })
+    const stopInv = listenInvoices(ownerId, (list) => {
+      setOwnerInvoices(list || [])
+    })
+    return () => {
+      stopSub && stopSub()
+      stopInv && stopInv()
+    }
+  }, [user?.id, user?.memberId])
+
+  useEffect(() => {
+    const status = computeStatusWithInvoices(subscriptionState, ownerInvoices)
+    setInvoiceReminderOpen(status === 'em_atraso')
+  }, [subscriptionState, ownerInvoices])
 
   // Tema escuro: restaura preferência e aplica classe global
   useEffect(() => {
@@ -388,6 +415,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><FiscalNotesPage storeId={store?.id} /></div>
           ) : view === 'configuracoes' ? (
             <div className="mt-4 md:mt-6"><SettingsPage user={user} store={store} onNavigate={onNavigate} onLogout={handleLogout} darkMode={darkMode} onToggleDark={()=>setDarkMode(v=>!v)} /></div>
+          ) : view === 'assinatura' ? (
+            <div className="mt-4 md:mt-6"><SubscriptionPage user={user} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'dadosEmpresa' ? (
             <div className="mt-4 md:mt-6"><CompanyPage storeId={store?.id} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'taxas' ? (
@@ -417,6 +446,32 @@ export default function App(){
       </div>
       <Calculator />
       {user && store && <ChatWidget user={user} />}
+      {invoiceReminderOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="p-5 border-b">
+              <h3 className="text-lg font-semibold text-gray-800">Fatura próxima do vencimento</h3>
+            </div>
+            <div className="p-5 text-sm text-gray-700 space-y-2">
+              <p>Sua assinatura está próxima do vencimento. Verifique suas opções de pagamento para evitar interrupções.</p>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-3">
+              <button
+                onClick={() => setInvoiceReminderOpen(false)}
+                className="px-4 py-2 rounded border"
+              >
+                Fechar
+              </button>
+              <button
+                onClick={() => { setInvoiceReminderOpen(false); onNavigate('assinatura') }}
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+              >
+                Ver fatura
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

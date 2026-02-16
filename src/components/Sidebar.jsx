@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 
 
-export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user}){
+export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages}){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
 
@@ -40,26 +40,36 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       {key:'estatisticas',label:'Estatísticas', icon: <BarChart2 size={20} />},
     ]
 
-    if (isOwner) return all
+    let base = all
+    if (!isOwner) {
+      base = all.filter(i => {
+        if (i.key === 'inicio') return true
+        if (i.key === 'termos') return true
+        if (i.key === 'catalogo') return true
+        
+        if (i.key === 'clientes') return perms.clients?.view || perms.clients?.create || perms.clients?.edit || perms.clients?.delete
+        if (i.key === 'produtos') return perms.products?.view || perms.products?.create || perms.products?.edit || perms.products?.delete || perms.sales?.viewAll || perms.sales?.finalize
+        if (i.key === 'vendas') return perms.sales?.viewAll || perms.sales?.finalize || perms.sales?.edit
+        if (i.key === 'caixa') return perms.cash?.view || perms.cash?.open || perms.cash?.close
+        if (i.key === 'notas') return false
+        if (i.key === 'os') return perms.serviceOrders?.view || perms.serviceOrders?.create || perms.serviceOrders?.edit || perms.serviceOrders?.delete || perms.serviceOrders?.changeStatus
+        if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
+        if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
+        if (i.key === 'estatisticas') return perms.statistics?.view
+        return false
+      })
+    }
 
-    return all.filter(i => {
-      if (i.key === 'inicio') return true
-      if (i.key === 'termos') return true
-      if (i.key === 'catalogo') return true
-      
-      if (i.key === 'clientes') return perms.clients?.view || perms.clients?.create || perms.clients?.edit || perms.clients?.delete
-      if (i.key === 'produtos') return perms.products?.view || perms.products?.create || perms.products?.edit || perms.products?.delete || perms.sales?.viewAll || perms.sales?.finalize
-      if (i.key === 'vendas') return perms.sales?.viewAll || perms.sales?.finalize || perms.sales?.edit
-      if (i.key === 'caixa') return perms.cash?.view || perms.cash?.open || perms.cash?.close
-      if (i.key === 'notas') return false
-      if (i.key === 'os') return perms.serviceOrders?.view || perms.serviceOrders?.create || perms.serviceOrders?.edit || perms.serviceOrders?.delete || perms.serviceOrders?.changeStatus
-      if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
-      if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
-      if (i.key === 'estatisticas') return perms.statistics?.view
-
-      return false
-    })
-  }, [isOwner, perms])
+    // Apply store-level allowed pages filter if provided
+    if (allowedPages && typeof allowedPages === 'object') {
+      base = base.filter(i => {
+        const flag = allowedPages[i.key]
+        if (flag === undefined) return true
+        return !!flag
+      })
+    }
+    return base
+  }, [isOwner, perms, allowedPages])
 
   const closeIfMobile = () => {
     onMobileClose && onMobileClose()

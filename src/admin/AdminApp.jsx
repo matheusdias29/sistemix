@@ -5,12 +5,14 @@ import ManageStores from './pages/ManageStores'
 import ManageUsers from './pages/ManageUsers'
 import AdminDashboard from './pages/AdminDashboard'
 import AdminStoreView from './pages/AdminStoreView'
-import AdminTrialRequests from './pages/AdminTrialRequests'
+import AdminTrialUsers from './pages/AdminTrialUsers'
+import AdminStoreSettings from './pages/AdminStoreSettings'
 
 export default function AdminApp() {
   const [user, setUser] = useState(null)
   const [view, setView] = useState('dashboard')
   const [managedStoreId, setManagedStoreId] = useState(null)
+  const [storeSettingsId, setStoreSettingsId] = useState(null)
 
   // Check for existing session
   useEffect(() => {
@@ -40,13 +42,17 @@ export default function AdminApp() {
   if (managedStoreId) {
     return <AdminStoreView storeId={managedStoreId} onExit={() => setManagedStoreId(null)} />
   }
+  
+  if (storeSettingsId) {
+    return <AdminStoreSettings storeId={storeSettingsId} onExit={() => setStoreSettingsId(null)} />
+  }
 
   return (
     <AdminLayout user={user} onViewChange={setView} currentView={view} onLogout={handleLogout}>
       {view === 'dashboard' && <AdminDashboard />}
-      {view === 'stores' && <ManageStores onManageStore={setManagedStoreId} />}
+      {view === 'stores' && <ManageStores onManageStore={setManagedStoreId} onOpenSettings={setStoreSettingsId} />}
       {view === 'users' && <ManageUsers />}
-      {view === 'trials' && <AdminTrialRequests adminUser={user} />}
+      {view === 'trials' && <AdminTrialUsers />}
     </AdminLayout>
   )
 }

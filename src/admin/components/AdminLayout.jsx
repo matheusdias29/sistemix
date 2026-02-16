@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react'
 import { LayoutDashboard, Users, Store, LogOut, Bell } from 'lucide-react'
-import { listenPendingTrials } from '../../services/trialRequests'
+import { listenUsers } from '../../services/users'
 
 export default function AdminLayout({ children, user, onViewChange, currentView, onLogout }) {
-  const [pendingTrials, setPendingTrials] = useState(0)
+  const [trialUsersCount, setTrialUsersCount] = useState(0)
   useEffect(() => {
-    const unsub = listenPendingTrials(
-      (list) => setPendingTrials(list.length),
-      () => setPendingTrials(0)
-    )
+    const unsub = listenUsers((list) => {
+      const count = list.filter(u => !!u.trial).length
+      setTrialUsersCount(count)
+    })
     return () => unsub && unsub()
   }, [])
 
@@ -16,7 +16,7 @@ export default function AdminLayout({ children, user, onViewChange, currentView,
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stores', label: 'Lojas', icon: Store },
     { id: 'users', label: 'Usuários', icon: Users },
-    { id: 'trials', label: 'Solicitações', icon: Bell, badge: pendingTrials },
+    { id: 'trials', label: 'Em teste', icon: Bell, badge: trialUsersCount },
   ]
 
   return (

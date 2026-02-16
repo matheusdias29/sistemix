@@ -10,7 +10,7 @@ import ProductLabelsPage from './ProductLabelsPage'
 import { listenOrders } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
 import StockMovementsModal from './StockMovementsModal'
-import { getStoreById, listStoresByOwner } from '../services/stores'
+import { getStoreById, listStoresByOwner, updateStore, listenStore } from '../services/stores'
 import { collection, query as firestoreQuery, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -183,6 +183,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [showLabelsScreen, setShowLabelsScreen] = useState(false)
   const [categoryMenuId, setCategoryMenuId] = useState(null)
+  const [pricingModalOpen, setPricingModalOpen] = useState(false)
+  const [pricingConfig, setPricingConfig] = useState({ groups: [] })
+  const [activePricingGroupIdx, setActivePricingGroupIdx] = useState(0)
   const [bulkCategory, setBulkCategory] = useState(null)
   const [bulkModalOpen, setBulkModalOpen] = useState(false)
   const [bulkType, setBulkType] = useState('add')
@@ -206,6 +209,20 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     }
   }, [storeId])
 
+  // Load and subscribe Pricing Config (store-level)
+  useEffect(() => {
+    if (!storeId) return
+    const unsub = listenStore(storeId, (store) => {
+      const cfg = store?.pricingConfig
+      if (cfg && Array.isArray(cfg.groups)) {
+        setPricingConfig({ groups: cfg.groups })
+      } else {
+        setPricingConfig({ groups: [] })
+      }
+      setActivePricingGroupIdx(0)
+    })
+    return () => { unsub && unsub() }
+  }, [storeId])
   // Products Pagination Logic
   // Efeito para Smart Cache (igual ao de clientes)
   // (Sem cache global; carregamento ocorre somente dentro da página)
@@ -1460,6 +1477,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                    Etiquetas
                  </button>
                  )}
+                 {(isOwner || perms.products?.edit) && (
+                 <button 
+                   className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                   onClick={() => { setOptionsOpen(false); setPricingModalOpen(true); }}
+                 >
+                   <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" />
+                   </svg>
+                   Precificações
+                 </button>
+                 )}
                  {isOwner && (
                  <button 
                     className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
@@ -2570,6 +2598,175 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 disabled={bulkSaving || !bulkSelectedIds || bulkSelectedIds.size === 0}
               >
                 Aplicar ajuste
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Gerenciar Precificações (Store-level) */}
+      {pricingModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setPricingModalOpen(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-[95vw] max-w-[900px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-medium text-gray-900 dark:text-white">Gerenciar precificações</h3>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Defina quantas precificações existirão por conjunto (P1, P2, P3...) e os nomes de cada.
+                </div>
+              </div>
+              <button onClick={() => setPricingModalOpen(false)} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <div className="text-xs text-gray-600 dark:text-gray-300">Quantidade de Precificações:</div>
+                <div className="flex flex-wrap gap-2">
+                  {pricingConfig.groups.map((g, idx) => (
+                    <button
+                      key={g.key || idx}
+                      type="button"
+                      className={`px-3 py-1 rounded-lg border text-xs font-medium ${activePricingGroupIdx === idx ? 'bg-green-600 border-green-600 text-white' : 'bg-white border-gray-300 text-gray-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300'}`}
+                      onClick={() => setActivePricingGroupIdx(idx)}
+                    >
+                      {g.key || `P${idx+1}`}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="px-3 py-1 rounded-lg border text-xs font-medium bg-white border-gray-300 text-gray-700 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+                    onClick={() => {
+                      setPricingConfig(prev => ({
+                        groups: [...prev.groups, { key: `P${prev.groups.length+1}`, labels: [] }]
+                      }))
+                      setActivePricingGroupIdx(pricingConfig.groups.length)
+                    }}
+                  >
+                    + Adicionar
+                  </button>
+                </div>
+              </div>
+              
+              {pricingConfig.groups[activePricingGroupIdx] && (
+                <div className="rounded-lg border dark:border-gray-700">
+                  <div className="px-4 py-2 border-b dark:border-gray-700 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <input
+                        className="px-3 py-2 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                        value={pricingConfig.groups[activePricingGroupIdx].key || `P${activePricingGroupIdx+1}`}
+                        onChange={e => {
+                          const val = e.target.value || ''
+                          setPricingConfig(prev => {
+                            const groups = prev.groups.map((g,i) => i===activePricingGroupIdx ? { ...g, key: val } : g)
+                            return { groups }
+                          })
+                        }}
+                      />
+                      <div className="text-xs text-gray-500 dark:text-gray-400">ID do conjunto (ex.: P1)</div>
+                    </div>
+                    {pricingConfig.groups.length > 1 && (
+                      <button
+                        className="px-3 py-2 text-sm rounded border bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800"
+                        onClick={() => {
+                          setPricingConfig(prev => {
+                            const groups = prev.groups.filter((_,i)=> i!==activePricingGroupIdx)
+                            return { groups }
+                          })
+                          setActivePricingGroupIdx(0)
+                        }}
+                      >
+                        Remover conjunto
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div className="text-xs text-gray-600 dark:text-gray-300">Precificações deste conjunto</div>
+                    <div className="space-y-2">
+                      {(pricingConfig.groups[activePricingGroupIdx].labels || []).map((label, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <div className="text-xs w-6 text-gray-500">{idx+1}.</div>
+                          <input
+                            className="flex-1 px-3 py-2 border rounded text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+                            value={label}
+                            onChange={e => {
+                              const val = e.target.value
+                              setPricingConfig(prev => {
+                                const groups = prev.groups.map((g,i) => {
+                                  if (i === activePricingGroupIdx) {
+                                    const labels = (g.labels || []).map((l,li) => li===idx ? val : l)
+                                    return { ...g, labels }
+                                  }
+                                  return g
+                                })
+                                return { groups }
+                              })
+                            }}
+                            placeholder={`Nome da precificação ${idx+1}`}
+                          />
+                          <button
+                            className="px-2 py-1 text-xs rounded border bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800"
+                            onClick={() => {
+                              setPricingConfig(prev => {
+                                const groups = prev.groups.map((g,i) => {
+                                  if (i === activePricingGroupIdx) {
+                                    const labels = (g.labels || []).filter((_,li) => li !== idx)
+                                    return { ...g, labels }
+                                  }
+                                  return g
+                                })
+                                return { groups }
+                              })
+                            }}
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      ))}
+                      <div>
+                        <button
+                          className="px-3 py-2 text-sm rounded border bg-white text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600"
+                          onClick={() => {
+                            setPricingConfig(prev => {
+                              const groups = prev.groups.map((g,i) => {
+                                if (i === activePricingGroupIdx) {
+                                  const labels = [...(g.labels || []), `PREÇO ${g.labels?.length ? g.labels.length+1 : 1}`]
+                                  return { ...g, labels }
+                                }
+                                return g
+                              })
+                              return { groups }
+                            })
+                          }}
+                        >
+                          + Adicionar precificação
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="px-4 py-2 text-sm rounded border text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                onClick={() => setPricingModalOpen(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-4 py-2 text-sm rounded bg-green-600 text-white hover:bg-green-700"
+                onClick={async () => {
+                  try {
+                    await updateStore(storeId, { pricingConfig })
+                    setPricingConfig(pricingConfig)
+                    setPricingModalOpen(false)
+                  } catch (e) {
+                    console.error('Erro ao salvar pricingConfig', e)
+                  }
+                }}
+              >
+                Salvar
               </button>
             </div>
           </div>

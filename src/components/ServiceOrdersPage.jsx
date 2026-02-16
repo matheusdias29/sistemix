@@ -22,6 +22,8 @@ import ServiceOrderSettingsModal from './ServiceOrderSettingsModal'
 import SelectChecklistModal from './SelectChecklistModal'
 import ChecklistQuestionsModal from './ChecklistQuestionsModal'
 import { useDarkMode } from '../hooks/useDarkMode'
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
+import { storage } from '../lib/firebase'
 
 const hexToRgba = (hex, alpha = 1) => {
   let c;
@@ -391,6 +393,9 @@ const canCreate = isOwner || perms.serviceOrders?.create
 const canEdit = editingOrderId ? (isOwner || perms.serviceOrders?.edit) : canCreate
 const canDelete = isOwner || perms.serviceOrders?.delete
 const canChangeStatus = isOwner || perms.serviceOrders?.changeStatus
+const [osFiles, setOsFiles] = useState([])
+const fileInputRef = useRef(null)
+const [pendingImageFiles, setPendingImageFiles] = useState([])
 const canChangeValues = isOwner || perms.serviceOrders?.changeValues
 const canCreateService = isOwner || perms.services?.create
 const canEditService = isOwner || perms.services?.edit
@@ -544,6 +549,7 @@ const canEditService = isOwner || perms.services?.edit
     setEditingOrderId(o.id)
     setEditingOrderNumber(o.number || o.id)
     setStatus(o.status || 'Iniciado')
+    setOsFiles(Array.isArray(o.files) ? o.files : [])
     const pw = o.password
     if (pw && typeof pw === 'object') {
       setUnlockType(pw.type || null)
@@ -653,7 +659,7 @@ const canEditService = isOwner || perms.services?.edit
             checked: !!checklistAnswers[q.id]
           }))
         } : null,
-        files: [],
+        files: Array.isArray(osFiles) ? osFiles.filter(f => !f.preview) : [],
         status,
         updatedAt: new Date(),
         updatedBy: user?.name || attendant || 'Sistema'
@@ -816,6 +822,20 @@ const canEditService = isOwner || perms.services?.edit
         await updateOrder(editingOrderId, basePayload)
       } else {
         const newOsId = await addOrder({ ...basePayload }, storeId)
+        if (pendingImageFiles.length > 0) {
+          const list = []
+          for (const f of pendingImageFiles) {
+            if (!f || !String(f.type||'').startsWith('image/')) continue
+            const path = `stores/${storeId}/orders/${newOsId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${f.name}`
+            const r = ref(storage, path)
+            await uploadBytes(r, f)
+            const url = await getDownloadURL(r)
+            list.push({ url, name: f.name, type: f.type, size: f.size, uploadedAt: new Date() })
+          }
+          await updateOrder(newOsId, { files: list })
+          setOsFiles(list)
+          setPendingImageFiles([])
+        }
         const items = Array.isArray(osProducts) ? osProducts : []
         for (const it of items) {
           const p = productsAll.find(pr => pr.id === it.productId)
@@ -1761,8 +1781,72 @@ const canEditService = isOwner || perms.services?.edit
                   {!selectedChecklist && (
                     <button type="button" onClick={()=>setChecklistSelectOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Checklist</button>
                   )}
-                  <button type="button" className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Arquivo</button>
+                  <button type="button" onClick={()=>fileInputRef.current && fileInputRef.current.click()} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Arquivo</button>
+                  <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={async (e)=>{
+                    const files = Array.from(e.target.files || [])
+                    if (editingOrderId) {
+                      const cur = Array.isArray(osFiles) ? [...osFiles] : []
+                      const toAdd = []
+                      for (const f of files) {
+                        if (!f || !String(f.type||'').startsWith('image/')) continue
+                        const path = `stores/${storeId}/orders/${editingOrderId}/${Date.now()}_${Math.random().toString(36).slice(2)}_${f.name}`
+                        const r = ref(storage, path)
+                        await uploadBytes(r, f)
+                        const url = await getDownloadURL(r)
+                        toAdd.push({ url, name: f.name, type: f.type, size: f.size, uploadedAt: new Date() })
+                      }
+                      const final = [...cur, ...toAdd]
+                      await updateOrder(editingOrderId, { files: final })
+                      setOsFiles(final)
+                    } else {
+                      setPendingImageFiles(prev => [...prev, ...files])
+                      const previews = files
+                        .filter(f => String(f.type||'').startsWith('image/'))
+                        .map(f => ({ url: URL.createObjectURL(f), name: f.name, type: f.type, size: f.size, uploadedAt: new Date(), preview: true }))
+                      setOsFiles(prev => [...prev, ...previews])
+                    }
+                    e.target.value = ''
+                  }} />
                 </div>
+                )}
+                {osFiles.length > 0 && (
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {osFiles.map((f, idx) => (
+                      <div key={idx} className="border rounded overflow-hidden bg-white dark:bg-gray-800 relative group">
+                        <div className="aspect-video bg-gray-100 dark:bg-gray-700 flex items-center justify-center overflow-hidden">
+                          <img src={f.url} alt={f.name} className="w-full h-full object-cover" />
+                        </div>
+                        <div className="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 truncate">{f.name}</div>
+                        {canEdit && (
+                          <button
+                            type="button"
+                            onClick={async ()=>{
+                              if (f.preview) {
+                                setOsFiles(prev => prev.filter((_,i)=>i!==idx))
+                                setPendingImageFiles(prev => prev.filter(p => !(p.name===f.name && p.size===f.size)))
+                                return
+                              }
+                              if (editingOrderId) {
+                                try {
+                                  const r = ref(storage, f.url)
+                                  await deleteObject(r)
+                                } catch {}
+                                const next = osFiles.filter((_,i)=>i!==idx)
+                                try { await updateOrder(editingOrderId, { files: next }) } catch {}
+                                setOsFiles(next)
+                              } else {
+                                setOsFiles(prev => prev.filter((_,i)=>i!==idx))
+                                setPendingImageFiles(prev => prev.filter(p => !(p.name===f.name && p.size===f.size)))
+                              }
+                            }}
+                            className="absolute top-2 right-2 px-2 py-1 rounded text-xs bg-red-600 text-white opacity-90 hover:bg-red-700"
+                          >
+                            Excluir
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
 

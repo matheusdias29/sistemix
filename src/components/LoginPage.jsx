@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { login, findUserByEmail, findMemberByEmail } from '../services/users'
-import { createTrialRequest } from '../services/trialRequests'
+import { login, findUserByEmail, findMemberByEmail, addUser, updateUser } from '../services/users'
+import { addStore } from '../services/stores'
+import { startTrial } from '../services/subscriptions'
 import { auth } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
 import iPhoneImg from '../assets/17pm.webp'
@@ -23,6 +24,8 @@ export default function LoginPage({ onLoggedIn }){
   const [regPassword, setRegPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [regSuccessOpen, setRegSuccessOpen] = useState(false)
+  const [regTrialUntil, setRegTrialUntil] = useState(null)
 
   // Estados de endereço removidos do cadastro
 
@@ -191,17 +194,26 @@ export default function LoginPage({ onLoggedIn }){
             setLoading(false)
             return
         }
-        const reqId = await createTrialRequest({
+        const ownerId = await addUser({
           name: regName,
           email: regEmail,
-          whatsapp: regWhatsapp,
-          tempPassword: regPassword
+          password: regPassword,
+          role: 'manager',
+          isAdmin: true,
+          active: true,
+          whatsapp: regWhatsapp
         })
-        setInfo('Solicitação enviada! Você será notificado por e-mail após análise.')
-        // Redireciona para WhatsApp com mensagem pré-formatada
-        const msg = `quero ativar meu teste gratis%0Aemail: ${encodeURIComponent(regEmail)}%0Aprotocolo: ${encodeURIComponent(reqId)}`
-        const phone = '5518996003093'
-        window.location.href = `https://wa.me/${phone}?text=${msg}`
+        const storeId = await addStore({
+          name: `Loja de ${regName || regEmail}`,
+          ownerId,
+          adminId: ownerId
+        })
+        const trialValidUntil = new Date(Date.now() + 7*24*60*60*1000)
+        await updateUser(ownerId, { trial: true, trialStoreId: storeId, trialValidUntil })
+        await startTrial(ownerId, 7)
+        setRegSuccessOpen(true)
+        setRegTrialUntil(trialValidUntil)
+        setInfo('Conta criada com sucesso! Seu teste de 7 dias já está ativo.')
 
     } catch (err) {
         console.error(err)
@@ -568,6 +580,55 @@ export default function LoginPage({ onLoggedIn }){
           )}
         </div>
       </div>
+      {/* Modal de sucesso no cadastro */}
+      {regSuccessOpen && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-5">
+              <div className="flex items-center gap-3 text-white">
+                <div className="bg-white/20 rounded-full p-2">
+                  <svg viewBox="0 0 24 24" fill="none" className="w-6 h-6">
+                    <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                  </svg>
+                </div>
+                <div className="text-lg font-semibold">Conta criada com sucesso!</div>
+              </div>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-700">
+                Seu teste gratuito de 7 dias foi ativado.
+              </p>
+              <div className="mt-3 text-sm text-gray-700">
+                Expira em: <span className="font-medium">{regTrialUntil ? new Date(regTrialUntil).toLocaleString() : '-'}</span>
+              </div>
+              <div className="mt-5 flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setRegSuccessOpen(false)}
+                  className="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm"
+                >
+                  Continuar
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      setLoading(true)
+                      const user = await login(regEmail.trim(), regPassword)
+                      onLoggedIn(user)
+                    } finally {
+                      setLoading(false)
+                      setRegSuccessOpen(false)
+                    }
+                  }}
+                  className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700 text-sm"
+                >
+                  Entrar agora
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Botão Flutuante do WhatsApp */}
       <a 
         href="https://wa.me/5518996003093" 

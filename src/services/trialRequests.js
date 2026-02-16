@@ -18,6 +18,8 @@ export async function createTrialRequest(payload) {
     return d.id
   }
   const ref = doc(trialsCol)
+  const trialStart = new Date()
+  const trialEnd = new Date(Date.now() + 7*24*60*60*1000)
   const data = {
     requestId: ref.id,
     name: payload.name || '',
@@ -30,6 +32,9 @@ export async function createTrialRequest(payload) {
     city: payload.city || '',
     state: payload.state || '',
     status: 'pending',
+    trial: true,
+    trialStart,
+    trialEnd,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
   }

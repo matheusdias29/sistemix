@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { listenUsers, updateUser } from '../../services/users'
 import { listenAllStores } from '../../services/stores'
+import { listenAllSubscriptions } from '../../services/subscriptions'
 import { Users, Store, ChevronDown, ChevronRight, User, MoreVertical, UserCheck, Clock, Ban } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -12,6 +13,7 @@ export default function AdminDashboard() {
   const [statusModalUser, setStatusModalUser] = useState(null)
   const [selectedStatus, setSelectedStatus] = useState('ativo')
   const [savingStatus, setSavingStatus] = useState(false)
+  const [subs, setSubs] = useState([])
 
   useEffect(() => {
     const unsubUsers = listenUsers((data) => {
@@ -20,10 +22,14 @@ export default function AdminDashboard() {
     const unsubStores = listenAllStores((data) => {
       setStores(data)
     })
+    const unsubSubs = listenAllSubscriptions((data) => {
+      setSubs(data)
+    })
 
     return () => {
       unsubUsers()
       unsubStores()
+      unsubSubs()
     }
   }, [])
 
@@ -42,6 +48,34 @@ export default function AdminDashboard() {
     const userStores = stores.filter(s => s.ownerId === user.id)
     return { ...user, stores: userStores }
   })
+
+  const subsMap = Object.fromEntries(subs.map(s => [s.id, s]))
+
+  const normalizeDate = (d) => {
+    if (!d) return null
+    try {
+      if (typeof d?.toDate === 'function') return d.toDate()
+      if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000)
+      return new Date(d)
+    } catch { return null }
+  }
+
+  const getExpiryInfo = (user) => {
+    const sub = subsMap[user.id]
+    const now = new Date()
+    const trialEnd = normalizeDate(sub?.trialEnd) || (user.trialValidUntil ? normalizeDate(user.trialValidUntil) : null)
+    const nextDue = normalizeDate(sub?.nextDueDate)
+    const refDate = trialEnd || nextDue
+    if (!refDate) return { label: 'Sem vencimento', className: 'bg-gray-100 text-gray-700' }
+    const diffDays = Math.ceil((refDate.getTime() - now.getTime()) / (24*60*60*1000))
+    if (diffDays < 0) {
+      return { label: `Expirou em ${refDate.toLocaleDateString()}`, className: 'bg-red-100 text-red-700' }
+    }
+    if (diffDays <= 3) {
+      return { label: `Expira em ${refDate.toLocaleDateString()}`, className: 'bg-amber-100 text-amber-700' }
+    }
+    return { label: `Expira em ${refDate.toLocaleDateString()}`, className: 'bg-green-100 text-green-700' }
+  }
 
   const getStatusInfo = (user) => {
     const status = user.status || (user.active === false ? 'cancelado' : 'ativo')
@@ -134,6 +168,7 @@ export default function AdminDashboard() {
       <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
         {usersWithStores.map(user => {
           const statusInfo = getStatusInfo(user)
+          const expiryInfo = getExpiryInfo(user)
           return (
             <div key={user.id} className="border-b border-gray-100 last:border-0">
               <div 
@@ -150,6 +185,9 @@ export default function AdminDashboard() {
                   <div>
                     <h4 className="font-medium text-gray-900">{user.name}</h4>
                     <p className="text-sm text-gray-500">{user.email}</p>
+                    <div className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${expiryInfo.className}`}>
+                      {expiryInfo.label}
+                    </div>
                   </div>
                 </div>
                 

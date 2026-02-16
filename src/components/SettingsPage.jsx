@@ -53,7 +53,7 @@ export default function SettingsPage({ user, store, onNavigate, onLogout, darkMo
           <Item label="Usuários" onClick={() => onNavigate && onNavigate('usuarios')} />
         )}
         {isOwner && (
-          <Item label="Assinatura" onClick={handleSoon('Assinatura')} />
+          <Item label="Assinatura" onClick={() => onNavigate && onNavigate('assinatura')} />
         )}
       </Section>
 
