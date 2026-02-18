@@ -24,13 +24,21 @@ export default function SelectStorePage({ user, onSelect }){
       {/* Esquerda: Branding e Ilustração (Mantido do Login) */}
       <div className="hidden md:flex flex-col justify-between p-10 lg:p-16 bg-[#1a1c23] relative overflow-hidden border-r border-gray-700">
         <div>
-          <div className="flex items-center gap-1 mb-6">
+          <div className="flex items-center gap-2 mb-6">
             <img 
               src={logoWhite} 
               alt="SisteMix" 
               className="h-12 w-auto object-contain"
             />
-            <div className="font-bold text-2xl tracking-tight text-white">Siste<span className="text-green-500">Mix</span> Comércio</div>
+            <div>
+              <div className="font-bold text-2xl tracking-tight text-white flex items-baseline">
+                <span>Siste<span className="text-green-500">Mix</span> Comércio</span>
+                <span className="ml-1 text-[12px] text-green-500 relative -top-1">®</span>
+              </div>
+              <div className="text-[8px] leading-[0.5] uppercase tracking-widest text-gray-300 text-center">
+                O SEU GESTOR NA PALMA DA SUA MÃO
+              </div>
+            </div>
           </div>
           <h1 className="text-gray-300 font-medium text-lg max-w-md">
             A gestão do seu negócio na palma da sua mão ou em qualquer lugar!!
@@ -183,13 +191,21 @@ export default function SelectStorePage({ user, onSelect }){
         <div className="w-full max-w-2xl">
           {/* Mobile Branding */}
           <div className="flex flex-col items-center justify-center mb-8 md:hidden">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               <img 
                 src={logoWhite} 
                 alt="SisteMix" 
                 className="h-10 w-auto object-contain"
               />
-              <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
+              <div>
+                <div className="font-bold text-xl tracking-tight text-gray-900 flex items-baseline">
+                  <span>Siste<span className="text-green-600">Mix</span> Comércio</span>
+                  <span className="ml-1 inline-flex items-center justify-center rounded-full bg-green-600 text-white text-[10px] leading-none h-4 w-4 relative -top-1">R</span>
+                </div>
+                <div className="text-[8px] leading-[0.9] uppercase tracking-widest text-gray-500 text-center">
+                  O SEU GESTOR NA PALMA DA SUA MÃO
+                </div>
+              </div>
             </div>
           </div>
 

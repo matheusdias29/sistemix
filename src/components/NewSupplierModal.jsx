@@ -141,7 +141,7 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
   }
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[90]">
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[10050]">
       <div className="bg-white rounded-lg shadow-lg w-[840px] max-w-[98vw]">
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="font-semibold text-lg">{isEdit ? 'Editar Fornecedor' : 'Novo Fornecedor'}</h3>

@@ -129,9 +129,10 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         setGridCols(null) // mobile default via class
         setShowExtras(false)
       } else {
-        // Desktop/Tablet - Show all 8 requested columns + checkbox/actions
+        // Desktop/Tablet - Show columns with more espaço para o nome do produto
         // Checkbox | Produto | Código | Atualizado | Hora | Funcionário | Preço | Estoque | Status | Actions
-        setGridCols('1.5rem minmax(0, 1fr) 5rem 5rem 3rem minmax(0, 1fr) 8rem 5rem 5.5rem 2rem')
+        // Aumenta largura do Produto e compacta Código/Atualizado/Hora
+        setGridCols('1.5rem minmax(0, 2fr) 4.75rem 4.5rem 3rem minmax(0, 0.8fr) 8rem 5rem 5.5rem 2rem')
         setShowExtras(true)
       }
     }

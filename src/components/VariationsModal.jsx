@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null }){
+export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null, defaultMarkupModes = null }){
   const toEditable = (it = {}) => ({
     name: it.name ?? '',
     cost: String(it.cost ?? '0'),
@@ -159,10 +159,13 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     onClose && onClose()
   }
 
-  const calculateBasePrice = (costStr, markupStr) => {
+  const calculateBasePrice = (costStr, markupStr, mode = 'percent') => {
     const cost = parseFloat(String(costStr).replace(',', '.')) || 0
     const markup = parseFloat(String(markupStr).replace(',', '.')) || 0
     if (cost <= 0) return 0
+    if (mode === 'value') {
+      return cost + markup
+    }
     return cost + (cost * markup / 100)
   }
 
@@ -220,12 +223,18 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                               <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                               {defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
                                 <div className="mt-1 text-[10px] text-blue-600 bg-blue-50 p-1 rounded border border-blue-100">
-                                  <div>Margem Cat.: <b>{defaultMarkups[`p${idx+1}`]}%</b></div>
+                                  <div>
+                                    Margem Cat.: <b>
+                                      {((defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) === 'value') 
+                                        ? fmtBRL(defaultMarkups[`p${idx+1}`]) 
+                                        : `${defaultMarkups[`p${idx+1}`]}%`}
+                                    </b>
+                                  </div>
                                   <div className="flex items-center gap-1 mt-0.5">
-                                    <span>Base: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]))}</b></span>
+                                    <span>Base: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent'))}</b></span>
                                     <button 
                                       type="button"
-                                      onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]).toFixed(2))}
+                                      onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent').toFixed(2))}
                                       className="text-blue-700 underline hover:text-blue-900 ml-auto"
                                     >
                                       Aplicar
@@ -305,15 +314,21 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                         <label className="text-xs text-gray-600">Preço de venda</label>
                         <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                         {defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
-                          <div className="mt-1 text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-100 flex items-center justify-between gap-2">
+                          <div className="mt-1 text-[11px] text-blue-600 bg-blue-50 p-1 rounded border border-blue-100 flex items-center justify-between gap-1">
                             <div>
-                              <div>Margem Categoria: <b>{defaultMarkups[`p${idx+1}`]}%</b></div>
-                              <div className="mt-0.5">Base Calculada: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]))}</b></div>
+                              <div>
+                                Margem Categoria: <b>
+                                  {((defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) === 'value') 
+                                    ? fmtBRL(defaultMarkups[`p${idx+1}`]) 
+                                    : `${defaultMarkups[`p${idx+1}`]}%`}
+                                </b>
+                              </div>
+                              <div className="mt-0.5">Base Calculada: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent'))}</b></div>
                             </div>
                             <button 
                               type="button"
-                              onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`]).toFixed(2))}
-                              className="text-blue-700 underline hover:text-blue-900 text-xs whitespace-nowrap"
+                              onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent').toFixed(2))}
+                              className="text-blue-700 underline hover:text-blue-900 text-[11px] whitespace-nowrap"
                             >
                               Aplicar Valor
                             </button>
@@ -364,8 +379,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                 ))}
               </div>
             </div>
-          <div className="mt-3 px-6 flex items-center justify-between">
-            <button type="button" onClick={addItem} className="px-3 py-2 border rounded text-sm">Adicionar nova precificação</button>
+          <div className="mt-3 px-6 flex items-center justify-end">
             <div className="flex items-center gap-3">
               <button type="button" onClick={onClose} className="px-3 py-2 border rounded text-sm">Cancelar</button>
               <button type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white">Confirmar</button>

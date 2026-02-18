@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenSubscription, upsertPlan, computeStatusWithInvoices } from '../services/subscriptions'
-import { listenInvoices } from '../services/invoices'
+import { listenInvoices, generateInvoicesBatch } from '../services/invoices'
 import { addInvoice } from '../services/invoices'
 import { updateUser } from '../services/users'
 
@@ -10,7 +10,7 @@ const PLANS = [
     name: 'PLANO - START 2026',
     cycles: [
       { id: 'monthly', label: 'Mensal', price: 99.90 },
-      { id: 'semiannual', label: 'Semestral', price: 599.90 },
+      { id: 'semiannual', label: 'Semestral', price: 499.90 },
       { id: 'annual', label: 'Anual', price: 999.90 },
     ],
     graceDays: 3,
@@ -51,7 +51,7 @@ const PLANS = [
     id: 'gold-2026',
     name: 'PLANO - GOLD 2026',
     cycles: [
-      { id: 'monthly', label: 'Mensal', price: 149.90 },
+      { id: 'monthly', label: 'Mensal', price: 189.90 },
       { id: 'semiannual', label: 'Semestral', price: 899.90 },
       { id: 'annual', label: 'Anual', price: 1899.90 },
     ],
@@ -76,6 +76,8 @@ export default function SubscriptionPage({ user, onBack }) {
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [choosePlanOpen, setChoosePlanOpen] = useState(false)
   const [invoices, setInvoices] = useState([])
+  const [filters, setFilters] = useState({ status: 'all', start: '', end: '', min: '', max: '', search: '' })
+  const [batchLog, setBatchLog] = useState({ open: false, text: '' })
 
   useEffect(() => {
     if (!ownerId) return
@@ -103,6 +105,20 @@ export default function SubscriptionPage({ user, onBack }) {
       if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000).toLocaleDateString()
       return new Date(d).toLocaleDateString()
     } catch { return '-' }
+  }
+  const parseDate = (d) => {
+    try {
+      if (typeof d?.toDate === 'function') return d.toDate()
+      if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000)
+      return new Date(d)
+    } catch { return null }
+  }
+  const daysOverdue = (due) => {
+    const dd = parseDate(due)
+    if (!dd) return 0
+    const today = new Date()
+    const diff = Math.floor((today.setHours(0,0,0,0) - dd.setHours(0,0,0,0)) / (1000*60*60*24))
+    return diff > 0 ? diff : 0
   }
 
   const handleChoosePlan = async (plan) => {
@@ -141,6 +157,19 @@ export default function SubscriptionPage({ user, onBack }) {
       })
     } catch (e) {
       setError('Erro ao criar primeira fatura')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const runBatchGeneration = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const res = await generateInvoicesBatch({})
+      setBatchLog({ open: true, text: `Geradas: ${res.generated}` })
+    } catch (e) {
+      setError('Erro ao gerar faturas automaticamente')
     } finally {
       setSaving(false)
     }
@@ -290,47 +319,122 @@ export default function SubscriptionPage({ user, onBack }) {
       </div>
 
       <div className="rounded-2xl bg-white p-6 shadow border border-gray-100">
-        <div className="text-base font-semibold text-gray-800">Faturas</div>
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <div className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Em aberto</div>
-            <div className="rounded-xl border border-gray-200 bg-white">
-              {invoices.filter(i => i.status === 'pending' || i.status === 'overdue').length === 0 ? (
-                <div className="p-3 text-sm text-gray-600">Nenhuma fatura em aberto.</div>
-              ) : (
-                invoices.filter(i => i.status === 'pending' || i.status === 'overdue').map(i => (
-                  <div key={i.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0 text-sm">
-                    <div>
-                      <div className="font-medium text-gray-800">R$ {Number(i.amount||0).toFixed(2)}</div>
-                      <div className="text-xs text-gray-500">Vencimento: {formatDate(i.dueDate)}</div>
-                    </div>
-                    <span className={`px-2 py-1 rounded text-xs ${i.status==='overdue' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
-                      {i.status==='overdue' ? 'Em atraso' : 'Pendente'}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-          <div>
-            <div className="text-sm font-bold text-gray-600 uppercase tracking-wide mb-2">Pagas</div>
-            <div className="rounded-xl border border-gray-200 bg-white">
-              {invoices.filter(i => i.status === 'paid').length === 0 ? (
-                <div className="p-3 text-sm text-gray-600">Nenhuma fatura paga.</div>
-              ) : (
-                invoices.filter(i => i.status === 'paid').map(i => (
-                  <div key={i.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0 text-sm">
-                    <div>
-                      <div className="font-medium text-gray-800">R$ {Number(i.amount||0).toFixed(2)}</div>
-                      <div className="text-xs text-gray-500">Pago em: {formatDate(i.paidAt)}</div>
-                    </div>
-                    <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-700">Paga</span>
-                  </div>
-                ))
-              )}
-            </div>
+        <div className="flex items-center justify-between">
+          <div className="text-base font-semibold text-gray-800">Faturas</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={saving}
+              onClick={runBatchGeneration}
+              className="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black disabled:opacity-60"
+            >
+              Gerar automaticamente
+            </button>
           </div>
         </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <select
+            value={filters.status}
+            onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))}
+            className="px-3 py-2 border rounded text-sm"
+          >
+            <option value="all">Todos</option>
+            <option value="pending">Pendentes</option>
+            <option value="overdue">Em atraso</option>
+            <option value="paid">Pagas</option>
+          </select>
+          <input
+            type="date"
+            value={filters.start}
+            onChange={e => setFilters(prev => ({ ...prev, start: e.target.value }))}
+            className="px-3 py-2 border rounded text-sm"
+            placeholder="Início"
+          />
+          <input
+            type="date"
+            value={filters.end}
+            onChange={e => setFilters(prev => ({ ...prev, end: e.target.value }))}
+            className="px-3 py-2 border rounded text-sm"
+            placeholder="Fim"
+          />
+          <input
+            type="text"
+            value={filters.search}
+            onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
+            className="px-3 py-2 border rounded text-sm"
+            placeholder="Buscar cliente/descrição"
+          />
+        </div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-600">
+                <th className="px-3 py-2">Nº</th>
+                <th className="px-3 py-2">Cliente</th>
+                <th className="px-3 py-2 text-right">Valor</th>
+                <th className="px-3 py-2">Vencimento</th>
+                <th className="px-3 py-2">Dias em atraso</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {invoices
+                .filter(i => {
+                  if (filters.status !== 'all' && i.status !== filters.status) return false
+                  if (filters.start) {
+                    const s = new Date(filters.start + 'T00:00:00')
+                    const d = parseDate(i.dueDate)
+                    if (!d || d < s) return false
+                  }
+                  if (filters.end) {
+                    const e = new Date(filters.end + 'T23:59:59')
+                    const d = parseDate(i.dueDate)
+                    if (!d || d > e) return false
+                  }
+                  if (filters.search) {
+                    const s = filters.search.toLowerCase()
+                    const name = (i.clientName || '').toLowerCase()
+                    const desc = (i.description || '').toLowerCase()
+                    if (!(name.includes(s) || desc.includes(s))) return false
+                  }
+                  return true
+                })
+                .sort((a, b) => {
+                  const da = parseDate(a.dueDate)?.getTime() || 0
+                  const db = parseDate(b.dueDate)?.getTime() || 0
+                  return da - db
+                })
+                .map(i => (
+                  <tr key={i.id} className="border-t">
+                    <td className="px-3 py-2">{i.number || '-'}</td>
+                    <td className="px-3 py-2">{i.clientName || 'Assinatura'}</td>
+                    <td className="px-3 py-2 text-right">R$ {Number(i.amount||0).toFixed(2)}</td>
+                    <td className="px-3 py-2">{formatDate(i.dueDate)}</td>
+                    <td className="px-3 py-2">{i.status==='overdue' ? daysOverdue(i.dueDate) : 0}</td>
+                    <td className="px-3 py-2">
+                      <span className={`px-2 py-1 rounded text-xs ${i.status==='paid' ? 'bg-green-100 text-green-700' : i.status==='overdue' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
+                        {i.status==='paid' ? 'Paga' : i.status==='overdue' ? 'Em atraso' : 'Pendente'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <button type="button" disabled className="px-3 py-1.5 rounded border text-xs text-gray-500">
+                        Pagar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              {invoices.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-3 py-4 text-gray-600">Nenhuma fatura encontrada.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {batchLog.open && (
+          <div className="mt-3 text-xs text-gray-600">Resultado: {batchLog.text}</div>
+        )}
       </div>
     </div>
   )

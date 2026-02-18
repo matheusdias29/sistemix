@@ -1274,7 +1274,32 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               open={varModalOpen}
               commissionPercent={commissionPercent}
               initialItems={variationsData.length ? variationsData : [makeVarFromProduct()]}
-              defaultMarkups={categories.find(c => c.id === categoryId)?.defaultMarkups || null}
+              defaultMarkups={(function(){
+                const cat = categories.find(c => c.id === categoryId)
+                if (!cat) return null
+                const g = (pricingConfig.groups && pricingConfig.groups[activePricingGroupIdx]) || null
+                const key = g?.key || null
+                if (key && cat.defaultMarkupsByGroup && cat.defaultMarkupsByGroup[key]) {
+                  const arr = cat.defaultMarkupsByGroup[key]
+                  const obj = {}
+                  arr.forEach((v, i) => { obj[`p${i+1}`] = parseFloat(v) || 0 })
+                  return obj
+                }
+                return cat.defaultMarkups || null
+              })()}
+              defaultMarkupModes={(function(){
+                const cat = categories.find(c => c.id === categoryId)
+                if (!cat) return null
+                const g = (pricingConfig.groups && pricingConfig.groups[activePricingGroupIdx]) || null
+                const key = g?.key || null
+                if (key && cat.defaultMarkupModesByGroup && cat.defaultMarkupModesByGroup[key]) {
+                  const arr = cat.defaultMarkupModesByGroup[key]
+                  const obj = {}
+                  arr.forEach((v, i) => { obj[`p${i+1}`] = (v === 'value' ? 'value' : 'percent') })
+                  return obj
+                }
+                return null
+              })()}
               onClose={()=> setVarModalOpen(false)}
               onConfirm={(items) => {
                 setVariationsData(items)
@@ -1323,7 +1348,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 setSupSelectOpen(false); 
               }}
               suppliers={suppliers}
-              onNew={canCreateSupplier ? () => setNewSupOpen(true) : null}
+              onNew={canCreateSupplier ? () => { setSupSelectOpen(false); setNewSupOpen(true) } : null}
             />
           )}
           {newSupOpen && (

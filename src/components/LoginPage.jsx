@@ -228,13 +228,21 @@ export default function LoginPage({ onLoggedIn }){
       {/* Esquerda: Branding e Ilustração (Cinza Escuro) */}
       <div className="hidden md:flex flex-col justify-between p-10 lg:p-16 bg-[#1a1c23] relative overflow-hidden border-r border-gray-700">
         <div>
-          <div className="flex items-center gap-1 mb-6">
+          <div className="flex items-center gap-2 mb-6">
             <img 
               src={logoWhite} 
               alt="SisteMix" 
               className="h-12 w-auto object-contain"
             />
-            <div className="font-bold text-2xl tracking-tight text-white">Siste<span className="text-green-500">Mix</span> Comércio</div>
+            <div>
+              <div className="font-bold text-2xl tracking-tight text-white flex items-baseline">
+                <span>Siste<span className="text-green-500">Mix</span> Comércio</span>
+                <span className="ml-1 text-[12px] text-green-500 relative -top-1">®</span>
+              </div>
+              <div className="text-[8px] leading-[0.5] uppercase tracking-widest text-gray-300 text-center">
+                O SEU GESTOR NA PALMA DA SUA MÃO
+              </div>
+            </div>
           </div>
           <h1 className="text-gray-300 font-medium text-lg max-w-md">
             A gestão do seu negócio na palma da sua mão ou em qualquer lugar!!
@@ -261,7 +269,10 @@ export default function LoginPage({ onLoggedIn }){
                      
                      {/* Header Interno do Celular */}
                      <div className="absolute top-4 w-full text-center">
-                        <div className="font-bold text-lg text-gray-800">Siste<span className="text-green-600">Mix</span> Comércio</div>
+                        <div className="font-bold text-lg text-gray-800 flex items-baseline justify-center">
+                          <span>Siste<span className="text-green-600">Mix</span> Comércio</span>
+                          <span className="ml-1 text-[10px] text-green-600 relative -top-1">®</span>
+                        </div>
                      </div>
 
                      <div className="w-16 h-16 rounded-full border-4 border-green-500 flex items-center justify-center mb-4">
@@ -281,7 +292,10 @@ export default function LoginPage({ onLoggedIn }){
                  {/* Fundo desfocado (conteúdo anterior) */}
                   <div className="flex justify-between items-center mb-4 opacity-20">
                      <div className="w-8 h-8 bg-green-100 rounded-full"></div>
-                     <div className="font-bold text-lg text-gray-800">Siste<span className="text-green-600">Mix</span> Comércio</div>
+                     <div className="font-bold text-lg text-gray-800 flex items-baseline">
+                       <span>Siste<span className="text-green-600">Mix</span> Comércio</span>
+                       <span className="ml-1 text-[10px] text-green-600 relative -top-1">®</span>
+                     </div>
                   </div>
                   {/* Cards */}
                  <div className="space-y-3 opacity-20">
@@ -480,14 +494,22 @@ export default function LoginPage({ onLoggedIn }){
                   </p>
                 </div>
 
-                <div className="flex flex-col items-center justify-center py-6 md:hidden">
-                  <div className="flex items-center gap-1 mb-2">
+                  <div className="flex flex-col items-center justify-center py-6 md:hidden">
+                  <div className="flex items-center gap-2 mb-2">
                     <img 
                       src={logoWhite} 
                       alt="SisteMix" 
                       className="h-10 w-auto object-contain"
                     />
-                    <div className="font-bold text-xl tracking-tight text-gray-900">Siste<span className="text-green-600">Mix</span> Comércio</div>
+                    <div>
+                      <div className="font-bold text-xl tracking-tight text-gray-900 flex items-baseline">
+                        <span>Siste<span className="text-green-600">Mix</span> Comércio</span>
+                        <span className="ml-1 text-[10px] text-green-600 relative -top-1">®</span>
+                      </div>
+                      <div className="text-[8px] leading-[0.9] uppercase tracking-widest text-gray-500">
+                        O SEU GESTOR NA PALMA DA SUA MÃO
+                      </div>
+                    </div>
                   </div>
                 </div>
 

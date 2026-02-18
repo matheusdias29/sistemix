@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { addCategory, updateCategory } from '../services/categories'
+import { getStoreById } from '../services/stores'
 
 export default function NewCategoryModal({ open, onClose, isEdit=false, category=null, storeId }){
   const [name, setName] = useState('')
@@ -7,6 +8,10 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
   const [active, setActive] = useState(true)
   const [showMarkups, setShowMarkups] = useState(false)
   const [defaultMarkups, setDefaultMarkups] = useState({ p1: '', p2: '', p3: '', p4: '', p5: '' })
+  const [pricingGroups, setPricingGroups] = useState([])
+  const [groupMarkups, setGroupMarkups] = useState({})
+  const [groupModes, setGroupModes] = useState({})
+  const [activeGroupKey, setActiveGroupKey] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,6 +41,54 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
       setError('')
     }
   }, [open, isEdit, category])
+
+  useEffect(() => {
+    async function loadPricingLabels() {
+      if (!storeId) return
+      try {
+        const store = await getStoreById(storeId)
+        const cfg = store?.pricingConfig
+        const groups = (cfg?.groups && Array.isArray(cfg.groups)) ? cfg.groups : []
+        setPricingGroups(groups)
+        const initMarkups = {}
+        const initModes = {}
+        groups.forEach(g => {
+          const count = (g.labels || []).length
+          initMarkups[g.key || 'P'] = Array.from({ length: count }, () => '')
+          initModes[g.key || 'P'] = Array.from({ length: count }, () => 'percent')
+        })
+        setActiveGroupKey(prev => prev ?? (groups[0]?.key || 'P'))
+        if (isEdit && category) {
+          const byGroup = category.defaultMarkupsByGroup || {}
+          const modesByGroup = category.defaultMarkupModesByGroup || {}
+          Object.keys(initMarkups).forEach(k => {
+            const arr = byGroup[k]
+            if (Array.isArray(arr)) initMarkups[k] = arr.map(v => v ?? '')
+            const mArr = modesByGroup[k]
+            if (Array.isArray(mArr)) initModes[k] = mArr.map(v => (v === 'value' ? 'value' : 'percent'))
+          })
+        } else if (category?.defaultMarkups) {
+          const firstKey = groups[0]?.key
+          if (firstKey) {
+            initMarkups[firstKey] = [
+              category.defaultMarkups.p1 ?? '',
+              category.defaultMarkups.p2 ?? '',
+              category.defaultMarkups.p3 ?? '',
+              category.defaultMarkups.p4 ?? '',
+              category.defaultMarkups.p5 ?? ''
+            ].slice(0, (groups[0].labels || []).length)
+          }
+        }
+        setGroupMarkups(initMarkups)
+        setGroupModes(initModes)
+      } catch (e) {
+        setPricingGroups([])
+        setGroupMarkups({})
+        setGroupModes({})
+      }
+    }
+    if (open) loadPricingLabels()
+  }, [open, storeId, isEdit, category])
 
   if(!open) return null
 
@@ -67,7 +120,9 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
           p3: parseFloat(defaultMarkups.p3) || 0,
           p4: parseFloat(defaultMarkups.p4) || 0,
           p5: parseFloat(defaultMarkups.p5) || 0,
-        }
+        },
+        defaultMarkupsByGroup: groupMarkups,
+        defaultMarkupModesByGroup: groupModes
       }
       if(isEdit && category?.id){
         await updateCategory(category.id, data)
@@ -87,7 +142,7 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70]">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[520px]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[780px] max-w-[95vw]">
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <h3 className="font-semibold text-lg dark:text-white">{isEdit ? 'Editar Categoria' : 'Nova Categoria'}</h3>
           <button onClick={close} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
@@ -115,29 +170,88 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
             </button>
             
             {showMarkups && (
-              <div className="mt-2 grid grid-cols-3 gap-3 bg-gray-50 dark:bg-gray-700/30 p-3 rounded border dark:border-gray-700 transition-all">
-                <div className="col-span-3 text-xs text-gray-500 dark:text-gray-400 mb-1">
-                  Defina a margem de lucro (%) padrão para cada precificação ao selecionar esta categoria.
+              <div className="mt-2 bg-gray-50 dark:bg-gray-700/30 p-4 rounded border dark:border-gray-700 transition-all space-y-5">
+                <div className="flex items-center gap-2">
+                  {pricingGroups.map(g => (
+                    <button
+                      key={g.key || 'P'}
+                      type="button"
+                      onClick={() => setActiveGroupKey(g.key || 'P')}
+                      className={`px-3 py-1 rounded-full text-xs border ${activeGroupKey === (g.key || 'P') ? 'bg-green-600 text-white border-green-600' : 'bg-white dark:bg-gray-700 dark:text-gray-300'}`}
+                    >
+                      {g.key || 'P'}
+                    </button>
+                  ))}
                 </div>
-                {[
-                  { num: 1, label: 'P/cliente final' },
-                  { num: 2, label: 'cartão 7x Até 12x' },
-                  { num: 3, label: 'cartão 13x até 18x' },
-                  { num: 4, label: 'Lojista Levar' },
-                  { num: 5, label: 'P/instalar na loja' }
-                ].map(({ num, label }) => (
-                  <div key={num}>
-                    <label className="text-xs text-gray-600 dark:text-gray-300 font-medium block">{label} (%)</label>
-                    <input 
-                      type="number" 
-                      step="0.1" 
-                      value={defaultMarkups[`p${num}`]} 
-                      onChange={e => setDefaultMarkups(prev => ({ ...prev, [`p${num}`]: e.target.value }))}
-                      className="mt-1 w-full border dark:border-gray-600 rounded px-2 py-1.5 text-sm dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-green-500 outline-none" 
-                      placeholder="0" 
-                    />
-                  </div>
-                ))}
+                {(() => {
+                  const g = pricingGroups.find(x => (x.key || 'P') === activeGroupKey) || pricingGroups[0] || null
+                  if (!g) return <div className="text-xs text-gray-500 dark:text-gray-400">Nenhum conjunto de precificação configurado.</div>
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-sm font-semibold dark:text-gray-200">{g.key || 'P'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{(g.labels || []).length} precificações</div>
+                      </div>
+                      <div className="grid grid-cols-[1.8fr_8rem_12rem] items-center text-xs text-gray-500 dark:text-gray-400 font-medium px-1">
+                        <div>Precificação</div>
+                        <div className="text-center">Modo</div>
+                        <div className="text-right">Valor</div>
+                      </div>
+                      <div className="space-y-2">
+                        {(g.labels || []).map((label, idx) => (
+                          <div key={idx} className="grid grid-cols-[1.8fr_8rem_12rem] items-center gap-3">
+                            <div className="text-sm dark:text-gray-200 truncate whitespace-nowrap">
+                              <span className="font-medium">{label || `Precificação ${idx+1}`}</span>
+                            </div>
+                            <div className="flex items-center gap-2 justify-center">
+                              <div className="flex items-center gap-2">
+                                <button 
+                                  type="button"
+                                  onClick={() => setGroupModes(prev => {
+                                    const arr = (prev[g.key || 'P'] || []).slice()
+                                    arr[idx] = 'percent'
+                                    return { ...prev, [g.key || 'P']: arr }
+                                  })}
+                                  className={`px-2 py-1 rounded text-xs border ${((groupModes[g.key || 'P'] || [])[idx] || 'percent') === 'percent' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white dark:bg-gray-700 dark:text-gray-300'}`}
+                                >
+                                  %
+                                </button>
+                                <button 
+                                  type="button"
+                                  onClick={() => setGroupModes(prev => {
+                                    const arr = (prev[g.key || 'P'] || []).slice()
+                                    arr[idx] = 'value'
+                                    return { ...prev, [g.key || 'P']: arr }
+                                  })}
+                                  className={`px-2 py-1 rounded text-xs border ${((groupModes[g.key || 'P'] || [])[idx] || 'percent') === 'value' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white dark:bg-gray-700 dark:text-gray-300'}`}
+                                >
+                                  R$
+                                </button>
+                              </div>
+                            </div>
+                            <div className="relative">
+                                <input 
+                                  type="number" 
+                                  step="0.01" 
+                                  value={((groupMarkups[g.key || 'P'] || [])[idx] ?? '')}
+                                  onChange={e => setGroupMarkups(prev => {
+                                    const arr = (prev[g.key || 'P'] || []).slice()
+                                    arr[idx] = e.target.value
+                                    return { ...prev, [g.key || 'P']: arr }
+                                  })}
+                                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white focus:ring-1 focus:ring-green-500 outline-none text-right" 
+                                  placeholder="0" 
+                                />
+                                <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-500 dark:text-gray-400">
+                                  {(((groupModes[g.key || 'P'] || [])[idx] || 'percent') === 'percent') ? '%' : 'R$'}
+                                </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
           </div>

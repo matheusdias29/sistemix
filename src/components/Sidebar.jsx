@@ -112,14 +112,20 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
         }
       `}</style>
       <div className="p-4 md:p-6">
-<div className="flex items-center gap-2 mb-1">
-  <img 
-    src={logoWhite} 
-    alt="SisteMix" 
-    className="h-8 w-auto object-contain"
-  />
-  <div className="font-bold text-base whitespace-nowrap text-gray-900 dark:text-white">
-        Siste<span className="text-green-600">Mix</span> Comércio
+    <div className="flex items-center gap-2 mb-1">
+      <img 
+        src={logoWhite} 
+        alt="SisteMix" 
+        className="h-8 w-auto object-contain"
+      />
+      <div>
+        <div className="font-bold text-base whitespace-nowrap text-gray-900 dark:text-white flex items-baseline">
+          <span>Siste<span className="text-green-600">Mix</span> Comércio</span>
+          <span className="ml-1 text-[12px] text-green-500 relative -top-1">®</span>
+        </div>
+        <div className="text-[6px] leading-[0.9] uppercase tracking-widest text-gray-1000 dark:text-gray-300 text-center">
+          O SEU GESTOR NA PALMA DA SUA MÃO
+        </div>
       </div>
     </div>
 
