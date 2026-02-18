@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 
-export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null, defaultMarkupModes = null }){
+export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null, defaultMarkupModes = null, defaultMarkupAddCost = null }){
   const toEditable = (it = {}) => ({
     name: it.name ?? '',
     cost: String(it.cost ?? '0'),
@@ -159,13 +159,15 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     onClose && onClose()
   }
 
-  const calculateBasePrice = (costStr, markupStr, mode = 'percent') => {
+  const calculateBasePrice = (costStr, markupStr, mode = 'percent', addCost = true) => {
     const cost = parseFloat(String(costStr).replace(',', '.')) || 0
     const markup = parseFloat(String(markupStr).replace(',', '.')) || 0
-    if (cost <= 0) return 0
+    if (cost <= 0 && addCost) return 0
     if (mode === 'value') {
+      if (!addCost) return markup
       return cost + markup
     }
+    if (!addCost) return markup
     return cost + (cost * markup / 100)
   }
 
@@ -231,10 +233,24 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                                     </b>
                                   </div>
                                   <div className="flex items-center gap-1 mt-0.5">
-                                    <span>Base: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent'))}</b></span>
+                                    <span>Base: <b>{fmtBRL(calculateBasePrice(
+                                      it.cost,
+                                      defaultMarkups[`p${idx+1}`],
+                                      (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent',
+                                      !defaultMarkupAddCost || defaultMarkupAddCost[`p${idx+1}`] !== false
+                                    ))}</b></span>
                                     <button 
                                       type="button"
-                                      onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent').toFixed(2))}
+                                      onClick={() => updateItem(
+                                        idx,
+                                        'salePrice',
+                                        calculateBasePrice(
+                                          it.cost,
+                                          defaultMarkups[`p${idx+1}`],
+                                          (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent',
+                                          !defaultMarkupAddCost || defaultMarkupAddCost[`p${idx+1}`] !== false
+                                        ).toFixed(2)
+                                      )}
                                       className="text-blue-700 underline hover:text-blue-900 ml-auto"
                                     >
                                       Aplicar
@@ -323,11 +339,25 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                                     : `${defaultMarkups[`p${idx+1}`]}%`}
                                 </b>
                               </div>
-                              <div className="mt-0.5">Base Calculada: <b>{fmtBRL(calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent'))}</b></div>
+                              <div className="mt-0.5">Base Calculada: <b>{fmtBRL(calculateBasePrice(
+                                it.cost,
+                                defaultMarkups[`p${idx+1}`],
+                                (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent',
+                                !defaultMarkupAddCost || defaultMarkupAddCost[`p${idx+1}`] !== false
+                              ))}</b></div>
                             </div>
                             <button 
                               type="button"
-                              onClick={() => updateItem(idx, 'salePrice', calculateBasePrice(it.cost, defaultMarkups[`p${idx+1}`], (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent').toFixed(2))}
+                              onClick={() => updateItem(
+                                idx,
+                                'salePrice',
+                                calculateBasePrice(
+                                  it.cost,
+                                  defaultMarkups[`p${idx+1}`],
+                                  (defaultMarkupModes && defaultMarkupModes[`p${idx+1}`]) || 'percent',
+                                  !defaultMarkupAddCost || defaultMarkupAddCost[`p${idx+1}`] !== false
+                                ).toFixed(2)
+                              )}
                               className="text-blue-700 underline hover:text-blue-900 text-[11px] whitespace-nowrap"
                             >
                               Aplicar Valor

@@ -169,7 +169,8 @@ export default function SubscriptionPage({ user, onBack }) {
       const res = await generateInvoicesBatch({})
       setBatchLog({ open: true, text: `Geradas: ${res.generated}` })
     } catch (e) {
-      setError('Erro ao gerar faturas automaticamente')
+      console.error('generateInvoicesBatch error:', e)
+      setError(`Erro ao gerar faturas automaticamente: ${e?.message || 'sem detalhes'}`)
     } finally {
       setSaving(false)
     }

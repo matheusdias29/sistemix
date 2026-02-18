@@ -1300,6 +1300,19 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 }
                 return null
               })()}
+              defaultMarkupAddCost={(function(){
+                const cat = categories.find(c => c.id === categoryId)
+                if (!cat) return null
+                const g = (pricingConfig.groups && pricingConfig.groups[activePricingGroupIdx]) || null
+                const key = g?.key || null
+                if (key && cat.defaultMarkupAddCostByGroup && cat.defaultMarkupAddCostByGroup[key]) {
+                  const arr = cat.defaultMarkupAddCostByGroup[key]
+                  const obj = {}
+                  arr.forEach((v, i) => { obj[`p${i+1}`] = (v === false ? false : true) })
+                  return obj
+                }
+                return null
+              })()}
               onClose={()=> setVarModalOpen(false)}
               onConfirm={(items) => {
                 setVariationsData(items)

@@ -11,6 +11,7 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
   const [pricingGroups, setPricingGroups] = useState([])
   const [groupMarkups, setGroupMarkups] = useState({})
   const [groupModes, setGroupModes] = useState({})
+  const [groupAddCost, setGroupAddCost] = useState({})
   const [activeGroupKey, setActiveGroupKey] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -52,20 +53,25 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
         setPricingGroups(groups)
         const initMarkups = {}
         const initModes = {}
+        const initAddCost = {}
         groups.forEach(g => {
           const count = (g.labels || []).length
           initMarkups[g.key || 'P'] = Array.from({ length: count }, () => '')
           initModes[g.key || 'P'] = Array.from({ length: count }, () => 'percent')
+          initAddCost[g.key || 'P'] = Array.from({ length: count }, () => true)
         })
         setActiveGroupKey(prev => prev ?? (groups[0]?.key || 'P'))
         if (isEdit && category) {
           const byGroup = category.defaultMarkupsByGroup || {}
           const modesByGroup = category.defaultMarkupModesByGroup || {}
+          const addCostByGroup = category.defaultMarkupAddCostByGroup || {}
           Object.keys(initMarkups).forEach(k => {
             const arr = byGroup[k]
             if (Array.isArray(arr)) initMarkups[k] = arr.map(v => v ?? '')
             const mArr = modesByGroup[k]
             if (Array.isArray(mArr)) initModes[k] = mArr.map(v => (v === 'value' ? 'value' : 'percent'))
+            const aArr = addCostByGroup[k]
+            if (Array.isArray(aArr)) initAddCost[k] = aArr.map(v => v === false ? false : true)
           })
         } else if (category?.defaultMarkups) {
           const firstKey = groups[0]?.key
@@ -81,10 +87,12 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
         }
         setGroupMarkups(initMarkups)
         setGroupModes(initModes)
+        setGroupAddCost(initAddCost)
       } catch (e) {
         setPricingGroups([])
         setGroupMarkups({})
         setGroupModes({})
+        setGroupAddCost({})
       }
     }
     if (open) loadPricingLabels()
@@ -122,7 +130,8 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
           p5: parseFloat(defaultMarkups.p5) || 0,
         },
         defaultMarkupsByGroup: groupMarkups,
-        defaultMarkupModesByGroup: groupModes
+        defaultMarkupModesByGroup: groupModes,
+        defaultMarkupAddCostByGroup: groupAddCost
       }
       if(isEdit && category?.id){
         await updateCategory(category.id, data)
@@ -192,19 +201,20 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
                         <div className="text-sm font-semibold dark:text-gray-200">{g.key || 'P'}</div>
                         <div className="text-xs text-gray-500 dark:text-gray-400">{(g.labels || []).length} precificações</div>
                       </div>
-                      <div className="grid grid-cols-[1.8fr_8rem_12rem] items-center text-xs text-gray-500 dark:text-gray-400 font-medium px-1">
+                      <div className="grid grid-cols-[1.8fr_9rem_13rem] items-center text-xs text-gray-500 dark:text-gray-400 font-medium px-1">
                         <div>Precificação</div>
                         <div className="text-center">Modo</div>
                         <div className="text-right">Valor</div>
                       </div>
                       <div className="space-y-2">
                         {(g.labels || []).map((label, idx) => (
-                          <div key={idx} className="grid grid-cols-[1.8fr_8rem_12rem] items-center gap-3">
+                          <div key={idx} className="grid grid-cols-[1.8fr_9rem_13rem] items-center gap-3">
                             <div className="text-sm dark:text-gray-200 truncate whitespace-nowrap">
                               <span className="font-medium">{label || `Precificação ${idx+1}`}</span>
                             </div>
                             <div className="flex items-center gap-2 justify-center">
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-2">
                                 <button 
                                   type="button"
                                   onClick={() => setGroupModes(prev => {
@@ -227,6 +237,25 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
                                 >
                                   R$
                                 </button>
+                                </div>
+                                {(((groupModes[g.key || 'P'] || [])[idx] || 'percent') === 'value') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setGroupAddCost(prev => {
+                                      const key = g.key || 'P'
+                                      const existing = prev[key] || []
+                                      const arr = Array.from({ length: (g.labels || []).length }, (_, i) => existing[i] === false ? false : true)
+                                      arr[idx] = !(arr[idx] === true)
+                                      return { ...prev, [key]: arr }
+                                    })}
+                                    className="mt-0.5 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border border-gray-300 text-gray-600 bg-white hover:border-green-400 hover:text-green-700"
+                                  >
+                                    <span className={`mr-1 inline-block h-3 w-5 rounded-full ${(((groupAddCost[g.key || 'P'] || [])[idx] ?? true) ? 'bg-green-500' : 'bg-gray-300')}`}>
+                                      <span className={`block h-3 w-3 rounded-full bg-white shadow transform transition-transform ${(((groupAddCost[g.key || 'P'] || [])[idx] ?? true) ? 'translate-x-2' : '')}`}></span>
+                                    </span>
+                                    <span>Somar custo</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
                             <div className="relative">
