@@ -314,13 +314,19 @@ export default function PublicCatalogPage({ storeId, store }) {
                 return isFinite(val) ? val : null
               }
               
-              const priceCarry = findVarPriceBySlot(1) // (P/Levar) = Precificação 1
-              const priceInstall = findVarPriceBySlot(5) // (P/Instalar) = Precificação 5
+              const selectedNames = Array.isArray(p.catalogVisibleVariationNames) ? p.catalogVisibleVariationNames : []
+              const labelsMap = (p.catalogCatalogLabels && typeof p.catalogCatalogLabels === 'object') ? p.catalogCatalogLabels : {}
+              const items = selectedNames.map(name => {
+                const v = variations.find(v => v.name === name)
+                if (!v) return null
+                const price = Number(v.promoPrice ?? v.salePrice ?? 0)
+                if (!isFinite(price)) return null
+                const label = (labelsMap[name] && String(labelsMap[name]).trim()) ? String(labelsMap[name]).trim() : name
+                return { label, price }
+              }).filter(Boolean)
               
-              const defaultPrice = priceCarry != null 
-                ? priceCarry 
-                : Number(p.priceMin ?? p.salePrice ?? 0)
-              const hasCustomPricing = priceCarry != null || priceInstall != null
+              const defaultPrice = Number(p.priceMin ?? p.salePrice ?? 0)
+              const hasCustomPricing = items.length > 0
               const stockZero = Number(p.stock || 0) === 0
               const isUnavailable = stockZero && outOfStockSetting === 'disabled'
 
@@ -361,18 +367,12 @@ export default function PublicCatalogPage({ storeId, store }) {
                     <div className="mt-auto pt-3 border-t border-dashed border-gray-100">
                       {hasCustomPricing ? (
                         <div className="space-y-1.5 mb-3">
-                          {priceCarry !== null && (
-                            <div className="flex justify-between items-baseline">
-                               <span className="text-[10px] uppercase font-bold text-gray-400">(P/Levar)</span>
-                               <span className="text-sm font-bold text-green-700">{priceCarry.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
+                          {items.map((it, i) => (
+                            <div key={i} className="flex justify-between items-baseline">
+                               <span className="text-[10px] font-bold text-gray-600">{it.label}</span>
+                               <span className="text-sm font-bold text-green-700">{it.price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                             </div>
-                          )}
-                          {priceInstall !== null && (
-                            <div className="flex justify-between items-baseline">
-                               <span className="text-[10px] uppercase font-bold text-gray-400">(P/Instalar)</span>
-                               <span className="text-sm font-bold text-blue-700">{priceInstall.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
-                            </div>
-                          )}
+                          ))}
                         </div>
                       ) : (
                         <div className="flex flex-col mb-3">

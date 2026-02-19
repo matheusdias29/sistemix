@@ -91,6 +91,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [cest, setCest] = useState('')
   const [variationsData, setVariationsData] = useState([])
   const [varModalOpen, setVarModalOpen] = useState(false)
+  const [catalogConfigOpen, setCatalogConfigOpen] = useState(false)
+  const [catalogConfigSelection, setCatalogConfigSelection] = useState([])
+  const [catalogVisibleVariationNames, setCatalogVisibleVariationNames] = useState([])
+  const [catalogCatalogLabels, setCatalogCatalogLabels] = useState({})
   const [active, setActive] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -313,6 +317,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         setIsParts(!!product.isParts)
         setIsAccessories(!!product.isAccessories)
         setIsSundries(!!product.isSundries)
+        const currentCatalogNames = Array.isArray(product.catalogVisibleVariationNames) ? product.catalogVisibleVariationNames : []
+        setCatalogVisibleVariationNames(currentCatalogNames)
+        const currentCatalogLabels = (product.catalogCatalogLabels && typeof product.catalogCatalogLabels === 'object') ? product.catalogCatalogLabels : {}
+        setCatalogCatalogLabels(currentCatalogLabels)
       } else {
         // Modo Novo Produto
         if (pricingConfig.groups && pricingConfig.groups.length > 0) {
@@ -397,6 +405,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
     setIsParts(false)
     setIsAccessories(false)
     setIsSundries(false)
+    setCatalogConfigOpen(false)
+    setCatalogConfigSelection([])
+    setCatalogVisibleVariationNames([])
+    setCatalogCatalogLabels({})
   }
 
   const handleImageChange = (e) => {
@@ -456,6 +468,27 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         : (parseInt(stock, 10) || 0)
       const variationsCount = hasVars ? variationsData.length : (parseInt(variations) || 0)
 
+      const allVarNames = hasVars ? variationsData.map((v, idx) => (v.name || `Precificação ${idx+1}`)) : []
+      let finalCatalogNames = catalogVisibleVariationNames
+      let finalCatalogLabels = { ...(catalogCatalogLabels || {}) }
+      if (showInCatalog) {
+        if (!finalCatalogNames || finalCatalogNames.length === 0) {
+          finalCatalogNames = allVarNames
+        } else {
+          finalCatalogNames = finalCatalogNames.filter(n => allVarNames.includes(n))
+        }
+        const cleanedLabels = {}
+        allVarNames.forEach(name => {
+          if (finalCatalogLabels[name] && typeof finalCatalogLabels[name] === 'string' && finalCatalogLabels[name].trim()) {
+            cleanedLabels[name] = finalCatalogLabels[name].trim()
+          }
+        })
+        finalCatalogLabels = cleanedLabels
+      } else {
+        finalCatalogNames = []
+        finalCatalogLabels = {}
+      }
+
       const data = {
         name: name.trim(),
         imageUrl: finalImageUrl,
@@ -477,6 +510,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         featured: !!featured,
         variations: variationsCount,
         variationsData,
+        catalogVisibleVariationNames: finalCatalogNames,
+        catalogCatalogLabels: finalCatalogLabels,
         description: description.trim(),
         commissionPercent: parseFloat(commissionPercent) || 0,
         unit,
@@ -1019,18 +1054,38 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         </div>
       </div>
       <div className="mt-3 flex flex-col md:flex-row gap-4 md:gap-8 text-sm">
-        {/* Switches: Controlar estoque / Exibir no catálogo / Destacar produto */}
         <div className="flex items-center gap-2">
           <span>Controlar estoque</span>
           <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300'}`}>
             <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${controlStock ? 'translate-x-4' : 'translate-x-1'}`}></span>
           </button>
         </div>
-        <div className="flex items-center gap-2">
-          <span>Exibir no catálogo</span>
-          <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300'}`}>
-            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
-          </button>
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span>Exibir no catálogo</span>
+            <button
+              type="button"
+              onClick={()=>setShowInCatalog(v=>!v)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
+            </button>
+          </div>
+          {showInCatalog && (
+            <button
+              type="button"
+              onClick={() => {
+                const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
+                const base = (catalogVisibleVariationNames && catalogVisibleVariationNames.length) ? catalogVisibleVariationNames : names
+                const filtered = base.filter(n => names.includes(n))
+                setCatalogConfigSelection(filtered)
+                setCatalogConfigOpen(true)
+              }}
+              className="self-start text-xs text-green-700 hover:text-green-900 underline mt-0.5"
+            >
+              Configurações
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span>Destacar produto</span>
@@ -1216,18 +1271,33 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         <input type="number" value={stockMin} onChange={e=>setStockMin(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
       </div>
     </div>
-    <div className="mt-3 flex items-center gap-8 text-sm dark:text-gray-300">
+      <div className="mt-3 flex flex-col gap-3 text-sm dark:text-gray-300">
       <div className="flex items-center gap-2">
         <span>Controlar estoque</span>
         <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
           <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${controlStock ? 'translate-x-4' : 'translate-x-1'}`}></span>
         </button>
       </div>
-      <div className="flex items-center gap-2">
-        <span>Exibir no catálogo</span>
-        <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
-        </button>
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center gap-2">
+          <span>Exibir no catálogo</span>
+          <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
+          </button>
+        </div>
+        {showInCatalog && (
+          <button
+            type="button"
+            onClick={() => {
+              const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
+              setCatalogConfigSelection(names)
+              setCatalogConfigOpen(true)
+            }}
+            className="self-start text-xs text-green-400 hover:text-green-200 underline mt-0.5"
+          >
+            Configurações
+          </button>
+        )}
       </div>
     </div>
   </>
@@ -1244,16 +1314,31 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       </button>
     </label>
     
-    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-      <span>Exibir no catálogo</span>
-      <button 
-        type="button" 
-        onClick={()=>setShowInCatalog(v=>!v)} 
-        className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-      >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
-      </button>
-    </label>
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-2 text-sm dark:text-gray-300">
+        <span>Exibir no catálogo</span>
+        <button 
+          type="button" 
+          onClick={()=>setShowInCatalog(v=>!v)} 
+          className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+        >
+          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
+        </button>
+      </label>
+      {showInCatalog && (
+        <button
+          type="button"
+          onClick={() => {
+            const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
+            setCatalogConfigSelection(names)
+            setCatalogConfigOpen(true)
+          }}
+          className="self-start text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 underline"
+        >
+          Configurações
+        </button>
+      )}
+    </div>
     
     <label className="flex items-center gap-2 text-sm dark:text-gray-300">
       <span>Destacar Produto</span>
@@ -1269,6 +1354,117 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Confirmar</button>
 </div>
         </form>
+        {catalogConfigOpen && (
+          <div className="fixed inset-0 z-[75] bg-black/40 flex items-center justify-center">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[720px] max-w-[95vw]">
+              <div className="flex items-center justify-between px-5 py-3 border-b dark:border-gray-700">
+                <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">
+                  Configurar como as precificações aparecem no catálogo
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCatalogConfigOpen(false)}
+                  className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="px-5 py-4 max-h-[70vh] overflow-y-auto text-sm">
+                {(!variationsData || variationsData.length === 0) && (
+                  <div className="text-xs text-gray-600 dark:text-gray-300">
+                    Nenhuma precificação cadastrada para este produto.
+                  </div>
+                )}
+                {variationsData && variationsData.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-[1.6fr_1.6fr_auto] gap-3 text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1 px-1">
+                      <div>Nome da precificação</div>
+                      <div>Nome que será exibido no catálogo</div>
+                      <div className="text-center">Mostrar no catálogo</div>
+                    </div>
+                    {variationsData.map((v, idx) => {
+                      const name = v.name || `Precificação ${idx+1}`
+                      const selected = catalogConfigSelection.includes(name)
+                      const label = catalogCatalogLabels?.[name] ?? ''
+                      return (
+                        <div
+                          key={idx}
+                          className="grid grid-cols-[1.6fr_1.6fr_auto] gap-3 items-center px-3 py-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800"
+                        >
+                          <div className="text-xs text-gray-800 dark:text-gray-100 truncate" title={name}>
+                            {name}
+                          </div>
+                          <div>
+                            <input
+                              type="text"
+                              value={label}
+                              onChange={e => {
+                                const value = e.target.value
+                                setCatalogCatalogLabels(prev => ({
+                                  ...(prev || {}),
+                                  [name]: value
+                                }))
+                              }}
+                              placeholder={name}
+                              className="w-full border border-gray-300 dark:border-gray-600 rounded px-2 py-1 text-xs bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-100"
+                            />
+                          </div>
+                          <div className="flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCatalogConfigSelection(prev => {
+                                  if (prev.includes(name)) {
+                                    return prev.filter(n => n !== name)
+                                  }
+                                  return [...prev, name]
+                                })
+                              }}
+                              className={`inline-flex h-5 w-9 items-center rounded-full ${selected ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                            >
+                              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${selected ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+              <div className="px-5 py-3 border-t dark:border-gray-700 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
+                    setCatalogConfigSelection(names)
+                  }}
+                  className="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
+                >
+                  Selecionar todas
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCatalogConfigOpen(false)}
+                    className="px-3 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCatalogVisibleVariationNames(catalogConfigSelection)
+                      setCatalogConfigOpen(false)
+                    }}
+                    className="px-3 py-1.5 text-xs rounded bg-green-600 text-white hover:bg-green-700"
+                  >
+                    Confirmar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         {varModalOpen && (
             <VariationsModal
               open={varModalOpen}

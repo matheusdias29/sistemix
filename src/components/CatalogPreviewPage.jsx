@@ -50,18 +50,22 @@ export default function CatalogPreviewPage({ storeId, store }) {
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {filtered.map(p => {
-          const variations = p.variationsData || []
-          
-          // Tenta encontrar precificação 4 e 5
-          const var4 = variations.find(v => v.name && (v.name.startsWith('4 -') || v.name.startsWith('4-')))
-          const var5 = variations.find(v => v.name && (v.name.startsWith('5 -') || v.name.startsWith('5-')))
-          
-          const price4 = var4 ? Number(var4.salePrice || 0) : null
-          const price5 = var5 ? Number(var5.salePrice || 0) : null
-          
-          const defaultPrice = Number(p.priceMin ?? p.salePrice ?? 0)
-          const hasCustomPricing = price4 !== null || price5 !== null
+          const variations = Array.isArray(p.variationsData) ? p.variationsData : []
+          const selectedNames = Array.isArray(p.catalogVisibleVariationNames) ? p.catalogVisibleVariationNames : []
+          const labelsMap = (p.catalogCatalogLabels && typeof p.catalogCatalogLabels === 'object') ? p.catalogCatalogLabels : {}
 
+          const items = selectedNames.map(name => {
+            const v = variations.find(v => v.name === name)
+            if (!v) return null
+            const price = Number(v.promoPrice ?? v.salePrice ?? 0)
+            if (!isFinite(price)) return null
+            const label = (labelsMap[name] && String(labelsMap[name]).trim()) ? String(labelsMap[name]).trim() : name
+            return { label, price }
+          }).filter(Boolean)
+
+          const defaultPrice = Number(p.priceMin ?? p.salePrice ?? 0)
+          const hasCustomPricing = items.length > 0
+ 
           const stockZero = Number(p.stock || 0) === 0
           const disabled = outOfStock === 'disabled' && stockZero
           return (
@@ -71,18 +75,12 @@ export default function CatalogPreviewPage({ storeId, store }) {
               <div className="mt-auto">
                 {hasCustomPricing ? (
                   <div className="mb-2 flex flex-col gap-1">
-                    {price4 !== null && (
-                      <div className="text-green-700 font-semibold">
-                        {price4.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                        <span className="text-xs text-gray-500 font-normal ml-1">(P/Levar)</span>
+                    {items.map((it, i) => (
+                      <div key={i} className="flex items-baseline justify-between">
+                        <span className="text-xs text-gray-600 font-medium">{it.label}</span>
+                        <span className="text-green-700 font-semibold">{it.price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                       </div>
-                    )}
-                    {price5 !== null && (
-                      <div className="text-green-700 font-semibold">
-                        {price5.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                        <span className="text-xs text-gray-500 font-normal ml-1">(P/Instalar)</span>
-                      </div>
-                    )}
+                    ))}
                   </div>
                 ) : (
                   <div className="text-green-700 font-semibold mb-2">{defaultPrice.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
