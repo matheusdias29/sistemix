@@ -1290,7 +1290,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             type="button"
             onClick={() => {
               const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
-              setCatalogConfigSelection(names)
+              const base = (catalogVisibleVariationNames && catalogVisibleVariationNames.length) ? catalogVisibleVariationNames : []
+              const filtered = base.filter(n => names.includes(n))
+              setCatalogConfigSelection(filtered)
               setCatalogConfigOpen(true)
             }}
             className="self-start text-xs text-green-400 hover:text-green-200 underline mt-0.5"
@@ -1330,7 +1332,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           type="button"
           onClick={() => {
             const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
-            setCatalogConfigSelection(names)
+            const base = (catalogVisibleVariationNames && catalogVisibleVariationNames.length) ? catalogVisibleVariationNames : []
+            const filtered = base.filter(n => names.includes(n))
+            setCatalogConfigSelection(filtered)
             setCatalogConfigOpen(true)
           }}
           className="self-start text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 underline"
