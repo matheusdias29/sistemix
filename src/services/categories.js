@@ -26,6 +26,9 @@ export async function addCategory(category, storeId){
     active: category.active ?? true,
     imageUrl: category.imageUrl ?? null,
     defaultMarkups: category.defaultMarkups ?? null,
+    defaultMarkupsByGroup: category.defaultMarkupsByGroup ?? null,
+    defaultMarkupModesByGroup: category.defaultMarkupModesByGroup ?? null,
+    defaultMarkupAddCostByGroup: category.defaultMarkupAddCostByGroup ?? null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }

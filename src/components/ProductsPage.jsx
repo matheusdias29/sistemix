@@ -199,6 +199,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkSelectedSlots, setBulkSelectedSlots] = useState([true, true, true, true, true])
   const [bulkConfig, setBulkConfig] = useState(null)
   const [bulkReviewQuery, setBulkReviewQuery] = useState('')
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   useEffect(() => {
     // Categories and Suppliers (Listeners)
@@ -721,6 +722,41 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     setEditModalOpen(false)
   }
 
+  const openBulkDeleteSelected = () => {
+    if (!isOwner && !perms.products?.delete) return
+    if (!selected || selected.size === 0) {
+      setOptionsOpen(false)
+      return
+    }
+    setOptionsOpen(false)
+    setBulkDeleteOpen(true)
+  }
+
+  const confirmBulkDeleteSelected = async () => {
+    if (!isOwner && !perms.products?.delete) return
+    if (!selected || selected.size === 0) {
+      setBulkDeleteOpen(false)
+      return
+    }
+    try {
+      setSavingAction(true)
+      const ids = Array.from(selected)
+      for (const id of ids) {
+        await removeProduct(id)
+      }
+      if (cachedProducts) {
+        setCachedProducts(prev => prev.filter(p => !selected.has(p.id)))
+        setTotalResults(prev => Math.max(0, prev - selected.size))
+      } else {
+        setPage(1)
+      }
+      setSelected(new Set())
+      setBulkDeleteOpen(false)
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
   const openStockModal = (product) => {
     setStockTargetProduct(product)
     const hasVars = Array.isArray(product?.variationsData) && product.variationsData.length > 0
@@ -1096,6 +1132,35 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     setBulkPercent('')
     setBulkModalOpen(true)
     setCategoryMenuId(null)
+  }
+
+  const handleCloneCategory = async (category) => {
+    if (!isOwner && !perms.categories?.create) return
+    if (!storeId || !category) return
+    try {
+      setSavingAction(true)
+      const baseName = (category.name || 'Categoria').trim()
+      let newName = `${baseName} (cópia)`
+      let suffix = 2
+      while (categories.some(c => c.name === newName)) {
+        newName = `${baseName} (cópia ${suffix})`
+        suffix++
+      }
+      const payload = {
+        name: newName,
+        commissionRate: category.commissionRate ?? 0,
+        active: category.active ?? true,
+        imageUrl: category.imageUrl ?? null,
+        defaultMarkups: category.defaultMarkups ?? null,
+        defaultMarkupsByGroup: category.defaultMarkupsByGroup ?? null,
+        defaultMarkupModesByGroup: category.defaultMarkupModesByGroup ?? null,
+        defaultMarkupAddCostByGroup: category.defaultMarkupAddCostByGroup ?? null,
+      }
+      await addCategory(payload, storeId)
+      setCategoryMenuId(null)
+    } finally {
+      setSavingAction(false)
+    }
   }
 
   const confirmBulkPricing = async () => {
@@ -1487,6 +1552,22 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" />
                    </svg>
                    Precificações
+                 </button>
+                 )}
+                 {(isOwner || perms.products?.delete) && (
+                 <button 
+                   className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/40 flex items-center gap-2 text-sm text-red-600 dark:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed"
+                   onClick={openBulkDeleteSelected}
+                   disabled={!selected || selected.size === 0 || savingAction}
+                 >
+                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                     <polyline points="3 6 5 6 21 6"></polyline>
+                     <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                     <path d="M10 11v6"></path>
+                     <path d="M14 11v6"></path>
+                     <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                   </svg>
+                   Excluir selecionados
                  </button>
                  )}
                  {isOwner && (
@@ -1932,6 +2013,16 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             <span>Precificações em massa</span>
                           </button>
                           )}
+                          {(isOwner || perms.categories?.create) && (
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200"
+                            onClick={() => handleCloneCategory(c)}
+                          >
+                            <span>📄</span>
+                            <span>Clonar</span>
+                          </button>
+                          )}
                           {(isOwner || perms.categories?.delete) && (
                           <button
                             type="button"
@@ -2141,6 +2232,59 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         onClose={() => setMovementsModalOpen(false)} 
         product={movementsTargetProduct} 
       />
+
+      {bulkDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => !savingAction && setBulkDeleteOpen(false)} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+            <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-base font-medium text-gray-900 dark:text-white">
+                Excluir produtos selecionados
+              </h3>
+            </div>
+            <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 text-lg">
+                  !
+                </div>
+                <div>
+                  <div className="font-semibold text-red-700 dark:text-red-300">
+                    Esta ação é irreversível.
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Os produtos serão removidos definitivamente do catálogo e do sistema.
+                  </div>
+                </div>
+              </div>
+              <div>
+                Serão excluídos{' '}
+                <span className="font-semibold">
+                  {selected ? selected.size : 0} produto(s)
+                </span>{' '}
+                selecionado(s).
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded border dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                onClick={() => setBulkDeleteOpen(false)}
+                disabled={savingAction}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="px-3 py-2 text-sm rounded bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
+                onClick={confirmBulkDeleteSelected}
+                disabled={savingAction}
+              >
+                Excluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmRemoveOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
