@@ -340,7 +340,12 @@ export default function PublicCatalogPage({ storeId, store }) {
 
               const cat = categoriesData.find(c => c.id === p.categoryId)
               const msgTemplate = (cat && cat.catalogMessage) ? cat.catalogMessage : (storeData?.catalogMessage || 'Olá, tenho interesse no produto: {produto}')
-              const msg = msgTemplate.replace(/{produto}/g, p.name).replace(/{nome}/g, p.name)
+              let msg = msgTemplate
+              if (msg.includes('{produto}') || msg.includes('{nome}')) {
+                msg = msg.replace(/{produto}/g, p.name).replace(/{nome}/g, p.name)
+              } else {
+                msg = `${msg} ${p.name}`
+              }
 
               return (
                 <div key={p.id} className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative">
