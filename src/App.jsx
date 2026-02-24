@@ -175,7 +175,9 @@ export default function App(){
 
   useEffect(() => {
     const status = computeStatusWithInvoices(subscriptionState, ownerInvoices)
-    setInvoiceReminderOpen(status === 'em_atraso')
+    // Popup de fatura próxima do vencimento temporariamente desativado
+    // setInvoiceReminderOpen(status === 'em_atraso')
+    setInvoiceReminderOpen(false)
   }, [subscriptionState, ownerInvoices])
 
   // Tema escuro: restaura preferência e aplica classe global

@@ -202,6 +202,8 @@ export default function TermsPage({ storeId }) {
   // Modo de edição
   const [isEditingMode, setIsEditingMode] = useState(false)
   const [newTermName, setNewTermName] = useState('')
+  const [editingLabelId, setEditingLabelId] = useState(null)
+  const [editingLabelValue, setEditingLabelValue] = useState('')
 
   useEffect(() => {
     if (!storeId) {
@@ -298,6 +300,26 @@ export default function TermsPage({ storeId }) {
     }
   }
 
+  const handleRenameLabelConfirm = async (term) => {
+    if (!term || !editingLabelId) return
+    const raw = editingLabelValue.trim()
+    const next = raw ? raw.toUpperCase() : term.label
+    setEditingLabelValue(next)
+    setEditingLabelId(null)
+    if (!raw || next === term.label) return
+    const exists = terms.some(t => t.id !== term.id && (t.label || '').toUpperCase() === next)
+    if (exists) {
+      alert('Já existe um termo com este nome.')
+      return
+    }
+    try {
+      await updateTerm(term.id, { label: next })
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao renomear termo.')
+    }
+  }
+
   const createPdf = () => {
     const doc = new jsPDF()
     const text = editorText || ''
@@ -383,7 +405,38 @@ export default function TermsPage({ storeId }) {
                     onClick={() => handleSelectTerm(option.id)}
                     className={`w-full px-3 py-2 text-xs rounded border text-left transition-colors ${buttonClass} ${isEditingMode ? 'pr-8' : ''}`}
                   >
-                    {option.label}
+                    {editingLabelId === option.id && isEditingMode ? (
+                      <input
+                        type="text"
+                        value={editingLabelValue}
+                        onChange={e => setEditingLabelValue(e.target.value)}
+                        autoFocus
+                        onBlur={() => handleRenameLabelConfirm(option)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleRenameLabelConfirm(option)
+                          }
+                          if (e.key === 'Escape') {
+                            e.preventDefault()
+                            setEditingLabelId(null)
+                            setEditingLabelValue('')
+                          }
+                        }}
+                        className="w-full bg-transparent outline-none border-none text-xs"
+                      />
+                    ) : (
+                      <span
+                        onClick={e => {
+                          if (!isEditingMode) return
+                          e.stopPropagation()
+                          setEditingLabelId(option.id)
+                          setEditingLabelValue(option.label || '')
+                        }}
+                      >
+                        {option.label}
+                      </span>
+                    )}
                   </button>
                   {isEditingMode && (
                     <button
