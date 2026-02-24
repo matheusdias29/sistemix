@@ -1,28 +1,36 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { listenCatalogProducts } from '../services/products'
 import { listenCategories } from '../services/categories'
+import { listenStore } from '../services/stores'
 import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart } from 'lucide-react'
 import logoWhite from '../assets/logofundobranco.png'
 
 export default function PublicCatalogPage({ storeId, store }) {
   const [products, setProducts] = useState([])
   const [categoriesData, setCategoriesData] = useState([])
+  const [storeData, setStoreData] = useState(store)
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [bannerIndex, setBannerIndex] = useState(0)
   const hoverRef = useRef(false)
 
-  const outOfStockSetting = store?.catalogOutOfStock || 'show'
-  const banners = Array.isArray(store?.catalogBanners) ? store.catalogBanners.filter(b => !!b?.url) : []
+  const outOfStockSetting = storeData?.catalogOutOfStock || 'show'
+  const banners = Array.isArray(storeData?.catalogBanners) ? storeData.catalogBanners.filter(b => !!b?.url) : []
+
+  useEffect(() => {
+    setStoreData(store)
+  }, [store])
 
   useEffect(() => {
     if (!storeId) return
     const unsubProd = listenCatalogProducts(items => setProducts(items), storeId)
     const unsubCat = listenCategories(items => setCategoriesData(items), storeId)
+    const unsubStore = listenStore(storeId, (s) => setStoreData(s))
     return () => { 
       unsubProd && unsubProd()
       unsubCat && unsubCat()
+      unsubStore && unsubStore()
     }
   }, [storeId])
 
@@ -102,10 +110,10 @@ export default function PublicCatalogPage({ storeId, store }) {
             {/* Logo / Brand */}
             <div className="flex items-center gap-3">
               <div className="h-12 w-auto overflow-hidden rounded-lg flex items-center justify-center bg-white shadow-sm border border-gray-100 p-1">
-                 <img src={logoWhite} alt={store?.name} className="h-full w-auto object-contain" />
+                 <img src={logoWhite} alt={storeData?.name} className="h-full w-auto object-contain" />
               </div>
               <div>
-                <h1 className="font-bold text-xl leading-none text-gray-900 tracking-tight">{store?.name || 'Nossa Loja'}</h1>
+                <h1 className="font-bold text-xl leading-none text-gray-900 tracking-tight">{storeData?.name || 'Nossa Loja'}</h1>
                 <p className="text-xs text-gray-500 font-medium">Catálogo Digital</p>
               </div>
             </div>
@@ -126,9 +134,9 @@ export default function PublicCatalogPage({ storeId, store }) {
               <button className="p-2 hover:bg-gray-100 rounded-full text-gray-600 transition-colors md:hidden" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
                 <Search size={20} />
               </button>
-              {(store?.catalogWhatsapp || store?.phone) && (
+              {(storeData?.catalogWhatsapp || storeData?.phone) && (
                 <a 
-                  href={`https://wa.me/55${(store.catalogWhatsapp || store.phone).replace(/\D/g, '')}`} 
+                  href={`https://wa.me/55${(storeData.catalogWhatsapp || storeData.phone).replace(/\D/g, '')}`} 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="hidden md:flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full text-sm font-medium transition-all shadow-sm hover:shadow"
@@ -168,7 +176,7 @@ export default function PublicCatalogPage({ storeId, store }) {
                   <img
                     key={i}
                     src={b.url}
-                    alt={store?.name || 'Banner'}
+                    alt={storeData?.name || 'Banner'}
                     loading="lazy"
                     className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${i === bannerIndex ? 'opacity-100' : 'opacity-0'}`}
                     onError={(e) => { e.currentTarget.style.display = 'none' }}
@@ -241,16 +249,16 @@ export default function PublicCatalogPage({ storeId, store }) {
           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
             <h4 className="font-semibold text-sm text-gray-900 mb-3">Sobre a loja</h4>
             <div className="space-y-3 text-sm text-gray-600">
-               {store?.address && (
+               {storeData?.address && (
                  <div className="flex items-start gap-2">
                    <MapPin size={16} className="mt-0.5 text-green-600 shrink-0" />
-                   <span className="text-xs leading-relaxed">{store.address}</span>
+                   <span className="text-xs leading-relaxed">{storeData.address}</span>
                  </div>
                )}
                <div className="pt-3 border-t border-gray-50">
                  <p className="text-xs text-gray-400 text-center">
                    Horário de atendimento<br/>
-                   {store?.catalogOpeningDays || 'Seg à Sex'}: {store?.catalogOpeningHours || '08h - 18h'}
+                   {storeData?.catalogOpeningDays || 'Seg à Sex'}: {storeData?.catalogOpeningHours || '08h - 18h'}
                  </p>
                </div>
             </div>
@@ -330,6 +338,10 @@ export default function PublicCatalogPage({ storeId, store }) {
               const stockZero = Number(p.stock || 0) === 0
               const isUnavailable = stockZero && outOfStockSetting === 'disabled'
 
+              const cat = categoriesData.find(c => c.id === p.categoryId)
+              const msgTemplate = (cat && cat.catalogMessage) ? cat.catalogMessage : (storeData?.catalogMessage || 'Olá, tenho interesse no produto: {produto}')
+              const msg = msgTemplate.replace(/{produto}/g, p.name).replace(/{nome}/g, p.name)
+
               return (
                 <div key={p.id} className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative">
                   {/* Image Area */}
@@ -383,8 +395,8 @@ export default function PublicCatalogPage({ storeId, store }) {
                       
                       <a 
                         href={
-                          (store?.catalogWhatsapp || store?.phone) && !isUnavailable
-                          ? `https://wa.me/55${(store.catalogWhatsapp || store.phone).replace(/\D/g, '')}?text=${encodeURIComponent(`Olá, tenho interesse no produto: ${p.name}`)}`
+                          (storeData?.catalogWhatsapp || storeData?.phone) && !isUnavailable
+                          ? `https://wa.me/55${(storeData.catalogWhatsapp || storeData.phone).replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
                           : '#'
                         }
                         target="_blank"
@@ -433,7 +445,7 @@ export default function PublicCatalogPage({ storeId, store }) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
               <div className="text-center md:text-left">
-                <h2 className="text-lg font-bold text-gray-900">{store?.name || 'Sua Loja'}</h2>
+                <h2 className="text-lg font-bold text-gray-900">{storeData?.name || 'Sua Loja'}</h2>
                 <p className="text-sm text-gray-500">© {new Date().getFullYear()} Todos os direitos reservados.</p>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-400">

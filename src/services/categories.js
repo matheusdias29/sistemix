@@ -23,6 +23,7 @@ export async function addCategory(category, storeId){
     storeId,
     name: category.name ?? 'Nova Categoria',
     commissionRate: Number(category.commissionRate ?? 0),
+    catalogMessage: category.catalogMessage ?? null,
     active: category.active ?? true,
     imageUrl: category.imageUrl ?? null,
     defaultMarkups: category.defaultMarkups ?? null,

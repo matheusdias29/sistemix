@@ -9,6 +9,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const [openingHours, setOpeningHours] = useState(store?.catalogOpeningHours || '')
   const [openingDays, setOpeningDays] = useState(store?.catalogOpeningDays || '')
   const [catalogWhatsapp, setCatalogWhatsapp] = useState(store?.catalogWhatsapp || '')
+  const [catalogMessage, setCatalogMessage] = useState(store?.catalogMessage || '')
 
   useEffect(() => {
     setCatalogEnabled(!!(store?.catalogEnabled))
@@ -18,6 +19,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     setOpeningHours(store?.catalogOpeningHours || '')
     setOpeningDays(store?.catalogOpeningDays || '')
     setCatalogWhatsapp(store?.catalogWhatsapp || '')
+    setCatalogMessage(store?.catalogMessage || '')
   }, [store?.id])
 
   const displaySlug = useMemo(() => {
@@ -87,6 +89,11 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const onChangeCatalogWhatsapp = async (v) => {
     setCatalogWhatsapp(v)
     await save({ catalogWhatsapp: v })
+  }
+
+  const onChangeCatalogMessage = async (v) => {
+    setCatalogMessage(v)
+    await save({ catalogMessage: v })
   }
 
   const onAddBanner = async (file) => {
@@ -192,11 +199,22 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
         <div className="text-sm font-semibold">WhatsApp para pedidos</div>
         <div className="text-xs text-gray-600 mt-1">Número que receberá as mensagens quando o cliente clicar em comprar</div>
         <div className="mt-3">
+          <label className="block text-xs font-medium text-gray-700 mb-1">Número do WhatsApp (apenas números)</label>
           <input
             value={catalogWhatsapp}
             onChange={e => onChangeCatalogWhatsapp(e.target.value)}
             placeholder="Ex: 11999999999"
             className="w-full border rounded px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="mt-4">
+          <label className="block text-xs font-medium text-gray-700 mb-1">Mensagem padrão ao clicar em comprar</label>
+          <div className="text-[10px] text-gray-500 mb-1">Use <b>{'{produto}'}</b> onde quiser que apareça o nome do produto.</div>
+          <textarea
+            value={catalogMessage}
+            onChange={e => onChangeCatalogMessage(e.target.value)}
+            placeholder="Ex: Olá, tenho interesse no produto: {produto}"
+            className="w-full border rounded px-3 py-2 text-sm h-20 resize-none"
           />
         </div>
       </div>

@@ -5,6 +5,7 @@ import { getStoreById } from '../services/stores'
 export default function NewCategoryModal({ open, onClose, isEdit=false, category=null, storeId }){
   const [name, setName] = useState('')
   const [commissionRate, setCommissionRate] = useState('0')
+  const [catalogMessage, setCatalogMessage] = useState('')
   const [active, setActive] = useState(true)
   const [showMarkups, setShowMarkups] = useState(false)
   const [defaultMarkups, setDefaultMarkups] = useState({ p1: '', p2: '', p3: '', p4: '', p5: '' })
@@ -20,6 +21,7 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
     if (open && isEdit && category) {
       setName(category.name || '')
       setCommissionRate(String(category.commissionRate ?? 0))
+      setCatalogMessage(category.catalogMessage || '')
       setActive(category.active !== false)
       
       const dm = category.defaultMarkups || {}
@@ -121,6 +123,7 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
       const data = {
         name: name.trim(),
         commissionRate: parseFloat(commissionRate) || 0,
+        catalogMessage,
         active,
         defaultMarkups: {
           p1: parseFloat(defaultMarkups.p1) || 0,
@@ -167,6 +170,12 @@ export default function NewCategoryModal({ open, onClose, isEdit=false, category
           <div>
             <label className="text-sm text-gray-600 dark:text-gray-300">Taxa de comissão</label>
             <input type="number" step="0.01" value={commissionRate} onChange={e=>setCommissionRate(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="0" />
+          </div>
+
+          <div>
+            <label className="text-sm text-gray-600 dark:text-gray-300">Mensagem no catálogo (opcional)</label>
+            <div className="text-[10px] text-gray-500 mb-1">Se preenchido, substitui a mensagem padrão da loja para produtos desta categoria. Use <b>{'{produto}'}</b> para o nome.</div>
+            <textarea value={catalogMessage} onChange={e=>setCatalogMessage(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white resize-none h-20" placeholder="Ex: Tenho interesse neste item da categoria X: {produto}" />
           </div>
 
           <div>
