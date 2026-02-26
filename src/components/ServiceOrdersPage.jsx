@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder, deleteOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
-import { listenProducts, updateProduct } from '../services/products'
+import { listenProducts, updateProduct, getAllProducts } from '../services/products'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
@@ -376,6 +376,8 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [qtyInput, setQtyInput] = useState(1)
   const [priceInput, setPriceInput] = useState('0')
   const [productsAll, setProductsAll] = useState([])
+  const [cachedProducts, setCachedProducts] = useState(null)
+  const [isCaching, setIsCaching] = useState(false)
   const [servicesAll, setServicesAll] = useState([])
   const [categories, setCategories] = useState([])
   const [suppliers, setSuppliers] = useState([])
@@ -432,6 +434,41 @@ const canEditService = isOwner || perms.services?.edit
     })
     return () => { unsubP && unsubP(); unsubSv && unsubSv(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers(); unsubFees && unsubFees() }
   }, [storeId, ownerId])
+
+  // Product Cache (Background)
+  useEffect(() => {
+    if (!storeId) return
+    if (cachedProducts || isCaching) return
+
+    setIsCaching(true)
+    getAllProducts(storeId).then(all => {
+      const optimized = all.map(p => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        reference: p.reference,
+        stock: p.stock,
+        salePrice: p.salePrice,
+        promoPrice: p.promoPrice,
+        priceMin: p.priceMin,
+        categoryId: p.categoryId,
+        variations: p.variations,
+        variationsData: p.variationsData,
+        stockInitial: p.stockInitial,
+        image: p.image
+      }))
+      setCachedProducts(optimized)
+    }).catch(err => {
+      console.error('Error loading product cache:', err)
+    }).finally(() => {
+      setIsCaching(false)
+    })
+  }, [storeId, cachedProducts, isCaching])
+
+  useEffect(() => {
+    setCachedProducts(null)
+    setIsCaching(false)
+  }, [storeId])
 
   const totalProductsAgg = useMemo(() => {
     return osProducts.reduce((s, p) => s + ((parseFloat(p.price)||0) * (parseFloat(p.quantity)||0)), 0)
@@ -987,7 +1024,7 @@ const canEditService = isOwner || perms.services?.edit
               if (newStatus.includes('cancelad') && !oldStatus.includes('cancelad')) {
                 const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
                 for (const it of items) {
-                  const p = productsAll.find(pr => pr.id === it.productId)
+                  const p = (cachedProducts || productsAll).find(pr => pr.id === it.productId)
                   if (!p) continue
                   const qty = Math.max(0, parseFloat(it.quantity) || 0)
                   
@@ -2148,7 +2185,7 @@ const canEditService = isOwner || perms.services?.edit
             <SelectProductModal
               open={prodSelectOpen}
               onClose={()=>setProdSelectOpen(false)}
-              products={productsAll}
+              products={cachedProducts || productsAll}
               onChoose={(p)=>{
                 setSelectedProduct(p)
                 setSelectedVariation(null)
@@ -2264,48 +2301,6 @@ const canEditService = isOwner || perms.services?.edit
               }}
             />
           )}
-          {prodSelectOpen && (
-            <SelectProductModal
-              open={prodSelectOpen}
-              onClose={()=>setProdSelectOpen(false)}
-              products={productsAll}
-              onChoose={(p)=>{
-                setSelectedProduct(p)
-                setSelectedVariation(null)
-                setProdSelectOpen(false)
-                // Verificar se o produto tem variações
-                if(p.variations > 0 && p.variationsData && p.variationsData.length > 0){
-                  setVarSelectOpen(true)
-                } else {
-                  setAddProdOpen(true)
-                }
-              }}
-              onNew={()=>{ setProdSelectOpen(false); setNewProductOpen(true) }}
-            />
-          )}
-          {varSelectOpen && (
-            <SelectVariationModal
-              open={varSelectOpen}
-              onClose={()=>setVarSelectOpen(false)}
-              product={selectedProduct}
-              onChoose={(variation)=>{
-                setSelectedVariation(variation)
-                setVarSelectOpen(false)
-                setAddProdOpen(true)
-              }}
-            />
-          )}
-          <NewProductModal open={newProductOpen} onClose={()=>setNewProductOpen(false)} categories={categories} suppliers={suppliers} storeId={storeId} />
-          {clientSelectOpen && (
-            <SelectClientModal
-              open={clientSelectOpen}
-              onClose={()=>setClientSelectOpen(false)}
-              clients={clientsAll}
-              onChoose={(c)=>{ setClient(c.name||''); setClientSelectOpen(false) }}
-              onNew={(isOwner || perms.clients?.create) ? ()=>{ setClientSelectOpen(false); setNewClientOpen(true) } : undefined}
-            />
-          )}
-          <NewClientModal open={newClientOpen} onClose={()=>setNewClientOpen(false)} storeId={storeId} user={user} />
           {serviceSelectOpen && (
             <SelectServiceModal
               open={serviceSelectOpen}
@@ -2916,8 +2911,18 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
 
 function SelectProductModal({ open, onClose, products, onChoose, onNew }){
   const [query, setQuery] = useState('')
+  const [limit, setLimit] = useState(20)
+
+  useEffect(() => {
+    if (open) setLimit(20)
+  }, [open, query])
+
   if(!open) return null
+  
   const filtered = (products||[]).filter(p => (p.name||'').toLowerCase().includes(query.trim().toLowerCase()))
+  const displayed = filtered.slice(0, limit)
+  const hasMore = filtered.length > limit
+
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[680px] max-w-[95vw]">
@@ -2928,7 +2933,7 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew }){
         <div className="p-4">
           <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           <div className="mt-3 max-h-[60vh] overflow-y-auto">
-            {filtered.map(p => (
+            {displayed.map(p => (
               <div key={p.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100" onClick={()=>onChoose(p)}>
                 <div>
                   <div className="font-medium">{p.name}</div>
@@ -2936,6 +2941,14 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew }){
                 <div className="text-right">{(p.priceMin ?? p.salePrice ?? 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
               </div>
             ))}
+            {hasMore && (
+              <button 
+                onClick={() => setLimit(l => l + 20)}
+                className="w-full py-3 text-sm text-center text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg font-medium transition-colors mt-2"
+              >
+                Carregar mais...
+              </button>
+            )}
             {filtered.length===0 && (<div className="text-sm text-gray-600 dark:text-gray-400 px-2 py-3">Nenhum produto encontrado.</div>)}
           </div>
         </div>
