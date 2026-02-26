@@ -37,6 +37,38 @@ export async function getTotalClientsCount(storeId) {
 // Vou usar uma lógica de busca sequencial de cursors se o pulo for pequeno, ou offset se for grande.
 // Simplificação: Vamos fazer o "loading" dos itens.
 
+export async function getAllClients(storeId) {
+  const all = []
+  let lastDoc = null
+  const CHUNK_SIZE = 5000 
+
+  try {
+    while (true) {
+      let q = query(
+        colRef, 
+        where('storeId', '==', storeId), 
+        limit(CHUNK_SIZE)
+      )
+      
+      if (lastDoc) {
+        q = query(q, startAfter(lastDoc))
+      }
+
+      const snap = await getDocs(q)
+      if (snap.empty) break
+      
+      snap.docs.forEach(d => all.push({ id: d.id, ...d.data() }))
+      if (snap.docs.length < CHUNK_SIZE) break
+      
+      lastDoc = snap.docs[snap.docs.length - 1]
+    }
+  } catch (err) {
+    console.error('Erro em getAllClients:', err)
+  }
+  
+  return all
+}
+
 export async function getClientsByPage(storeId, page, pageSize) {
   // Nota: Idealmente usaríamos startAfter com o doc anterior.
   // Mas para pular para página X, precisamos de offset.
@@ -234,12 +266,7 @@ export async function getNextClientCode(storeId) {
   }
 }
 
-// Retorna TODOS os clientes de uma loja (para Smart Cache)
-export async function getAllClients(storeId) {
-  const q = query(colRef, where('storeId', '==', storeId), orderBy('createdAt', 'desc'))
-  const snap = await getDocs(q)
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-}
+
 
 export async function getClientById(id) {
   const ref = doc(db, 'clients', id)

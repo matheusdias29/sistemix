@@ -151,7 +151,6 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
         <div className="mt-2 flex items-center gap-3 text-sm">
           <a className="text-green-700 hover:underline" href={catalogLink} target="_blank" rel="noreferrer">{catalogLink}</a>
           <button className="text-green-700 hover:underline" onClick={() => navigator.clipboard && navigator.clipboard.writeText(catalogLink)}>Copiar Link</button>
-          <button className="px-3 py-1 rounded bg-gray-100 text-gray-700" onClick={() => onNavigate && onNavigate('catalogoPreview')}>Visualizar Catálogo</button>
         </div>
       </div>
 
@@ -221,7 +220,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
 
       <div className="bg-white rounded-lg shadow p-4">
         <div className="text-sm font-semibold">Banners da loja</div>
-        <div className="text-xs text-gray-600 mt-1">Adicione até 5 banners para personalizar sua loja</div>
+        <div className="text-xs text-gray-600 mt-1">Adicione até 5 banners. Tamanho recomendado: <b>1280x250px</b>. Mantenha o conteúdo principal centralizado.</div>
         <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3">
           {banners.map((b, idx) => (
             <div key={idx} className="relative border rounded overflow-hidden h-28 bg-gray-100">

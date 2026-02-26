@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { listenProducts, updateProduct } from '../services/products'
+import { getAllProducts, updateProduct, listenProducts } from '../services/products'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
-import { listenClients } from '../services/clients'
+import { listenClients, getAllClients } from '../services/clients'
 import { addOrder, updateOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
 import { listenFees, listenStore } from '../services/stores'
@@ -20,8 +20,14 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
   // Data
   const [products, setProducts] = useState([])
+  const [cachedProducts, setCachedProducts] = useState(null)
+  const [isCaching, setIsCaching] = useState(false)
+  const [page, setPage] = useState(1)
+  const PAGE_SIZE = 30
   const [categories, setCategories] = useState([])
   const [clients, setClients] = useState([])
+  const [cachedClients, setCachedClients] = useState(null)
+  const [isCachingClients, setIsCachingClients] = useState(false)
   const [store, setStore] = useState(null)
 
   // UI State
@@ -109,11 +115,14 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [initialCashValue, setInitialCashValue] = useState('')
   const [openingCash, setOpeningCash] = useState(false)
 
+  // 1. Listeners (Basic data)
   useEffect(() => {
     if (!open || !storeId) return
+    
     const unsubP = listenProducts(setProducts, storeId)
     const unsubC = listenCategories(setCategories, storeId)
     const unsubCl = listenClients(setClients, storeId)
+    
     const unsubFees = listenFees(storeId, (rows) => {
       setAvailableFees(rows.filter(r => r.active))
     })
@@ -121,14 +130,71 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       setCurrentCash(cash)
       setLoadingCash(false)
     })
+    
     return () => { unsubP(); unsubC(); unsubCl(); unsubFees(); unsubCash() }
   }, [open, storeId])
+
+  // 2. Product Cache (Background)
+  useEffect(() => {
+    if (!open || !storeId) return
+    if (cachedProducts || isCaching) return
+
+    setIsCaching(true)
+    getAllProducts(storeId).then(all => {
+      const optimized = all.map(p => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        reference: p.reference,
+        stock: p.stock,
+        salePrice: p.salePrice,
+        promoPrice: p.promoPrice,
+        categoryId: p.categoryId,
+        variations: p.variations,
+        variationsData: p.variationsData,
+        stockInitial: p.stockInitial,
+        image: p.image
+      }))
+      setCachedProducts(optimized)
+    }).catch(err => {
+      console.error('Error loading product cache:', err)
+    }).finally(() => {
+      setIsCaching(false)
+    })
+  }, [open, storeId, cachedProducts, isCaching])
+
+  // 3. Client Cache (Background)
+  useEffect(() => {
+    if (!open || !storeId) return
+    if (cachedClients || isCachingClients) return
+
+    setIsCachingClients(true)
+    getAllClients(storeId).then(all => {
+      const optimized = all.map(c => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        cpf: c.cpf,
+        email: c.email
+      }))
+      setCachedClients(optimized)
+    }).catch(err => {
+      console.error('Error loading client cache:', err)
+    }).finally(() => {
+      setIsCachingClients(false)
+    })
+  }, [open, storeId, cachedClients, isCachingClients])
 
   // Reset when opening
   useEffect(() => {
     if (storeId) {
       const unsub = listenStore(storeId, (data) => setStore(data))
-      return () => unsub()
+      // Reset cache when store changes
+    setCachedProducts(null)
+    setIsCaching(false)
+    setCachedClients(null)
+    setIsCachingClients(false)
+    return () => unsub()
     }
   }, [storeId])
 
@@ -171,7 +237,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
   // Filtering
   const filteredProducts = useMemo(() => {
-    let list = products
+    // Use cachedProducts if available (full list), otherwise fallback to products (initial 50)
+    let list = cachedProducts || products
+    
     if (selectedCategory !== 'todos') {
       list = list.filter(p => p.categoryId === selectedCategory)
     }
@@ -184,7 +252,18 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       )
     }
     return list
-  }, [products, selectedCategory, search])
+  }, [products, cachedProducts, selectedCategory, search])
+
+  // Pagination
+  const paginatedProducts = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filteredProducts.slice(start, start + PAGE_SIZE)
+  }, [filteredProducts, page])
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setPage(1)
+  }, [selectedCategory, search])
 
   const filteredClients = useMemo(() => {
     if (!clientSearch) return []
@@ -463,10 +542,11 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       }
 
       if (!isEdit && (status === 'Venda' || status === 'Pedido' || status === 'Cliente Final' || status === 'Cliente Lojista')) {
+        const sourceList = cachedProducts || products
         for (const item of cart) {
           const qty = item.quantity
           const pId = item.product.originalId || item.product.id
-          const realProduct = products.find(p => p.id === pId)
+          const realProduct = sourceList.find(p => p.id === pId)
           
           if (realProduct) {
             let variationId = null
@@ -539,7 +619,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   }
 
   // Formatter
-  const money = (v) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
   if (!open) return null
 
@@ -685,35 +765,63 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           </div>
 
           {/* Product Grid */}
-          <div className="flex-1 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 content-start pr-1">
-            {filteredProducts.map(p => (
-              <div 
-                key={p.id} 
-                onClick={() => addToCart(p)}
-                className="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 cursor-pointer transition-all shadow-sm group flex flex-col h-24 justify-between"
-              >
-                <div className="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 leading-tight">{p.name}</div>
-                <div className="flex items-end justify-between mt-2">
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Estoque: <span className={p.stock > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-red-500'}>{p.stock}</span></div>
-                  <div className="font-bold text-green-600 dark:text-green-400">
-                    {(() => {
-                      if (p.variations > 0 && p.variationsData && p.variationsData.length > 0) {
-                        const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
-                        const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
-                        if (priceMin !== priceMax) {
-                           return `De ${priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} a ${priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
+          <div className="flex-1 overflow-y-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 content-start pr-1 pb-2">
+              {paginatedProducts.map(p => (
+                <div 
+                  key={p.id} 
+                  onClick={() => addToCart(p)}
+                  className="bg-white dark:bg-gray-800 p-3 rounded border dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 cursor-pointer transition-all shadow-sm group flex flex-col h-24 justify-between"
+                >
+                  <div className="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 leading-tight">{p.name}</div>
+                  <div className="flex items-end justify-between mt-2">
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Estoque: <span className={p.stock > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-red-500'}>{p.stock}</span></div>
+                    <div className="font-bold text-green-600 dark:text-green-400">
+                      {(() => {
+                        if (p.variations > 0 && p.variationsData && p.variationsData.length > 0) {
+                          const priceMin = Number(p.priceMin ?? p.salePrice ?? 0)
+                          const priceMax = Number(p.priceMax ?? p.salePrice ?? priceMin)
+                          if (priceMin !== priceMax) {
+                             return `De ${priceMin.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} a ${priceMax.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`
+                          }
                         }
-                      }
-                      return money(p.salePrice)
-                    })()}
+                        return money(p.salePrice)
+                      })()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {filteredProducts.length === 0 && (
-              <div className="col-span-full text-center text-gray-500 dark:text-gray-400 mt-10">Nenhum produto encontrado.</div>
-            )}
+              ))}
+              
+              {paginatedProducts.length === 0 && (
+                <div className="col-span-full text-center text-gray-500 dark:text-gray-400 mt-10">
+                  {isCaching ? 'Carregando todos os produtos...' : 'Nenhum produto encontrado.'}
+                </div>
+              )}
+            </div>
           </div>
+          
+          {/* Pagination Footer */}
+          {filteredProducts.length > 0 && (
+            <div className="flex items-center justify-between pt-2 border-t dark:border-gray-700 mt-2 shrink-0">
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 text-xs font-medium bg-white dark:bg-gray-800 border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                Página {page} de {Math.ceil(filteredProducts.length / PAGE_SIZE)} ({filteredProducts.length} itens)
+              </span>
+              <button 
+                onClick={() => setPage(p => Math.min(Math.ceil(filteredProducts.length / PAGE_SIZE), p + 1))}
+                disabled={page >= Math.ceil(filteredProducts.length / PAGE_SIZE)}
+                className="px-3 py-1 text-xs font-medium bg-white dark:bg-gray-800 border dark:border-gray-700 rounded hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Próxima
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Right Section: Cart & Client */}
@@ -872,7 +980,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       <SelectClientModal 
         open={clientSelectOpen} 
         onClose={() => setClientSelectOpen(false)} 
-        clients={clients} 
+        clients={cachedClients || clients} 
         onChoose={(c) => {
           setSelectedClient(c)
           setClientSelectOpen(false)
