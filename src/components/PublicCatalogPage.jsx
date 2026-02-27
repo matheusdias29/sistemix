@@ -5,7 +5,7 @@ import { listenStore } from '../services/stores'
 import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart } from 'lucide-react'
 import logoWhite from '../assets/logofundobranco.png'
 
-export default function PublicCatalogPage({ storeId, store }) {
+export default function PublicCatalogPage({ storeId, store, loading }) {
   const [products, setProducts] = useState([])
   const [categoriesData, setCategoriesData] = useState([])
   const [storeData, setStoreData] = useState(store)
@@ -88,6 +88,14 @@ export default function PublicCatalogPage({ storeId, store }) {
     }
     return list
   }, [productsWithCategory, query, selectedCategory, outOfStockSetting])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      </div>
+    )
+  }
 
   if (!storeId) {
     return (

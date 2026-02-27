@@ -69,6 +69,7 @@ export default function App(){
   const [addNewOrderSignal, setAddNewOrderSignal] = useState(0)
   const [addNewClientSignal, setAddNewClientSignal] = useState(0)
   const [salesDayFilter, setSalesDayFilter] = useState(null)
+  const [loadingStore, setLoadingStore] = useState(false)
   const [darkMode, setDarkMode] = useState(() => {
     try { return localStorage.getItem('darkMode') === '1' } catch { return false }
   })
@@ -220,12 +221,14 @@ export default function App(){
       if (path) {
         setPublicMode(true)
         setStore(null)
+        setLoadingStore(true)
         setView('publicCatalog')
         getStoreBySlug(path).then(found => {
           if (found) {
             setStore(found)
           }
         }).catch(()=>{})
+        .finally(()=>setLoadingStore(false))
       }
     } catch {}
   }, [])
@@ -287,7 +290,7 @@ export default function App(){
       return <OrderTrackingPage orderId={viewParams.id} isSale={true} />
     }
     return (
-      <PublicCatalogPage storeId={store?.id} store={store} />
+      <PublicCatalogPage storeId={store?.id} store={store} loading={loadingStore} />
     )
   }
 
