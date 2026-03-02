@@ -418,6 +418,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   }
 
   const handleEditItemClick = (index) => {
+    if (!isOwner && !perms.sales?.edit) return
     setEditingItemIndex(index)
     setEditItemModalOpen(true)
   }
@@ -842,23 +843,27 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
 
           {/* Cart Items */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {cart.map((item, idx) => (
+            {cart.map((item, idx) => {
+              const canEdit = isOwner || perms.sales?.edit
+              return (
               <div key={idx} className="flex justify-between items-start group border-b dark:border-gray-700 pb-3 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors rounded p-1">
-                <div className="flex-1 cursor-pointer" onClick={() => handleEditItemClick(idx)}>
+                <div className={`flex-1 ${canEdit ? 'cursor-pointer' : ''}`} onClick={() => canEdit && handleEditItemClick(idx)}>
                   <div className="text-sm text-gray-800 dark:text-gray-200 font-medium">{item.product.name}</div>
                   <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{money(item.price)} un.</div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <div className="font-bold text-gray-800 dark:text-white text-sm cursor-pointer" onClick={() => handleEditItemClick(idx)}>{money(item.total)}</div>
+                  <div className={`font-bold text-gray-800 dark:text-white text-sm ${canEdit ? 'cursor-pointer' : ''}`} onClick={() => canEdit && handleEditItemClick(idx)}>{money(item.total)}</div>
                   <div className="flex items-center border dark:border-gray-600 rounded bg-white dark:bg-gray-700">
                     <button onClick={() => updateQuantity(idx, -1)} className="px-2 py-0.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 text-sm">-</button>
-                    <span className="px-2 text-xs font-medium w-8 text-center text-gray-800 dark:text-gray-200 cursor-pointer" onClick={() => handleEditItemClick(idx)}>{item.quantity}</span>
+                    <span className={`px-2 text-xs font-medium w-8 text-center text-gray-800 dark:text-gray-200 ${canEdit ? 'cursor-pointer' : ''}`} onClick={() => canEdit && handleEditItemClick(idx)}>{item.quantity}</span>
                     <button onClick={() => updateQuantity(idx, 1)} className="px-2 py-0.5 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 text-sm">+</button>
                   </div>
                 </div>
-                <button onClick={() => removeFromCart(idx)} className="ml-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-lg leading-none">&times;</button>
+                {canEdit && (
+                  <button onClick={() => removeFromCart(idx)} className="ml-2 text-gray-400 hover:text-red-500 dark:hover:text-red-400 text-lg leading-none">&times;</button>
+                )}
               </div>
-            ))}
+            )})}
             {cart.length === 0 && (
               <div className="text-center text-gray-400 dark:text-gray-500 mt-10 text-sm">Nenhum produto adicionado.</div>
             )}
@@ -890,7 +895,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                     <span>📎</span>{f.name} {f.type==='percent' ? `(${Number(f.value)}%)` : ''}
                   </span>
                   <span>{money(f.type==='percent' ? round2(subtotal * (Number(f.value||0)/100)) : Number(f.value||0))}</span>
-                  <button className="ml-2 text-xs text-red-600 dark:text-red-400" onClick={()=>setAppliedFees(appliedFees.filter((_,i)=>i!==idx))}>remover</button>
+                  {(isOwner || perms.sales?.fees) && (
+                    <button className="ml-2 text-xs text-red-600 dark:text-red-400" onClick={()=>setAppliedFees(appliedFees.filter((_,i)=>i!==idx))}>remover</button>
+                  )}
                 </div>
               ))}
               <div className="flex justify-between text-sm text-gray-800 dark:text-gray-200">
@@ -906,7 +913,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
                 {(isOwner || perms.sales?.discount) && (
                   <button className="text-xs underline" onClick={()=>setDiscountModalOpen(true)}>editar</button>
                 )}
-                <button className="text-xs text-red-600 dark:text-red-400 ml-2" onClick={()=>setDiscount({ type:null, value:0 })}>remover</button>
+                {(isOwner || perms.sales?.discount) && (
+                  <button className="text-xs text-red-600 dark:text-red-400 ml-2" onClick={()=>setDiscount({ type:null, value:0 })}>remover</button>
+                )}
               </span>
               <span>-{money(discountAmount)}</span>
             </div>

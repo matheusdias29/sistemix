@@ -1417,6 +1417,7 @@ export default function POSPage({ storeId, user }){
         onClose={() => setDetailModalOpen(false)}
         sale={selectedOrder}
         onView={handleViewOrder}
+        user={user}
       />
     </div>
   )

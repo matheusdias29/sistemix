@@ -543,6 +543,7 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
         storeId={storeId}
         store={store}
         products={products}
+        user={user}
 
         onEdit={(s) => { 
           setDetailModalOpen(false)
