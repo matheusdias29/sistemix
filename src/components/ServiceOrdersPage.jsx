@@ -2186,7 +2186,38 @@ const canEditService = isOwner || perms.services?.edit
               open={prodSelectOpen}
               onClose={()=>setProdSelectOpen(false)}
               products={cachedProducts || productsAll}
+              priceIndex={activeStore?.serviceOrderSettings?.defaultPriceIndex || 0}
+              showStock={activeStore?.serviceOrderSettings?.showStockInSelection || false}
               onChoose={(p)=>{
+                const defIdx = activeStore?.serviceOrderSettings?.defaultPriceIndex || 0
+                
+                // Tentativa de auto-seleção baseada na configuração
+                if (defIdx > 0 && p.variationsData && p.variationsData[defIdx]) {
+                  const variation = p.variationsData[defIdx]
+                  const vars = p.variationsData
+                  let effectiveStock = Number(variation.stock ?? variation.stockInitial ?? 0)
+                  
+                  // Lógica de estoque compartilhado (índices 1,2,3 usam estoque do 0)
+                  if (defIdx > 0 && defIdx < 4) {
+                    const base = vars[0]
+                    if (base) effectiveStock = Number(base.stock ?? base.stockInitial ?? 0)
+                  }
+
+                  // Verificar se a variação está ativa e tem estoque
+                  if (variation.active !== false && effectiveStock > 0) {
+                    setSelectedProduct(p)
+                    setSelectedVariation({ ...variation, stock: effectiveStock, stockInitial: effectiveStock })
+                    
+                    // Atualiza o preço explicitamente para evitar delay/flicker
+                    const price = variation.promoPrice ?? variation.salePrice ?? variation.price ?? 0
+                    setPriceInput(String(price))
+
+                    setProdSelectOpen(false)
+                    setAddProdOpen(true)
+                    return
+                  }
+                }
+
                 setSelectedProduct(p)
                 setSelectedVariation(null)
                 setProdSelectOpen(false)
@@ -2258,6 +2289,9 @@ const canEditService = isOwner || perms.services?.edit
               onClose={()=>setTechSelectOpen(false)}
               clients={techniciansList}
               onChoose={(u)=>{ setTechnician(u.name||''); setTechSelectOpen(false) }}
+              title="Selecionar Técnico"
+              emptyLabel="Nenhum técnico encontrado"
+              searchPlaceholder="Pesquisar técnico..."
             />
           )}
           {attendantSelectOpen && (
@@ -2266,6 +2300,9 @@ const canEditService = isOwner || perms.services?.edit
               onClose={()=>setAttendantSelectOpen(false)}
               clients={attendantsList}
               onChoose={(u)=>{ setAttendant(u.name||''); setAttendantSelectOpen(false) }}
+              title="Selecionar Atendente"
+              emptyLabel="Nenhum atendente encontrado"
+              searchPlaceholder="Pesquisar atendente..."
             />
           )}
           {unlockTypeOpen && (
@@ -2909,7 +2946,7 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
   )
 }
 
-function SelectProductModal({ open, onClose, products, onChoose, onNew }){
+function SelectProductModal({ open, onClose, products, onChoose, onNew, priceIndex = 0, showStock = false }){
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(20)
 
@@ -2923,6 +2960,31 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew }){
   const displayed = filtered.slice(0, limit)
   const hasMore = filtered.length > limit
 
+  const getPrice = (p) => {
+    // Se tiver variação correspondente ao índice
+    if (priceIndex > 0 && p.variationsData && p.variationsData[priceIndex]) {
+      const v = p.variationsData[priceIndex]
+      return v.salePrice ?? v.price ?? 0
+    }
+    // Fallback padrão
+    return p.priceMin ?? p.salePrice ?? 0
+  }
+
+  const getStock = (p) => {
+    // Se tiver variação correspondente ao índice
+    if (priceIndex > 0 && p.variationsData && p.variationsData[priceIndex]) {
+      const v = p.variationsData[priceIndex]
+      // Lógica de estoque compartilhado (índices 1,2,3 usam estoque do 0)
+      if (priceIndex < 4) {
+        const base = p.variationsData[0]
+        if (base) return Number(base.stock ?? base.stockInitial ?? 0)
+      }
+      return Number(v.stock ?? v.stockInitial ?? 0)
+    }
+    // Fallback: estoque total do produto ou da variação 0
+    return Number(p.stock || 0)
+  }
+
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[680px] max-w-[95vw]">
@@ -2934,11 +2996,18 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew }){
           <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           <div className="mt-3 max-h-[60vh] overflow-y-auto">
             {displayed.map(p => (
-              <div key={p.id} className="grid grid-cols-[1fr_8rem] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100" onClick={()=>onChoose(p)}>
+              <div key={p.id} className="grid grid-cols-[1fr_auto] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100" onClick={()=>onChoose(p)}>
                 <div>
                   <div className="font-medium">{p.name}</div>
                 </div>
-                <div className="text-right">{(p.priceMin ?? p.salePrice ?? 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                <div className="text-right flex flex-col items-end">
+                  <div>{Number(getPrice(p)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                  {showStock && (
+                    <div className={`text-xs ${getStock(p) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                      {getStock(p)} un.
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             {hasMore && (

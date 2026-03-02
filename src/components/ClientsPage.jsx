@@ -95,6 +95,16 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
               )
           }
 
+          // ORDENAÇÃO LOCAL OBRIGATÓRIA (nameLower ASC)
+          // Isso garante que o cache exiba na ordem correta, independente de como veio do servidor
+          result.sort((a, b) => {
+              const na = a.nameLower || a.name?.toLowerCase() || ''
+              const nb = b.nameLower || b.name?.toLowerCase() || ''
+              if (na < nb) return -1
+              if (na > nb) return 1
+              return 0
+          })
+
           // Atualiza total
           if (isMounted) setTotalResults(result.length)
 
@@ -111,6 +121,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       }
 
       // Se não temos cache, vai no servidor (Legado/Fallback enquanto carrega)
+      // Mantém loading true para evitar "Nenhum cliente encontrado"
       setLoading(true)
       try {
         if (query.trim()) {
@@ -125,6 +136,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
            
            if(isMounted) {
              setClients(newClients)
+             // Atualiza total apenas se for página 1
              if (page === 1) {
                 getTotalClientsCount(storeId).then(c => isMounted && setTotalResults(c))
              }

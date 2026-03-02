@@ -37,7 +37,9 @@ const STATUS_COLORS = [
 
 export default function ServiceOrderSettingsModal({ store, onClose }) {
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState('status')
+  const [activeTab, setActiveTab] = useState('general')
+  const [defaultPriceIndex, setDefaultPriceIndex] = useState(0)
+  const [showStockInSelection, setShowStockInSelection] = useState(false)
   
   const [settings, setSettings] = useState({
     warrantyText: '',
@@ -90,6 +92,9 @@ Volte sempre!`
       footerText: saved.footerText || defaultFooter,
       linkText: saved.linkText || ''
     })
+
+    setDefaultPriceIndex(saved.defaultPriceIndex || 0)
+    setShowStockInSelection(saved.showStockInSelection || false)
 
     // Statuses
     if (saved.statuses && Array.isArray(saved.statuses) && saved.statuses.length > 0) {
@@ -148,6 +153,8 @@ Volte sempre!`
       await updateStore(store.id, {
         serviceOrderSettings: {
           ...settings,
+          defaultPriceIndex,
+          showStockInSelection,
           statuses,
           checklists
         }
@@ -439,6 +446,12 @@ Volte sempre!`
             >
               Checklists
             </button>
+            <button 
+              onClick={() => setActiveTab('products')}
+              className={`px-4 py-3 text-sm font-medium border-b-2 ${activeTab === 'products' ? 'border-green-600 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            >
+              Produtos
+            </button>
          </div>
 
          {/* Content */}
@@ -587,6 +600,46 @@ Volte sempre!`
                            </div>
                         )}
                      </div>
+                  </div>
+               </div>
+            )}
+            {activeTab === 'products' && (
+               <div className="space-y-6 max-w-3xl mx-auto">
+                  <div className="bg-white p-6 rounded-lg shadow-sm border">
+                    <h3 className="text-base font-bold text-gray-900 mb-2">Precificação</h3>
+                    <p className="text-sm text-gray-500 mb-4">Defina qual precificação será exibida na listagem de produtos ao criar ou editar uma ordem de serviço.</p>
+                    
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Precificação Padrão</label>
+                    <select
+                      value={defaultPriceIndex}
+                      onChange={e => setDefaultPriceIndex(Number(e.target.value))}
+                      className="w-full border rounded-md p-3 text-sm bg-white"
+                    >
+                      <option value={0}>Precificação 1 (Padrão / Varejo)</option>
+                      <option value={1}>Precificação 2</option>
+                      <option value={2}>Precificação 3</option>
+                      <option value={3}>Precificação 4</option>
+                    </select>
+                    <p className="mt-2 text-xs text-gray-500">
+                      * A Precificação 1 corresponde ao preço de venda padrão ou à primeira variação.<br/>
+                      * As Precificações 2, 3 e 4 correspondem às variações subsequentes configuradas no produto.
+                    </p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-lg shadow-sm border">
+                    <h3 className="text-base font-bold text-gray-900 mb-2">Visualização</h3>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-700 text-sm">Exibir estoque na listagem</div>
+                        <div className="text-gray-500 text-xs">Mostra a quantidade em estoque junto com o preço ao selecionar produtos.</div>
+                      </div>
+                      <div 
+                        className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-colors ${showStockInSelection ? 'bg-green-500' : 'bg-gray-300'}`}
+                        onClick={() => setShowStockInSelection(!showStockInSelection)}
+                      >
+                        <div className={`w-4 h-4 rounded-full bg-white shadow-sm transition-transform ${showStockInSelection ? 'translate-x-6' : ''}`} />
+                      </div>
+                    </div>
                   </div>
                </div>
             )}

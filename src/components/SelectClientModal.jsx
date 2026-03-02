@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 
-export default function SelectClientModal({ open, onClose, clients=[], onChoose, onNew }){
+export default function SelectClientModal({ open, onClose, clients=[], onChoose, onNew, title = 'Selecionar cliente', newItemLabel = 'Novo Cliente', searchPlaceholder = 'Pesquisar por nome...', emptyLabel = 'Nenhum cliente encontrado' }){
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(20)
 
@@ -22,13 +22,15 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700 shrink-0">
-          <h3 className="font-semibold text-lg text-gray-800 dark:text-white">Selecionar cliente</h3>
-          <button 
-            onClick={onNew} 
-            className="px-3 py-1.5 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
-          >
-            <span>+</span> Novo Cliente
-          </button>
+          <h3 className="font-semibold text-lg text-gray-800 dark:text-white">{title}</h3>
+          {onNew && (
+            <button 
+              onClick={onNew} 
+              className="px-3 py-1.5 rounded text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition-colors flex items-center gap-1"
+            >
+              <span>+</span> {newItemLabel}
+            </button>
+          )}
         </div>
 
         {/* Search */}
@@ -38,13 +40,13 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
             <input
               value={query}
               onChange={e=>setQuery(e.target.value)}
-              placeholder="Pesquisar por nome..."
+              placeholder={searchPlaceholder}
               className="w-full border dark:border-gray-600 rounded-lg pl-9 pr-4 py-2.5 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all shadow-sm"
               autoFocus
             />
           </div>
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex justify-between">
-            <span>{filtered.length} clientes encontrados</span>
+            <span>{filtered.length} encontrados</span>
             {hasMore && <span>Mostrando {limit} primeiros</span>}
           </div>
         </div>
@@ -85,7 +87,7 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
           ) : (
             <div className="flex flex-col items-center justify-center h-40 text-gray-500 dark:text-gray-400">
               <span className="text-4xl mb-2">👥</span>
-              <p>Nenhum cliente encontrado</p>
+              <p>{emptyLabel}</p>
             </div>
           )}
         </div>

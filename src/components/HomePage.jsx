@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
 import { listenClients } from '../services/clients'
 import { listenStore } from '../services/stores'
+import { listenCurrentCash } from '../services/cash'
 import CommissionsModal from './CommissionsModal'
+import pixIcon from '../assets/pix.svg'
 import { 
   Receipt, 
   Eye, 
@@ -33,20 +35,23 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
   const [showCommissions, setShowCommissions] = useState(false)
   const [store, setStore] = useState(null)
   const [showAllTeamGoals, setShowAllTeamGoals] = useState(false)
+  const [currentCash, setCurrentCash] = useState(null)
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
     const unsubClients = listenClients(items => setClients(items), storeId)
     let unsubStore = null
+    let unsubCash = null
     if (storeId) {
         unsubStore = listenStore(storeId, (data) => setStore(data))
+        unsubCash = listenCurrentCash(storeId, (data) => setCurrentCash(data))
     }
     // lazy import para evitar dependência circular
     let unsubGoals = null
     import('../services/goals').then(({ listenGoals }) => {
       unsubGoals = listenGoals(items => setGoals(items), storeId)
     }).catch(() => {})
-    return () => { unsub && unsub(); unsubClients && unsubClients(); unsubGoals && unsubGoals(); unsubStore && unsubStore() }
+    return () => { unsub && unsub(); unsubClients && unsubClients(); unsubGoals && unsubGoals(); unsubStore && unsubStore(); unsubCash && unsubCash() }
   }, [storeId])
 
   const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
@@ -322,6 +327,61 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
 
     return Object.values(grouped)
   }, [goals, currentMonthStr, monthOrders])
+
+  // Meios de Pagamento (Caixa Atual)
+  const paymentMethodsData = useMemo(() => {
+    if (!currentCash || !currentCash.openedAt) return []
+
+    const openTime = currentCash.openedAt?.toDate ? currentCash.openedAt.toDate().getTime() : (currentCash.openedAt ? new Date(currentCash.openedAt).getTime() : 0)
+    const closeTime = Date.now() 
+
+    const methodsMap = {}
+    let total = 0
+
+    orders.forEach(o => {
+      if (o.status && o.status.toLowerCase().includes('cancelad')) return
+      
+      if (o.payments && Array.isArray(o.payments)) {
+        o.payments.forEach(p => {
+            let pTime = 0
+            if (p.date) {
+              pTime = p.date.toDate ? p.date.toDate().getTime() : new Date(p.date).getTime()
+            } else {
+              const d = o.createdAt?.toDate ? o.createdAt.toDate() : new Date(o.createdAt || 0)
+              pTime = d.getTime()
+            }
+
+            if (pTime >= openTime) {
+                const amount = Number(p.amount || 0)
+                if (amount > 0) {
+                    let label = p.method || 'Outros'
+                    const lower = label.toLowerCase()
+                    if (lower === 'dinheiro' || p.methodCode === 'cash') label = 'Dinheiro'
+                    else if (lower.includes('pix')) label = 'Pix'
+                    else if (lower.includes('crédito') || lower.includes('credito')) label = 'Cartão de Crédito'
+                    else if (lower.includes('débito') || lower.includes('debito')) label = 'Cartão de Débito'
+                    
+                    if (!methodsMap[label]) methodsMap[label] = { label, value: 0 }
+                    methodsMap[label].value += amount
+                    total += amount
+                }
+            }
+        })
+      }
+    })
+
+    const colors = [
+      '#10B981', '#34D399', '#059669', '#6EE7B7', '#047857', '#A7F3D0', '#065F46', '#D1FAE5'
+    ]
+
+    return Object.values(methodsMap)
+      .sort((a, b) => b.value - a.value)
+      .map((m, index) => ({
+        ...m,
+        color: colors[index % colors.length],
+        percent: total ? (m.value / total) * 100 : 0
+      }))
+  }, [orders, currentCash])
 
   const getInitials = (name) => name ? name.split(' ').map(n=>n[0]).slice(0,2).join('').toUpperCase() : '?'
 
@@ -805,6 +865,76 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
               )
             })}
           </div>
+        </div>
+      </section>
+      )}
+
+      {/* Meios de Pagamento (Caixa Atual) */}
+      {(isOwner || perms.cash?.view) && paymentMethodsData.length > 0 && (
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-6">
+           <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
+             <div className="relative w-6 h-6">
+               <div className="absolute inset-0 rounded-full border-2 border-green-600 opacity-20"></div>
+               <div className="absolute inset-0 rounded-full border-2 border-green-600 border-l-transparent -rotate-45"></div>
+             </div>
+           </div>
+           <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Meios de pagamento</h3>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-center justify-between gap-8 md:gap-16">
+           {/* Donut Chart */}
+           <div className="relative w-48 h-48 md:w-64 md:h-64 flex-shrink-0">
+              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                {paymentMethodsData.map((m, i) => {
+                   const radius = 40
+                   const circumference = 2 * Math.PI * radius
+                   const strokeDasharray = `${(m.percent / 100) * circumference} ${circumference}`
+                   const prevPercent = paymentMethodsData.slice(0, i).reduce((acc, curr) => acc + curr.percent, 0)
+                   const strokeDashoffset = -((prevPercent / 100) * circumference)
+                   
+                   return (
+                     <circle
+                       key={i}
+                       cx="50"
+                       cy="50"
+                       r={radius}
+                       fill="transparent"
+                       stroke={m.color}
+                       strokeWidth="15"
+                       strokeDasharray={strokeDasharray}
+                       strokeDashoffset={strokeDashoffset}
+                       className="transition-all duration-500 hover:opacity-90"
+                     />
+                   )
+                })}
+              </svg>
+           </div>
+
+           {/* List */}
+           <div className="flex-1 w-full space-y-4">
+              {paymentMethodsData.map((m, i) => (
+                <div key={i} className="flex items-center justify-between group p-2 hover:bg-gray-50 dark:hover:bg-gray-700/30 rounded-lg transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="text-gray-500 dark:text-gray-400">
+                      {m.label === 'Dinheiro' && <div className="w-5 h-5">💵</div>}
+                      {m.label === 'Pix' && <img src={pixIcon} className="w-5 h-5 opacity-70 grayscale group-hover:grayscale-0 transition-all" alt="Pix" />}
+                      {(m.label !== 'Dinheiro' && m.label !== 'Pix') && <div className="w-5 h-5">💳</div>}
+                    </div>
+                    <span className="text-base font-medium text-gray-700 dark:text-gray-300">{m.label}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-base font-bold text-green-600 dark:text-green-400">{currencyOrHidden(m.value)}</div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">Taxas: R$ 0,00</div>
+                  </div>
+                </div>
+              ))}
+              
+              <div className="pt-4 mt-4 border-t border-gray-100 dark:border-gray-700 flex justify-between items-center px-2">
+                 <span className="font-medium text-gray-600 dark:text-gray-400">Total de taxas</span>
+                 <span className="font-medium text-gray-500 dark:text-gray-400">R$ 0,00</span>
+              </div>
+           </div>
         </div>
       </section>
       )}
