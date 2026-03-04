@@ -7,24 +7,7 @@ export default function FiscalNotesPage({ storeId }){
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [newOpen, setNewOpen] = useState(false)
 
-  const notes = useMemo(() => ([
-    { id: 'n1', type: 'nfe', series: 1, number: 1409, operation: 'Venda de Mercadorias', recipient: 'PREFEITURA MUNICIPAL DE COROADOS', issue: '13/11/2025', value: 64.90, status: 'authorized' },
-    { id: 'n2', type: 'nfe', series: 1, number: 1408, operation: 'Venda de Mercadorias', recipient: 'SIDNEI SANTANA', issue: '12/11/2025', value: 1999.90, status: 'authorized' },
-    { id: 'n3', type: 'nfe', series: 1, number: 1407, operation: 'Venda de Mercadorias', recipient: 'SOLANGE BORGES', issue: '10/11/2025', value: 171.00, status: 'authorized' },
-    { id: 'n4', type: 'nfe', series: 1, number: 1406, operation: 'Venda de Mercadorias', recipient: 'PREFEITURA MUNICIPAL DE COROADOS', issue: '09/10/2025', value: 93.90, status: 'authorized' },
-    { id: 'n5', type: 'nfe', series: 1, number: 1405, operation: 'Venda de Mercadorias', recipient: 'BEATRIZ STABILE GOBBY', issue: '07/10/2025', value: 50.00, status: 'authorized' },
-    { id: 'n6', type: 'nfe', series: 1, number: 1404, operation: 'Venda de Mercadorias', recipient: 'PREFEITURA MUNICIPAL DE COROADOS', issue: '03/10/2025', value: 130.00, status: 'authorized' },
-    { id: 'n7', type: 'nfe', series: 1, number: 1403, operation: 'Venda de Mercadorias', recipient: 'JACQUELINE MARTINS', issue: '12/09/2025', value: 2300.00, status: 'authorized' },
-    { id: 'n8', type: 'nfe', series: 1, number: 1402, operation: 'Venda de Mercadorias', recipient: 'PATRICIA GALHARDO', issue: '03/09/2025', value: 1499.90, status: 'authorized' },
-    { id: 'n9', type: 'nfe', series: 1, number: 1399, operation: 'Venda de Mercadorias', recipient: 'ASSOCIAÇÃO DOS PROPRIETÁRIOS DO IMBANTE DE BONITO', issue: '23/08/2025', value: 899.90, status: 'authorized' },
-    { id: 'n10', type: 'nfe', series: 1, number: 1398, operation: 'Venda de Mercadorias', recipient: 'JORGE RIBEIRO', issue: '21/08/2025', value: 390.00, status: 'authorized' },
-    { id: 'n11', type: 'nfe', series: 1, number: 1397, operation: 'Venda de Mercadorias', recipient: 'JOÃO VICTOR RODRIGUES SANTOS', issue: '19/08/2025', value: 219.00, status: 'authorized' },
-    { id: 'n12', type: 'nfe', series: 1, number: 1396, operation: 'Venda de Mercadorias', recipient: 'FÁTIMA DA SILVA CARDOZO', issue: '18/08/2025', value: 399.90, status: 'authorized' },
-    { id: 'n13', type: 'nfe', series: 1, number: 1395, operation: 'Venda de Mercadorias', recipient: 'MARÍLIO CHINCHE', issue: '07/08/2025', value: 49.90, status: 'authorized' },
-    { id: 'n14', type: 'nfe', series: 1, number: 1394, operation: 'Venda de Mercadorias', recipient: 'ANDREA CRISTINA MAGNANI ALVES', issue: '06/08/2025', value: 309.90, status: 'authorized' },
-    { id: 'n15', type: 'nfe', series: 1, number: 1393, operation: 'Venda de Mercadorias', recipient: 'MATEUS GABRIEL FRADI', issue: '30/07/2025', value: 300.00, status: 'authorized' },
-    { id: 'n16', type: 'nfe', series: 1, number: 1392, operation: 'Venda de Mercadorias', recipient: 'MARIANA SILVA', issue: '29/07/2025', value: 0, status: 'rejected' }
-  ]), [])
+  const notes = useMemo(() => ([]), [])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -114,50 +97,8 @@ export default function FiscalNotesPage({ storeId }){
         </div>
       </div>
 
-      <div className="bg-white rounded shadow overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead className="bg-gray-50 text-gray-600 font-medium border-b">
-            <tr>
-              <th className="py-3 px-4 text-left">NF-e</th>
-              <th className="py-3 px-4 text-left">NFC-e</th>
-              <th className="py-3 px-4 text-left">Sér./ Nº</th>
-              <th className="py-3 px-4 text-left">Operação</th>
-              <th className="py-3 px-4 text-left">Destinatário</th>
-              <th className="py-3 px-4 text-left">Emissão</th>
-              <th className="py-3 px-4 text-right">Valor</th>
-              <th className="py-3 px-4 text-center">Status</th>
-              <th className="py-3 px-4 w-10"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {filtered.map(n => (
-              <tr key={n.id} className="hover:bg-gray-50">
-                <td className="py-3 px-4">{n.type === 'nfe' ? `${n.series}/${n.number}` : '-'}</td>
-                <td className="py-3 px-4">{n.type === 'nfce' ? `${n.series}/${n.number}` : '-'}</td>
-                <td className="py-3 px-4">{`${n.series}/${n.number}`}</td>
-                <td className="py-3 px-4 text-gray-700">{n.operation}</td>
-                <td className="py-3 px-4 text-gray-700">{n.recipient}</td>
-                <td className="py-3 px-4 text-gray-600">{n.issue}</td>
-                <td className="py-3 px-4 text-right font-medium">{money(n.value)}</td>
-                <td className="py-3 px-4 text-center">
-                  <span className={`px-2 py-0.5 rounded text-xs font-semibold border ${
-                    n.status === 'authorized' ? 'bg-green-50 text-green-700 border-green-200' :
-                    n.status === 'pending' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                    'bg-red-50 text-red-700 border-red-200'
-                  }`}>
-                    {n.status === 'authorized' ? 'Autorizada' : n.status === 'pending' ? 'Pendente' : 'Rejeitada'}
-                  </span>
-                </td>
-                <td className="py-3 px-4 text-center text-gray-400">⋮</td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan="9" className="px-6 py-10 text-center text-gray-500">Nenhuma nota encontrada.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="bg-white rounded shadow p-10 flex items-center justify-center text-gray-500 text-lg">
+        Em criação
       </div>
     </div>
   )
