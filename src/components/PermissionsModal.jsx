@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Switch from './Switch'
 
 const defaultPermissions = {
-  products: { create: false, edit: false, delete: false, view: false },
+  products: { create: false, edit: false, delete: false, view: false, viewCost: false },
   sales: { viewAll: false, finalize: false, cancel: false, delete: false, changePrice: false, edit: false, discount: false, fees: false },
   serviceOrders: { view: false, create: false, edit: false, delete: false, changeStatus: false, changeValues: false },
   services: { create: false, edit: false },
@@ -52,6 +52,7 @@ export default function PermissionsModal({ open, onClose, initialPermissions={},
         <div className="p-4 max-h-[70vh] overflow-y-auto">
           <Section title="Produtos">
             <Switch checked={perms.products.view} onChange={toggle('products','view')} label="Visualizar produtos" />
+            <Switch checked={perms.products.viewCost} onChange={toggle('products','viewCost')} label="Visualizar custo" />
             <Switch checked={perms.products.create} onChange={toggle('products','create')} label="Cadastrar produtos" />
             <Switch checked={perms.products.edit} onChange={toggle('products','edit')} label="Editar produtos" />
             <Switch checked={perms.products.delete} onChange={toggle('products','delete')} label="Excluir produtos" />

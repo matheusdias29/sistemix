@@ -117,6 +117,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [isAccessories, setIsAccessories] = useState(false)
   const [isSundries, setIsSundries] = useState(false)
 
+  const isOwner = !user?.memberId
+  const perms = user?.permissions || {}
+  const canViewCost = isOwner || perms.products?.viewCost
+
   // Variation Config
   const [variationMode, setVariationMode] = useState('4P')
   const [pricingConfig, setPricingConfig] = useState({ groups: [] })
@@ -1005,8 +1009,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       <div className="font-semibold mb-2">Preço e estoque</div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="text-xs text-gray-600">Custo</label>
-          <input type="number" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          {canViewCost && (
+            <>
+              <label className="text-xs text-gray-600">Custo</label>
+              <input type="number" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+            </>
+          )}
         </div>
         <div>
           <label className="text-xs text-gray-600">Preço de venda</label>
@@ -1018,7 +1026,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         </div>
       </div>
       <div className="mt-2">
-        <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
+        {canViewCost && (
+          <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
+        )}
       </div>
       <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
@@ -1157,7 +1167,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 <div className="text-xs text-gray-500 dark:text-gray-400 pt-[1px]">{(reference || '').trim() ? reference : ''}</div>
                 <div className="text-right">
                   <div className="text-base font-semibold leading-tight dark:text-white">{((v.promoPrice ?? v.salePrice) ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-                  <div className="text-xs text-gray-600 dark:text-gray-400">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+                  {canViewCost && <div className="text-xs text-gray-600 dark:text-gray-400">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>}
                 </div>
               </div>
             </div>
@@ -1172,17 +1182,17 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       <div className="hidden md:block">
         <div className="text-xs text-gray-600 dark:text-gray-400">{variationsData.length} precificações</div>
         <div className="mt-2 border dark:border-gray-600 rounded overflow-hidden">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+          <div className={`grid px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-900 ${canViewCost ? 'grid-cols-[2fr_1fr_1fr_1fr_1fr]' : 'grid-cols-[2fr_1fr_1fr_1fr]'}`}>
             <div>Nome</div>
-            <div className="text-right">Custo</div>
+            {canViewCost && <div className="text-right">Custo</div>}
             <div className="text-right">Preço</div>
             <div className="text-right">Estoque Min.</div>
             <div className="text-right">Estoque</div>
           </div>
           {variationsData.map((v, idx) => (
-            <div key={idx} className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr] px-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm">
+            <div key={idx} className={`grid px-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm ${canViewCost ? 'grid-cols-[2fr_1fr_1fr_1fr_1fr]' : 'grid-cols-[2fr_1fr_1fr_1fr]'}`}>
               <div className="truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
-              <div className="text-right dark:text-gray-300">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
+              {canViewCost && <div className="text-right dark:text-gray-300">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>}
               <div className="text-right dark:text-gray-300">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
               <div className="text-right dark:text-gray-300">{idx === 0 ? (v.stockMin ?? 0) : ''}</div>
               <div className={`text-right ${(v.stock ?? 0) > 0 ? 'dark:text-gray-300' : 'text-red-600 dark:text-red-400'}`}>{idx === 0 ? (v.stock ?? 0) : ''}</div>

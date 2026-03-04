@@ -125,21 +125,26 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   useEffect(() => {
     function handleResize() {
       const w = window.innerWidth
+      const canViewCost = isOwner || perms.products?.viewCost
       if (w < 768) {
         setGridCols(null) // mobile default via class
         setShowExtras(false)
       } else {
         // Desktop/Tablet - Show columns with more espaço para o nome do produto
-        // Checkbox | Produto | Custo | Código | Atualizado | Hora | Funcionário | Preço | Estoque | Status | Actions
+        // Checkbox | Produto | Custo (Condicional) | Código | Atualizado | Hora | Funcionário | Preço | Estoque | Status | Actions
         // Aumenta largura do Produto e compacta Código/Atualizado/Hora
-        setGridCols('1.5rem minmax(0, 2fr) 6rem 4.75rem 4.5rem 3rem minmax(0, 0.8fr) 8rem 5rem 5.5rem 2rem')
+        if (canViewCost) {
+           setGridCols('1.5rem minmax(0, 2fr) 6rem 4.75rem 4.5rem 3rem minmax(0, 0.8fr) 8rem 5rem 5.5rem 2rem')
+        } else {
+           setGridCols('1.5rem minmax(0, 2fr) 4.75rem 4.5rem 3rem minmax(0, 0.8fr) 8rem 5rem 5.5rem 2rem')
+        }
         setShowExtras(true)
       }
     }
     handleResize()
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [isOwner, perms.products?.viewCost])
 
   const [movementsModalOpen, setMovementsModalOpen] = useState(false)
   const [movementsTargetProduct, setMovementsTargetProduct] = useState(null)
@@ -1615,7 +1620,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           >
             <div></div>
             <div>Produto ({totalResults})</div>
-          {showExtras && <div className="text-right pr-2">Custo</div>}
+          {showExtras && (isOwner || perms.products?.viewCost) && <div className="text-right pr-2">Custo</div>}
           {showExtras && <div>Código</div>}
           {showExtras && <div className="text-center">Atualizado </div>}
             {showExtras && <div className="text-center">Hora</div>}
@@ -1747,7 +1752,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       <span className={stockDotClass} />
                     </div>
                   </div>
-                  {showExtras && (
+                  {showExtras && (isOwner || perms.products?.viewCost) && (
                     <div className="hidden md:block text-right pr-2 text-xs lg:text-sm text-gray-700 dark:text-gray-300">
                       {(Number(p.cost || 0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                     </div>
