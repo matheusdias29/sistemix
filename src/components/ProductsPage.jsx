@@ -1823,8 +1823,13 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       onClick={(e) => {
                         e.stopPropagation()
                         const rect = e.currentTarget.getBoundingClientRect()
-                        // w-56 = 14rem = 224px. Ajuste para alinhar a direita do menu com a direita do botão
-                        setMenuPos({ top: rect.bottom + 2, left: rect.right - 224 })
+                        const spaceBelow = window.innerHeight - rect.bottom
+                        // Se tiver pouco espaço embaixo (ex: < 320px), abre para cima
+                        if (spaceBelow < 320) {
+                          setMenuPos({ bottom: window.innerHeight - rect.top + 4, left: rect.right - 224, top: 'auto' })
+                        } else {
+                          setMenuPos({ top: rect.bottom + 2, left: rect.right - 224, bottom: 'auto' })
+                        }
                         setOpenMenuId(openMenuId === p.id ? null : p.id)
                       }}
                     >
@@ -1833,7 +1838,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     {openMenuId === p.id && (
                       <div 
                         className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg"
-                        style={{ top: menuPos.top, left: menuPos.left }}
+                        style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="py-2">
@@ -2001,7 +2006,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       onClick={(e) => {
                         e.stopPropagation()
                         const rect = e.currentTarget.getBoundingClientRect()
-                        setMenuPos({ top: rect.bottom + 2, left: rect.right - 224 })
+                        const spaceBelow = window.innerHeight - rect.bottom
+                        if (spaceBelow < 250) {
+                          setMenuPos({ bottom: window.innerHeight - rect.top + 4, left: rect.right - 224, top: 'auto' })
+                        } else {
+                          setMenuPos({ top: rect.bottom + 2, left: rect.right - 224, bottom: 'auto' })
+                        }
                         setCategoryMenuId(categoryMenuId === c.id ? null : c.id)
                       }}
                     >
@@ -2010,7 +2020,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     {categoryMenuId === c.id && (
                       <div 
                         className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg"
-                        style={{ top: menuPos.top, left: menuPos.left }}
+                        style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="py-2">
@@ -2077,7 +2087,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       onClick={(e) => {
                         e.stopPropagation()
                         const rect = e.currentTarget.getBoundingClientRect()
-                        setMenuPos({ top: rect.bottom + 2, left: rect.right - 224 })
+                        const spaceBelow = window.innerHeight - rect.bottom
+                        if (spaceBelow < 250) {
+                          setMenuPos({ bottom: window.innerHeight - rect.top + 4, left: rect.right - 224, top: 'auto' })
+                        } else {
+                          setMenuPos({ top: rect.bottom + 2, left: rect.right - 224, bottom: 'auto' })
+                        }
                         setSupplierMenuId(supplierMenuId === s.id ? null : s.id)
                       }}
                     >
@@ -2086,7 +2101,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     {supplierMenuId === s.id && (
                       <div 
                         className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg"
-                        style={{ top: menuPos.top, left: menuPos.left }}
+                        style={{ top: menuPos.top, bottom: menuPos.bottom, left: menuPos.left }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <div className="py-2">

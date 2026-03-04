@@ -1482,6 +1482,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         {varModalOpen && (
             <VariationsModal
               open={varModalOpen}
+              user={user}
               commissionPercent={commissionPercent}
               initialItems={variationsData.length ? variationsData : [makeVarFromProduct()]}
               defaultMarkups={(function(){

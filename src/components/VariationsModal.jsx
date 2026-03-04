@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react'
 
-export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null, defaultMarkupModes = null, defaultMarkupAddCost = null }){
+export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null, defaultMarkupModes = null, defaultMarkupAddCost = null, user }){
+  const isOwner = !user?.memberId
+  const perms = user?.permissions || {}
+  const canViewCost = isOwner || perms.products?.viewCost
+
   const toEditable = (it = {}) => ({
     name: it.name ?? '',
     cost: String(it.cost ?? '0'),
@@ -206,7 +210,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                           </div>
                           <div className="text-right">
                             <div className="text-base font-semibold leading-tight">{fmtBRL(it.promoPrice || it.salePrice)}</div>
-                            <div className="text-xs text-gray-600">Custo: {fmtBRL(it.cost)}</div>
+                            {canViewCost && <div className="text-xs text-gray-600">Custo: {fmtBRL(it.cost)}</div>}
                           </div>
                         </div>
                       </button>
@@ -216,14 +220,16 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da precificação" />
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3">
-                            <div>
-                              <label className="text-xs text-gray-600">Custo</label>
-                              <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                            </div>
+                            {canViewCost && (
+                              <div>
+                                <label className="text-xs text-gray-600">Custo</label>
+                                <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                              </div>
+                            )}
                             <div>
                               <label className="text-xs text-gray-600">Preço de venda</label>
                               <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                              {defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
+                              {canViewCost && defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
                                 <div className="mt-1 text-[10px] text-blue-600 bg-blue-50 p-1 rounded border border-blue-100">
                                   <div>
                                     Margem Cat.: <b>
@@ -265,7 +271,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             </div>
                           </div>
                           <div className="mt-2">
-                            <button type="button" onClick={()=>openCalc(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
+                            {canViewCost && <button type="button" onClick={()=>openCalc(idx)} className="text-xs text-green-700">Calcular preço de venda</button>}
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3">
                             <div>
@@ -321,15 +327,17 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                         <input value={it.name} onChange={e=>updateItem(idx,'name', e.target.value)} className="w-full border rounded px-3 py-2 text-sm" placeholder="Nome da precificação" />
                       </div>
                     </div>
-                    <div className="mt-3 grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="text-xs text-gray-600">Custo</label>
-                        <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                      </div>
+                    <div className={`mt-3 grid ${canViewCost ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
+                      {canViewCost && (
+                        <div>
+                          <label className="text-xs text-gray-600">Custo</label>
+                          <input type="number" step="0.01" value={it.cost} onChange={e=>updateItem(idx,'cost', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                        </div>
+                      )}
                       <div>
                         <label className="text-xs text-gray-600">Preço de venda</label>
                         <input type="number" step="0.01" value={it.salePrice} onChange={e=>updateItem(idx,'salePrice', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                        {defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
+                        {canViewCost && defaultMarkups && defaultMarkups[`p${idx+1}`] > 0 && (
                           <div className="mt-1 text-[11px] text-blue-600 bg-blue-50 p-1 rounded border border-blue-100 flex items-center justify-between gap-1">
                             <div>
                               <div>
@@ -371,7 +379,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                       </div>
                     </div>
                     <div className="mt-2">
-                      <button type="button" onClick={()=>openCalc(idx)} className="text-xs text-green-700">Calcular preço de venda</button>
+                      {canViewCost && <button type="button" onClick={()=>openCalc(idx)} className="text-xs text-green-700">Calcular preço de venda</button>}
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-4">
                       <div>
