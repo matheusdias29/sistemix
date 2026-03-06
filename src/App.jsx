@@ -407,7 +407,7 @@ export default function App(){
           ) : view === 'produtos' ? (
             <div className="mt-4 md:mt-6"><ProductsPage storeId={store?.id} addNewSignal={addNewSignal} user={user} /></div>
           ) : view === 'termos' ? (
-            <div className="mt-4 md:mt-6"><TermsPage storeId={store?.id} /></div>
+            <div className="mt-4 md:mt-6"><TermsPage storeId={store?.id} user={user} /></div>
           ) : view === 'catalogo' ? (
             <div className="mt-4 md:mt-6"><CatalogPage storeId={store?.id} store={store} onNavigate={onNavigate} /></div>
           ) : view === 'catalogoPreview' ? (

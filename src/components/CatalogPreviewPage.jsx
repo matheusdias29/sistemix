@@ -30,6 +30,12 @@ export default function CatalogPreviewPage({ storeId, store }) {
     if (outOfStock === 'hide') {
       list = list.filter(p => Number(p.stock || 0) > 0)
     }
+    // Sort featured first
+    list.sort((a, b) => {
+      if (!!a.featured && !b.featured) return -1
+      if (!a.featured && !!b.featured) return 1
+      return 0
+    })
     return list
   }, [products, query, outOfStock])
 
@@ -69,7 +75,12 @@ export default function CatalogPreviewPage({ storeId, store }) {
           const stockZero = Number(p.stock || 0) === 0
           const disabled = outOfStock === 'disabled' && stockZero
           return (
-            <div key={p.id} className={`rounded-lg border bg-white p-3 flex flex-col h-full ${disabled ? 'opacity-60' : ''}`}>
+            <div key={p.id} className={`rounded-lg border bg-white p-3 flex flex-col h-full relative ${disabled ? 'opacity-60' : ''} ${p.featured ? 'border-yellow-400 ring-1 ring-yellow-400/20' : ''}`}>
+              {p.featured && (
+                <div className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded shadow-sm z-10">
+                  DESTAQUE
+                </div>
+              )}
               <div className="h-28 bg-gray-100 rounded mb-2 flex items-center justify-center text-xs text-gray-500">Imagem</div>
               <div className="text-sm font-medium">{p.name}</div>
               <div className="mt-auto">

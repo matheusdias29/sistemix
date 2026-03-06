@@ -86,6 +86,14 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
         (p.reference || '').toLowerCase().includes(q)
       )
     }
+    
+    // Ordenar por destaque primeiro
+    list.sort((a, b) => {
+      if (!!a.featured && !b.featured) return -1
+      if (!a.featured && !!b.featured) return 1
+      return 0
+    })
+
     return list
   }, [productsWithCategory, query, selectedCategory, outOfStockSetting])
 
@@ -356,9 +364,14 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
               }
 
               return (
-                <div key={p.id} className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative">
+                <div key={p.id} className={`group bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative ${p.featured ? 'border-2 border-yellow-400 ring-1 ring-yellow-400/20' : 'border border-gray-100'}`}>
                   {/* Image Area */}
                   <div className="aspect-square bg-gray-50 relative overflow-hidden">
+                    {p.featured && (
+                      <div className="absolute top-2 right-2 bg-yellow-400 text-yellow-900 text-[10px] font-bold px-2 py-1 rounded shadow-sm z-10">
+                        DESTAQUE
+                      </div>
+                    )}
                     {p.imageUrl ? (
                       <img 
                         src={p.imageUrl} 

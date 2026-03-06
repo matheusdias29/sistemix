@@ -14,6 +14,7 @@ const defaultPermissions = {
   cash: { view: false, open: false, close: false, viewReopenPrevious: false },
   settings: { view: false, company: false, users: false, payments: false, taxes: false, commissions: false, os: false },
   statistics: { view: false },
+  terms: { view: false, edit: false },
 }
 
 export default function PermissionsModal({ open, onClose, initialPermissions={}, onConfirm }){
@@ -50,6 +51,11 @@ export default function PermissionsModal({ open, onClose, initialPermissions={},
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
         </div>
         <div className="p-4 max-h-[70vh] overflow-y-auto">
+          <Section title="Termos">
+            <Switch checked={perms.terms?.view} onChange={toggle('terms','view')} label="Visualizar termos" />
+            <Switch checked={perms.terms?.edit} onChange={toggle('terms','edit')} label="Editar termos" />
+          </Section>
+
           <Section title="Produtos">
             <Switch checked={perms.products.view} onChange={toggle('products','view')} label="Visualizar produtos" />
             <Switch checked={perms.products.viewCost} onChange={toggle('products','viewCost')} label="Visualizar custo" />

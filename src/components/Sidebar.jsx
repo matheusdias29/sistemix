@@ -44,7 +44,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     if (!isOwner) {
       base = all.filter(i => {
         if (i.key === 'inicio') return true
-        if (i.key === 'termos') return true
+        if (i.key === 'termos') return perms.terms?.view || perms.terms?.edit
         if (i.key === 'catalogo') return true
         
         if (i.key === 'clientes') return perms.clients?.view || perms.clients?.create || perms.clients?.edit || perms.clients?.delete

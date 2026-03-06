@@ -192,9 +192,12 @@ const TERM_FILENAMES = {
   'recibo-pagamento-comissao-funcionarios': 'RECIBO_PAGAMENTO_COMISSAO_FUNCIONARIOS.pdf',
 }
 
-export default function TermsPage({ storeId }) {
+export default function TermsPage({ storeId, user }) {
   const [terms, setTerms] = useState([])
   const [loading, setLoading] = useState(true)
+
+  const canEdit = user?.role === 'owner' || user?.permissions?.terms?.edit
+  const canView = user?.role === 'owner' || user?.permissions?.terms?.view || canEdit
 
   const [selectedTermId, setSelectedTermId] = useState('')
   const [editorText, setEditorText] = useState('')
@@ -357,6 +360,10 @@ export default function TermsPage({ storeId }) {
     return <div className="p-6">Carregando termos...</div>
   }
 
+  if (!canView) {
+    return <div className="p-6 text-red-600">Você não tem permissão para visualizar esta página.</div>
+  }
+
   return (
     <div className="rounded-lg bg-white p-6 shadow">
       <div className="flex justify-between items-center mb-4">
@@ -368,16 +375,18 @@ export default function TermsPage({ storeId }) {
               : 'Selecione um termo, edite o texto e depois imprima ou baixe o documento.'}
           </p>
         </div>
-        <button
-          onClick={() => setIsEditingMode(!isEditingMode)}
-          className={`px-3 py-1 text-sm rounded border transition-colors ${
-            isEditingMode 
-              ? 'bg-blue-100 border-blue-500 text-blue-700' 
-              : 'bg-green-600 border-green-600 text-white hover:bg-green-700'
-          }`}
-        >
-          {isEditingMode ? 'Sair da Edição' : 'Editar Termos'}
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => setIsEditingMode(!isEditingMode)}
+            className={`px-3 py-1 text-sm rounded border transition-colors ${
+              isEditingMode 
+                ? 'bg-blue-100 border-blue-500 text-blue-700' 
+                : 'bg-green-600 border-green-600 text-white hover:bg-green-700'
+            }`}
+          >
+            {isEditingMode ? 'Sair da Edição' : 'Editar Termos'}
+          </button>
+        )}
       </div>
 
       <div className="flex flex-col gap-4">

@@ -1446,16 +1446,25 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 )}
               </div>
               <div className="px-5 py-3 border-t dark:border-gray-700 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
-                    setCatalogConfigSelection(names)
-                  }}
-                  className="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
-                >
-                  Selecionar todas
-                </button>
+                <div className="flex items-center gap-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const names = (variationsData && variationsData.length ? variationsData : []).map((v, idx) => (v.name || `Precificação ${idx+1}`))
+                      setCatalogConfigSelection(names)
+                    }}
+                    className="text-xs text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white"
+                  >
+                    Selecionar todas
+                  </button>
+
+                  <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                    <span>Destacar Produto</span>
+                    <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                      <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
+                    </button>
+                  </label>
+                </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
