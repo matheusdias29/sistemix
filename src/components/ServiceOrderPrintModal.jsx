@@ -62,14 +62,23 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       .text-right { text-align: right; }
       .text-left { text-align: left; }
       .font-bold { font-weight: bold; }
-      .text-xs { font-size: 10px; }
-      .text-sm { font-size: 12px; }
-      .text-base { font-size: 14px; }
-      .text-lg { font-size: 16px; }
+      .text-xs { font-size: 8px; }
+      .text-sm { font-size: 10px; }
+      .text-base { font-size: 12px; }
+      .text-lg { font-size: 14px; }
       .border-b { border-bottom: 1px dashed #000; }
       .border-t { border-top: 1px dashed #000; }
       .my-2 { margin-top: 8px; margin-bottom: 8px; }
+      .my-8 { margin-top: 32px; margin-bottom: 32px; }
       .py-1 { padding-top: 4px; padding-bottom: 4px; }
+      .pt-4 { padding-top: 16px; }
+      .pt-8 { padding-top: 32px; }
+      .pb-4 { padding-bottom: 16px; }
+      .pb-8 { padding-bottom: 32px; }
+      .mb-1 { margin-bottom: 4px; }
+      .mb-4 { margin-bottom: 16px; }
+      .mb-8 { margin-bottom: 32px; }
+      .mb-12 { margin-bottom: 48px; }
       .flex { display: flex; }
       .justify-between { justify-content: space-between; }
       .items-center { align-items: center; }
@@ -370,18 +379,18 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               )}
 
               <div className="mt-8 border-t border-black pt-2 text-center">
-                <div className="mb-6">
+                <div className="mb-12 pt-8">
                   <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
                   <div className="text-xs">Assinatura do Cliente</div>
                 </div>
 
-                <div className="mb-4">
+                <div className="mb-8 pt-8">
                   <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
                   <div className="text-xs">Assinatura do Técnico</div>
                 </div>
                 
                 {(store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText) && (
-                  <div className="text-[9px] text-justify leading-tight mt-4">
+                  <div className="text-[8px] text-justify leading-tight mt-8 pt-4 border-t border-black">
                     <strong>TERMO DE GARANTIA:</strong> {store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText || 'Garantia de 90 dias para serviços e peças.'}
                   </div>
                 )}
