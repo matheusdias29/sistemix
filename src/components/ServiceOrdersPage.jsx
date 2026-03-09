@@ -22,6 +22,7 @@ import ServiceOrderSettingsModal from './ServiceOrderSettingsModal'
 import SelectChecklistModal from './SelectChecklistModal'
 import ChecklistQuestionsModal from './ChecklistQuestionsModal'
 import { useDarkMode } from '../hooks/useDarkMode'
+import ServiceOrderPrintModal from './ServiceOrderPrintModal'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../lib/firebase'
 
@@ -292,6 +293,8 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [rowMenuOpenId, setRowMenuOpenId] = useState(null)
   const [rowMenuPos, setRowMenuPos] = useState({ left: 0, top: 0 })
   const [statusTargetOrder, setStatusTargetOrder] = useState(null)
+  const [printModalOpen, setPrintModalOpen] = useState(false)
+  const [printTargetOrder, setPrintTargetOrder] = useState(null)
   // Estado do formulário Nova OS
   const [client, setClient] = useState('')
   const [clientSelectOpen, setClientSelectOpen] = useState(false)
@@ -663,6 +666,8 @@ const canEditService = isOwner || perms.services?.edit
         expectedDate: expectedDate ? new Date(expectedDate) : null,
         brand,
         model,
+        imei1,
+        imei2,
         serialNumber,
         equipment,
         problem,
@@ -1640,7 +1645,11 @@ const canEditService = isOwner || perms.services?.edit
                           }}
                         >Compartilhar</button>
                         {(isOwner || perms.serviceOrders?.view) && (
-                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>window.print()}>Imprimir</button>
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{
+                          setPrintTargetOrder(o)
+                          setPrintModalOpen(true)
+                          setRowMenuOpenId(null)
+                        }}>Imprimir</button>
                         )}
                         {(isOwner || perms.serviceOrders?.changeStatus) && (
                         <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ 
@@ -2487,6 +2496,14 @@ const canEditService = isOwner || perms.services?.edit
         <ServiceOrderSettingsModal 
           store={activeStore} 
           onClose={() => setSettingsModalOpen(false)} 
+        />
+      )}
+      {printModalOpen && (
+        <ServiceOrderPrintModal
+          open={printModalOpen}
+          onClose={() => setPrintModalOpen(false)}
+          order={printTargetOrder}
+          store={activeStore}
         />
       )}
     </div>
