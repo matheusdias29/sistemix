@@ -8,7 +8,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
   // Auto-select width based on format
   useEffect(() => {
     if (format === 'a4') setWidth('210mm')
-    else if (width === '210mm') setWidth('80mm')
+    else setWidth('80mm')
   }, [format])
 
   if (!open || !order) return null
@@ -31,11 +31,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
     // Collect styles
     let styles = ''
     document.querySelectorAll('style').forEach(s => styles += s.innerHTML)
-    document.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
-        // We can't easily copy linked stylesheets for cross-origin reasons or async loading
-        // So we'll rely on inline styles and basic CSS for printing
-    })
-
+    
     // Basic print styles
     const printStyles = `
       body { 
@@ -44,6 +40,8 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
         padding: 0; 
         background: white;
         color: black;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
       .print-container {
         width: ${width};
@@ -57,6 +55,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       @media print {
         @page { margin: 0; }
         body { margin: 0; }
+        img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }
       * { box-sizing: border-box; }
       .text-center { text-align: center; }
@@ -75,7 +74,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       .justify-between { justify-content: space-between; }
       .items-center { align-items: center; }
       .w-full { width: 100%; }
-      img { max-width: 100%; height: auto; }
+      img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: 2px 0; vertical-align: top; word-break: break-word; }
       .no-print { display: none; }
@@ -93,17 +92,28 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
           <div class="print-container">
             ${content.innerHTML}
           </div>
+          <script>
+            // Wait for images to load before printing
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+            // Fallback if onload doesn't fire (e.g. cached or no images)
+            setTimeout(function() {
+              if (document.readyState === 'complete') {
+                 window.print();
+              }
+            }, 2000);
+          </script>
         </body>
       </html>
     `)
     doc.close()
 
+    // No need to call print from here anymore, the script inside iframe will handle it
+    // But we focus it just in case
     iframe.contentWindow.focus()
-    setTimeout(() => {
-      iframe.contentWindow.print()
-      // Optional: remove iframe after print
-      // document.body.removeChild(iframe)
-    }, 500)
   }
 
   // Format Helpers
@@ -136,39 +146,25 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
           
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center bg-white border rounded px-2 py-1">
-              <span className="text-sm text-gray-600 mr-2">Formato:</span>
-              <button 
-                onClick={() => setFormat('thermal')}
-                className={`px-3 py-1 rounded text-sm transition ${format === 'thermal' ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                Térmica
-              </button>
-              <button 
-                onClick={() => setFormat('a4')}
-                className={`px-3 py-1 rounded text-sm transition ${format === 'a4' ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
-              >
-                A4
-              </button>
-            </div>
-
-            {format === 'thermal' && (
-              <div className="flex items-center bg-white border rounded px-2 py-1">
-                <span className="text-sm text-gray-600 mr-2">Largura:</span>
-                <select 
-                  value={width} 
-                  onChange={e => setWidth(e.target.value)}
-                  className="text-sm border-none outline-none bg-transparent"
+                <span className="text-sm text-gray-600 mr-2">Formato:</span>
+                <button 
+                  onClick={() => setFormat('thermal')}
+                  className={`px-3 py-1 rounded text-sm transition ${format === 'thermal' ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
                 >
-                  <option value="58mm">58mm</option>
-                  <option value="80mm">80mm</option>
-                </select>
+                  Térmica
+                </button>
+                <button 
+                  onClick={() => setFormat('a4')}
+                  className={`px-3 py-1 rounded text-sm transition ${format === 'a4' ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
+                >
+                  A4
+                </button>
               </div>
-            )}
 
-            <button 
-              onClick={handlePrint} 
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium shadow-sm transition"
-            >
+              <button 
+                onClick={handlePrint} 
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium shadow-sm transition"
+              >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
               Imprimir
             </button>
@@ -245,6 +241,22 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                 {order.serialNumber && <div style={{ wordBreak: 'break-all' }}>Serial: {order.serialNumber}</div>}
                 {order.imei1 && <div style={{ wordBreak: 'break-all' }}>IMEI 1: {order.imei1}</div>}
                 {order.imei2 && <div style={{ wordBreak: 'break-all' }}>IMEI 2: {order.imei2}</div>}
+                {order.password && (
+                  <div className="mt-1">
+                    <span className="font-semibold">Senha: </span>
+                    {order.password.type === 'pattern' ? (
+                      <div className="my-2" style={{ width: '100px' }}>
+                        <PatternLock pattern={order.password.pattern || []} />
+                      </div>
+                    ) : (
+                      <span>
+                        {order.password.type === 'pattern' 
+                          ? `Padrão: ${(order.password.pattern || []).join('-')}`
+                          : (order.password.value || order.password.pin || '')}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {order.problem && (
                   <div className="mt-1">
                     <span className="font-semibold">Defeito:</span>
@@ -252,6 +264,24 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                   </div>
                 )}
               </div>
+
+              {/* Checklist */}
+              {order.checklist && order.checklist.questions && order.checklist.questions.length > 0 && (
+                <>
+                  <div className="border-b border-black my-2"></div>
+                  <div className="mb-2">
+                    <div className="font-bold mb-1">CHECKLIST</div>
+                    <div className="flex flex-wrap text-xs">
+                      {order.checklist.questions.map((q, i) => (
+                        <div key={i} className="w-1/2 pr-1 mb-1 flex items-start">
+                          <span className="mr-1">{q.checked ? '[X]' : '[ ]'}</span>
+                          <span>{q.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="border-b border-black my-2"></div>
 
@@ -292,6 +322,16 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               </div>
 
               <div className="border-t border-black my-2"></div>
+
+              {order.receiptNotes && (
+                <>
+                  <div className="mb-2">
+                    <div className="font-bold mb-1">OBSERVAÇÕES</div>
+                    <div className="whitespace-pre-wrap">{order.receiptNotes}</div>
+                  </div>
+                  <div className="border-t border-black my-2"></div>
+                </>
+              )}
 
               {/* Totals */}
               <div className="flex flex-col gap-1 text-right mb-2">
@@ -346,5 +386,81 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
         </div>
       </div>
     </div>
+  )
+}
+
+function PatternLock({ pattern }) {
+  if (!pattern || pattern.length === 0) return null
+
+  // Grid coordinates (3x3)
+  // 1 2 3
+  // 4 5 6
+  // 7 8 9
+  const points = {
+    1: { x: 20, y: 20 },
+    2: { x: 50, y: 20 },
+    3: { x: 80, y: 20 },
+    4: { x: 20, y: 50 },
+    5: { x: 50, y: 50 },
+    6: { x: 80, y: 50 },
+    7: { x: 20, y: 80 },
+    8: { x: 50, y: 80 },
+    9: { x: 80, y: 80 }
+  }
+
+  return (
+    <svg width="100" height="100" viewBox="0 0 100 100" className="border border-gray-400 rounded">
+      {/* Lines connecting the pattern */}
+      {pattern.map((p, i) => {
+        if (i === pattern.length - 1) return null
+        const start = points[p]
+        const end = points[pattern[i + 1]]
+        if (!start || !end) return null
+        return (
+          <line
+            key={`line-${i}`}
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            stroke="#16a34a"
+            strokeWidth="4"
+            strokeLinecap="round"
+          />
+        )
+      })}
+
+      {/* Points */}
+      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((id) => {
+        const p = points[id]
+        const index = pattern.indexOf(id)
+        const isSelected = index !== -1
+        
+        return (
+          <g key={id}>
+            <circle
+              cx={p.x}
+              cy={p.y}
+              r="10"
+              fill={isSelected ? '#16a34a' : '#e5e7eb'}
+            />
+            {isSelected && (
+              <text
+                x={p.x}
+                y={p.y}
+                dy="4"
+                textAnchor="middle"
+                fill="white"
+                fontSize="12"
+                fontWeight="bold"
+                fontFamily="Arial, sans-serif"
+              >
+                {index + 1}
+              </text>
+            )}
+          </g>
+        )
+      })}
+    </svg>
   )
 }
