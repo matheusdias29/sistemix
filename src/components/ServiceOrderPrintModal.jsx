@@ -370,9 +370,14 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               )}
 
               <div className="mt-8 border-t border-black pt-2 text-center">
-                <div className="mb-4">
+                <div className="mb-6">
                   <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
                   <div className="text-xs">Assinatura do Cliente</div>
+                </div>
+
+                <div className="mb-4">
+                  <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
+                  <div className="text-xs">Assinatura do Técnico</div>
                 </div>
                 
                 {(store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText) && (
