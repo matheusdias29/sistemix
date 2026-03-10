@@ -1,4 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
+import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 import { updateOrder, deleteOrder } from '../services/orders'
 import { updateProduct } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
@@ -9,6 +11,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const [shareModalOpen, setShareModalOpen] = useState(false)
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false)
 
   const isOS = sale.type === 'service_order' || (sale.status && (sale.status.includes('Os Finalizada') || sale.status.includes('Os Faturada')))
 
@@ -66,8 +69,8 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
 
         {/* Actions Toolbar */}
         <div className="px-6 py-3 border-b dark:border-gray-700 flex flex-wrap gap-2 bg-gray-50 dark:bg-gray-700/50">
-          {(isOwner || perms.sales?.viewAll || (user?.name && sale.attendant && user.name.toLowerCase() === sale.attendant.toLowerCase())) && (
-          <button className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
+          {!isOS && (isOwner || perms.sales?.viewAll || (user?.name && sale.attendant && user.name.toLowerCase() === sale.attendant.toLowerCase())) && (
+          <button onClick={() => setReceiptModalOpen(true)} className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
             <span>📄</span> Recibo
           </button>
           )}
@@ -374,6 +377,317 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
         sale={sale}
         store={store}
       />
+      <SaleReceiptPrintModal open={receiptModalOpen} onClose={() => setReceiptModalOpen(false)} sale={sale} store={store} storeId={storeId} />
+    </div>
+  )
+}
+
+function SaleReceiptPrintModal({ open, onClose, sale, store, storeId }) {
+  const [format, setFormat] = useState('thermal')
+  const [width, setWidth] = useState('80mm')
+  const contentRef = useRef(null)
+  const [clientDetails, setClientDetails] = useState(null)
+
+  useEffect(() => {
+    if (format === 'a4') setWidth('210mm')
+    else setWidth('80mm')
+  }, [format])
+
+  useEffect(() => {
+    if (!open || !sale) return
+    const sid = sale?.storeId || storeId || store?.id
+    if (!sid) return
+
+    if (sale.clientId) {
+      getDoc(doc(db, 'clients', sale.clientId))
+        .then(snap => {
+          if (snap.exists()) setClientDetails({ id: snap.id, ...snap.data() })
+        })
+        .catch(() => {})
+      return
+    }
+
+    const name = String(sale.client || '').trim()
+    if (!name) return
+    const q = query(collection(db, 'clients'), where('storeId', '==', sid), where('nameLower', '==', name.toLowerCase()))
+    getDocs(q)
+      .then(snap => {
+        const d = snap.docs[0]
+        if (d) setClientDetails({ id: d.id, ...d.data() })
+      })
+      .catch(() => {})
+  }, [open, sale, storeId, store])
+
+  if (!open || !sale) return null
+
+  const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const formatDate = (ts) => {
+    if (!ts) return ''
+    const d = ts.toDate ? ts.toDate() : new Date(ts)
+    return d.toLocaleString('pt-BR')
+  }
+
+  const formatSaleNumber = (order) => {
+    if (order.number) {
+      const digits = String(order.number).replace(/\D/g, '')
+      const n = parseInt(digits, 10)
+      return `PV:${String(n).padStart(4, '0')}`
+    }
+    return `PV:${String(order.id).slice(-4)}`
+  }
+
+  const items = Array.isArray(sale.products) ? sale.products : []
+  const subtotal = items.reduce((acc, p) => acc + Number(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0))), 0)
+  const feesApplied = Array.isArray(sale.feesApplied) ? sale.feesApplied : []
+  const feesTotal = feesApplied.reduce((acc, f) => {
+    if (f?.type === 'percent') return acc + (subtotal * (Number(f.value || 0) / 100))
+    return acc + Number(f?.value || 0)
+  }, 0)
+  const discount = sale.discount || null
+  const discountAmount = (() => {
+    if (!discount || typeof discount !== 'object') return 0
+    if (discount.type === 'percent') return subtotal * (Number(discount.value || 0) / 100)
+    if (discount.type === 'fixed') return Number(discount.value || 0)
+    return 0
+  })()
+  const total = Number(sale.total || sale.valor || (subtotal + feesTotal - discountAmount) || 0)
+
+  const handlePrint = () => {
+    const content = contentRef.current
+    if (!content) return
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
+
+    const docRef = iframe.contentWindow.document
+
+    const printStyles = `
+      body {
+        font-family: 'Courier New', Courier, monospace;
+        margin: 0;
+        padding: 0;
+        background: white;
+        color: black;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .print-container {
+        width: ${width};
+        margin: 0 auto;
+        padding: 10px;
+        background: white;
+        overflow-wrap: break-word;
+        word-wrap: break-word;
+        word-break: break-word;
+      }
+      @media print {
+        @page { margin: 0; }
+        body { margin: 0; }
+        img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      }
+      * { box-sizing: border-box; }
+      .text-center { text-align: center; }
+      .text-right { text-align: right; }
+      .text-left { text-align: left; }
+      .font-bold { font-weight: bold; }
+      .text-xs { font-size: 8px; }
+      .text-sm { font-size: 10px; }
+      .border-b { border-bottom: 1px dashed #000; }
+      .border-t { border-top: 1px dashed #000; }
+      .my-2 { margin-top: 8px; margin-bottom: 8px; }
+      .flex { display: flex; }
+      .justify-between { justify-content: space-between; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { text-align: left; padding: 2px 0; vertical-align: top; word-break: break-word; }
+      img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+    `
+
+    docRef.open()
+    docRef.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Imprimir Recibo</title>
+          <style>${printStyles}</style>
+        </head>
+        <body>
+          <div class="print-container">
+            ${content.innerHTML}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+            setTimeout(function() {
+              if (document.readyState === 'complete') {
+                window.print();
+              }
+            }, 2000);
+          </script>
+        </body>
+      </html>
+    `)
+    docRef.close()
+    iframe.contentWindow.focus()
+  }
+
+  const containerClass = format === 'a4' ? 'font-sans text-sm' : 'font-mono text-xs'
+
+  return (
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white w-full max-w-5xl h-[90vh] flex flex-col rounded-lg shadow-2xl overflow-hidden">
+        <div className="flex flex-col md:flex-row items-center justify-between p-4 border-b gap-4 bg-gray-50">
+          <h2 className="text-lg font-bold text-gray-800">Imprimir Recibo</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center bg-white border rounded px-2 py-1">
+              <span className="text-sm text-gray-600 mr-2">Formato:</span>
+              <select value={format} onChange={e => setFormat(e.target.value)} className="text-sm bg-transparent outline-none">
+                <option value="thermal">Térmica</option>
+                <option value="a4">A4</option>
+              </select>
+            </div>
+            <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium shadow-sm">
+              Imprimir
+            </button>
+            <button onClick={onClose} className="px-4 py-2 bg-white border rounded hover:bg-gray-50 text-sm font-medium text-gray-700">
+              Fechar
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-auto bg-gray-100 p-8 flex justify-center items-start">
+          <div className={`bg-white shadow-xl transition-all duration-300 origin-top ${format === 'a4' ? 'min-h-[297mm]' : 'min-h-[100mm]'}`} style={{ width }}>
+            <div ref={contentRef} className={`p-4 ${containerClass} text-black`}>
+              <div className="text-center mb-4">
+                {store?.bannerUrl && (
+                  <div className="mb-2 flex justify-center">
+                    <img src={store.bannerUrl} alt="Logo" className="max-h-20 object-contain" />
+                  </div>
+                )}
+                <div className="font-bold uppercase text-sm">{store?.name || store?.razaoSocial || 'Nome da Loja'}</div>
+                {store?.cnpj && <div>CNPJ: {store.cnpj}</div>}
+                {store?.emailEmpresarial && <div>{store.emailEmpresarial}</div>}
+                {store?.whatsapp && <div>Tel: {store.whatsapp}</div>}
+                {(store?.address || store?.endereco) && (
+                  <div className="mt-1 text-[10px] leading-tight">
+                    {store.address || store.endereco}, {store.number || store.numero}
+                    {store.neighborhood || store.bairro ? `, ${store.neighborhood || store.bairro}` : ''}
+                    <br />
+                    {store.city || store.cidade} - {store.state || store.estado}
+                  </div>
+                )}
+              </div>
+
+              <div className="border-b border-black my-2"></div>
+
+              <div className="mb-2">
+                <div className="font-bold text-center mb-1">RECIBO DE VENDA</div>
+                <div className="flex justify-between">
+                  <span>Nº: <strong>{formatSaleNumber(sale)}</strong></span>
+                  <span>{formatDate(sale.createdAt)}</span>
+                </div>
+                {sale.attendant && <div>Vendedor: {sale.attendant}</div>}
+              </div>
+
+              <div className="border-b border-black my-2"></div>
+
+              <div className="mb-2">
+                <div className="font-bold mb-1">DADOS DO CLIENTE</div>
+                <div>{sale.client || 'Consumidor Final'}</div>
+                {(clientDetails?.code) && <div>Código: {clientDetails.code}</div>}
+                {(clientDetails?.cpf) && <div>CPF: {clientDetails.cpf}</div>}
+                {(clientDetails?.phone) && <div>Tel: {clientDetails.phone}</div>}
+                {(clientDetails?.whatsapp) && <div>WhatsApp: {clientDetails.whatsapp}</div>}
+              </div>
+
+              <div className="border-b border-black my-2"></div>
+
+              <div className="mb-2">
+                <div className="font-bold mb-1">PRODUTOS</div>
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-dashed border-gray-400">
+                      <th className="text-left pb-1">Item</th>
+                      <th className="text-right pb-1 w-12">Qtd</th>
+                      <th className="text-right pb-1 w-16">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((p, i) => (
+                      <tr key={i}>
+                        <td className="pr-1 py-1">
+                          <div>{p.name}</div>
+                          {Number(p.price || 0) > 0 && <div className="text-[9px] text-gray-500">{money(p.price)} un</div>}
+                        </td>
+                        <td className="text-right py-1 align-top">{p.quantity}</td>
+                        <td className="text-right py-1 align-top">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="border-t border-black my-2"></div>
+
+              {sale.receiptNotes && (
+                <>
+                  <div className="mb-2">
+                    <div className="font-bold mb-1">OBSERVAÇÕES</div>
+                    <div className="whitespace-pre-wrap">{sale.receiptNotes}</div>
+                  </div>
+                  <div className="border-t border-black my-2"></div>
+                </>
+              )}
+
+              <div className="flex flex-col gap-1 text-right mb-2">
+                <div className="flex justify-between">
+                  <span>Subtotal:</span>
+                  <span>{money(subtotal)}</span>
+                </div>
+                {feesTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>Taxas:</span>
+                    <span>+ {money(feesTotal)}</span>
+                  </div>
+                )}
+                {discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <span>Desconto:</span>
+                    <span>- {money(discountAmount)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-sm mt-1">
+                  <span>TOTAL:</span>
+                  <span>{money(total)}</span>
+                </div>
+              </div>
+
+              {(sale.payments && sale.payments.length > 0) && (
+                <>
+                  <div className="border-b border-black my-2"></div>
+                  <div className="mb-2">
+                    <div className="font-bold mb-1">PAGAMENTOS</div>
+                    {sale.payments.map((p, i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span>{p.method}</span>
+                        <span>{money(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

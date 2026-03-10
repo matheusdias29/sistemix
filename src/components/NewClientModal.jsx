@@ -124,6 +124,21 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
       setError('Informe o nome do cliente.')
       return
     }
+    if(!whatsapp.trim()){
+      setError('Informe o Whatsapp do cliente.')
+      return
+    }
+    if (isCompany) {
+      if (!cnpj.trim()) {
+        setError('Informe o CNPJ do cliente.')
+        return
+      }
+    } else {
+      if (!cpf.trim()) {
+        setError('Informe o CPF do cliente.')
+        return
+      }
+    }
 
     const isOwnerUser = user && !user.memberId
     const perms = user?.permissions || {}

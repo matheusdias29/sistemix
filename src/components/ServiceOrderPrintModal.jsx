@@ -1,15 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { collection, query, where, getDocs } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 
 export default function ServiceOrderPrintModal({ open, onClose, order, store }) {
   const [format, setFormat] = useState('thermal') // 'thermal' | 'a4'
   const [width, setWidth] = useState('80mm') // '58mm' | '80mm'
   const contentRef = useRef(null)
+  const [clientDetails, setClientDetails] = useState(null)
 
   // Auto-select width based on format
   useEffect(() => {
     if (format === 'a4') setWidth('210mm')
     else setWidth('80mm')
   }, [format])
+
+  // Fetch client details to enrich print (phone, whatsapp, cpf, code)
+  useEffect(() => {
+    const name = String(order?.client || '').trim()
+    const sid = order?.storeId || store?.id
+    if (!open || !name || !sid) return
+    const nameLower = name.toLowerCase()
+    const colRef = collection(db, 'clients')
+    const q = query(colRef, where('storeId', '==', sid), where('nameLower', '==', nameLower))
+    getDocs(q)
+      .then(snap => {
+        const doc = snap.docs[0]
+        if (doc) setClientDetails({ id: doc.id, ...doc.data() })
+      })
+      .catch(() => {})
+  }, [open, order, store])
 
   if (!open || !order) return null
 
@@ -234,9 +253,11 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               <div className="mb-2">
                 <div className="font-bold mb-1">DADOS DO CLIENTE</div>
                 <div>{order.client || 'Cliente não informado'}</div>
-                {order.clientCpf && <div>CPF: {order.clientCpf}</div>}
+                {(order.clientCode || clientDetails?.code) && <div>Código: {order.clientCode || clientDetails?.code}</div>}
+                {(order.clientCpf || clientDetails?.cpf) && <div>CPF: {order.clientCpf || clientDetails?.cpf}</div>}
                 {order.clientAddress && <div className="text-[10px]">{order.clientAddress}</div>}
-                {order.clientPhone && <div>Tel: {order.clientPhone}</div>}
+                {(order.clientPhone || clientDetails?.phone) && <div>Tel: {order.clientPhone || clientDetails?.phone}</div>}
+                {(order.clientWhatsapp || clientDetails?.whatsapp) && <div>WhatsApp: {order.clientWhatsapp || clientDetails?.whatsapp}</div>}
               </div>
 
               <div className="border-b border-black my-2"></div>
