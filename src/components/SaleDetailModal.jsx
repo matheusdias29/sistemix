@@ -458,6 +458,93 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     ? String(sale.warrantyInfo)
     : (String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO)
 
+  const DEFAULT_RECEIPT_CONFIG = {
+    company: {
+      showLogo: true,
+      showName: true,
+      showCnpj: true,
+      showEmail: true,
+      showWhatsapp: true,
+      showAddress: true,
+    },
+    sale: {
+      showTitle: true,
+      showNumber: true,
+      showDate: true,
+      showAttendant: true,
+    },
+    client: {
+      showSection: true,
+      showName: true,
+      showCode: true,
+      showCpf: true,
+      showCnpj: true,
+      showPhone: true,
+      showWhatsapp: true,
+      showEmail: true,
+      showCep: true,
+      showAddress: true,
+      showNumber: true,
+      showComplement: true,
+      showNeighborhood: true,
+      showCity: true,
+      showState: true,
+      showIdentity: true,
+      showMotherName: true,
+      showBirthDate: true,
+      showNotes: true,
+      showStateRegistrationIndicator: true,
+    },
+    items: {
+      showSection: true,
+      showQty: true,
+      showTotal: true,
+      showUnitPrice: true,
+    },
+    totals: {
+      showSection: true,
+      showSubtotal: true,
+      showFees: true,
+      showDiscount: true,
+      showTotal: true,
+    },
+    payments: {
+      showSection: true,
+    },
+    observations: {
+      showSection: true,
+    },
+    warranty: {
+      showSection: true,
+    },
+  }
+
+  const deepMerge = (base, override) => {
+    if (!override || typeof override !== 'object') return base
+    const out = Array.isArray(base) ? [...base] : { ...base }
+    for (const k of Object.keys(override)) {
+      const bv = base?.[k]
+      const ov = override[k]
+      if (bv && typeof bv === 'object' && !Array.isArray(bv) && ov && typeof ov === 'object' && !Array.isArray(ov)) {
+        out[k] = deepMerge(bv, ov)
+      } else {
+        out[k] = ov
+      }
+    }
+    return out
+  }
+
+  const receiptConfig = deepMerge(DEFAULT_RECEIPT_CONFIG, store?.receiptConfig || {})
+
+  const showCompanyBlock = (
+    (receiptConfig.company?.showLogo && !!store?.bannerUrl) ||
+    (receiptConfig.company?.showName && !!(store?.name || store?.razaoSocial)) ||
+    (receiptConfig.company?.showCnpj && !!store?.cnpj) ||
+    (receiptConfig.company?.showEmail && !!store?.emailEmpresarial) ||
+    (receiptConfig.company?.showWhatsapp && !!store?.whatsapp) ||
+    (receiptConfig.company?.showAddress && !!(store?.address || store?.endereco || store?.city || store?.cidade))
+  )
+
   const handlePrint = () => {
     const content = contentRef.current
     if (!content) return
@@ -572,78 +659,108 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         <div className="flex-1 overflow-auto bg-gray-100 p-8 flex justify-center items-start">
           <div className={`bg-white shadow-xl transition-all duration-300 origin-top ${format === 'a4' ? 'min-h-[297mm]' : 'min-h-[100mm]'}`} style={{ width }}>
             <div ref={contentRef} className={`p-4 ${containerClass} text-black`}>
-              <div className="text-center mb-4">
-                {store?.bannerUrl && (
-                  <div className="mb-2 flex justify-center">
-                    <img src={store.bannerUrl} alt="Logo" className="max-h-20 object-contain" />
-                  </div>
-                )}
-                <div className="font-bold uppercase text-sm">{store?.name || store?.razaoSocial || 'Nome da Loja'}</div>
-                {store?.cnpj && <div>CNPJ: {store.cnpj}</div>}
-                {store?.emailEmpresarial && <div>{store.emailEmpresarial}</div>}
-                {store?.whatsapp && <div>Tel: {store.whatsapp}</div>}
-                {(store?.address || store?.endereco) && (
-                  <div className="mt-1 text-[10px] leading-tight">
-                    {store.address || store.endereco}, {store.number || store.numero}
-                    {store.neighborhood || store.bairro ? `, ${store.neighborhood || store.bairro}` : ''}
-                    <br />
-                    {store.city || store.cidade} - {store.state || store.estado}
-                  </div>
-                )}
-              </div>
-
-              <div className="border-b border-black my-2"></div>
-
-              <div className="mb-2">
-                <div className="font-bold text-center mb-1">RECIBO DE VENDA</div>
-                <div className="flex justify-between">
-                  <span>Nº: <strong>{formatSaleNumber(sale)}</strong></span>
-                  <span>{formatDate(sale.createdAt)}</span>
+              {showCompanyBlock && (
+                <div className="text-center mb-4">
+                  {receiptConfig.company?.showLogo && store?.bannerUrl && (
+                    <div className="mb-2 flex justify-center">
+                      <img src={store.bannerUrl} alt="Logo" className="max-h-20 object-contain" />
+                    </div>
+                  )}
+                  {receiptConfig.company?.showName && (
+                    <div className="font-bold uppercase text-sm">{store?.name || store?.razaoSocial || 'Nome da Loja'}</div>
+                  )}
+                  {receiptConfig.company?.showCnpj && store?.cnpj && <div>CNPJ: {store.cnpj}</div>}
+                  {receiptConfig.company?.showEmail && store?.emailEmpresarial && <div>{store.emailEmpresarial}</div>}
+                  {receiptConfig.company?.showWhatsapp && store?.whatsapp && <div>Tel: {store.whatsapp}</div>}
+                  {receiptConfig.company?.showAddress && (store?.address || store?.endereco || store?.city || store?.cidade) && (
+                    <div className="mt-1 text-[10px] leading-tight">
+                      {(store.address || store.endereco) ? (
+                        <>
+                          {store.address || store.endereco}
+                          {(store.number || store.numero) ? `, ${store.number || store.numero}` : ''}
+                          {(store.neighborhood || store.bairro) ? `, ${store.neighborhood || store.bairro}` : ''}
+                          <br />
+                        </>
+                      ) : null}
+                      {(store.city || store.cidade) ? (store.city || store.cidade) : ''}
+                      {(store.state || store.estado) ? ` - ${store.state || store.estado}` : ''}
+                    </div>
+                  )}
                 </div>
-                {sale.attendant && <div>Vendedor: {sale.attendant}</div>}
-              </div>
+              )}
 
               <div className="border-b border-black my-2"></div>
 
               <div className="mb-2">
-                <div className="font-bold mb-1">DADOS DO CLIENTE</div>
-                <div>{sale.client || 'Consumidor Final'}</div>
-                {(clientDetails?.code) && <div>Código: {clientDetails.code}</div>}
-                {(clientDetails?.cpf) && <div>CPF: {clientDetails.cpf}</div>}
-                {(clientDetails?.phone) && <div>Tel: {clientDetails.phone}</div>}
-                {(clientDetails?.whatsapp) && <div>WhatsApp: {clientDetails.whatsapp}</div>}
+                {receiptConfig.sale?.showTitle && <div className="font-bold text-center mb-1">RECIBO DE VENDA</div>}
+                {(receiptConfig.sale?.showNumber || receiptConfig.sale?.showDate) && (
+                  <div className="flex justify-between">
+                    <span>{receiptConfig.sale?.showNumber ? (<>Nº: <strong>{formatSaleNumber(sale)}</strong></>) : null}</span>
+                    <span>{receiptConfig.sale?.showDate ? formatDate(sale.createdAt) : null}</span>
+                  </div>
+                )}
+                {receiptConfig.sale?.showAttendant && sale.attendant && <div>Vendedor: {sale.attendant}</div>}
               </div>
 
               <div className="border-b border-black my-2"></div>
 
-              <div className="mb-2">
-                <div className="font-bold mb-1">PRODUTOS</div>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-dashed border-gray-400">
-                      <th className="text-left pb-1">Item</th>
-                      <th className="text-right pb-1 w-12">Qtd</th>
-                      <th className="text-right pb-1 w-16">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((p, i) => (
-                      <tr key={i}>
-                        <td className="pr-1 py-1">
-                          <div>{p.name}</div>
-                          {Number(p.price || 0) > 0 && <div className="text-[9px] text-gray-500">{money(p.price)} un</div>}
-                        </td>
-                        <td className="text-right py-1 align-top">{p.quantity}</td>
-                        <td className="text-right py-1 align-top">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>
+              {receiptConfig.client?.showSection && (
+                <div className="mb-2">
+                  <div className="font-bold mb-1">DADOS DO CLIENTE</div>
+                  {receiptConfig.client?.showName && <div>{sale.client || 'Consumidor Final'}</div>}
+                  {receiptConfig.client?.showCode && clientDetails?.code && <div>Código: {clientDetails.code}</div>}
+                  {receiptConfig.client?.showCpf && clientDetails?.cpf && <div>CPF: {clientDetails.cpf}</div>}
+                  {receiptConfig.client?.showCnpj && clientDetails?.cnpj && <div>CNPJ: {clientDetails.cnpj}</div>}
+                  {receiptConfig.client?.showPhone && clientDetails?.phone && <div>Tel: {clientDetails.phone}</div>}
+                  {receiptConfig.client?.showWhatsapp && clientDetails?.whatsapp && <div>WhatsApp: {clientDetails.whatsapp}</div>}
+                  {receiptConfig.client?.showEmail && clientDetails?.email && <div>E-mail: {clientDetails.email}</div>}
+                  {receiptConfig.client?.showCep && clientDetails?.cep && <div>CEP: {clientDetails.cep}</div>}
+                  {receiptConfig.client?.showAddress && clientDetails?.address && <div>Endereço: {clientDetails.address}</div>}
+                  {receiptConfig.client?.showNumber && clientDetails?.number && <div>Número: {clientDetails.number}</div>}
+                  {receiptConfig.client?.showComplement && clientDetails?.complement && <div>Complemento: {clientDetails.complement}</div>}
+                  {receiptConfig.client?.showNeighborhood && clientDetails?.neighborhood && <div>Bairro: {clientDetails.neighborhood}</div>}
+                  {receiptConfig.client?.showCity && clientDetails?.city && <div>Cidade: {clientDetails.city}</div>}
+                  {receiptConfig.client?.showState && clientDetails?.state && <div>Estado: {clientDetails.state}</div>}
+                  {receiptConfig.client?.showIdentity && clientDetails?.identity && <div>Identidade: {clientDetails.identity}</div>}
+                  {receiptConfig.client?.showStateRegistrationIndicator && clientDetails?.stateRegistrationIndicator && <div>Indicador IE: {clientDetails.stateRegistrationIndicator}</div>}
+                  {receiptConfig.client?.showMotherName && clientDetails?.motherName && <div>Nome da mãe: {clientDetails.motherName}</div>}
+                  {receiptConfig.client?.showBirthDate && clientDetails?.birthDate && <div>Data de nascimento: {clientDetails.birthDate}</div>}
+                  {receiptConfig.client?.showNotes && clientDetails?.notes && <div>Obs.: {clientDetails.notes}</div>}
+                </div>
+              )}
+
+              <div className="border-b border-black my-2"></div>
+
+              {receiptConfig.items?.showSection && (
+                <div className="mb-2">
+                  <div className="font-bold mb-1">PRODUTOS</div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-dashed border-gray-400">
+                        <th className="text-left pb-1">Item</th>
+                        {receiptConfig.items?.showQty && <th className="text-right pb-1 w-12">Qtd</th>}
+                        {receiptConfig.items?.showTotal && <th className="text-right pb-1 w-16">Total</th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {items.map((p, i) => (
+                        <tr key={i}>
+                          <td className="pr-1 py-1">
+                            <div>{p.name}</div>
+                            {receiptConfig.items?.showUnitPrice && Number(p.price || 0) > 0 && <div className="text-[9px] text-gray-500">{money(p.price)} un</div>}
+                          </td>
+                          {receiptConfig.items?.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
+                          {receiptConfig.items?.showTotal && <td className="text-right py-1 align-top">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               <div className="border-t border-black my-2"></div>
 
-              {sale.receiptNotes && (
+              {receiptConfig.observations?.showSection && sale.receiptNotes && (
                 <>
                   <div className="mb-2">
                     <div className="font-bold mb-1">OBSERVAÇÕES</div>
@@ -653,30 +770,36 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 </>
               )}
 
-              <div className="flex flex-col gap-1 text-right mb-2">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>{money(subtotal)}</span>
+              {receiptConfig.totals?.showSection && (
+                <div className="flex flex-col gap-1 text-right mb-2">
+                  {receiptConfig.totals?.showSubtotal && (
+                    <div className="flex justify-between">
+                      <span>Subtotal:</span>
+                      <span>{money(subtotal)}</span>
+                    </div>
+                  )}
+                  {receiptConfig.totals?.showFees && feesTotal > 0 && (
+                    <div className="flex justify-between">
+                      <span>Taxas:</span>
+                      <span>+ {money(feesTotal)}</span>
+                    </div>
+                  )}
+                  {receiptConfig.totals?.showDiscount && discountAmount > 0 && (
+                    <div className="flex justify-between">
+                      <span>Desconto:</span>
+                      <span>- {money(discountAmount)}</span>
+                    </div>
+                  )}
+                  {receiptConfig.totals?.showTotal && (
+                    <div className="flex justify-between font-bold text-sm mt-1">
+                      <span>TOTAL:</span>
+                      <span>{money(total)}</span>
+                    </div>
+                  )}
                 </div>
-                {feesTotal > 0 && (
-                  <div className="flex justify-between">
-                    <span>Taxas:</span>
-                    <span>+ {money(feesTotal)}</span>
-                  </div>
-                )}
-                {discountAmount > 0 && (
-                  <div className="flex justify-between">
-                    <span>Desconto:</span>
-                    <span>- {money(discountAmount)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-bold text-sm mt-1">
-                  <span>TOTAL:</span>
-                  <span>{money(total)}</span>
-                </div>
-              </div>
+              )}
 
-              {(sale.payments && sale.payments.length > 0) && (
+              {receiptConfig.payments?.showSection && (sale.payments && sale.payments.length > 0) && (
                 <>
                   <div className="border-b border-black my-2"></div>
                   <div className="mb-2">
@@ -691,11 +814,15 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 </>
               )}
 
-              <div className="border-b border-black my-2"></div>
-              <div className="mb-1">
-                <div className="font-bold mb-1">TERMO DE GARANTIA</div>
-                <div className="whitespace-pre-wrap">{warrantyInfo}</div>
-              </div>
+              {receiptConfig.warranty?.showSection && (
+                <>
+                  <div className="border-b border-black my-2"></div>
+                  <div className="mb-1">
+                    <div className="font-bold mb-1">TERMO DE GARANTIA</div>
+                    <div className="whitespace-pre-wrap">{warrantyInfo}</div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

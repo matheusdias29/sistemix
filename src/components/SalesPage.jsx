@@ -55,15 +55,94 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
   const DEFAULT_WARRANTY_INFO = `TERMO DE GARANTIA DE PRODUTOS
 Para celulares 1* Ano / Prosutos e Serviços 3 meses
 Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descascado manchas esternas ou internas quebrado ou danificado! Sem selo da loja.Não trocamos Produto sem caixa original. cliente ciente com os termos acima.`
-  const [warrantyOpen, setWarrantyOpen] = useState(false)
+  const DEFAULT_RECEIPT_CONFIG = {
+    company: {
+      showLogo: true,
+      showName: true,
+      showCnpj: true,
+      showEmail: true,
+      showWhatsapp: true,
+      showAddress: true,
+    },
+    sale: {
+      showTitle: true,
+      showNumber: true,
+      showDate: true,
+      showAttendant: true,
+    },
+    client: {
+      showSection: true,
+      showName: true,
+      showCode: true,
+      showCpf: true,
+      showCnpj: true,
+      showPhone: true,
+      showWhatsapp: true,
+      showEmail: true,
+      showCep: true,
+      showAddress: true,
+      showNumber: true,
+      showComplement: true,
+      showNeighborhood: true,
+      showCity: true,
+      showState: true,
+      showIdentity: true,
+      showMotherName: true,
+      showBirthDate: true,
+      showNotes: true,
+      showStateRegistrationIndicator: true,
+    },
+    items: {
+      showSection: true,
+      showQty: true,
+      showTotal: true,
+      showUnitPrice: true,
+    },
+    totals: {
+      showSection: true,
+      showSubtotal: true,
+      showFees: true,
+      showDiscount: true,
+      showTotal: true,
+    },
+    payments: {
+      showSection: true,
+    },
+    observations: {
+      showSection: true,
+    },
+    warranty: {
+      showSection: true,
+    },
+  }
+
+  const deepMerge = (base, override) => {
+    if (!override || typeof override !== 'object') return base
+    const out = Array.isArray(base) ? [...base] : { ...base }
+    for (const k of Object.keys(override)) {
+      const bv = base?.[k]
+      const ov = override[k]
+      if (bv && typeof bv === 'object' && !Array.isArray(bv) && ov && typeof ov === 'object' && !Array.isArray(ov)) {
+        out[k] = deepMerge(bv, ov)
+      } else {
+        out[k] = ov
+      }
+    }
+    return out
+  }
+
+  const [receiptConfigOpen, setReceiptConfigOpen] = useState(false)
+  const [receiptConfig, setReceiptConfig] = useState(DEFAULT_RECEIPT_CONFIG)
   const [warrantyText, setWarrantyText] = useState('')
-  const [warrantySaving, setWarrantySaving] = useState(false)
-  const [warrantyError, setWarrantyError] = useState('')
+  const [receiptConfigSaving, setReceiptConfigSaving] = useState(false)
+  const [receiptConfigError, setReceiptConfigError] = useState('')
 
   useEffect(() => {
-    if (!warrantyOpen) return
+    if (!receiptConfigOpen) return
+    setReceiptConfig(deepMerge(DEFAULT_RECEIPT_CONFIG, store?.receiptConfig || {}))
     setWarrantyText(String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO)
-  }, [warrantyOpen, store])
+    setReceiptConfigError('')
+  }, [receiptConfigOpen, store])
 
   useEffect(() => {
     function handleClickOutside(event) {
@@ -118,6 +197,19 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       window.removeEventListener('resize', onMove)
     }
   }, [optionsOpen])
+
+  const Toggle = ({ label, checked, onChange }) => (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${checked ? 'translate-x-4' : 'translate-x-1'}`} />
+      </button>
+    </div>
+  )
 
   useEffect(() => {
     const w = window.innerWidth
@@ -487,12 +579,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           <button
             onClick={() => {
               setOptionsOpen(false)
-              setWarrantyError('')
-              setWarrantyOpen(true)
+              setReceiptConfigOpen(true)
             }}
             className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
           >
-            Termos de garantia
+            Recibo
           </button>
           <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
           {(isOwner || perms.sales?.viewAll) && (
@@ -520,48 +611,140 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         document.body
       )}
 
-      {warrantyOpen && (
+      {receiptConfigOpen && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-3xl overflow-hidden">
             <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
-              <div className="text-lg font-semibold text-gray-800 dark:text-white">Termos de garantia</div>
-              <button onClick={() => setWarrantyOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+              <div className="text-lg font-semibold text-gray-800 dark:text-white">Recibo</div>
+              <button onClick={() => setReceiptConfigOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
             </div>
-            <div className="p-4">
-              {warrantyError && <div className="text-sm text-red-600 dark:text-red-400 mb-2">{warrantyError}</div>}
-              <textarea
-                value={warrantyText}
-                onChange={e => setWarrantyText(e.target.value)}
-                className="w-full h-64 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500 whitespace-pre-wrap"
-              />
+            <div className="p-4 max-h-[70vh] overflow-y-auto">
+              {receiptConfigError && <div className="text-sm text-red-600 dark:text-red-400 mb-3">{receiptConfigError}</div>}
+
+              <div className="space-y-6">
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Empresa</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar logo" checked={!!receiptConfig.company?.showLogo} onChange={(v) => setReceiptConfig(prev => ({ ...prev, company: { ...prev.company, showLogo: v } }))} />
+                    <Toggle label="Mostrar nome" checked={!!receiptConfig.company?.showName} onChange={(v) => setReceiptConfig(prev => ({ ...prev, company: { ...prev.company, showName: v } }))} />
+                    <Toggle label="Mostrar CNPJ" checked={!!receiptConfig.company?.showCnpj} onChange={(v) => setReceiptConfig(prev => ({ ...prev, company: { ...prev.company, showCnpj: v } }))} />
+                    <Toggle label="Mostrar e-mail" checked={!!receiptConfig.company?.showEmail} onChange={(v) => setReceiptConfig(prev => ({ ...prev, company: { ...prev.company, showEmail: v } }))} />
+                    <Toggle label="Mostrar telefone/WhatsApp" checked={!!receiptConfig.company?.showWhatsapp} onChange={(v) => setReceiptConfig(prev => ({ ...prev, company: { ...prev.company, showWhatsapp: v } }))} />
+                    <Toggle label="Mostrar endereço" checked={!!receiptConfig.company?.showAddress} onChange={(v) => setReceiptConfig(prev => ({ ...prev, company: { ...prev.company, showAddress: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Venda</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar título" checked={!!receiptConfig.sale?.showTitle} onChange={(v) => setReceiptConfig(prev => ({ ...prev, sale: { ...prev.sale, showTitle: v } }))} />
+                    <Toggle label="Mostrar número" checked={!!receiptConfig.sale?.showNumber} onChange={(v) => setReceiptConfig(prev => ({ ...prev, sale: { ...prev.sale, showNumber: v } }))} />
+                    <Toggle label="Mostrar data" checked={!!receiptConfig.sale?.showDate} onChange={(v) => setReceiptConfig(prev => ({ ...prev, sale: { ...prev.sale, showDate: v } }))} />
+                    <Toggle label="Mostrar vendedor" checked={!!receiptConfig.sale?.showAttendant} onChange={(v) => setReceiptConfig(prev => ({ ...prev, sale: { ...prev.sale, showAttendant: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Cliente</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar seção do cliente" checked={!!receiptConfig.client?.showSection} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showSection: v } }))} />
+                    <Toggle label="Mostrar nome" checked={!!receiptConfig.client?.showName} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showName: v } }))} />
+                    <Toggle label="Mostrar código" checked={!!receiptConfig.client?.showCode} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showCode: v } }))} />
+                    <Toggle label="Mostrar CPF" checked={!!receiptConfig.client?.showCpf} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showCpf: v } }))} />
+                    <Toggle label="Mostrar CNPJ" checked={!!receiptConfig.client?.showCnpj} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showCnpj: v } }))} />
+                    <Toggle label="Mostrar telefone" checked={!!receiptConfig.client?.showPhone} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showPhone: v } }))} />
+                    <Toggle label="Mostrar WhatsApp" checked={!!receiptConfig.client?.showWhatsapp} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showWhatsapp: v } }))} />
+                    <Toggle label="Mostrar e-mail" checked={!!receiptConfig.client?.showEmail} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showEmail: v } }))} />
+                    <Toggle label="Mostrar CEP" checked={!!receiptConfig.client?.showCep} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showCep: v } }))} />
+                    <Toggle label="Mostrar endereço" checked={!!receiptConfig.client?.showAddress} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showAddress: v } }))} />
+                    <Toggle label="Mostrar número" checked={!!receiptConfig.client?.showNumber} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showNumber: v } }))} />
+                    <Toggle label="Mostrar complemento" checked={!!receiptConfig.client?.showComplement} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showComplement: v } }))} />
+                    <Toggle label="Mostrar bairro" checked={!!receiptConfig.client?.showNeighborhood} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showNeighborhood: v } }))} />
+                    <Toggle label="Mostrar cidade" checked={!!receiptConfig.client?.showCity} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showCity: v } }))} />
+                    <Toggle label="Mostrar estado" checked={!!receiptConfig.client?.showState} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showState: v } }))} />
+                    <Toggle label="Mostrar identidade/RG" checked={!!receiptConfig.client?.showIdentity} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showIdentity: v } }))} />
+                    <Toggle label="Mostrar indicador IE" checked={!!receiptConfig.client?.showStateRegistrationIndicator} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showStateRegistrationIndicator: v } }))} />
+                    <Toggle label="Mostrar nome da mãe" checked={!!receiptConfig.client?.showMotherName} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showMotherName: v } }))} />
+                    <Toggle label="Mostrar data de nascimento" checked={!!receiptConfig.client?.showBirthDate} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showBirthDate: v } }))} />
+                    <Toggle label="Mostrar observações do cliente" checked={!!receiptConfig.client?.showNotes} onChange={(v) => setReceiptConfig(prev => ({ ...prev, client: { ...prev.client, showNotes: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Produtos</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar seção de produtos" checked={!!receiptConfig.items?.showSection} onChange={(v) => setReceiptConfig(prev => ({ ...prev, items: { ...prev.items, showSection: v } }))} />
+                    <Toggle label="Mostrar quantidade" checked={!!receiptConfig.items?.showQty} onChange={(v) => setReceiptConfig(prev => ({ ...prev, items: { ...prev.items, showQty: v } }))} />
+                    <Toggle label="Mostrar total por item" checked={!!receiptConfig.items?.showTotal} onChange={(v) => setReceiptConfig(prev => ({ ...prev, items: { ...prev.items, showTotal: v } }))} />
+                    <Toggle label="Mostrar preço unitário" checked={!!receiptConfig.items?.showUnitPrice} onChange={(v) => setReceiptConfig(prev => ({ ...prev, items: { ...prev.items, showUnitPrice: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Totais</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar seção de totais" checked={!!receiptConfig.totals?.showSection} onChange={(v) => setReceiptConfig(prev => ({ ...prev, totals: { ...prev.totals, showSection: v } }))} />
+                    <Toggle label="Mostrar subtotal" checked={!!receiptConfig.totals?.showSubtotal} onChange={(v) => setReceiptConfig(prev => ({ ...prev, totals: { ...prev.totals, showSubtotal: v } }))} />
+                    <Toggle label="Mostrar taxas" checked={!!receiptConfig.totals?.showFees} onChange={(v) => setReceiptConfig(prev => ({ ...prev, totals: { ...prev.totals, showFees: v } }))} />
+                    <Toggle label="Mostrar desconto" checked={!!receiptConfig.totals?.showDiscount} onChange={(v) => setReceiptConfig(prev => ({ ...prev, totals: { ...prev.totals, showDiscount: v } }))} />
+                    <Toggle label="Mostrar total" checked={!!receiptConfig.totals?.showTotal} onChange={(v) => setReceiptConfig(prev => ({ ...prev, totals: { ...prev.totals, showTotal: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Pagamentos</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar seção de pagamentos" checked={!!receiptConfig.payments?.showSection} onChange={(v) => setReceiptConfig(prev => ({ ...prev, payments: { ...prev.payments, showSection: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Observações (da venda)</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar observações da venda" checked={!!receiptConfig.observations?.showSection} onChange={(v) => setReceiptConfig(prev => ({ ...prev, observations: { ...prev.observations, showSection: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white">Termo de garantia</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar termo de garantia no recibo" checked={!!receiptConfig.warranty?.showSection} onChange={(v) => setReceiptConfig(prev => ({ ...prev, warranty: { ...prev.warranty, showSection: v } }))} />
+                    <textarea
+                      value={warrantyText}
+                      onChange={e => setWarrantyText(e.target.value)}
+                      className="w-full h-56 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500 whitespace-pre-wrap"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
               <button
-                onClick={() => setWarrantyOpen(false)}
+                onClick={() => setReceiptConfigOpen(false)}
                 className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
-                disabled={warrantySaving}
+                disabled={receiptConfigSaving}
               >
                 Cancelar
               </button>
               <button
                 onClick={async () => {
                   if (!storeId) return
-                  if (warrantySaving) return
-                  setWarrantySaving(true)
-                  setWarrantyError('')
+                  if (receiptConfigSaving) return
+                  setReceiptConfigSaving(true)
+                  setReceiptConfigError('')
                   try {
-                    await updateStore(storeId, { warrantyTerms: warrantyText })
-                    setWarrantyOpen(false)
+                    await updateStore(storeId, { receiptConfig, warrantyTerms: warrantyText })
+                    setReceiptConfigOpen(false)
                   } catch {
-                    setWarrantyError('Não foi possível salvar os termos.')
+                    setReceiptConfigError('Não foi possível salvar as configurações.')
                   } finally {
-                    setWarrantySaving(false)
+                    setReceiptConfigSaving(false)
                   }
                 }}
                 className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-60"
-                disabled={warrantySaving}
+                disabled={receiptConfigSaving}
               >
-                {warrantySaving ? 'Salvando...' : 'Salvar'}
+                {receiptConfigSaving ? 'Salvando...' : 'Salvar'}
               </button>
             </div>
           </div>

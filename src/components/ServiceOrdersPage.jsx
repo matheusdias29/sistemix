@@ -14,7 +14,7 @@ import { listenSubUsers, getOwner } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
-import { listenStore, listenFees } from '../services/stores'
+import { listenStore, listenFees, updateStore } from '../services/stores'
 import { listenServices, addService, updateService } from '../services/services'
 import ChooseFinalStatusModal from './ChooseFinalStatusModal'
 import ShareOrderModal from './ShareOrderModal'
@@ -171,7 +171,127 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [alertModalOpen, setAlertModalOpen] = useState(false)
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
+  const [printSettingsOpen, setPrintSettingsOpen] = useState(false)
   const [alertMessage, setAlertMessage] = useState('')
+
+  const DEFAULT_OS_PRINT_CONFIG = {
+    company: {
+      showLogo: true,
+      showName: true,
+      showCnpj: true,
+      showEmail: true,
+      showWhatsapp: true,
+      showAddress: true,
+    },
+    order: {
+      showTitle: true,
+      showNumber: true,
+      showDate: true,
+      showAttendant: true,
+      showTechnician: true,
+    },
+    client: {
+      showSection: true,
+      showName: true,
+      showCode: true,
+      showCpf: true,
+      showCnpj: true,
+      showPhone: true,
+      showWhatsapp: true,
+      showEmail: true,
+      showCep: true,
+      showAddress: true,
+      showNumber: true,
+      showComplement: true,
+      showNeighborhood: true,
+      showCity: true,
+      showState: true,
+      showIdentity: true,
+      showStateRegistrationIndicator: true,
+      showMotherName: true,
+      showBirthDate: true,
+      showNotes: true,
+    },
+    device: {
+      showSection: true,
+      showEquipment: true,
+      showBrand: true,
+      showModel: true,
+      showSerial: true,
+      showImei1: true,
+      showImei2: true,
+      showPassword: true,
+      showProblem: true,
+    },
+    checklist: {
+      showSection: true,
+    },
+    items: {
+      showSection: true,
+      showQty: true,
+      showTotal: true,
+      showUnitPrice: true,
+      showProducts: true,
+      showServices: true,
+    },
+    observations: {
+      showSection: true,
+    },
+    totals: {
+      showSection: true,
+      showDiscount: true,
+      showAddition: true,
+      showTotal: true,
+    },
+    payments: {
+      showSection: true,
+    },
+    signatures: {
+      showClient: true,
+      showTechnician: true,
+    },
+    warranty: {
+      showSection: true,
+    },
+  }
+
+  const deepMerge = (base, override) => {
+    if (!override || typeof override !== 'object') return base
+    const out = Array.isArray(base) ? [...base] : { ...base }
+    for (const k of Object.keys(override)) {
+      const bv = base?.[k]
+      const ov = override[k]
+      if (bv && typeof bv === 'object' && !Array.isArray(bv) && ov && typeof ov === 'object' && !Array.isArray(ov)) {
+        out[k] = deepMerge(bv, ov)
+      } else {
+        out[k] = ov
+      }
+    }
+    return out
+  }
+
+  const [osPrintConfig, setOsPrintConfig] = useState(DEFAULT_OS_PRINT_CONFIG)
+  const [osPrintSaving, setOsPrintSaving] = useState(false)
+  const [osPrintError, setOsPrintError] = useState('')
+
+  useEffect(() => {
+    if (!printSettingsOpen) return
+    setOsPrintConfig(deepMerge(DEFAULT_OS_PRINT_CONFIG, activeStore?.serviceOrderPrintConfig || {}))
+    setOsPrintError('')
+  }, [printSettingsOpen, activeStore])
+
+  const Toggle = ({ label, checked, onChange }) => (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+      <button
+        type="button"
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+      >
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${checked ? 'translate-x-4' : 'translate-x-1'}`} />
+      </button>
+    </div>
+  )
 
   const showAlert = (msg) => {
     setAlertMessage(msg)
@@ -1390,6 +1510,12 @@ const canEditService = isOwner || perms.services?.edit
                     >
                       Configuração
                     </button>
+                    <button
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      onClick={() => { setOptionsMenuOpen(false); setPrintSettingsOpen(true) }}
+                    >
+                      Impressão
+                    </button>
                     <button 
                       className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => { setOptionsMenuOpen(false) }}
@@ -2497,6 +2623,198 @@ const canEditService = isOwner || perms.services?.edit
           store={activeStore} 
           onClose={() => setSettingsModalOpen(false)} 
         />
+      )}
+      {printSettingsOpen && (
+        <div className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white dark:bg-gray-800 w-full max-w-3xl max-h-[90vh] rounded-lg shadow-2xl overflow-hidden border dark:border-gray-700 flex flex-col">
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">Impressão</div>
+              <button
+                onClick={() => setPrintSettingsOpen(false)}
+                className="p-2 text-gray-500 hover:text-gray-700 rounded hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4 overflow-auto">
+              {osPrintError && (
+                <div className="mb-4 p-3 rounded border border-red-200 bg-red-50 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                  {osPrintError}
+                </div>
+              )}
+
+              <div className="space-y-6">
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Empresa</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar logo" checked={!!osPrintConfig.company.showLogo} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, company: { ...prev.company, showLogo: v } }))} />
+                    <Toggle label="Mostrar nome" checked={!!osPrintConfig.company.showName} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, company: { ...prev.company, showName: v } }))} />
+                    <Toggle label="Mostrar CNPJ" checked={!!osPrintConfig.company.showCnpj} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, company: { ...prev.company, showCnpj: v } }))} />
+                    <Toggle label="Mostrar e-mail" checked={!!osPrintConfig.company.showEmail} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, company: { ...prev.company, showEmail: v } }))} />
+                    <Toggle label="Mostrar telefone/WhatsApp" checked={!!osPrintConfig.company.showWhatsapp} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, company: { ...prev.company, showWhatsapp: v } }))} />
+                    <Toggle label="Mostrar endereço" checked={!!osPrintConfig.company.showAddress} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, company: { ...prev.company, showAddress: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Ordem de Serviço</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar título" checked={!!osPrintConfig.order.showTitle} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, order: { ...prev.order, showTitle: v } }))} />
+                    <Toggle label="Mostrar número" checked={!!osPrintConfig.order.showNumber} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, order: { ...prev.order, showNumber: v } }))} />
+                    <Toggle label="Mostrar data" checked={!!osPrintConfig.order.showDate} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, order: { ...prev.order, showDate: v } }))} />
+                    <Toggle label="Mostrar atendente" checked={!!osPrintConfig.order.showAttendant} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, order: { ...prev.order, showAttendant: v } }))} />
+                    <Toggle label="Mostrar técnico" checked={!!osPrintConfig.order.showTechnician} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, order: { ...prev.order, showTechnician: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Cliente</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar seção do cliente" checked={!!osPrintConfig.client.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showSection: v } }))} />
+                    <Toggle label="Mostrar nome" checked={!!osPrintConfig.client.showName} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showName: v } }))} />
+                    <Toggle label="Mostrar código" checked={!!osPrintConfig.client.showCode} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showCode: v } }))} />
+                    <Toggle label="Mostrar CPF" checked={!!osPrintConfig.client.showCpf} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showCpf: v } }))} />
+                    <Toggle label="Mostrar CNPJ" checked={!!osPrintConfig.client.showCnpj} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showCnpj: v } }))} />
+                    <Toggle label="Mostrar telefone" checked={!!osPrintConfig.client.showPhone} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showPhone: v } }))} />
+                    <Toggle label="Mostrar WhatsApp" checked={!!osPrintConfig.client.showWhatsapp} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showWhatsapp: v } }))} />
+                    <Toggle label="Mostrar e-mail" checked={!!osPrintConfig.client.showEmail} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showEmail: v } }))} />
+                    <Toggle label="Mostrar CEP" checked={!!osPrintConfig.client.showCep} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showCep: v } }))} />
+                    <Toggle label="Mostrar endereço" checked={!!osPrintConfig.client.showAddress} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showAddress: v } }))} />
+                    <Toggle label="Mostrar número" checked={!!osPrintConfig.client.showNumber} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showNumber: v } }))} />
+                    <Toggle label="Mostrar complemento" checked={!!osPrintConfig.client.showComplement} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showComplement: v } }))} />
+                    <Toggle label="Mostrar bairro" checked={!!osPrintConfig.client.showNeighborhood} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showNeighborhood: v } }))} />
+                    <Toggle label="Mostrar cidade" checked={!!osPrintConfig.client.showCity} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showCity: v } }))} />
+                    <Toggle label="Mostrar estado" checked={!!osPrintConfig.client.showState} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showState: v } }))} />
+                    <Toggle label="Mostrar identidade/RG" checked={!!osPrintConfig.client.showIdentity} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showIdentity: v } }))} />
+                    <Toggle label="Mostrar indicador IE" checked={!!osPrintConfig.client.showStateRegistrationIndicator} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showStateRegistrationIndicator: v } }))} />
+                    <Toggle label="Mostrar nome da mãe" checked={!!osPrintConfig.client.showMotherName} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showMotherName: v } }))} />
+                    <Toggle label="Mostrar data de nascimento" checked={!!osPrintConfig.client.showBirthDate} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showBirthDate: v } }))} />
+                    <Toggle label="Mostrar observações do cliente" checked={!!osPrintConfig.client.showNotes} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, client: { ...prev.client, showNotes: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Aparelho</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar seção do aparelho" checked={!!osPrintConfig.device.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showSection: v } }))} />
+                    <Toggle label="Mostrar aparelho" checked={!!osPrintConfig.device.showEquipment} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showEquipment: v } }))} />
+                    <Toggle label="Mostrar marca" checked={!!osPrintConfig.device.showBrand} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showBrand: v } }))} />
+                    <Toggle label="Mostrar modelo" checked={!!osPrintConfig.device.showModel} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showModel: v } }))} />
+                    <Toggle label="Mostrar serial" checked={!!osPrintConfig.device.showSerial} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showSerial: v } }))} />
+                    <Toggle label="Mostrar IMEI 1" checked={!!osPrintConfig.device.showImei1} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showImei1: v } }))} />
+                    <Toggle label="Mostrar IMEI 2" checked={!!osPrintConfig.device.showImei2} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showImei2: v } }))} />
+                    <Toggle label="Mostrar senha" checked={!!osPrintConfig.device.showPassword} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showPassword: v } }))} />
+                    <Toggle label="Mostrar defeito" checked={!!osPrintConfig.device.showProblem} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, device: { ...prev.device, showProblem: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Checklist</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar checklist" checked={!!osPrintConfig.checklist.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, checklist: { ...prev.checklist, showSection: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Produtos / Serviços</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar produtos/serviços" checked={!!osPrintConfig.items.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, items: { ...prev.items, showSection: v } }))} />
+                    <Toggle label="Mostrar produtos" checked={!!osPrintConfig.items.showProducts} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, items: { ...prev.items, showProducts: v } }))} />
+                    <Toggle label="Mostrar serviços" checked={!!osPrintConfig.items.showServices} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, items: { ...prev.items, showServices: v } }))} />
+                    <Toggle label="Mostrar quantidade" checked={!!osPrintConfig.items.showQty} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, items: { ...prev.items, showQty: v } }))} />
+                    <Toggle label="Mostrar valor un." checked={!!osPrintConfig.items.showUnitPrice} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, items: { ...prev.items, showUnitPrice: v } }))} />
+                    <Toggle label="Mostrar total" checked={!!osPrintConfig.items.showTotal} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, items: { ...prev.items, showTotal: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Observações</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar observações" checked={!!osPrintConfig.observations.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, observations: { ...prev.observations, showSection: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Totais</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar totais" checked={!!osPrintConfig.totals.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, totals: { ...prev.totals, showSection: v } }))} />
+                    <Toggle label="Mostrar desconto" checked={!!osPrintConfig.totals.showDiscount} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, totals: { ...prev.totals, showDiscount: v } }))} />
+                    <Toggle label="Mostrar acréscimo" checked={!!osPrintConfig.totals.showAddition} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, totals: { ...prev.totals, showAddition: v } }))} />
+                    <Toggle label="Mostrar total" checked={!!osPrintConfig.totals.showTotal} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, totals: { ...prev.totals, showTotal: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Pagamentos</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar pagamentos" checked={!!osPrintConfig.payments.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, payments: { ...prev.payments, showSection: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Assinaturas</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar assinatura do cliente" checked={!!osPrintConfig.signatures.showClient} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, signatures: { ...prev.signatures, showClient: v } }))} />
+                    <Toggle label="Mostrar assinatura do técnico" checked={!!osPrintConfig.signatures.showTechnician} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, signatures: { ...prev.signatures, showTechnician: v } }))} />
+                  </div>
+                </div>
+
+                <div className="border dark:border-gray-700 rounded-lg p-4">
+                  <div className="text-sm font-semibold text-gray-900 dark:text-white">Termo de garantia</div>
+                  <div className="mt-3 space-y-3">
+                    <Toggle label="Mostrar termo de garantia" checked={!!osPrintConfig.warranty.showSection} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, warranty: { ...prev.warranty, showSection: v } }))} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setOsPrintConfig(DEFAULT_OS_PRINT_CONFIG)}
+                className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                disabled={osPrintSaving}
+              >
+                Restaurar padrão
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPrintSettingsOpen(false)}
+                  className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  disabled={osPrintSaving}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const sid = storeId || activeStore?.id
+                    if (!sid) {
+                      setOsPrintError('Loja não encontrada para salvar as configurações.')
+                      return
+                    }
+                    setOsPrintSaving(true)
+                    setOsPrintError('')
+                    try {
+                      await updateStore(sid, { serviceOrderPrintConfig: osPrintConfig })
+                      setPrintSettingsOpen(false)
+                    } catch (e) {
+                      setOsPrintError('Erro ao salvar as configurações de impressão.')
+                    } finally {
+                      setOsPrintSaving(false)
+                    }
+                  }}
+                  className="px-4 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+                  disabled={osPrintSaving}
+                >
+                  Salvar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {printModalOpen && (
         <ServiceOrderPrintModal

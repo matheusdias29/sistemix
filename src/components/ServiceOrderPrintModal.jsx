@@ -8,6 +8,104 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
   const contentRef = useRef(null)
   const [clientDetails, setClientDetails] = useState(null)
 
+  const DEFAULT_PRINT_CONFIG = {
+    company: {
+      showLogo: true,
+      showName: true,
+      showCnpj: true,
+      showEmail: true,
+      showWhatsapp: true,
+      showAddress: true,
+    },
+    order: {
+      showTitle: true,
+      showNumber: true,
+      showDate: true,
+      showAttendant: true,
+      showTechnician: true,
+    },
+    client: {
+      showSection: true,
+      showName: true,
+      showCode: true,
+      showCpf: true,
+      showCnpj: true,
+      showPhone: true,
+      showWhatsapp: true,
+      showEmail: true,
+      showCep: true,
+      showAddress: true,
+      showNumber: true,
+      showComplement: true,
+      showNeighborhood: true,
+      showCity: true,
+      showState: true,
+      showIdentity: true,
+      showStateRegistrationIndicator: true,
+      showMotherName: true,
+      showBirthDate: true,
+      showNotes: true,
+    },
+    device: {
+      showSection: true,
+      showEquipment: true,
+      showBrand: true,
+      showModel: true,
+      showSerial: true,
+      showImei1: true,
+      showImei2: true,
+      showPassword: true,
+      showProblem: true,
+    },
+    checklist: {
+      showSection: true,
+    },
+    items: {
+      showSection: true,
+      showQty: true,
+      showTotal: true,
+      showUnitPrice: true,
+      showProducts: true,
+      showServices: true,
+    },
+    observations: {
+      showSection: true,
+    },
+    totals: {
+      showSection: true,
+      showDiscount: true,
+      showAddition: true,
+      showTotal: true,
+    },
+    payments: {
+      showSection: true,
+    },
+    signatures: {
+      showClient: true,
+      showTechnician: true,
+    },
+    warranty: {
+      showSection: true,
+    },
+  }
+
+  const deepMerge = (base, override) => {
+    if (!override || typeof override !== 'object') return base
+    const out = Array.isArray(base) ? [...base] : { ...base }
+    for (const k of Object.keys(override)) {
+      const bv = base?.[k]
+      const ov = override[k]
+      if (bv && typeof bv === 'object' && !Array.isArray(bv) && ov && typeof ov === 'object' && !Array.isArray(ov)) {
+        out[k] = deepMerge(bv, ov)
+      } else {
+        out[k] = ov
+      }
+    }
+    return out
+  }
+
+  const printConfig = deepMerge(DEFAULT_PRINT_CONFIG, store?.serviceOrderPrintConfig || {})
+
   // Auto-select width based on format
   useEffect(() => {
     if (format === 'a4') setWidth('210mm')
@@ -165,6 +263,40 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
   const isThermal = format === 'thermal'
   const containerClass = isThermal ? 'font-mono text-xs' : 'font-sans text-sm'
 
+  const clientCode = order.clientCode || clientDetails?.code
+  const clientCpf = order.clientCpf || clientDetails?.cpf
+  const clientCnpj = order.clientCnpj || clientDetails?.cnpj
+  const clientPhone = order.clientPhone || clientDetails?.phone
+  const clientWhatsapp = order.clientWhatsapp || clientDetails?.whatsapp
+  const clientEmail = order.clientEmail || clientDetails?.email
+  const clientCep = order.clientCep || clientDetails?.cep
+  const clientStreet = order.clientAddressStreet || clientDetails?.address || clientDetails?.endereco
+  const clientNumber = order.clientAddressNumber || clientDetails?.number || clientDetails?.numero
+  const clientComplement = order.clientAddressComplement || clientDetails?.complement || clientDetails?.complemento
+  const clientNeighborhood = order.clientAddressNeighborhood || clientDetails?.neighborhood || clientDetails?.bairro
+  const clientCity = order.clientAddressCity || clientDetails?.city || clientDetails?.cidade
+  const clientState = order.clientAddressState || clientDetails?.state || clientDetails?.estado
+  const clientIdentity = order.clientIdentity || clientDetails?.identity || clientDetails?.rg
+  const clientStateRegistrationIndicator = order.clientStateRegistrationIndicator || clientDetails?.stateRegistrationIndicator
+  const clientMotherName = order.clientMotherName || clientDetails?.motherName
+  const clientBirthDate = order.clientBirthDate || clientDetails?.birthDate
+  const clientNotes = order.clientNotes || clientDetails?.notes
+  const clientAddressLine = (() => {
+    if (!printConfig.client.showAddress) return ''
+    if (order.clientAddress) return order.clientAddress
+    const parts = []
+    if (clientStreet) parts.push(clientStreet)
+    if (printConfig.client.showNumber && clientNumber) parts.push(clientNumber)
+    if (printConfig.client.showComplement && clientComplement) parts.push(clientComplement)
+    if (printConfig.client.showNeighborhood && clientNeighborhood) parts.push(clientNeighborhood)
+    const cityState = [
+      printConfig.client.showCity ? clientCity : null,
+      printConfig.client.showState ? clientState : null,
+    ].filter(v => String(v || '').trim()).join(' - ')
+    if (cityState) parts.push(cityState)
+    return parts.filter(v => String(v || '').trim()).join(', ')
+  })()
+
   return (
     <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white w-full max-w-5xl h-[90vh] flex flex-col rounded-lg shadow-2xl overflow-hidden">
@@ -215,16 +347,18 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
             <div ref={contentRef} className={`p-4 ${containerClass} text-black`}>
               {/* Logo / Header */}
               <div className="text-center mb-4">
-                {store?.bannerUrl && (
+                {printConfig.company.showLogo && store?.bannerUrl && (
                   <div className="mb-2 flex justify-center">
                     <img src={store.bannerUrl} alt="Logo" className="max-h-20 object-contain" />
                   </div>
                 )}
-                <div className="font-bold uppercase text-sm">{store?.name || store?.razaoSocial || 'Nome da Loja'}</div>
-                {store?.cnpj && <div>CNPJ: {store.cnpj}</div>}
-                {store?.emailEmpresarial && <div>{store.emailEmpresarial}</div>}
-                {store?.whatsapp && <div>Tel: {store.whatsapp}</div>}
-                {(store?.address || store?.endereco) && (
+                {printConfig.company.showName && (
+                  <div className="font-bold uppercase text-sm">{store?.name || store?.razaoSocial || 'Nome da Loja'}</div>
+                )}
+                {printConfig.company.showCnpj && store?.cnpj && <div>CNPJ: {store.cnpj}</div>}
+                {printConfig.company.showEmail && store?.emailEmpresarial && <div>{store.emailEmpresarial}</div>}
+                {printConfig.company.showWhatsapp && store?.whatsapp && <div>Tel: {store.whatsapp}</div>}
+                {printConfig.company.showAddress && (store?.address || store?.endereco) && (
                   <div className="mt-1 text-[10px] leading-tight">
                     {store.address || store.endereco}, {store.number || store.numero}
                     {store.neighborhood || store.bairro ? `, ${store.neighborhood || store.bairro}` : ''}
@@ -238,65 +372,81 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
 
               {/* Order Info */}
               <div className="mb-2">
-                <div className="font-bold text-center mb-1">ORDEM DE SERVIÇO</div>
-                <div className="flex justify-between">
-                  <span>Nº: <strong>{order.number || order.id?.slice(-6)}</strong></span>
-                  <span>{formatDate(order.createdAt)}</span>
-                </div>
-                {order.attendant && <div>Atendente: {order.attendant}</div>}
-                {order.technician && <div>Técnico: {order.technician}</div>}
+                {printConfig.order.showTitle && <div className="font-bold text-center mb-1">ORDEM DE SERVIÇO</div>}
+                {(printConfig.order.showNumber || printConfig.order.showDate) && (
+                  <div className="flex justify-between">
+                    {printConfig.order.showNumber && <span>Nº: <strong>{order.number || order.id?.slice(-6)}</strong></span>}
+                    {printConfig.order.showDate && <span>{formatDate(order.createdAt)}</span>}
+                  </div>
+                )}
+                {printConfig.order.showAttendant && order.attendant && <div>Atendente: {order.attendant}</div>}
+                {printConfig.order.showTechnician && order.technician && <div>Técnico: {order.technician}</div>}
               </div>
 
               <div className="border-b border-black my-2"></div>
 
               {/* Client Info */}
-              <div className="mb-2">
-                <div className="font-bold mb-1">DADOS DO CLIENTE</div>
-                <div>{order.client || 'Cliente não informado'}</div>
-                {(order.clientCode || clientDetails?.code) && <div>Código: {order.clientCode || clientDetails?.code}</div>}
-                {(order.clientCpf || clientDetails?.cpf) && <div>CPF: {order.clientCpf || clientDetails?.cpf}</div>}
-                {order.clientAddress && <div className="text-[10px]">{order.clientAddress}</div>}
-                {(order.clientPhone || clientDetails?.phone) && <div>Tel: {order.clientPhone || clientDetails?.phone}</div>}
-                {(order.clientWhatsapp || clientDetails?.whatsapp) && <div>WhatsApp: {order.clientWhatsapp || clientDetails?.whatsapp}</div>}
-              </div>
+              {printConfig.client.showSection && (
+                <div className="mb-2">
+                  <div className="font-bold mb-1">DADOS DO CLIENTE</div>
+                  {printConfig.client.showName && <div>{order.client || 'Cliente não informado'}</div>}
+                  {printConfig.client.showCode && clientCode && <div>Código: {clientCode}</div>}
+                  {printConfig.client.showCpf && clientCpf && <div>CPF: {clientCpf}</div>}
+                  {printConfig.client.showCnpj && clientCnpj && <div>CNPJ: {clientCnpj}</div>}
+                  {printConfig.client.showEmail && clientEmail && <div>Email: {clientEmail}</div>}
+                  {printConfig.client.showCep && clientCep && <div>CEP: {clientCep}</div>}
+                  {clientAddressLine && <div className="text-[10px]">{clientAddressLine}</div>}
+                  {printConfig.client.showPhone && clientPhone && <div>Tel: {clientPhone}</div>}
+                  {printConfig.client.showWhatsapp && clientWhatsapp && <div>WhatsApp: {clientWhatsapp}</div>}
+                  {printConfig.client.showIdentity && clientIdentity && <div>Identidade: {clientIdentity}</div>}
+                  {printConfig.client.showStateRegistrationIndicator && clientStateRegistrationIndicator && (
+                    <div>Indicador IE: {clientStateRegistrationIndicator}</div>
+                  )}
+                  {printConfig.client.showMotherName && clientMotherName && <div>Nome da mãe: {clientMotherName}</div>}
+                  {printConfig.client.showBirthDate && clientBirthDate && <div>Nascimento: {String(clientBirthDate)}</div>}
+                  {printConfig.client.showNotes && clientNotes && <div className="text-[10px] whitespace-pre-wrap">Obs: {clientNotes}</div>}
+                </div>
+              )}
 
               <div className="border-b border-black my-2"></div>
 
               {/* Device Info */}
-              <div className="mb-2">
-                <div className="font-bold mb-1">DADOS DO APARELHO</div>
-                {order.equipment && <div>Aparelho: {order.equipment}</div>}
-                {order.brand && <div>Marca: {order.brand}</div>}
-                {order.model && <div>Modelo: {order.model}</div>}
-                {order.serialNumber && <div style={{ wordBreak: 'break-all' }}>Serial: {order.serialNumber}</div>}
-                {order.imei1 && <div style={{ wordBreak: 'break-all' }}>IMEI 1: {order.imei1}</div>}
-                {order.imei2 && <div style={{ wordBreak: 'break-all' }}>IMEI 2: {order.imei2}</div>}
-                {order.password && (
-                  <div className="mt-1">
-                    <span className="font-semibold">Senha: </span>
-                    {order.password.type === 'pattern' ? (
-                      <div className="my-2" style={{ width: '100px' }}>
-                        <PatternLock pattern={order.password.pattern || []} />
-                      </div>
-                    ) : (
-                      <span>
-                        {order.password.type === 'pattern' 
-                          ? `Padrão: ${(order.password.pattern || []).join('-')}`
-                          : (order.password.value || order.password.pin || '')}
-                      </span>
-                    )}
-                  </div>
-                )}
-                {order.problem && (
-                  <div className="mt-1">
-                    <span className="font-semibold">Defeito:</span>
-                    <div className="whitespace-pre-wrap">{order.problem}</div>
-                  </div>
-                )}
-              </div>
+              {printConfig.device.showSection && (
+                <div className="mb-2">
+                  <div className="font-bold mb-1">DADOS DO APARELHO</div>
+                  {printConfig.device.showEquipment && order.equipment && <div>Aparelho: {order.equipment}</div>}
+                  {printConfig.device.showBrand && order.brand && <div>Marca: {order.brand}</div>}
+                  {printConfig.device.showModel && order.model && <div>Modelo: {order.model}</div>}
+                  {printConfig.device.showSerial && order.serialNumber && <div style={{ wordBreak: 'break-all' }}>Serial: {order.serialNumber}</div>}
+                  {printConfig.device.showImei1 && order.imei1 && <div style={{ wordBreak: 'break-all' }}>IMEI 1: {order.imei1}</div>}
+                  {printConfig.device.showImei2 && order.imei2 && <div style={{ wordBreak: 'break-all' }}>IMEI 2: {order.imei2}</div>}
+                  {printConfig.device.showPassword && order.password && (
+                    <div className="mt-1">
+                      <span className="font-semibold">Senha: </span>
+                      {order.password.type === 'pattern' ? (
+                        <div className="my-2" style={{ width: '100px' }}>
+                          <PatternLock pattern={order.password.pattern || []} />
+                        </div>
+                      ) : (
+                        <span>
+                          {order.password.type === 'pattern' 
+                            ? `Padrão: ${(order.password.pattern || []).join('-')}`
+                            : (order.password.value || order.password.pin || '')}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {printConfig.device.showProblem && order.problem && (
+                    <div className="mt-1">
+                      <span className="font-semibold">Defeito:</span>
+                      <div className="whitespace-pre-wrap">{order.problem}</div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Checklist */}
-              {order.checklist && order.checklist.questions && order.checklist.questions.length > 0 && (
+              {printConfig.checklist.showSection && order.checklist && order.checklist.questions && order.checklist.questions.length > 0 && (
                 <>
                   <div className="border-b border-black my-2"></div>
                   <div className="mb-2">
@@ -316,44 +466,46 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               <div className="border-b border-black my-2"></div>
 
               {/* Items */}
-              <div className="mb-2">
-                <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="border-b border-dashed border-gray-400">
-                      <th className="text-left pb-1">Item</th>
-                      <th className="text-right pb-1 w-12">Qtd</th>
-                      <th className="text-right pb-1 w-16">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(order.products || []).map((p, i) => (
-                      <tr key={`p-${i}`}>
-                        <td className="pr-1 py-1">
-                          <div>{p.name}</div>
-                          {p.price > 0 && <div className="text-[9px] text-gray-500">{formatMoney(p.price)} un</div>}
-                        </td>
-                        <td className="text-right py-1 align-top">{p.quantity}</td>
-                        <td className="text-right py-1 align-top">{formatMoney(p.price * p.quantity)}</td>
+              {printConfig.items.showSection && (
+                <div className="mb-2">
+                  <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-dashed border-gray-400">
+                        <th className="text-left pb-1">Item</th>
+                        {printConfig.items.showQty && <th className="text-right pb-1 w-12">Qtd</th>}
+                        {printConfig.items.showTotal && <th className="text-right pb-1 w-16">Total</th>}
                       </tr>
-                    ))}
-                    {(order.services || []).map((s, i) => (
-                      <tr key={`s-${i}`}>
-                        <td className="pr-1 py-1">
-                          <div>{s.name}</div>
-                          {s.price > 0 && <div className="text-[9px] text-gray-500">{formatMoney(s.price)}</div>}
-                        </td>
-                        <td className="text-right py-1 align-top">{s.quantity || 1}</td>
-                        <td className="text-right py-1 align-top">{formatMoney(s.price * (s.quantity || 1))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {printConfig.items.showProducts && (order.products || []).map((p, i) => (
+                        <tr key={`p-${i}`}>
+                          <td className="pr-1 py-1">
+                            <div>{p.name}</div>
+                            {printConfig.items.showUnitPrice && p.price > 0 && <div className="text-[9px] text-gray-500">{formatMoney(p.price)} un</div>}
+                          </td>
+                          {printConfig.items.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
+                          {printConfig.items.showTotal && <td className="text-right py-1 align-top">{formatMoney(p.price * p.quantity)}</td>}
+                        </tr>
+                      ))}
+                      {printConfig.items.showServices && (order.services || []).map((s, i) => (
+                        <tr key={`s-${i}`}>
+                          <td className="pr-1 py-1">
+                            <div>{s.name}</div>
+                            {printConfig.items.showUnitPrice && s.price > 0 && <div className="text-[9px] text-gray-500">{formatMoney(s.price)}</div>}
+                          </td>
+                          {printConfig.items.showQty && <td className="text-right py-1 align-top">{s.quantity || 1}</td>}
+                          {printConfig.items.showTotal && <td className="text-right py-1 align-top">{formatMoney(s.price * (s.quantity || 1))}</td>}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
 
               <div className="border-t border-black my-2"></div>
 
-              {order.receiptNotes && (
+              {printConfig.observations.showSection && order.receiptNotes && (
                 <>
                   <div className="mb-2">
                     <div className="font-bold mb-1">OBSERVAÇÕES</div>
@@ -364,27 +516,31 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               )}
 
               {/* Totals */}
-              <div className="flex flex-col gap-1 text-right mb-2">
-                {discount > 0 && (
-                   <div className="flex justify-between">
-                     <span>Desconto:</span>
-                     <span>- {formatMoney(discount)}</span>
-                   </div>
-                )}
-                {addition > 0 && (
-                   <div className="flex justify-between">
-                     <span>Acréscimo:</span>
-                     <span>+ {formatMoney(addition)}</span>
-                   </div>
-                )}
-                <div className="flex justify-between font-bold text-sm mt-1">
-                  <span>TOTAL:</span>
-                  <span>{formatMoney(total)}</span>
+              {printConfig.totals.showSection && (
+                <div className="flex flex-col gap-1 text-right mb-2">
+                  {printConfig.totals.showDiscount && discount > 0 && (
+                    <div className="flex justify-between">
+                      <span>Desconto:</span>
+                      <span>- {formatMoney(discount)}</span>
+                    </div>
+                  )}
+                  {printConfig.totals.showAddition && addition > 0 && (
+                    <div className="flex justify-between">
+                      <span>Acréscimo:</span>
+                      <span>+ {formatMoney(addition)}</span>
+                    </div>
+                  )}
+                  {printConfig.totals.showTotal && (
+                    <div className="flex justify-between font-bold text-sm mt-1">
+                      <span>TOTAL:</span>
+                      <span>{formatMoney(total)}</span>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
 
               {/* Payments */}
-              {(order.payments && order.payments.length > 0) && (
+              {printConfig.payments.showSection && (order.payments && order.payments.length > 0) && (
                 <>
                   <div className="border-b border-black my-2"></div>
                   <div className="mb-2">
@@ -400,17 +556,21 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               )}
 
               <div className="mt-8 border-t border-black pt-2 text-center">
-                <div className="mb-12 pt-8">
-                  <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
-                  <div className="text-xs">Assinatura do Cliente</div>
-                </div>
+                {printConfig.signatures.showClient && (
+                  <div className="mb-12 pt-8">
+                    <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
+                    <div className="text-xs">Assinatura do Cliente</div>
+                  </div>
+                )}
 
-                <div className="mb-8 pt-8">
-                  <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
-                  <div className="text-xs">Assinatura do Técnico</div>
-                </div>
+                {printConfig.signatures.showTechnician && (
+                  <div className="mb-8 pt-8">
+                    <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
+                    <div className="text-xs">Assinatura do Técnico</div>
+                  </div>
+                )}
                 
-                {(store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText) && (
+                {printConfig.warranty.showSection && (store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText) && (
                   <div className="text-[8px] text-justify leading-tight mt-8 pt-4 border-t border-black">
                     <strong>TERMO DE GARANTIA:</strong> {store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText || 'Garantia de 90 dias para serviços e peças.'}
                   </div>
