@@ -196,8 +196,9 @@ export default function TermsPage({ storeId, user }) {
   const [terms, setTerms] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const canEdit = user?.role === 'owner' || user?.permissions?.terms?.edit
-  const canView = user?.role === 'owner' || user?.permissions?.terms?.view || canEdit
+  const isOwner = !user?.memberId
+  const canEdit = isOwner || user?.role === 'owner' || user?.permissions?.terms?.edit
+  const canView = isOwner || user?.role === 'owner' || user?.permissions?.terms?.view || canEdit
 
   const [selectedTermId, setSelectedTermId] = useState('')
   const [editorText, setEditorText] = useState('')
