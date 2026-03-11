@@ -17,6 +17,9 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
 
+  const DEFAULT_WARRANTY_INFO = `TERMO DE GARANTIA DE PRODUTOS
+Para celulares 1* Ano / Prosutos e Serviços 3 meses
+Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descascado manchas esternas ou internas quebrado ou danificado! Sem selo da loja.Não trocamos Produto sem caixa original. cliente ciente com os termos acima.`
 
   // Data
   const [products, setProducts] = useState([])
@@ -49,6 +52,8 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const [saving, setSaving] = useState(false)
   const [notesOpen, setNotesOpen] = useState(false)
   const [notesText, setNotesText] = useState('')
+  const [warrantyOpen, setWarrantyOpen] = useState(false)
+  const [warrantyText, setWarrantyText] = useState(DEFAULT_WARRANTY_INFO)
   const [feesModalOpen, setFeesModalOpen] = useState(false)
   const [discountModalOpen, setDiscountModalOpen] = useState(false)
   const [addValueModalOpen, setAddValueModalOpen] = useState(false)
@@ -199,12 +204,20 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   }, [storeId])
 
   useEffect(() => {
+    if (!open || isEdit) return
+    const st = String(store?.warrantyTerms || '').trim()
+    if (!st) return
+    setWarrantyText(prev => (prev === DEFAULT_WARRANTY_INFO ? st : prev))
+  }, [open, isEdit, store])
+
+  useEffect(() => {
     if (open) {
       if (!isEdit) {
         setCart([])
         setPayments([])
         setSelectedClient(null)
         setNotesText('')
+        setWarrantyText(String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO)
         setAppliedFees([])
         setDiscount({ type: null, value: 0 })
       } else if (sale) {
@@ -218,6 +231,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         setPayments(Array.isArray(sale.payments) ? sale.payments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0) })) : [])
         setSelectedClient(sale.clientId || sale.client ? { id: sale.clientId || null, name: sale.client || 'Consumidor Final' } : null)
         setNotesText(sale.receiptNotes || '')
+        setWarrantyText(String(sale.warrantyInfo || '').trim() ? String(sale.warrantyInfo) : (String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO))
         setAppliedFees(Array.isArray(sale.feesApplied) ? sale.feesApplied : [])
         setDiscount(sale.discount && (sale.discount.type === 'fixed' || sale.discount.type === 'percent') ? sale.discount : { type: null, value: 0 })
       }
@@ -232,6 +246,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
       setPayAboveConfirmOpen(false)
       setRemainingInfoOpen(false)
       setAfterAboveAdjustedOpen(false)
+      setWarrantyOpen(false)
     }
   }, [open])
 
@@ -511,6 +526,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
         total,
         valor: total,
         receiptNotes: notesText,
+        warrantyInfo: warrantyText,
         payments: payments.map(p => ({
           method: p.method,
           amount: p.amount,
@@ -534,6 +550,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
           total: payload.total,
           valor: payload.valor,
           receiptNotes: payload.receiptNotes,
+          warrantyInfo: payload.warrantyInfo,
           payments: payload.payments,
           status: status
         }
@@ -959,6 +976,7 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               {/* Options Popup */}
               {optionsOpen && (
                 <div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 z-30 overflow-hidden modal-card">
+                  <button onClick={() => { setOptionsOpen(false); setWarrantyOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Termos de garantia</button>
                   <button onClick={() => { setOptionsOpen(false); setNotesOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Adicionar observações</button>
                   {(isOwner || perms.sales?.finalize || (isEdit && perms.sales?.edit)) && (
                     <>
@@ -1036,6 +1054,36 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
               </button>
               <button
                 onClick={() => setNotesOpen(false)}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {warrantyOpen && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl">
+            <div className="p-4 border-b dark:border-gray-700">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white text-center">Termos de garantia</div>
+            </div>
+            <div className="p-4">
+              <textarea
+                value={warrantyText}
+                onChange={e => setWarrantyText(e.target.value)}
+                className="w-full h-56 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500 whitespace-pre-wrap"
+              />
+            </div>
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
+              <button
+                onClick={() => setWarrantyOpen(false)}
+                className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
+              >
+                × Cancelar
+              </button>
+              <button
+                onClick={() => setWarrantyOpen(false)}
                 className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700"
               >
                 Confirmar

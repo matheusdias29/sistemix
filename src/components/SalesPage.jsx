@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { listenOrders } from '../services/orders'
 import { listenProducts } from '../services/products'
 import NewSaleModal from './NewSaleModal'
@@ -7,6 +8,7 @@ import SalesDateFilterModal from './SalesDateFilterModal'
 import SalesAdvancedFilterModal from './SalesAdvancedFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import pixIcon from '../assets/pix.svg'
+import { updateStore } from '../services/stores'
 
 const tabs = [
   { key: 'todos', label: 'Todos' },
@@ -45,11 +47,29 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
   const [selectColumnsOpen, setSelectColumnsOpen] = useState(false)
   
   const [optionsOpen, setOptionsOpen] = useState(false)
-  const optionsRef = React.useRef(null)
+  const optionsRef = useRef(null)
+  const optionsButtonRef = useRef(null)
+  const optionsMenuRef = useRef(null)
+  const [optionsMenuPos, setOptionsMenuPos] = useState({ top: 0, left: 0 })
+
+  const DEFAULT_WARRANTY_INFO = `TERMO DE GARANTIA DE PRODUTOS
+Para celulares 1* Ano / Prosutos e Serviços 3 meses
+Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descascado manchas esternas ou internas quebrado ou danificado! Sem selo da loja.Não trocamos Produto sem caixa original. cliente ciente com os termos acima.`
+  const [warrantyOpen, setWarrantyOpen] = useState(false)
+  const [warrantyText, setWarrantyText] = useState('')
+  const [warrantySaving, setWarrantySaving] = useState(false)
+  const [warrantyError, setWarrantyError] = useState('')
+
+  useEffect(() => {
+    if (!warrantyOpen) return
+    setWarrantyText(String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO)
+  }, [warrantyOpen, store])
 
   useEffect(() => {
     function handleClickOutside(event) {
-      if (optionsRef.current && !optionsRef.current.contains(event.target)) {
+      const inButtonArea = optionsRef.current && optionsRef.current.contains(event.target)
+      const inMenu = optionsMenuRef.current && optionsMenuRef.current.contains(event.target)
+      if (!inButtonArea && !inMenu) {
         setOptionsOpen(false)
       }
     }
@@ -58,6 +78,46 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
       document.removeEventListener("mousedown", handleClickOutside)
     }
   }, [])
+
+  const updateOptionsMenuPos = () => {
+    const btn = optionsButtonRef.current
+    if (!btn) return
+    const rect = btn.getBoundingClientRect()
+    const menuWidth = 224
+    const margin = 8
+
+    let left = rect.right - menuWidth
+    left = Math.max(margin, Math.min(left, window.innerWidth - menuWidth - margin))
+
+    let top = rect.bottom + margin
+
+    const menuEl = optionsMenuRef.current
+    if (menuEl) {
+      const m = menuEl.getBoundingClientRect()
+      const h = m.height
+      if (top + h > window.innerHeight - margin) {
+        const above = rect.top - margin - h
+        if (above >= margin) top = above
+        else top = Math.max(margin, window.innerHeight - margin - h)
+      }
+    }
+
+    setOptionsMenuPos({ top, left })
+  }
+
+  useEffect(() => {
+    if (!optionsOpen) return
+    updateOptionsMenuPos()
+    const raf = requestAnimationFrame(() => updateOptionsMenuPos())
+    const onMove = () => updateOptionsMenuPos()
+    window.addEventListener('scroll', onMove, true)
+    window.addEventListener('resize', onMove)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onMove, true)
+      window.removeEventListener('resize', onMove)
+    }
+  }, [optionsOpen])
 
   useEffect(() => {
     const w = window.innerWidth
@@ -403,44 +463,110 @@ export default function SalesPage({ initialDayFilter = null, storeId, store, use
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-3 relative" ref={optionsRef}>
+          <div className="flex items-center gap-3 relative z-[2000]" ref={optionsRef}>
             <button 
+              ref={optionsButtonRef}
               onClick={() => setOptionsOpen(!optionsOpen)}
               className={`px-3 py-2 rounded text-sm font-medium border transition-colors ${optionsOpen ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'}`}
             >
               Opções
             </button>
-            {optionsOpen && (
-              <div className="absolute top-full right-[calc(100%-5rem)] mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-50 py-1">
-                {(isOwner || perms.sales?.viewAll) && (
-                <>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  Devolução
-                </button>
-                <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  Relatório Resumido
-                </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  Relatório Detalhado
-                </button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  Relatório de Comissões
-                </button>
-                <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
-                </>
-                )}
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  Meu link do catálogo
-                </button>
-              </div>
-            )}
             {(isOwner || perms.sales?.finalize) && (
             <button onClick={()=>setNewSaleOpen(true)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 shadow-sm transition-all hover:shadow-md font-medium whitespace-nowrap">+ Nova Venda</button>
             )}
           </div>
         </div>
       </div>
+
+      {optionsOpen && createPortal(
+        <div
+          ref={optionsMenuRef}
+          style={{ top: optionsMenuPos.top, left: optionsMenuPos.left, width: 224 }}
+          className="fixed bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-[99999] py-1"
+        >
+          <button
+            onClick={() => {
+              setOptionsOpen(false)
+              setWarrantyError('')
+              setWarrantyOpen(true)
+            }}
+            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          >
+            Termos de garantia
+          </button>
+          <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+          {(isOwner || perms.sales?.viewAll) && (
+          <>
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            Devolução
+          </button>
+          <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            Relatório Resumido
+          </button>
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            Relatório Detalhado
+          </button>
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            Relatório de Comissões
+          </button>
+          <div className="h-px bg-gray-100 dark:bg-gray-700 my-1"></div>
+          </>
+          )}
+          <button className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+            Meu link do catálogo
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {warrantyOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl overflow-hidden">
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white">Termos de garantia</div>
+              <button onClick={() => setWarrantyOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+            </div>
+            <div className="p-4">
+              {warrantyError && <div className="text-sm text-red-600 dark:text-red-400 mb-2">{warrantyError}</div>}
+              <textarea
+                value={warrantyText}
+                onChange={e => setWarrantyText(e.target.value)}
+                className="w-full h-64 border dark:border-gray-600 rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 dark:text-gray-100 focus:bg-white dark:focus:bg-gray-600 focus:outline-none focus:ring-1 focus:ring-green-500 whitespace-pre-wrap"
+              />
+            </div>
+            <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
+              <button
+                onClick={() => setWarrantyOpen(false)}
+                className="flex-1 py-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-medium"
+                disabled={warrantySaving}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  if (!storeId) return
+                  if (warrantySaving) return
+                  setWarrantySaving(true)
+                  setWarrantyError('')
+                  try {
+                    await updateStore(storeId, { warrantyTerms: warrantyText })
+                    setWarrantyOpen(false)
+                  } catch {
+                    setWarrantyError('Não foi possível salvar os termos.')
+                  } finally {
+                    setWarrantySaving(false)
+                  }
+                }}
+                className="flex-1 py-2 bg-green-600 text-white rounded text-sm font-medium hover:bg-green-700 disabled:opacity-60"
+                disabled={warrantySaving}
+              >
+                {warrantySaving ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lista */}
       <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden overflow-x-auto border border-gray-100 dark:border-gray-700">

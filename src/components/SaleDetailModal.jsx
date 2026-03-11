@@ -387,6 +387,9 @@ function SaleReceiptPrintModal({ open, onClose, sale, store, storeId }) {
   const [width, setWidth] = useState('80mm')
   const contentRef = useRef(null)
   const [clientDetails, setClientDetails] = useState(null)
+  const DEFAULT_WARRANTY_INFO = `TERMO DE GARANTIA DE PRODUTOS
+Para celulares 1* Ano / Prosutos e Serviços 3 meses
+Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descascado manchas esternas ou internas quebrado ou danificado! Sem selo da loja.Não trocamos Produto sem caixa original. cliente ciente com os termos acima.`
 
   useEffect(() => {
     if (format === 'a4') setWidth('210mm')
@@ -451,6 +454,9 @@ function SaleReceiptPrintModal({ open, onClose, sale, store, storeId }) {
     return 0
   })()
   const total = Number(sale.total || sale.valor || (subtotal + feesTotal - discountAmount) || 0)
+  const warrantyInfo = String(sale.warrantyInfo || '').trim()
+    ? String(sale.warrantyInfo)
+    : (String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO)
 
   const handlePrint = () => {
     const content = contentRef.current
@@ -684,6 +690,12 @@ function SaleReceiptPrintModal({ open, onClose, sale, store, storeId }) {
                   </div>
                 </>
               )}
+
+              <div className="border-b border-black my-2"></div>
+              <div className="mb-1">
+                <div className="font-bold mb-1">TERMO DE GARANTIA</div>
+                <div className="whitespace-pre-wrap">{warrantyInfo}</div>
+              </div>
             </div>
           </div>
         </div>
