@@ -157,6 +157,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
         padding: 0; 
         background: white;
         color: black;
+        font-weight: bold;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }

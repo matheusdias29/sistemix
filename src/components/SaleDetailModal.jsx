@@ -567,6 +567,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         padding: 0;
         background: white;
         color: black;
+        font-weight: bold;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
