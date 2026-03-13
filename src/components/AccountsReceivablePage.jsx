@@ -36,6 +36,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
   const [detailTab, setDetailTab] = useState('receivable')
   const [selectedDetailIds, setSelectedDetailIds] = useState(new Set())
   const [detailMenuOpenId, setDetailMenuOpenId] = useState(null)
+  const [detailMenuPos, setDetailMenuPos] = useState(null)
   const [currentCash, setCurrentCash] = useState(null)
   const [receiveTargetAccounts, setReceiveTargetAccounts] = useState([])
   const [receivePayments, setReceivePayments] = useState([])
@@ -64,7 +65,27 @@ export default function AccountsReceivablePage({ storeId, user }) {
   useEffect(() => {
     setSelectedDetailIds(new Set())
     setDetailMenuOpenId(null)
+    setDetailMenuPos(null)
   }, [detailGroup, detailTab])
+
+  useEffect(() => {
+    if (!detailMenuOpenId) return
+    const close = () => {
+      setDetailMenuOpenId(null)
+      setDetailMenuPos(null)
+    }
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') close()
+    }
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [detailMenuOpenId])
 
   // Agrupar por Cliente
   const { grouped, totalReceivable, totalOverdue, totalCredits } = useMemo(() => {
@@ -323,7 +344,8 @@ export default function AccountsReceivablePage({ storeId, user }) {
               clientName: acc.clientName,
               description: acc.description,
               value: acc.value,
-              remainingValue: acc.remainingValue
+              remainingValue: acc.remainingValue,
+              paidValueBefore: acc.paidValue
             }))
           }
         })
@@ -587,8 +609,17 @@ export default function AccountsReceivablePage({ storeId, user }) {
       </div>
 
       {detailGroup && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl">
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40"
+          onClick={() => {
+            setDetailMenuOpenId(null)
+            setDetailMenuPos(null)
+          }}
+        >
+          <div
+            className="bg-white rounded-lg shadow-xl w-full max-w-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="px-6 pt-4 border-b flex items-center justify-between">
               <div className="text-sm font-semibold text-gray-800">Contas a receber</div>
               <button
@@ -804,33 +835,22 @@ export default function AccountsReceivablePage({ storeId, user }) {
                                 className="inline-flex items-center justify-center w-8 h-8 rounded-full hover:bg-gray-100 text-gray-500"
                                 onClick={e => {
                                   e.stopPropagation()
-                                  setDetailMenuOpenId(
-                                    detailMenuOpenId === acc.id ? null : acc.id
-                                  )
+                                  const rect = e.currentTarget.getBoundingClientRect()
+                                  const nextOpen = detailMenuOpenId === acc.id ? null : acc.id
+                                  if (!nextOpen) {
+                                    setDetailMenuOpenId(null)
+                                    setDetailMenuPos(null)
+                                    return
+                                  }
+                                  setDetailMenuOpenId(nextOpen)
+                                  setDetailMenuPos({
+                                    top: rect.bottom + 6,
+                                    left: rect.right,
+                                  })
                                 }}
                               >
                                 <span className="text-lg leading-none">⋮</span>
                               </button>
-                              {detailMenuOpenId === acc.id && (
-                                <div className="absolute right-0 mt-2 w-32 bg-white rounded-md shadow-lg border border-gray-100 z-10">
-                                  <button
-                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
-                                    onClick={() => {
-                                      setDetailMenuOpenId(null)
-                                    }}
-                                  >
-                                    Promissória
-                                  </button>
-                                  <button
-                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
-                                    onClick={() => {
-                                      setDetailMenuOpenId(null)
-                                    }}
-                                  >
-                                    Pagamentos
-                                  </button>
-                                </div>
-                              )}
                             </td>
                           </tr>
                         )
@@ -841,6 +861,51 @@ export default function AccountsReceivablePage({ storeId, user }) {
               </div>
             </div>
           </div>
+
+          {detailMenuOpenId && detailMenuPos && (
+            <div
+              className="fixed z-[1000] w-36 bg-white rounded-md shadow-lg border border-gray-100"
+              style={{
+                top: `${detailMenuPos.top}px`,
+                left: `${detailMenuPos.left}px`,
+                transform: 'translateX(-100%)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setDetailMenuOpenId(null)
+                  setDetailMenuPos(null)
+                }}
+              >
+                Promissória
+              </button>
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
+                onClick={() => {
+                  setDetailMenuOpenId(null)
+                  setDetailMenuPos(null)
+                }}
+              >
+                Pagamentos
+              </button>
+              <button
+                className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                onClick={async () => {
+                  const targetId = detailMenuOpenId
+                  setDetailMenuOpenId(null)
+                  setDetailMenuPos(null)
+                  if (!targetId) return
+                  const ok = window.confirm('Excluir esta parcela?')
+                  if (!ok) return
+                  await handleDelete(targetId)
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          )}
         </div>
       )}
 

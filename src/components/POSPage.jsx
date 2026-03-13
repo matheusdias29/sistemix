@@ -2,9 +2,12 @@ import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction, updateCashTransaction, removeCashTransaction } from '../services/cash'
 import { listenOrders } from '../services/orders'
 import { listenClients } from '../services/clients'
+import { updateAccountReceivable } from '../services/accountsReceivable'
 import SaleDetailModal from './SaleDetailModal'
 import CloseCashModal from './CloseCashModal'
 import pixIcon from '../assets/pix.svg'
+import { doc, getDoc } from 'firebase/firestore'
+import { db } from '../lib/firebase'
 
 const parseCurrency = (val) => {
   if (!val) return 0
@@ -231,6 +234,40 @@ export default function POSPage({ storeId, user }){
     if (!selectedTransaction || !currentCash) return
     if (!window.confirm('Tem certeza que deseja cancelar esta movimentação?')) return
     try {
+      const t = selectedTransaction
+      if (t?.originalOrder?.type === 'accounts_receivable') {
+        const accounts = Array.isArray(t.originalOrder.accounts) ? t.originalOrder.accounts : []
+        for (const a of accounts) {
+          if (!a?.id) continue
+          const restoreRemaining = Number(a.remainingValue ?? a.value ?? 0)
+          const paidBefore = a.paidValueBefore
+
+          if (typeof paidBefore === 'number' && !isNaN(paidBefore)) {
+            await updateAccountReceivable(a.id, {
+              status: 'pending',
+              paidValue: Math.max(paidBefore, 0),
+              remainingValue: Math.max(restoreRemaining, 0),
+              paymentDate: null,
+              payments: []
+            })
+            continue
+          }
+
+          const snap = await getDoc(doc(db, 'accounts_receivable', a.id))
+          if (!snap.exists()) continue
+          const cur = snap.data() || {}
+          const curPaid = Number(cur.paidValue ?? 0)
+          const nextPaid = Math.max(curPaid - restoreRemaining, 0)
+
+          await updateAccountReceivable(a.id, {
+            status: 'pending',
+            paidValue: nextPaid,
+            remainingValue: Math.max(restoreRemaining, 0),
+            paymentDate: null,
+            payments: []
+          })
+        }
+      }
       await removeCashTransaction(currentCash.id, selectedTransaction.id)
       setSelectedTransaction(null)
     } catch (err) {
@@ -396,7 +433,8 @@ export default function POSPage({ storeId, user }){
             value: t.value,
             type: t.value > 0 ? 'in' : 'out',
             isManual: true,
-            seller: t.userName || '—'
+            seller: t.userName || '—',
+            originalOrder: t.originalOrder || null
           })
 
           const amount = Number(t.value || 0)
@@ -698,10 +736,16 @@ export default function POSPage({ storeId, user }){
                            key={t.id} 
                            className="hover:bg-gray-50 cursor-pointer transition-colors"
                            onClick={() => {
+                            if (t?.originalOrder?.type === 'accounts_receivable') {
+                              setSelectedTransaction(t)
+                              return
+                            }
                             if (t.originalOrder) {
                               setSelectedOrder(t.originalOrder)
                               setDetailModalOpen(true)
-                            } else if (t.isManual) {
+                              return
+                            }
+                            if (t.isManual) {
                               setSelectedTransaction(t)
                             }
                           }}
@@ -1041,7 +1085,9 @@ export default function POSPage({ storeId, user }){
               <div className="bg-white rounded-xl shadow-2xl w-full max-w-md animate-in fade-in zoom-in duration-200 overflow-hidden">
                 <div className="p-6">
                   <h3 className="text-lg font-bold text-gray-800 mb-6">
-                    {selectedTransaction.value > 0 ? 'Valor adicionado' : 'Valor removido'}
+                    {selectedTransaction?.originalOrder?.type === 'accounts_receivable'
+                      ? 'Recebimento de contas'
+                      : (selectedTransaction.value > 0 ? 'Valor adicionado' : 'Valor removido')}
                   </h3>
 
                   <div className={`text-4xl font-bold mb-2 ${selectedTransaction.value > 0 ? 'text-green-500' : 'text-red-500'}`}>
@@ -1056,18 +1102,22 @@ export default function POSPage({ storeId, user }){
                   </div>
 
                   <div className="flex gap-3 mb-8">
-                    <button className="flex items-center gap-2 px-4 py-2 border border-green-500 text-green-600 rounded bg-green-50 hover:bg-green-100 text-sm font-medium transition-colors">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                      </svg>
-                      Recibo
-                    </button>
-                    <button onClick={handleEditTransaction} className="flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-600 rounded hover:bg-blue-50 text-sm font-medium transition-colors">
-                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      Editar
-                    </button>
+                    {selectedTransaction?.originalOrder?.type !== 'accounts_receivable' && (
+                      <button className="flex items-center gap-2 px-4 py-2 border border-green-500 text-green-600 rounded bg-green-50 hover:bg-green-100 text-sm font-medium transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Recibo
+                      </button>
+                    )}
+                    {selectedTransaction?.originalOrder?.type !== 'accounts_receivable' && (
+                      <button onClick={handleEditTransaction} className="flex items-center gap-2 px-4 py-2 border border-blue-200 text-blue-600 rounded hover:bg-blue-50 text-sm font-medium transition-colors">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Editar
+                      </button>
+                    )}
                     <button onClick={handleDeleteTransaction} className="flex items-center gap-2 px-4 py-2 border border-red-200 text-red-500 rounded hover:bg-red-50 text-sm font-medium transition-colors">
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1081,6 +1131,31 @@ export default function POSPage({ storeId, user }){
                       <div className="text-xs font-bold text-gray-800 mb-1">Detalhes:</div>
                       <div className="text-sm text-gray-600">{selectedTransaction.notes || selectedTransaction.description}</div>
                     </div>
+
+                    {selectedTransaction?.originalOrder?.type === 'accounts_receivable' &&
+                      Array.isArray(selectedTransaction?.originalOrder?.accounts) &&
+                      selectedTransaction.originalOrder.accounts.length > 0 && (
+                        <div>
+                          <div className="text-xs font-bold text-gray-800 mb-2">Parcelas</div>
+                          <div className="space-y-2">
+                            {selectedTransaction.originalOrder.accounts.map((a) => (
+                              <div key={a.id} className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="text-sm text-gray-700 truncate">
+                                    {a.clientName || 'Cliente'}
+                                  </div>
+                                  <div className="text-xs text-gray-400 truncate">
+                                    {a.description || ''}
+                                  </div>
+                                </div>
+                                <div className="text-sm font-medium text-gray-900 whitespace-nowrap">
+                                  {money(Number(a.remainingValue ?? a.value ?? 0))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
 
                     <div>
                       <div className="text-xs font-bold text-gray-800 mb-1">Pagamento</div>
