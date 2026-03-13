@@ -890,20 +890,22 @@ export default function AccountsReceivablePage({ storeId, user }) {
               >
                 Pagamentos
               </button>
-              <button
-                className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50"
-                onClick={async () => {
-                  const targetId = detailMenuOpenId
-                  setDetailMenuOpenId(null)
-                  setDetailMenuPos(null)
-                  if (!targetId) return
-                  const ok = window.confirm('Excluir esta parcela?')
-                  if (!ok) return
-                  await handleDelete(targetId)
-                }}
-              >
-                Excluir
-              </button>
+              {(isOwner || perms.receivables?.delete) && (
+                <button
+                  className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                  onClick={async () => {
+                    const targetId = detailMenuOpenId
+                    setDetailMenuOpenId(null)
+                    setDetailMenuPos(null)
+                    if (!targetId) return
+                    const ok = window.confirm('Excluir esta parcela?')
+                    if (!ok) return
+                    await handleDelete(targetId)
+                  }}
+                >
+                  Excluir
+                </button>
+              )}
             </div>
           )}
         </div>

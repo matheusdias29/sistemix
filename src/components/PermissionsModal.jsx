@@ -9,7 +9,7 @@ const defaultPermissions = {
   categories: { create: false, edit: false, delete: false, bulkPricing: false },
   suppliers: { create: false, edit: false, view: false, delete: false },
   clients: { create: false, edit: false, delete: false },
-  receivables: { create: false, edit: false, view: false, cancel: false },
+  receivables: { create: false, edit: false, view: false, cancel: false, delete: false },
   payables: { create: false, edit: false, view: false, delete: false },
   cash: { view: false, open: false, close: false, viewReopenPrevious: false },
   settings: { view: false, company: false, users: false, payments: false, taxes: false, commissions: false, os: false },
