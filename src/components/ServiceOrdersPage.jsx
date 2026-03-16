@@ -121,7 +121,7 @@ const DEFAULT_STATUSES = [
   'APARELHO LIBERADO AGUARDANDO PAGAMENTO'
 ]
 
-export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNewSignal, viewParams, setViewParams }){
+export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNewSignal, viewParams, setViewParams, techAreaMode = false }){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const isDark = useDarkMode()
@@ -160,12 +160,16 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [filterClient, setFilterClient] = useState('')
-  const [filterTechnician, setFilterTechnician] = useState('')
+  const [filterTechnician, setFilterTechnician] = useState(() => (techAreaMode ? (user?.name || '') : ''))
   const [filterAttendant, setFilterAttendant] = useState('')
   const [filterStatuses, setFilterStatuses] = useState([])
   const [filterClientSelectOpen, setFilterClientSelectOpen] = useState(false)
   const [filterTechSelectOpen, setFilterTechSelectOpen] = useState(false)
   const [filterAttendantSelectOpen, setFilterAttendantSelectOpen] = useState(false)
+
+  useEffect(() => {
+    if (techAreaMode && listTab !== 'os') setListTab('os')
+  }, [techAreaMode, listTab])
 
   // Alert Modal State
   const [alertModalOpen, setAlertModalOpen] = useState(false)
@@ -329,6 +333,14 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
     })
     const q = query.trim().toLowerCase()
     let base = onlyOS
+    if (techAreaMode) {
+      const sel = normalize(user?.name)
+      if (!sel) return []
+      base = base.filter(o => {
+        const t = normalize(o.technician)
+        return t === sel || t.includes(sel)
+      })
+    }
     if (dateRange.start || dateRange.end) {
       base = base.filter(o => {
         const d = toDate(o.dateIn ?? o.createdAt)
@@ -382,7 +394,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
         (qDigits ? numDigits.includes(qDigits) : false)
       )
     })
-  }, [orders, query, dateRange, filterClient, filterTechnician, filterAttendant, filterStatuses])
+  }, [orders, query, dateRange, filterClient, filterTechnician, filterAttendant, filterStatuses, techAreaMode, user?.name])
 
   const totalFinalizadas = useMemo(() => {
     return orders.filter(o => (o.status||'').toLowerCase().includes('finalizada')).reduce((sum, o) => sum + (o.valor||0), 0)
@@ -1469,96 +1481,98 @@ const canEditService = isOwner || perms.services?.edit
           <div className="bg-white rounded-lg p-4 shadow">
             <div className="flex items-center gap-6 text-sm">
               <button onClick={()=>setListTab('os')} className={`pb-2 ${listTab==='os' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Ordens De Serviço</button>
-              <button onClick={()=>setListTab('services')} className={`pb-2 ${listTab==='services' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Serviços</button>
+              {!techAreaMode && (
+                <button onClick={()=>setListTab('services')} className={`pb-2 ${listTab==='services' ? 'text-green-600 border-b-2 border-green-600 font-semibold' : 'text-gray-600'}`}>Serviços</button>
+              )}
             </div>
             {listTab==='os' ? (
-            <div className="mt-4 flex items-center gap-3">
-              {canView && (
-              <div className="flex-1 flex items-center gap-2">
-                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
-                {/* Ícones ao lado direito da busca (mobile) */}
-                <button type="button" onClick={()=>setDateFilterOpen(true)}
-                  className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
-                  aria-label="Período"
-                  title="Período">
-                  <span className="md:hidden">📅</span>
-                  <span className="hidden md:inline">📅 {dateRange.label}</span>
-                </button>
-                <button type="button" onClick={()=>setFiltersOpen(v=>!v)}
-                  className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
-                  aria-label="Filtros"
-                  title="Filtros">
-                  <span className="md:hidden">⚙️</span>
-                  <span className="hidden md:inline">⚙️ Filtros</span>
-                </button>
-              </div>
-              )}
-              {canView && <div className="hidden md:block flex-1"></div>}
-              {canView && (
-              <div className="hidden md:block relative">
-                <button 
-                  onClick={() => setOptionsMenuOpen(!optionsMenuOpen)} 
-                  className={`px-3 py-2 border rounded text-sm transition-colors ${optionsMenuOpen ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
-                >
-                  Opções
-                </button>
-                {optionsMenuOpen && (
-                  <div className="absolute top-full mt-1 right-0 w-48 bg-white rounded-md shadow-lg z-50 ring-1 ring-black ring-opacity-5 py-1 text-left">
-                    <button 
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => { setOptionsMenuOpen(false); setSettingsModalOpen(true) }}
-                    >
-                      Configuração
-                    </button>
-                    <button
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => { setOptionsMenuOpen(false); setPrintSettingsOpen(true) }}
-                    >
-                      Impressão
-                    </button>
-                    <button 
-                      className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                      onClick={() => { setOptionsMenuOpen(false) }}
-                    >
-                      Exportar serviços
-                    </button>
-                  </div>
+              <div className="mt-4 flex items-center gap-3">
+                {canView && (
+                <div className="flex-1 flex items-center gap-2">
+                  <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border rounded px-3 py-2 text-sm" />
+                  <button type="button" onClick={()=>setDateFilterOpen(true)}
+                    className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
+                    aria-label="Período"
+                    title="Período">
+                    <span className="md:hidden">📅</span>
+                    <span className="hidden md:inline">📅 {dateRange.label}</span>
+                  </button>
+                  <button type="button" onClick={()=>setFiltersOpen(v=>!v)}
+                    className="h-9 w-9 border rounded flex items-center justify-center md:h-auto md:w-auto md:px-3 md:py-2 text-sm"
+                    aria-label="Filtros"
+                    title="Filtros">
+                    <span className="md:hidden">⚙️</span>
+                    <span className="hidden md:inline">⚙️ Filtros</span>
+                  </button>
+                </div>
+                )}
+                {canView && <div className="hidden md:block flex-1"></div>}
+                {canView && !techAreaMode && (
+                <div className="hidden md:block relative">
+                  <button 
+                    onClick={() => setOptionsMenuOpen(!optionsMenuOpen)} 
+                    className={`px-3 py-2 border rounded text-sm transition-colors ${optionsMenuOpen ? 'bg-green-50 text-green-700 border-green-200' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                  >
+                    Opções
+                  </button>
+                  {optionsMenuOpen && (
+                    <div className="absolute top-full mt-1 right-0 w-48 bg-white rounded-md shadow-lg z-50 ring-1 ring-black ring-opacity-5 py-1 text-left">
+                      <button 
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setOptionsMenuOpen(false); setSettingsModalOpen(true) }}
+                      >
+                        Configuração
+                      </button>
+                      <button
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setOptionsMenuOpen(false); setPrintSettingsOpen(true) }}
+                      >
+                        Impressão
+                      </button>
+                      <button 
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setOptionsMenuOpen(false) }}
+                      >
+                        Exportar serviços
+                      </button>
+                    </div>
+                  )}
+                </div>
+                )}
+                {canCreate && (
+                <button onClick={()=>{ 
+                  resetForm(); setView('new') 
+                }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700">+ Nova</button>
                 )}
               </div>
-              )}
-              {canCreate && (
-              <button onClick={()=>{ 
-                resetForm(); setView('new') 
-              }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700">+ Nova</button>
-              )}
-            </div>
             ) : (
-            <div className="mt-4 flex items-center gap-3">
-              <div className="flex-1 flex items-center gap-2">
-                <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-600 focus:border-transparent outline-none transition-all" />
-                <button type="button" className="px-2 py-1 text-xs rounded border bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">Ativo</button>
-                <button type="button" className="px-2 py-1 text-xs rounded border dark:border-gray-700 dark:text-gray-300">Inativo</button>
+              <div className="mt-4 flex items-center gap-3">
+                <div className="flex-1 flex items-center gap-2">
+                  <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="flex-1 border border-gray-200 dark:border-gray-700 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 dark:focus:ring-green-600 focus:border-transparent outline-none transition-all" />
+                  <button type="button" className="px-2 py-1 text-xs rounded border bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800">Ativo</button>
+                  <button type="button" className="px-2 py-1 text-xs rounded border dark:border-gray-700 dark:text-gray-300">Inativo</button>
+                </div>
+                <div className="hidden md:block flex-1"></div>
+                {canCreateService && (
+                <button onClick={()=>{ setServiceEditTarget(null); setServiceModalOpen(true) }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">+ Novo</button>
+                )}
               </div>
-              <div className="hidden md:block flex-1"></div>
-              {canCreateService && (
-              <button onClick={()=>{ setServiceEditTarget(null); setServiceModalOpen(true) }} className="hidden md:inline-block px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">+ Novo</button>
-              )}
-            </div>
             )}
           </div>
           {/* Lista */}
           {listTab==='os' ? (
-            !canView ? (
-              <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
-                <div className="text-4xl mb-2">🔒</div>
-                <div>Você não tem permissão para visualizar ordens de serviço.</div>
-              </div>
-            ) : (
-            <>
-            {/* Cards de resumo */}
-            
-            </>
-            )) : (
+              !canView ? (
+                <div className="mt-8 text-center text-gray-500 dark:text-gray-400">
+                  <div className="text-4xl mb-2">🔒</div>
+                  <div>Você não tem permissão para visualizar ordens de serviço.</div>
+                </div>
+              ) : (
+              <>
+              {/* Cards de resumo */}
+              
+              </>
+              ))
+            : (
               <div className="mt-4 bg-white dark:bg-gray-800 rounded shadow overflow-x-auto">
               <div className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <div className="grid grid-cols-[2fr_1fr_0.8fr_0.3fr] items-center px-2 py-2 text-xs font-medium text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 gap-1">

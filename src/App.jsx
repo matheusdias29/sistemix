@@ -53,6 +53,7 @@ const labels = {
   metas: 'Metas',
   dadosUsuario: 'Dados do usuário',
   termos: 'Termos e Condições',
+  areaTecnico: 'Área do técnico',
 }
 
 // Persistência de sessão e timeout de inatividade (60 min)
@@ -77,6 +78,7 @@ export default function App(){
   const [invoiceReminderOpen, setInvoiceReminderOpen] = useState(false)
   const [subscriptionState, setSubscriptionState] = useState(null)
   const [ownerInvoices, setOwnerInvoices] = useState([])
+  const isOwner = user && !user.memberId
 
   // Sync Dark Mode with DOM and LocalStorage
   useEffect(() => {
@@ -379,6 +381,15 @@ export default function App(){
               >
                 <span>+ Nova</span>
               </button>
+            ) : view==='areaTecnico' ? (
+              <button
+                className="md:hidden h-9 px-3 rounded bg-green-600 text-white text-sm flex items-center gap-2 shadow-sm active:scale-[0.98]"
+                onClick={() => setAddNewOrderSignal(s => s + 1)}
+                aria-label="Nova OS"
+                title="Nova OS"
+              >
+                <span>+ Nova</span>
+              </button>
             ) : view==='clientes' ? (
               <button
                 className="md:hidden h-9 px-3 rounded bg-green-600 text-white text-sm flex items-center gap-2 shadow-sm active:scale-[0.98]"
@@ -414,6 +425,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><CatalogPreviewPage storeId={store?.id} store={store} /></div>
           ) : view === 'os' ? (
             <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} store={store} ownerId={user?.id} user={user} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} /></div>
+          ) : (view === 'areaTecnico' && (isOwner || user?.isTech)) ? (
+            <div className="mt-4 md:mt-6"><ServiceOrdersPage storeId={store?.id} store={store} ownerId={user?.id} user={user} addNewSignal={addNewOrderSignal} viewParams={viewParams} setViewParams={setViewParams} techAreaMode /></div>
           ) : view === 'clientes' ? (
             <div className="mt-4 md:mt-6"><ClientsPage storeId={store?.id} addNewSignal={addNewClientSignal} user={user} /></div>
           ) : view === 'notas' ? (

@@ -35,6 +35,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       {key:'caixa',label:'Caixa', icon: <Banknote size={20} />},
       {key:'notas',label:'Notas fiscais', icon: <Receipt size={20} />},
       {key:'os',label:'Ordem de Serviço', icon: <Wrench size={20} />},
+      {key:'areaTecnico',label:'Área do técnico', icon: <Wrench size={20} />},
       {key:'cpagar',label:'Contas a pagar', icon: <ArrowDownCircle size={20} />},
       {key:'creceber',label:'Contas a receber', icon: <ArrowUpCircle size={20} />},
       {key:'estatisticas',label:'Estatísticas', icon: <BarChart2 size={20} />},
@@ -53,6 +54,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
         if (i.key === 'caixa') return perms.cash?.view || perms.cash?.open || perms.cash?.close
         if (i.key === 'notas') return false
         if (i.key === 'os') return perms.serviceOrders?.view || perms.serviceOrders?.create || perms.serviceOrders?.edit || perms.serviceOrders?.delete || perms.serviceOrders?.changeStatus
+        if (i.key === 'areaTecnico') return !!user?.isTech
         if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
         if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
         if (i.key === 'estatisticas') return perms.statistics?.view
@@ -69,7 +71,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       })
     }
     return base
-  }, [isOwner, perms, allowedPages])
+  }, [isOwner, perms, allowedPages, user?.isTech])
 
   const closeIfMobile = () => {
     onMobileClose && onMobileClose()
