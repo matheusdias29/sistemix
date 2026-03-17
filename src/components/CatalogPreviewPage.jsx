@@ -22,10 +22,14 @@ export default function CatalogPreviewPage({ storeId, store }) {
     const q = query.trim().toLowerCase()
     let list = products.filter(p => (p.active ?? true))
     if (q) {
-      list = list.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.reference || '').toLowerCase().includes(q)
-      )
+      list = list.filter(p => {
+        const name = String(p.name || '').toLowerCase()
+        const ref = String(p.reference || '').toLowerCase()
+        const code = String(p.code || '').toLowerCase()
+        const barcode = String(p.barcode || '').toLowerCase()
+        
+        return name.includes(q) || ref.includes(q) || code.includes(q) || barcode.includes(q)
+      })
     }
     if (outOfStock === 'hide') {
       list = list.filter(p => Number(p.stock || 0) > 0)

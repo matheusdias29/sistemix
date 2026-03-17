@@ -18,8 +18,8 @@ export function listenProducts(callback, storeId){
 
 export function listenCatalogProducts(callback, storeId){
   if (!storeId) return () => {}
-  // Igualdade em storeId e showInCatalog evita necessidade de índice composto com orderBy
-  const q = query(colRef, where('storeId','==',storeId), where('showInCatalog','==', true), limit(200))
+  // Aumentado o limite para 2000 para garantir que todas as categorias carreguem seus produtos
+  const q = query(colRef, where('storeId','==',storeId), where('showInCatalog','==', true), limit(2000))
   return onSnapshot(q, (snap) => {
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     callback(items)

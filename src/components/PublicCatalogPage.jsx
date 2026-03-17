@@ -81,10 +81,14 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
     }
 
     if (q) {
-      list = list.filter(p =>
-        (p.name || '').toLowerCase().includes(q) ||
-        (p.reference || '').toLowerCase().includes(q)
-      )
+      list = list.filter(p => {
+        const name = String(p.name || '').toLowerCase()
+        const ref = String(p.reference || '').toLowerCase()
+        const code = String(p.code || '').toLowerCase()
+        const barcode = String(p.barcode || '').toLowerCase()
+        
+        return name.includes(q) || ref.includes(q) || code.includes(q) || barcode.includes(q)
+      })
     }
     
     // Ordenar por destaque primeiro
@@ -395,8 +399,13 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
 
                   {/* Content Area */}
                   <div className="p-4 flex flex-col flex-1">
-                    <div className="text-xs text-gray-400 mb-1 uppercase tracking-wider font-semibold truncate">
-                      {p.categoryName || 'Geral'}
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold truncate">
+                        {p.categoryName || 'Geral'}
+                      </div>
+                      <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${Number(p.stock || 0) > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
+                        ESTOQUE: {Number(p.stock || 0)}
+                      </div>
                     </div>
                     <h3 className="font-medium text-gray-900 text-sm leading-snug line-clamp-2 mb-3 min-h-[2.5rem]" title={p.name}>
                       {p.name}

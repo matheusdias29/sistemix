@@ -663,7 +663,16 @@ const canEditService = isOwner || perms.services?.edit
   }, [members])
 
   const resetForm = () => {
-    setClient(''); setTechnician(''); setAttendant(''); setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
+    setClient(''); 
+    
+    // Auto-preenchimento para novo usuário
+    const isTech = !!user?.isTech
+    const isSeller = !!user?.isSeller || !user?.memberId // Dono ou vendedor
+    
+    setTechnician(isTech ? (user?.name || '') : ''); 
+    setAttendant(isSeller ? (user?.name || '') : ''); 
+
+    setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts([])
     setOsServices([])
     setOsPayments([])

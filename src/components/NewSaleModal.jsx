@@ -505,7 +505,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         type: 'sale',
         client: selectedClient ? selectedClient.name : 'Consumidor Final',
         clientId: selectedClient ? selectedClient.id : null,
-        attendant: user?.name || '',
+        attendant: isEdit ? (sale?.attendant || user?.name || '') : (user?.name || ''),
         technician: null,
         dateIn: new Date(),
         commissions: {
@@ -552,7 +552,10 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           receiptNotes: payload.receiptNotes,
           warrantyInfo: payload.warrantyInfo,
           payments: payload.payments,
-          status: status
+          status: status,
+          commissions: payload.commissions,
+          updatedBy: user?.name || '',
+          updatedAt: new Date()
         }
         await updateOrder(sale.id, partial)
       } else {

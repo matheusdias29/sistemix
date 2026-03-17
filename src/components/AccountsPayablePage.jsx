@@ -47,6 +47,18 @@ export default function AccountsPayablePage({ storeId, user }) {
 
   // Seleção
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [openMenuId, setOpenMenuId] = useState(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    const handleClose = () => setOpenMenuId(null)
+    window.addEventListener('scroll', handleClose, true)
+    window.addEventListener('click', handleClose)
+    return () => {
+      window.removeEventListener('scroll', handleClose, true)
+      window.removeEventListener('click', handleClose)
+    }
+  }, [])
 
   useEffect(() => {
     if (!storeId) return
@@ -526,8 +538,56 @@ export default function AccountsPayablePage({ storeId, user }) {
                             {acc.status === 'pending' ? 'A Pagar' : acc.status === 'paid' ? 'Pago' : 'Cancelado'}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer">
-                          ⋮
+                        <td className="px-4 py-4 text-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-pointer relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openMenuId === acc.id) {
+                                setOpenMenuId(null)
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setMenuPos({ top: rect.bottom + window.scrollY, left: rect.left - 100 + window.scrollX })
+                                setOpenMenuId(acc.id)
+                              }
+                            }}
+                            className="p-1"
+                          >
+                            ⋮
+                          </button>
+                          
+                          {openMenuId === acc.id && (
+                            <div 
+                              className="fixed bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-100 dark:border-gray-600 z-[100] py-1 w-32"
+                              style={{ top: menuPos.top, left: menuPos.left }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleEdit(acc)
+                                  setOpenMenuId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                              >
+                                Editar
+                              </button>
+                              
+                              {acc.status === 'paid' && (isOwner || perms.payables?.delete) && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    if (window.confirm('Tem certeza que deseja excluir esta conta paga?')) {
+                                      handleDelete(acc.id)
+                                    }
+                                    setOpenMenuId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                >
+                                  Excluir
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))
