@@ -55,8 +55,10 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     ]
 
     let base = all
+    
+    // Filter by permissions if not owner
     if (!isOwner) {
-      base = all.filter(i => {
+      base = base.filter(i => {
         if (i.key === 'inicio') return true
         if (i.key === 'termos') return perms.terms?.view || perms.terms?.edit
         if (i.key === 'catalogo') return true
@@ -71,17 +73,17 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
         if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
         if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
         if (i.key === 'estatisticas') return perms.statistics?.view
-        if (i.key === 'marketplace') return isOwner
+        if (i.key === 'marketplace') return true // isOwner check handled by allowedPages below
         return false
       })
     }
 
-    // Apply store-level allowed pages filter if provided
-    if (allowedPages && typeof allowedPages === 'object') {
+    // Apply store-level allowed pages filter if provided (CRITICAL: apply to EVERYONE including owner)
+    if (allowedPages && typeof allowedPages === 'object' && Object.keys(allowedPages).length > 0) {
       base = base.filter(i => {
         const flag = allowedPages[i.key]
-        if (flag === undefined) return true
-        return !!flag
+        // If explicitly false, hide. Otherwise show (default true)
+        return flag !== false
       })
     }
     return base

@@ -13,6 +13,8 @@ const PAGE_OPTIONS = [
   { key: 'cpagar', label: 'Contas a Pagar' },
   { key: 'creceber', label: 'Contas a Receber' },
   { key: 'estatisticas', label: 'Estatísticas' },
+  { key: 'areaTecnico', label: 'Área do Técnico' },
+  { key: 'marketplace', label: 'Marketplace' },
   { key: 'termos', label: 'Termos' },
 ]
 

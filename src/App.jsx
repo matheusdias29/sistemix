@@ -346,6 +346,7 @@ export default function App(){
           darkMode={darkMode}
           onOpenNewSale={handleOpenNewSale}
           user={user}
+          allowedPages={store?.sidebarPages}
         />
         {/* Overlay para mobile */}
         {mobileSidebarOpen ? (
