@@ -8,7 +8,7 @@ const PAGE_OPTIONS = [
   { key: 'produtos', label: 'Produtos' },
   { key: 'catalogo', label: 'Catálogo' },
   { key: 'vendas', label: 'Vendas' },
-  { key: 'caixa', label: 'Caixa' },
+  { key: 'notas', label: 'Notas Fiscais' },
   { key: 'os', label: 'Ordem de Serviço' },
   { key: 'cpagar', label: 'Contas a Pagar' },
   { key: 'creceber', label: 'Contas a Receber' },

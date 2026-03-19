@@ -81,6 +81,9 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     // Apply store-level allowed pages filter if provided (CRITICAL: apply to EVERYONE including owner)
     if (allowedPages && typeof allowedPages === 'object' && Object.keys(allowedPages).length > 0) {
       base = base.filter(i => {
+        // 'caixa' is mandatory for all stores
+        if (i.key === 'caixa') return true
+        
         const flag = allowedPages[i.key]
         // If explicitly false, hide. Otherwise show (default true)
         return flag !== false
