@@ -29,6 +29,7 @@ import ChatWidget from './components/ChatWidget'
 import { getStoreBySlug, listenStore } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
 import CommissionsPage from './components/CommissionsPage'
+import MarketplacePage from './components/MarketplacePage'
 import { updateUserPresence, listenUser } from './services/users'
 import SubscriptionPage from './components/SubscriptionPage'
 import { listenSubscription, computeStatusWithInvoices } from './services/subscriptions'
@@ -47,6 +48,11 @@ const labels = {
   cpagar: 'Contas a Pagar',
   creceber: 'Contas a Receber',
   estatisticas: 'Estatísticas',
+  marketplace: 'Marketplace',
+  'marketplace-amazon': 'Amazon Marketplace',
+  'marketplace-magalu': 'Magalu Marketplace',
+  'marketplace-mercadolivre': 'Mercado Livre Marketplace',
+  'marketplace-shopee': 'Shopee Marketplace',
   configuracoes: 'Configurações',
   usuarios: 'Usuários',
   taxas: 'Taxas adicionais',
@@ -455,6 +461,8 @@ export default function App(){
             <div className="mt-4 md:mt-6"><AccountsReceivablePage storeId={store?.id} user={user} /></div>
           ) : view === 'estatisticas' ? (
             <div className="mt-4 md:mt-6"><StatisticsPage storeId={store?.id} user={user} /></div>
+          ) : view === 'marketplace' || view.startsWith('marketplace-') ? (
+            <div className="mt-4 md:mt-6"><MarketplacePage /></div>
           ) : (
             <div className="rounded-lg bg-white p-6 shadow mt-6">
               <p className="text-sm text-gray-600">Página em construção.</p>

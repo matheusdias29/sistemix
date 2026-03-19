@@ -403,8 +403,8 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                       <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold truncate">
                         {p.categoryName || 'Geral'}
                       </div>
-                      <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${Number(p.stock || 0) > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'}`}>
-                        ESTOQUE: {Number(p.stock || 0)}
+                      <div className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md ${Number(p.stock || 0) > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'} whitespace-nowrap`}>
+                        {Number(p.stock || 0) > 0 ? `DISPONÍVEL: ${Number(p.stock || 0)}` : 'INDISPONÍVEL'}
                       </div>
                     </div>
                     <h3 className="font-medium text-gray-900 text-sm leading-snug line-clamp-2 mb-3 min-h-[2.5rem]" title={p.name}>

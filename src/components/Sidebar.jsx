@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 import clsx from 'clsx'
 import logoWhite from '../assets/logofundobranco.png'
 import { 
@@ -16,13 +16,15 @@ import {
   BarChart2, 
   LifeBuoy, 
   Settings, 
-  LogOut 
+  LogOut,
+  ChevronDown
 } from 'lucide-react'
 
 
 export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages}){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
+  const [expandedKey, setExpandedKey] = useState(null)
 
   const items = useMemo(() => {
     const all = [
@@ -39,6 +41,17 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       {key:'cpagar',label:'Contas a pagar', icon: <ArrowDownCircle size={20} />},
       {key:'creceber',label:'Contas a receber', icon: <ArrowUpCircle size={20} />},
       {key:'estatisticas',label:'Estatísticas', icon: <BarChart2 size={20} />},
+      {
+        key:'marketplace',
+        label:'Marketplace', 
+        icon: <ShoppingBag size={20} />,
+        subItems: [
+          { key: 'marketplace-amazon', label: 'Amazon' },
+          { key: 'marketplace-magalu', label: 'Magazine Luiza' },
+          { key: 'marketplace-mercadolivre', label: 'Mercado Livre' },
+          { key: 'marketplace-shopee', label: 'Shopee' },
+        ]
+      },
     ]
 
     let base = all
@@ -58,6 +71,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
         if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
         if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
         if (i.key === 'estatisticas') return perms.statistics?.view
+        if (i.key === 'marketplace') return isOwner
         return false
       })
     }
@@ -72,6 +86,12 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     }
     return base
   }, [isOwner, perms, allowedPages, user?.isTech])
+
+  // Auto-expand accordion if a sub-item is active
+  useEffect(() => {
+    const parent = items.find(i => i.subItems && i.subItems.some(si => si.key === active))
+    if (parent) setExpandedKey(parent.key)
+  }, [active, items])
 
   const closeIfMobile = () => {
     onMobileClose && onMobileClose()
@@ -141,22 +161,67 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
 
 
     <nav className="mt-6 space-y-1">
-{items.map(i=> (
-<div 
-  key={i.key} 
-  onClick={() => { onNavigate(i.key); closeIfMobile() }} 
-  className={clsx(
-    'p-3 rounded-lg cursor-pointer flex items-center gap-3 transition-all duration-200', 
-    active===i.key 
-      ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold shadow-sm' 
-      : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white font-medium'
-  )}
->
-<span className="w-6">{i.icon}</span>
-<span className="text-[15px]">{i.label}</span>
-</div>
-))}
-</nav>
+      {items.map(i => {
+        const hasSubItems = i.subItems && i.subItems.length > 0
+        const isExpanded = expandedKey === i.key
+        const isActive = active === i.key || (hasSubItems && i.subItems.some(si => si.key === active))
+
+        return (
+          <div key={i.key} className="space-y-1">
+            <div 
+              onClick={() => {
+                if (hasSubItems) {
+                  setExpandedKey(isExpanded ? null : i.key)
+                } else {
+                  onNavigate(i.key)
+                  closeIfMobile()
+                }
+              }} 
+              className={clsx(
+                'p-3 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200', 
+                isActive 
+                  ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400 font-bold shadow-sm' 
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white font-medium'
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <span className="w-6">{i.icon}</span>
+                <span className="text-[15px]">{i.label}</span>
+              </div>
+              {hasSubItems && (
+                <ChevronDown 
+                  size={16} 
+                  className={clsx('transition-transform duration-200', isExpanded && 'rotate-180')} 
+                />
+              )}
+            </div>
+
+            {hasSubItems && isExpanded && (
+              <div className="ml-6 pl-4 border-l dark:border-gray-800 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                {i.subItems.map(si => (
+                  <div
+                    key={si.key}
+                    onClick={() => {
+                      onNavigate(si.key)
+                      closeIfMobile()
+                    }}
+                    className={clsx(
+                       'p-2 rounded-md cursor-pointer flex items-center gap-3 transition-colors text-[13px]',
+                       active === si.key
+                         ? 'text-green-600 dark:text-green-400 font-bold bg-green-50/50 dark:bg-green-900/10'
+                         : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50/50 dark:hover:bg-gray-800/30'
+                     )}
+                   >
+                     <span className="text-[10px] opacity-40">✕</span>
+                     <span>{si.label}</span>
+                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </nav>
 
 
 <div className="mt-8 border-t pt-4 space-y-1 dark:border-gray-800">
