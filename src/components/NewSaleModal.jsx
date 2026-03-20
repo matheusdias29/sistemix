@@ -739,7 +739,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[60] flex flex-col">
+    <div className="fixed inset-0 bg-gray-100 dark:bg-gray-900 z-[3000] flex flex-col">
       {/* 1. Header */}
       <div className="bg-white dark:bg-gray-800 h-14 border-b dark:border-gray-700 flex items-center justify-between px-4 shadow-sm shrink-0">
         <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 flex items-center gap-1 text-sm font-medium">
@@ -969,12 +969,14 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           </div>
             
             <div className="flex gap-2 mt-4 relative">
-              <button 
-                onClick={() => setOptionsOpen(!optionsOpen)}
-                className="flex-1 py-3 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
-              >
-                Opções
-              </button>
+              {cart.length > 0 ? (
+                <button 
+                  onClick={() => setOptionsOpen(!optionsOpen)}
+                  className="flex-1 py-3 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded font-medium hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                >
+                  Opções
+                </button>
+              ) : null}
               
               {/* Options Popup */}
               {optionsOpen && (

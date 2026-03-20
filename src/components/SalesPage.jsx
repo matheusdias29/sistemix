@@ -563,7 +563,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
             >
               Opções
             </button>
-            {(isOwner || perms.sales?.finalize) && (
+            {(isOwner || perms.sales?.finalize) && !newSaleOpen && (
             <button onClick={()=>setNewSaleOpen(true)} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-500 shadow-sm transition-all hover:shadow-md font-medium whitespace-nowrap">+ Nova Venda</button>
             )}
           </div>

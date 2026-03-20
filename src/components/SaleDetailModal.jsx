@@ -44,7 +44,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[3000] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 w-full max-w-2xl rounded-lg shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
