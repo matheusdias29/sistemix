@@ -1734,10 +1734,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 <>
                 <div 
                   key={p.id} 
-                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-2 items-center px-2 py-2 border-b last:border-0 min-w-full hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors dark:border-gray-700"
+                  className="relative grid grid-cols-[1.5rem_1fr_auto_auto] md:grid-cols-none gap-x-2 items-center px-2 py-2 border-b last:border-0 min-w-full hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors dark:border-gray-700 cursor-pointer"
                   style={gridCols ? { gridTemplateColumns: gridCols } : {}}
+                  onClick={() => toggleSelect(p.id)}
                 >
-                  <div>
+                  <div onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selected.has(p.id)} onChange={()=>toggleSelect(p.id)} className="dark:bg-gray-700 dark:border-gray-600" />
                   </div>
                   <div className="text-xs overflow-hidden">
@@ -1790,7 +1791,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     <div className="text-xs lg:text-sm whitespace-nowrap text-gray-900 dark:text-white">{priceText}</div>
                     {/* Botão sanfona (mobile e desktop) abaixo do preço */}
                     {(Array.isArray(p.variationsData) && p.variationsData.length > 0) && (
-                      <div className="mt-1">
+                      <div className="mt-1" onClick={e => e.stopPropagation()}>
                         <button
                           type="button"
                           aria-label="Abrir precificações"
@@ -1814,7 +1815,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   <div className="hidden md:block text-right text-xs lg:text-sm">
                     <div className={`inline-block px-2 py-0.5 rounded text-xs lg:text-sm font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/50' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/50'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>
-                  <div className="text-right text-sm relative">
+                  <div className="text-right text-sm relative" onClick={e => e.stopPropagation()}>
                     <button
                       type="button"
                       aria-label="Mais ações"
