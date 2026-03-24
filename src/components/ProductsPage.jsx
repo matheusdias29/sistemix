@@ -673,7 +673,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         data.variationsData = data.variationsData.map(v => ({ ...v, stock: 0 }))
       }
 
-      await addProduct(data, storeId)
+      const newProd = await addProduct(data, storeId)
+      handleProductSave(newProd)
       setOpenMenuId(null)
     } finally {
       setSavingAction(false)
@@ -687,12 +688,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       const next = !(product.active ?? true)
       const updateResult = await updateProduct(product.id, { active: next })
       
-      // Atualiza o cache se disponível
+      // Atualiza o cache e o estado local para refletir na UI imediatamente
+      const updater = prev => prev.map(p => 
+        p.id === product.id ? { ...p, active: next, updatedAt: updateResult.updatedAt } : p
+      )
+
       if (cachedProducts) {
-        setCachedProducts(prev => prev.map(p => 
-          p.id === product.id ? { ...p, active: next, updatedAt: updateResult.updatedAt } : p
-        ))
+        setCachedProducts(updater)
       }
+      setProducts(updater)
 
       setOpenMenuId(null)
     } finally {
@@ -704,7 +708,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     if (!productData || !productData.id) return
 
     if (cachedProducts) {
-      setCachedProducts(prev => {
+      const updater = prev => {
         const index = prev.findIndex(p => p.id === productData.id)
         if (index !== -1) {
           // Edit: update existing product in cache
@@ -716,8 +720,21 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           setTotalResults(prev => prev + 1)
           return [productData, ...prev]
         }
-      })
+      }
+      setCachedProducts(updater)
     }
+
+    // Sempre atualiza o estado de products também para garantir exibição imediata se o cache ainda não estiver pronto
+    setProducts(prev => {
+      const index = prev.findIndex(p => p.id === productData.id)
+      if (index !== -1) {
+        const next = [...prev]
+        next[index] = { ...next[index], ...productData }
+        return next
+      } else {
+        return [productData, ...prev]
+      }
+    })
     
     // Se não estiver usando cache (ainda carregando), o useEffect de load() cuidará disso
     // ou o usuário verá ao mudar de página/pesquisa.
@@ -822,7 +839,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         items[varIndex].stock = Math.max(0, cur + delta)
         const total = items.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
         updateData = { variationsData: items, stock: total }
-        await updateProduct(p.id, updateData)
+        const updateResult = await updateProduct(p.id, updateData)
         
         await recordStockMovement({
           productId: p.id,
@@ -841,7 +858,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         const cur = Number(p.stock ?? 0)
         const next = Math.max(0, cur + delta)
         updateData = { stock: next }
-        await updateProduct(p.id, updateData)
+        const updateResult = await updateProduct(p.id, updateData)
         
         await recordStockMovement({
           productId: p.id,
@@ -855,12 +872,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         })
       }
 
-      // Atualiza o cache se disponível
+      // Atualiza o cache e o estado local para refletir na UI imediatamente
+      const updater = prev => prev.map(item => 
+        item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item
+      )
+
       if (cachedProducts) {
-        setCachedProducts(prev => prev.map(item => 
-          item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item
-        ))
+        setCachedProducts(updater)
       }
+      setProducts(updater)
 
       setStockModalOpen(false)
     } finally {

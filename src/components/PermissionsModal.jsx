@@ -4,7 +4,7 @@ import Switch from './Switch'
 const defaultPermissions = {
   products: { create: false, edit: false, delete: false, view: false, viewCost: false },
   sales: { viewAll: false, finalize: false, cancel: false, delete: false, changePrice: false, edit: false, discount: false, fees: false },
-  serviceOrders: { view: false, create: false, edit: false, delete: false, changeStatus: false, changeValues: false },
+  serviceOrders: { view: false, create: false, edit: false, delete: false, changeStatus: false, changeValues: false, invoice: false },
   services: { create: false, edit: false },
   categories: { create: false, edit: false, delete: false, bulkPricing: false },
   suppliers: { create: false, edit: false, view: false, delete: false },
@@ -15,6 +15,8 @@ const defaultPermissions = {
   settings: { view: false, company: false, users: false, payments: false, taxes: false, commissions: false, os: false },
   statistics: { view: false },
   terms: { view: false, edit: false },
+  catalog: { view: false },
+  marketplace: { view: false },
 }
 
 export default function PermissionsModal({ open, onClose, initialPermissions={}, onConfirm }){
@@ -81,6 +83,7 @@ export default function PermissionsModal({ open, onClose, initialPermissions={},
             <Switch checked={perms.serviceOrders.delete} onChange={toggle('serviceOrders','delete')} label="Pode Excluir ordens de serviço" />
             <Switch checked={perms.serviceOrders.changeStatus} onChange={toggle('serviceOrders','changeStatus')} label="Pode Alterar status da ordem de serviço" />
             <Switch checked={perms.serviceOrders.changeValues} onChange={toggle('serviceOrders','changeValues')} label="Pode Alterar o valor dos produtos/serviços" />
+            <Switch checked={perms.serviceOrders.invoice} onChange={toggle('serviceOrders','invoice')} label="Faturar no caixa" />
           </Section>
 
           <Section title="Serviços">
@@ -143,6 +146,14 @@ export default function PermissionsModal({ open, onClose, initialPermissions={},
 
           <Section title="Estatísticas">
             <Switch checked={perms.statistics?.view} onChange={toggle('statistics','view')} label="Visualizar estatísticas" />
+          </Section>
+
+          <Section title="Catálogo">
+            <Switch checked={perms.catalog?.view} onChange={toggle('catalog','view')} label="Visualizar catálogo" />
+          </Section>
+
+          <Section title="Marketplace">
+            <Switch checked={perms.marketplace?.view} onChange={toggle('marketplace','view')} label="Visualizar marketplace" />
           </Section>
         </div>
         <div className="p-4 flex items-center justify-end gap-2 border-t">

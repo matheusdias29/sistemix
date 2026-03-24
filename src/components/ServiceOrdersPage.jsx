@@ -423,7 +423,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [osColumns, setOsColumns] = useState(osDefaultColumns)
   const [selectColumnsOpen, setSelectColumnsOpen] = useState(false)
   const [rowMenuOpenId, setRowMenuOpenId] = useState(null)
-  const [rowMenuPos, setRowMenuPos] = useState({ left: 0, top: 0 })
+  const [rowMenuPos, setRowMenuPos] = useState({ left: 0, top: 0, bottom: 'auto' })
   const [statusTargetOrder, setStatusTargetOrder] = useState(null)
   const [printModalOpen, setPrintModalOpen] = useState(false)
   const [printTargetOrder, setPrintTargetOrder] = useState(null)
@@ -1767,9 +1767,20 @@ const canEditService = isOwner || perms.services?.edit
                       onClick={(e)=>{ 
                         e.stopPropagation()
                         const rect = e.currentTarget.getBoundingClientRect()
+                        const windowHeight = window.innerHeight
+                        const spaceBelow = windowHeight - rect.bottom
+                        const menuHeight = 320 // Altura aproximada do menu com todas as opções
+                        
                         const left = Math.max(8, rect.right - 180)
-                        const top = rect.bottom + 4
-                        setRowMenuPos({ left, top })
+                        let top = rect.bottom + 4
+                        let bottom = 'auto'
+
+                        if (spaceBelow < menuHeight) {
+                          top = 'auto'
+                          bottom = windowHeight - rect.top + 4
+                        }
+
+                        setRowMenuPos({ left, top, bottom })
                         setRowMenuOpenId(rowMenuOpenId===o.id ? null : o.id)
                       }}
                       className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
@@ -1782,7 +1793,7 @@ const canEditService = isOwner || perms.services?.edit
                     {rowMenuOpenId === o.id && (
                       <div 
                         className="fixed bg-white dark:bg-gray-800 border dark:border-gray-700 rounded shadow-lg text-sm z-[1000] min-w-[180px]"
-                        style={{ left: rowMenuPos.left, top: rowMenuPos.top }}
+                        style={{ left: rowMenuPos.left, top: rowMenuPos.top, bottom: rowMenuPos.bottom }}
                         onClick={(e)=>e.stopPropagation()}
                       >
                         <button 
@@ -1819,7 +1830,7 @@ const canEditService = isOwner || perms.services?.edit
                         </button>
                         )}
                         {o.cashLaunched ? (
-                          (isOwner || perms.cash?.edit) && (
+                          (isOwner || perms.serviceOrders?.invoice) && (
                           <button
                             className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                             onClick={()=>{
@@ -1831,7 +1842,7 @@ const canEditService = isOwner || perms.services?.edit
                           >Cancelar mov. caixa</button>
                           )
                         ) : (
-                          (isOwner || perms.cash?.edit) && (
+                          (isOwner || perms.serviceOrders?.invoice) && (
                           <button 
                             className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200"
                             onClick={()=>{
@@ -2404,8 +2415,8 @@ const canEditService = isOwner || perms.services?.edit
                 const index = vars.findIndex(v => v.name === variation.name)
                 let effectiveStock = Number(variation.stock ?? variation.stockInitial ?? 0)
                 
-                // Se for precificação 2, 3 ou 4 (índices 1, 2, 3), usa o estoque da precificação 1 (índice 0)
-                if (index > 0 && index < 4) {
+                // Se for uma precificação adicional (índice > 0), e ela não tiver estoque próprio, tenta usar o da precificação 1 (índice 0)
+                if (index > 0 && effectiveStock === 0) {
                   const base = vars[0]
                   if (base) {
                     effectiveStock = Number(base.stock ?? base.stockInitial ?? 0)

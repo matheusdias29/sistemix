@@ -61,7 +61,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       base = base.filter(i => {
         if (i.key === 'inicio') return true
         if (i.key === 'termos') return perms.terms?.view || perms.terms?.edit
-        if (i.key === 'catalogo') return true
+        if (i.key === 'catalogo') return perms.catalog?.view || perms.catalog?.view === undefined
         
         if (i.key === 'clientes') return perms.clients?.view || perms.clients?.create || perms.clients?.edit || perms.clients?.delete
         if (i.key === 'produtos') return perms.products?.view || perms.products?.create || perms.products?.edit || perms.products?.delete || perms.sales?.viewAll || perms.sales?.finalize
@@ -73,7 +73,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
         if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
         if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
         if (i.key === 'estatisticas') return perms.statistics?.view
-        if (i.key === 'marketplace') return true // isOwner check handled by allowedPages below
+        if (i.key === 'marketplace') return perms.marketplace?.view || perms.marketplace?.view === undefined
         return false
       })
     }

@@ -88,7 +88,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     if (!product || !product.variationsData || !Array.isArray(product.variationsData)) return false
     const vars = product.variationsData
     const index = vars.findIndex(v => v.name === variationName)
-    if (index <= 0 || index >= 4) return false
+    if (index <= 0) return false
     const base = vars[0]
     const baseStock = Number((base && (base.stock ?? base.stockInitial)) ?? 0)
     const ownVar = vars[index]
@@ -178,6 +178,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       const optimized = all.map(c => ({
         id: c.id,
         name: c.name,
+        code: c.code,
         phone: c.phone,
         cpf: c.cpf,
         email: c.email

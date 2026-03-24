@@ -91,6 +91,7 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                   (c.phoneDigits && c.phoneDigits.includes(lower)) ||
                   (c.whatsappDigits && c.whatsappDigits.includes(lower)) ||
                   (c.cpfDigits && c.cpfDigits.includes(lower)) ||
+                  (String(c.code || '').toLowerCase().includes(lower)) ||
                   (c.name && c.name.toLowerCase().includes(lower)) // fallback
               )
           }

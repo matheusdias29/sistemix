@@ -13,7 +13,11 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
 
   if(!open) return null
 
-  const filtered = (clients||[]).filter(c => (c.name||'').toLowerCase().includes(query.trim().toLowerCase()))
+  const q = query.trim().toLowerCase()
+  const filtered = (clients||[]).filter(c => 
+    (c.name||'').toLowerCase().includes(q) ||
+    (String(c.code || '').toLowerCase().includes(q))
+  )
   const displayed = filtered.slice(0, limit)
   const hasMore = filtered.length > limit
 

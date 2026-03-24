@@ -92,17 +92,17 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
             <span>📋</span> Criar NFe
           </button>
           )}
-          {(isOwner || perms.sales?.cancel) && (
+          {(isOwner || perms.sales?.cancel) && (sale.status?.toLowerCase() !== 'cancelada') && (
           <button
             className="px-3 py-1.5 bg-white dark:bg-gray-700 border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 rounded text-sm hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-1"
             onClick={async () => {
+              if (!window.confirm('Tem certeza que deseja cancelar esta venda? O estoque dos produtos será devolvido.')) return
               try {
-                if ((sale.status || '').toLowerCase() !== 'cancelada') {
-                  // Restock products
-                  const items = Array.isArray(sale.products) ? sale.products : []
-                  let restoredCount = 0
+                // Restock products
+                const items = Array.isArray(sale.products) ? sale.products : []
+                let restoredCount = 0
 
-                  for (const it of items) {
+                for (const it of items) {
                     const qty = Math.max(0, parseFloat(it.quantity) || 0)
                     if (qty <= 0) continue
 
@@ -234,7 +234,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                   } else {
                       alert('Venda cancelada. Nenhum produto foi devolvido ao estoque (produtos não encontrados ou serviço).')
                   }
-                }
+                
                 await updateOrder(sale.id, { status: 'Cancelada' })
                 onClose && onClose()
               } catch (e) {
@@ -279,12 +279,24 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           
           {/* Client */}
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Cliente</h3>
-            <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-              <span className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400">👤</span>
-              <span className="font-medium">{sale.client || 'Consumidor Final'}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Cliente</h3>
+              <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                <span className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400">👤</span>
+                <span className="font-medium">{sale.client || 'Consumidor Final'}</span>
+              </div>
             </div>
+
+            {isOS && sale.technician && (
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">Técnico</h3>
+                <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                  <span className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400">🛠️</span>
+                  <span className="font-medium">{sale.technician}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Products */}
