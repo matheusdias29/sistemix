@@ -243,7 +243,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
-  const ITEMS_PER_PAGE = 20
+  const ITEMS_PER_PAGE = 30
 
   useEffect(() => {
     setCurrentPage(1)
@@ -409,7 +409,110 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   const vendasRealizadas = useMemo(() => filtered.filter(o => (o.status||'').toLowerCase() === 'venda').length, [filtered])
   const ticketMedio = useMemo(() => filtered.length ? totalValor / filtered.length : 0, [filtered, totalValor])
 
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1
+
+  const Pagination = () => {
+    if (totalPages <= 1) return null
+
+    const renderPageNumbers = () => {
+        const pages = []
+        
+        // Sempre mostra página 1
+        pages.push(
+            <button
+                key={1}
+                onClick={() => setCurrentPage(1)}
+                className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                    currentPage === 1 
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+            >
+                1
+            </button>
+        )
+
+        // Lógica para intervalo intermediário
+        let start = Math.max(2, currentPage - 1)
+        let end = Math.min(totalPages - 1, currentPage + 1)
+        
+        // Ajuste para mostrar mais se estiver perto do início ou fim
+        if (currentPage <= 3) {
+            end = Math.min(totalPages - 1, 4)
+        }
+        if (currentPage >= totalPages - 2) {
+            start = Math.max(2, totalPages - 3)
+        }
+
+        if (start > 2) {
+            pages.push(<span key="dots1" className="text-gray-400 px-1">...</span>)
+        }
+
+        for (let i = start; i <= end; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setCurrentPage(i)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        currentPage === i 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {i}
+                </button>
+            )
+        }
+
+        if (end < totalPages - 1) {
+            pages.push(<span key="dots2" className="text-gray-400 px-1">...</span>)
+        }
+
+        // Sempre mostra última página se > 1
+        if (totalPages > 1) {
+            pages.push(
+                <button
+                    key={totalPages}
+                    onClick={() => setCurrentPage(totalPages)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        currentPage === totalPages 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {totalPages}
+                </button>
+            )
+        }
+
+        return pages
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-2 py-4">
+            <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &lt;
+            </button>
+            
+            <div className="flex items-center gap-1">
+                {renderPageNumbers()}
+            </div>
+
+            <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &gt;
+            </button>
+        </div>
+    )
+  }
+
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE
     return filtered.slice(start, start + ITEMS_PER_PAGE)
@@ -806,40 +909,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       </div>
 
       {/* Pagination Controls */}
-      {filtered.length > ITEMS_PER_PAGE && (
-        <div className="mt-4 flex items-center justify-between">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length} resultados
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className={`px-3 py-1 rounded border text-sm transition-colors ${
-                currentPage === 1 
-                  ? 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed dark:border-gray-700' 
-                  : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
-              }`}
-            >
-              Anterior
-            </button>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Página {currentPage} de {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className={`px-3 py-1 rounded border text-sm transition-colors ${
-                currentPage === totalPages 
-                  ? 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-600 cursor-not-allowed dark:border-gray-700' 
-                  : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-700'
-              }`}
-            >
-              Próximo
-            </button>
-          </div>
-        </div>
-      )}
+      <Pagination />
 
       {/* Modal Nova Venda */}
       <NewSaleModal open={newSaleOpen} onClose={()=>setNewSaleOpen(false)} storeId={storeId} user={user} />

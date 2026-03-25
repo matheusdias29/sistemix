@@ -497,6 +497,123 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [status, setStatus] = useState('Iniciado')
   const [chooseFinalStatusOpen, setChooseFinalStatusOpen] = useState(false)
   const [finalStatusTarget, setFinalStatusTarget] = useState(null)
+
+  // Paginação
+  const [page, setPage] = useState(1)
+  const pageSize = 30
+  
+  const paginatedOrders = useMemo(() => {
+    const start = (page - 1) * pageSize
+    return filtered.slice(start, start + pageSize)
+  }, [filtered, page])
+
+  const totalPages = Math.ceil(filtered.length / pageSize)
+
+  const Pagination = () => {
+    if (totalPages <= 1) return null
+
+    const renderPageNumbers = () => {
+        const pages = []
+        
+        // Sempre mostra página 1
+        pages.push(
+            <button
+                key={1}
+                onClick={() => setPage(1)}
+                className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                    page === 1 
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+            >
+                1
+            </button>
+        )
+
+        // Lógica para intervalo intermediário
+        let start = Math.max(2, page - 1)
+        let end = Math.min(totalPages - 1, page + 1)
+        
+        // Ajuste para mostrar mais se estiver perto do início ou fim
+        if (page <= 3) {
+            end = Math.min(totalPages - 1, 4)
+        }
+        if (page >= totalPages - 2) {
+            start = Math.max(2, totalPages - 3)
+        }
+
+        if (start > 2) {
+            pages.push(<span key="dots1" className="text-gray-400 px-1">...</span>)
+        }
+
+        for (let i = start; i <= end; i++) {
+            pages.push(
+                <button
+                    key={i}
+                    onClick={() => setPage(i)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        page === i 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {i}
+                </button>
+            )
+        }
+
+        if (end < totalPages - 1) {
+            pages.push(<span key="dots2" className="text-gray-400 px-1">...</span>)
+        }
+
+        // Sempre mostra última página se > 1
+        if (totalPages > 1) {
+            pages.push(
+                <button
+                    key={totalPages}
+                    onClick={() => setPage(totalPages)}
+                    className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+                        page === totalPages 
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' 
+                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                    }`}
+                >
+                    {totalPages}
+                </button>
+            )
+        }
+
+        return pages
+    }
+
+    return (
+        <div className="flex items-center justify-center gap-2 py-4">
+            <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &lt;
+            </button>
+            
+            <div className="flex items-center gap-1">
+                {renderPageNumbers()}
+            </div>
+
+            <button 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+            >
+                &gt;
+            </button>
+        </div>
+    )
+  }
+
+  useEffect(() => {
+    setPage(1)
+  }, [query, dateRange, filterClient, filterTechnician, filterAttendant, filterStatuses])
   const [statusModalOpen, setStatusModalOpen] = useState(false)
   const [shareModalOpen, setShareModalOpen] = useState(false)
   const [shareTargetOrder, setShareTargetOrder] = useState(null)
@@ -1703,7 +1820,7 @@ const canEditService = isOwner || perms.services?.edit
               </div>
             </div>
             <div className="min-w-full divide-y divide-gray-200">
-              {filtered.map(o => (
+              {paginatedOrders.map(o => (
                 <div 
                   key={o.id}
                   onClick={()=>openEdit(o)}
@@ -1861,6 +1978,9 @@ const canEditService = isOwner || perms.services?.edit
                 </div>
               ))}
             </div>
+            
+            {/* Paginação */}
+            <Pagination />
             </div>
           </div>
           </>)}

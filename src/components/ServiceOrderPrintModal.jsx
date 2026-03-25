@@ -180,10 +180,10 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       .text-right { text-align: right; }
       .text-left { text-align: left; }
       .font-bold { font-weight: bold; }
-      .text-xs { font-size: 8px; }
-      .text-sm { font-size: 10px; }
-      .text-base { font-size: 12px; }
-      .text-lg { font-size: 14px; }
+      .text-xs { font-size: 10px; }
+      .text-sm { font-size: 12px; }
+      .text-base { font-size: 14px; }
+      .text-lg { font-size: 16px; }
       .border-b { border-bottom: 1px dashed #000; }
       .border-t { border-top: 1px dashed #000; }
       .my-2 { margin-top: 8px; margin-bottom: 8px; }
@@ -470,7 +470,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               {printConfig.items.showSection && (
                 <div className="mb-2">
                   <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                  <table className="w-full text-xs">
+                  <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
                         <th className="text-left pb-1">Item</th>
@@ -482,21 +482,21 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                       {printConfig.items.showProducts && (order.products || []).map((p, i) => (
                         <tr key={`p-${i}`}>
                           <td className="pr-1 py-1">
-                            <div>{p.name}</div>
-                            {printConfig.items.showUnitPrice && p.price > 0 && <div className="text-[9px] text-gray-500">{formatMoney(p.price)} un</div>}
+                            <div className="font-bold">{p.name}</div>
+                            {printConfig.items.showUnitPrice && p.price > 0 && <div className="text-[10px] text-gray-500">{formatMoney(p.price)} un</div>}
                           </td>
                           {printConfig.items.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
-                          {printConfig.items.showTotal && <td className="text-right py-1 align-top">{formatMoney(p.price * p.quantity)}</td>}
+                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold">{formatMoney(p.price * p.quantity)}</td>}
                         </tr>
                       ))}
                       {printConfig.items.showServices && (order.services || []).map((s, i) => (
                         <tr key={`s-${i}`}>
                           <td className="pr-1 py-1">
-                            <div>{s.name}</div>
-                            {printConfig.items.showUnitPrice && s.price > 0 && <div className="text-[9px] text-gray-500">{formatMoney(s.price)}</div>}
+                            <div className="font-bold">{s.name}</div>
+                            {printConfig.items.showUnitPrice && s.price > 0 && <div className="text-[10px] text-gray-500">{formatMoney(s.price)}</div>}
                           </td>
                           {printConfig.items.showQty && <td className="text-right py-1 align-top">{s.quantity || 1}</td>}
-                          {printConfig.items.showTotal && <td className="text-right py-1 align-top">{formatMoney(s.price * (s.quantity || 1))}</td>}
+                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold">{formatMoney(s.price * (s.quantity || 1))}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -532,7 +532,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                     </div>
                   )}
                   {printConfig.totals.showTotal && (
-                    <div className="flex justify-between font-bold text-sm mt-1">
+                    <div className="flex justify-between font-bold text-lg mt-1">
                       <span>TOTAL:</span>
                       <span>{formatMoney(total)}</span>
                     </div>
