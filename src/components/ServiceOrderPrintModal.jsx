@@ -470,7 +470,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               {printConfig.items.showSection && (
                 <div className="mb-2">
                   <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                  <table className="w-full text-sm">
+                  <table className="w-full text-base">
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
                         <th className="text-left pb-1">Item</th>
@@ -483,7 +483,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                         <tr key={`p-${i}`}>
                           <td className="pr-1 py-1">
                             <div className="font-bold">{p.name}</div>
-                            {printConfig.items.showUnitPrice && p.price > 0 && <div className="text-[10px] text-gray-500">{formatMoney(p.price)} un</div>}
+                            {printConfig.items.showUnitPrice && p.price > 0 && <div className="text-[11px] text-gray-500">{formatMoney(p.price)} un</div>}
                           </td>
                           {printConfig.items.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
                           {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold">{formatMoney(p.price * p.quantity)}</td>}
@@ -493,7 +493,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                         <tr key={`s-${i}`}>
                           <td className="pr-1 py-1">
                             <div className="font-bold">{s.name}</div>
-                            {printConfig.items.showUnitPrice && s.price > 0 && <div className="text-[10px] text-gray-500">{formatMoney(s.price)}</div>}
+                            {printConfig.items.showUnitPrice && s.price > 0 && <div className="text-[11px] text-gray-500">{formatMoney(s.price)}</div>}
                           </td>
                           {printConfig.items.showQty && <td className="text-right py-1 align-top">{s.quantity || 1}</td>}
                           {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold">{formatMoney(s.price * (s.quantity || 1))}</td>}
@@ -558,14 +558,14 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
 
               <div className="mt-8 border-t border-black pt-2 text-center">
                 {printConfig.signatures.showClient && (
-                  <div className="mb-12 pt-8">
+                  <div className="mb-4 pt-4">
                     <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
                     <div className="text-xs">Assinatura do Cliente</div>
                   </div>
                 )}
 
                 {printConfig.signatures.showTechnician && (
-                  <div className="mb-8 pt-8">
+                  <div className="mb-4 pt-4">
                     <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
                     <div className="text-xs">Assinatura do Técnico</div>
                   </div>
