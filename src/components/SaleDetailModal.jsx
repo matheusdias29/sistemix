@@ -602,8 +602,10 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       .text-right { text-align: right; }
       .text-left { text-align: left; }
       .font-bold { font-weight: bold; }
-      .text-xs { font-size: 8px; }
-      .text-sm { font-size: 10px; }
+      .text-xs { font-size: 10px; }
+      .text-sm { font-size: 12px; }
+      .text-base { font-size: 14px; }
+      .text-lg { font-size: 16px; }
       .border-b { border-bottom: 1px dashed #000; }
       .border-t { border-top: 1px dashed #000; }
       .my-2 { margin-top: 8px; margin-bottom: 8px; }
@@ -744,10 +746,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
               <div className="border-b border-black my-2"></div>
 
+              {/* Items */}
               {receiptConfig.items?.showSection && (
                 <div className="mb-2">
-                  <div className="font-bold mb-1">PRODUTOS</div>
-                  <table className="w-full text-xs">
+                  <div className="font-bold mb-1 uppercase">Produtos / Serviços</div>
+                  <table className="w-full text-base">
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
                         <th className="text-left pb-1">Item</th>
@@ -759,11 +762,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                       {items.map((p, i) => (
                         <tr key={i}>
                           <td className="pr-1 py-1">
-                            <div>{p.name}</div>
-                            {receiptConfig.items?.showUnitPrice && Number(p.price || 0) > 0 && <div className="text-[9px] text-gray-500">{money(p.price)} un</div>}
+                            <div className="font-bold">{p.name}</div>
+                            {receiptConfig.items?.showUnitPrice && Number(p.price || 0) > 0 && <div className="text-[11px] text-gray-500">{money(p.price)} un</div>}
                           </td>
                           {receiptConfig.items?.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
-                          {receiptConfig.items?.showTotal && <td className="text-right py-1 align-top">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>}
+                          {receiptConfig.items?.showTotal && <td className="text-right py-1 align-top font-bold">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -804,7 +807,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                     </div>
                   )}
                   {receiptConfig.totals?.showTotal && (
-                    <div className="flex justify-between font-bold text-sm mt-1">
+                    <div className="flex justify-between font-bold text-lg mt-1">
                       <span>TOTAL:</span>
                       <span>{money(total)}</span>
                     </div>
