@@ -515,7 +515,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     },
     totals: {
       showSection: true,
-      showSubtotal: true,
+      showSubtotal: false,
       showFees: true,
       showDiscount: true,
       showTotal: true,
@@ -801,12 +801,6 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
               {receiptConfig.totals?.showSection && (
                 <div className="flex flex-col gap-1 text-right mb-2">
-                  {receiptConfig.totals?.showSubtotal && (
-                    <div className="flex justify-between">
-                      <span>Subtotal:</span>
-                      <span>{money(subtotal)}</span>
-                    </div>
-                  )}
                   {receiptConfig.totals?.showFees && feesTotal > 0 && (
                     <div className="flex justify-between">
                       <span>Taxas:</span>
