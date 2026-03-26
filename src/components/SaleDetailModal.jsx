@@ -592,6 +592,14 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         word-wrap: break-word;
         word-break: break-word;
       }
+      .print-items-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .print-items-col-qty { width: 4ch; }
+      .print-items-col-total { width: 11ch; }
+      .print-items-cell-item { overflow-wrap: anywhere; word-break: break-word; }
+      .print-items-head-qty,
+      .print-items-head-total,
+      .print-items-cell-qty,
+      .print-items-cell-total { white-space: nowrap; overflow: hidden; text-overflow: clip; }
       @media print {
         @page { margin: 0; }
         body { margin: 0; }
@@ -602,10 +610,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       .text-right { text-align: right; }
       .text-left { text-align: left; }
       .font-bold { font-weight: bold; }
-      .text-xs { font-size: 10px; }
-      .text-sm { font-size: 12px; }
-      .text-base { font-size: 14px; }
-      .text-lg { font-size: 16px; }
+      .text-xs { font-size: 12px; }
+      .text-sm { font-size: 14px; }
+      .text-base { font-size: 16px; }
+      .text-lg { font-size: 20px; }
+      .text-xl { font-size: 24px; }
       .border-b { border-bottom: 1px dashed #000; }
       .border-t { border-top: 1px dashed #000; }
       .my-2 { margin-top: 8px; margin-bottom: 8px; }
@@ -749,24 +758,28 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               {/* Items */}
               {receiptConfig.items?.showSection && (
                 <div className="mb-2">
-                  <div className="font-bold mb-1 uppercase">Produtos / Serviços</div>
-                  <table className="w-full text-base">
+                  <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
+                  <table className="print-items-table text-base">
+                    <colgroup>
+                      <col />
+                      {receiptConfig.items?.showQty && <col className="print-items-col-qty" />}
+                      {receiptConfig.items?.showTotal && <col className="print-items-col-total" />}
+                    </colgroup>
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
                         <th className="text-left pb-1">Item</th>
-                        {receiptConfig.items?.showQty && <th className="text-right pb-1 w-12">Qtd</th>}
-                        {receiptConfig.items?.showTotal && <th className="text-right pb-1 w-16">Total</th>}
+                        {receiptConfig.items?.showQty && <th className="text-right pb-1 print-items-head-qty">Qtd</th>}
+                        {receiptConfig.items?.showTotal && <th className="text-right pb-1 print-items-head-total">Total</th>}
                       </tr>
                     </thead>
                     <tbody>
                       {items.map((p, i) => (
                         <tr key={i}>
-                          <td className="pr-1 py-1">
+                          <td className="pr-1 py-1 print-items-cell-item">
                             <div className="font-bold">{p.name}</div>
-                            {receiptConfig.items?.showUnitPrice && Number(p.price || 0) > 0 && <div className="text-[11px] text-gray-500">{money(p.price)} un</div>}
                           </td>
-                          {receiptConfig.items?.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
-                          {receiptConfig.items?.showTotal && <td className="text-right py-1 align-top font-bold">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>}
+                          {receiptConfig.items?.showQty && <td className="text-right py-1 align-top print-items-cell-qty">{p.quantity}</td>}
+                          {receiptConfig.items?.showTotal && <td className="text-right py-1 align-top font-bold print-items-cell-total">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>}
                         </tr>
                       ))}
                     </tbody>

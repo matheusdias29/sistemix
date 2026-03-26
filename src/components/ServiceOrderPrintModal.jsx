@@ -170,6 +170,14 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
         word-wrap: break-word;
         word-break: break-word;
       }
+      .print-items-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      .print-items-col-qty { width: 4ch; }
+      .print-items-col-total { width: 11ch; }
+      .print-items-cell-item { overflow-wrap: anywhere; word-break: break-word; }
+      .print-items-head-qty,
+      .print-items-head-total,
+      .print-items-cell-qty,
+      .print-items-cell-total { white-space: nowrap; overflow: hidden; text-overflow: clip; }
       @media print {
         @page { margin: 0; }
         body { margin: 0; }
@@ -180,10 +188,11 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       .text-right { text-align: right; }
       .text-left { text-align: left; }
       .font-bold { font-weight: bold; }
-      .text-xs { font-size: 10px; }
-      .text-sm { font-size: 12px; }
-      .text-base { font-size: 14px; }
-      .text-lg { font-size: 16px; }
+      .text-xs { font-size: 12px; }
+      .text-sm { font-size: 14px; }
+      .text-base { font-size: 16px; }
+      .text-lg { font-size: 20px; }
+      .text-xl { font-size: 24px; }
       .border-b { border-bottom: 1px dashed #000; }
       .border-t { border-top: 1px dashed #000; }
       .my-2 { margin-top: 8px; margin-bottom: 8px; }
@@ -470,33 +479,36 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               {printConfig.items.showSection && (
                 <div className="mb-2">
                   <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                  <table className="w-full text-base">
+                  <table className="print-items-table text-base">
+                    <colgroup>
+                      <col />
+                      {printConfig.items.showQty && <col className="print-items-col-qty" />}
+                      {printConfig.items.showTotal && <col className="print-items-col-total" />}
+                    </colgroup>
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
                         <th className="text-left pb-1">Item</th>
-                        {printConfig.items.showQty && <th className="text-right pb-1 w-12">Qtd</th>}
-                        {printConfig.items.showTotal && <th className="text-right pb-1 w-16">Total</th>}
+                        {printConfig.items.showQty && <th className="text-right pb-1 print-items-head-qty">Qtd</th>}
+                        {printConfig.items.showTotal && <th className="text-right pb-1 print-items-head-total">Total</th>}
                       </tr>
                     </thead>
                     <tbody>
                       {printConfig.items.showProducts && (order.products || []).map((p, i) => (
                         <tr key={`p-${i}`}>
-                          <td className="pr-1 py-1">
+                          <td className="pr-1 py-1 print-items-cell-item">
                             <div className="font-bold">{p.name}</div>
-                            {printConfig.items.showUnitPrice && p.price > 0 && <div className="text-[11px] text-gray-500">{formatMoney(p.price)} un</div>}
                           </td>
-                          {printConfig.items.showQty && <td className="text-right py-1 align-top">{p.quantity}</td>}
-                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold">{formatMoney(p.price * p.quantity)}</td>}
+                          {printConfig.items.showQty && <td className="text-right py-1 align-top print-items-cell-qty">{p.quantity}</td>}
+                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold print-items-cell-total">{formatMoney(p.price * p.quantity)}</td>}
                         </tr>
                       ))}
                       {printConfig.items.showServices && (order.services || []).map((s, i) => (
                         <tr key={`s-${i}`}>
-                          <td className="pr-1 py-1">
+                          <td className="pr-1 py-1 print-items-cell-item">
                             <div className="font-bold">{s.name}</div>
-                            {printConfig.items.showUnitPrice && s.price > 0 && <div className="text-[11px] text-gray-500">{formatMoney(s.price)}</div>}
                           </td>
-                          {printConfig.items.showQty && <td className="text-right py-1 align-top">{s.quantity || 1}</td>}
-                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold">{formatMoney(s.price * (s.quantity || 1))}</td>}
+                          {printConfig.items.showQty && <td className="text-right py-1 align-top print-items-cell-qty">{s.quantity || 1}</td>}
+                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold print-items-cell-total">{formatMoney(s.price * (s.quantity || 1))}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -532,7 +544,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                     </div>
                   )}
                   {printConfig.totals.showTotal && (
-                    <div className="flex justify-between font-bold text-lg mt-1">
+                    <div className="flex justify-between font-bold text-xl mt-1">
                       <span>TOTAL:</span>
                       <span>{formatMoney(total)}</span>
                     </div>
