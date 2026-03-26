@@ -638,16 +638,22 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
             ${content.innerHTML}
           </div>
           <script>
+            var __didPrint = false;
+            function __tryPrint() {
+              if (__didPrint) return;
+              __didPrint = true;
+              try { window.focus(); } catch (e) {}
+              try { window.print(); } catch (e) {}
+            }
             window.onload = function() {
-              setTimeout(function() {
-                window.print();
-              }, 500);
+              setTimeout(__tryPrint, 300);
             };
-            setTimeout(function() {
-              if (document.readyState === 'complete') {
-                window.print();
-              }
-            }, 2000);
+            setTimeout(__tryPrint, 1500);
+            window.onafterprint = function() {
+              setTimeout(function() {
+                try { if (window.frameElement) window.frameElement.remove(); } catch (e) {}
+              }, 50);
+            };
           </script>
         </body>
       </html>

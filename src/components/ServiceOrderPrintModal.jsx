@@ -229,18 +229,22 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
             ${content.innerHTML}
           </div>
           <script>
-            // Wait for images to load before printing
+            var __didPrint = false;
+            function __tryPrint() {
+              if (__didPrint) return;
+              __didPrint = true;
+              try { window.focus(); } catch (e) {}
+              try { window.print(); } catch (e) {}
+            }
             window.onload = function() {
-              setTimeout(function() {
-                window.print();
-              }, 500);
+              setTimeout(__tryPrint, 300);
             };
-            // Fallback if onload doesn't fire (e.g. cached or no images)
-            setTimeout(function() {
-              if (document.readyState === 'complete') {
-                 window.print();
-              }
-            }, 2000);
+            setTimeout(__tryPrint, 1500);
+            window.onafterprint = function() {
+              setTimeout(function() {
+                try { if (window.frameElement) window.frameElement.remove(); } catch (e) {}
+              }, 50);
+            };
           </script>
         </body>
       </html>
