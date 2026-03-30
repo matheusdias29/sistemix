@@ -174,6 +174,10 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   // Alert Modal State
   const [alertModalOpen, setAlertModalOpen] = useState(false)
   const [optionsMenuOpen, setOptionsMenuOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportType, setReportType] = useState('summary') // 'summary' | 'detailed'
+  const reportContentRef = useRef(null)
+  const [reportFormat, setReportFormat] = useState('A4')
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [printSettingsOpen, setPrintSettingsOpen] = useState(false)
   const [alertMessage, setAlertMessage] = useState('')
@@ -1269,6 +1273,229 @@ const canEditService = isOwner || perms.services?.edit
 
   return (
     <div>
+      {reportOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-5xl overflow-hidden">
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white">
+                {reportType === 'summary' ? 'Relatório Resumido - O.S.' : 'Relatório Detalhado - O.S.'}
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                  <span>Formato:</span>
+                  <select value={reportFormat} onChange={e => setReportFormat(e.target.value)} className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">
+                    <option value="A4">A4</option>
+                    <option value="Térmica">Térmica</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => {
+                    const content = reportContentRef.current
+                    if (!content) return
+                    const iframe = document.createElement('iframe')
+                    iframe.style.position = 'fixed'
+                    iframe.style.right = '0'
+                    iframe.style.bottom = '0'
+                    iframe.style.width = '0'
+                    iframe.style.height = '0'
+                    iframe.style.border = '0'
+                    document.body.appendChild(iframe)
+                    const width = reportFormat === 'Térmica' ? '80mm' : '210mm'
+                    const doc = iframe.contentWindow.document
+                    const printStyles = `
+                      @page { size: ${reportFormat === 'Térmica' ? '80mm auto' : 'A4'}; margin: ${reportFormat === 'Térmica' ? '0' : '10mm'}; }
+                      body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; }
+                      .sheet { width: ${width}; margin: 0 auto; }
+                      h1 { font-size: 18px; margin: 0 0 8px 0; }
+                      .subtitle { font-size: 12px; color: #555; margin-bottom: 10px; }
+                      .right { text-align: right; }
+                      .section { margin: ${reportFormat === 'Térmica' ? '6mm' : '8mm'} 0; }
+                      .total { font-weight: 700; color: #065f46; }
+                      .muted { color: #6b7280; }
+                      .sale-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: ${reportFormat === 'Térmica' ? '10px' : '12px'}; margin: 0 0 10px 0; }
+                      .sale-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
+                      .sale-title { font-weight: 800; font-size: 13px; }
+                      .sale-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+                      .sale-meta strong { color: #111827; font-weight: 700; }
+                      .status-pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-weight: 800; font-size: 11px; border: 1px solid transparent; white-space: nowrap; }
+                      .status-pill.status-final { background: #dcfce7; color: #15803d; border-color: #bbf7d0; }
+                      .status-pill.status-progress { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+                      .status-pill.status-pending { background: #fef9c3; color: #a16207; border-color: #fde68a; }
+                      .status-pill.status-cancel { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+                      .status-pill.status-other { background: #e5e7eb; color: #374151; border-color: #d1d5db; }
+                      .items { margin-top: 10px; border-top: 1px dashed #e5e7eb; padding-top: 8px; }
+                      .items-head { display: grid; grid-template-columns: 1fr auto; gap: 8px; font-size: 11px; color: #6b7280; font-weight: 700; padding: 0 0 6px 0; }
+                      .item-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; }
+                      .item-row:last-child { border-bottom: 0; }
+                      .item-left { min-width: 0; font-size: 12px; }
+                      .item-qty { font-weight: 800; color: #111827; white-space: nowrap; margin-right: 6px; }
+                      .item-name { color: #111827; overflow-wrap: anywhere; word-break: break-word; }
+                      .item-right { font-weight: 800; font-size: 12px; white-space: nowrap; text-align: right; }
+                      .sale-footer { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 10px; padding-top: 8px; border-top: 1px solid #e5e7eb; }
+                      .sale-footer .label { color: #6b7280; font-size: 11px; }
+                      .sale-footer .value { font-weight: 900; font-size: 13px; color: #065f46; white-space: nowrap; }
+                    `
+                    doc.open()
+                    doc.write(`
+                      <html>
+                        <head>
+                          <meta charset="utf-8" />
+                          <meta name="viewport" content="width=device-width,initial-scale=1" />
+                          <title>Relatório</title>
+                          <style>${printStyles}</style>
+                        </head>
+                        <body><div class="sheet">${content.innerHTML}</div>
+                          <script>
+                            var __didPrint = false;
+                            function __tryPrint(){ if(__didPrint) return; __didPrint = true; try{window.focus()}catch(e){} try{window.print()}catch(e){} }
+                            window.onload = function(){ setTimeout(__tryPrint, 300) };
+                            setTimeout(__tryPrint, 1200);
+                            window.onafterprint = function(){ setTimeout(function(){ try{ if(window.frameElement) window.frameElement.remove() }catch(e){} }, 50) };
+                          <\/script>
+                        </body>
+                      </html>
+                    `)
+                    doc.close()
+                  }}
+                  className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 shadow-sm transition-all"
+                >
+                  Imprimir
+                </button>
+                <button onClick={() => setReportOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+              </div>
+            </div>
+            <div className="p-4 max-h-[70vh] overflow-y-auto bg-gray-50">
+              <div ref={reportContentRef} className="bg-white rounded-lg border border-gray-200 p-4 mx-auto w-full">
+                {reportType === 'summary' && (
+                  <div>
+                    <h1>Relatório Resumido - O.S.</h1>
+                    <div className="subtitle">{dateRange.label}</div>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '6px 8px' }}>O.S.</th>
+                          <th style={{ textAlign: 'left', padding: '6px 8px' }}>Data</th>
+                          <th style={{ textAlign: 'left', padding: '6px 8px' }}>Técnico</th>
+                          <th style={{ textAlign: 'left', padding: '6px 8px' }}>Vendedor</th>
+                          <th style={{ textAlign: 'left', padding: '6px 8px' }}>Cliente</th>
+                          <th style={{ textAlign: 'right', padding: '6px 8px' }}>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map(o => {
+                          const d = toDate(o.dateIn ?? o.createdAt)
+                          const dateStr = d ? d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+                          const numDigits = String(o.number || '').replace(/\D/g, '')
+                          const idLabel = numDigits ? `O.S:${String(parseInt(numDigits || '0', 10)).toString().padStart(4,'0')}` : (String(o.id || '').slice(-6))
+                          return (
+                            <tr key={o.id}>
+                              <td style={{ padding: '6px 8px' }}>{idLabel}</td>
+                              <td style={{ padding: '6px 8px' }}>{dateStr}</td>
+                              <td style={{ padding: '6px 8px' }}>{o.technician || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{o.attendant || o.attendantName || '—'}</td>
+                              <td style={{ padding: '6px 8px' }}>{o.client || '—'}</td>
+                              <td style={{ padding: '6px 8px', textAlign: 'right' }}>{Number(o.total || o.valor || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                            </tr>
+                          )
+                        })}
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: 'right', padding: '8px 8px', fontWeight: 700, color: '#065f46' }}>Total</td>
+                          <td style={{ textAlign: 'right', padding: '8px 8px', fontWeight: 700, color: '#065f46' }}>{Number(filtered.reduce((s,o)=> s+ Number(o.total||o.valor||0),0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {reportType === 'detailed' && (
+                  <div>
+                    <h1>Relatório Detalhado - O.S.</h1>
+                    <div className="subtitle">{dateRange.label}</div>
+                    {filtered.map(o => {
+                      const d = toDate(o.dateIn ?? o.createdAt)
+                      const dateStr = d ? d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+                      const items = [...(Array.isArray(o.products)?o.products:[]), ...(Array.isArray(o.services)?o.services:[])]
+                      const numDigits = String(o.number || '').replace(/\D/g, '')
+                      const idLabel = numDigits ? `O.S:${String(parseInt(numDigits || '0', 10)).toString().padStart(4,'0')}` : (String(o.id || '').slice(-6))
+                      const st = String(o.status || '').toLowerCase()
+                      const statusKey =
+                        st.includes('cancel') ? 'cancel'
+                        : st.includes('final') || st.includes('entreg') || st.includes('fatur') ? 'final'
+                        : st.includes('inici') || st.includes('andament') || st.includes('execut') ? 'progress'
+                        : st.includes('aguard') || st.includes('orç') || st.includes('orc') ? 'pending'
+                        : 'other'
+                      const statusClass =
+                        statusKey === 'final'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                          : statusKey === 'progress'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                          : statusKey === 'pending'
+                          ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                          : statusKey === 'cancel'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                          : 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                      const payments = Array.isArray(o.payments) ? o.payments : []
+                      const showPayment = statusKey !== 'cancel' && payments.length > 0
+                      const paymentText = showPayment ? payments.filter(p => (p?.method||'').trim()).map(p => `${p.method}${p?.amount?` (${Number(p.amount||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})})`:''}`).join(' • ') : ''
+                      return (
+                        <div key={o.id} className="sale-card border border-gray-200 rounded-lg p-3 mb-3 bg-white">
+                          <div className="sale-head flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="sale-title text-sm font-extrabold text-gray-900 truncate">O.S. {idLabel}</div>
+                              <div className="sale-meta text-xs text-gray-500 mt-0.5">
+                                {dateStr} • <strong>{o.technician || '—'}</strong>
+                                {o.attendant ? ` • ${o.attendant}` : ''}
+                                {o.client ? ` • ${o.client}` : ''}
+                              </div>
+                              {showPayment && (
+                                <div className="sale-meta text-xs text-gray-500 mt-1">
+                                  Pagamento: <strong>{paymentText}</strong>
+                                </div>
+                              )}
+                            </div>
+                            <div className={`status-pill status-${statusKey} px-2 py-0.5 rounded text-[11px] font-extrabold ${statusClass}`}>
+                              {o.status || 'Indef.'}
+                            </div>
+                          </div>
+                          <div className="items mt-3 pt-2 border-t border-dashed border-gray-200">
+                            <div className="items-head flex items-center justify-between text-xs text-gray-500 font-semibold pb-1">
+                              <span>Item</span>
+                              <span>Total</span>
+                            </div>
+                            {items.map((p, i) => {
+                              const qty = Number(p.quantity || 1)
+                              const lineTotal = Number(p.total || p.price || 0) * qty
+                              return (
+                                <div key={i} className="item-row flex items-start justify-between gap-3 py-1.5 border-b last:border-b-0 border-gray-100">
+                                  <div className="item-left min-w-0 text-sm text-gray-900">
+                                    <span className="item-qty font-extrabold">{qty}x</span>{' '}
+                                    <span className="item-name break-words">{p.name || '—'}</span>
+                                  </div>
+                                  <div className="item-right text-sm font-extrabold text-gray-900 whitespace-nowrap">
+                                    {lineTotal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                          <div className="sale-footer mt-3 pt-2 border-t border-gray-200 flex items-baseline justify-between">
+                            <div className="label text-xs text-gray-500">Total da O.S.</div>
+                            <div className="value text-sm font-extrabold text-green-700">
+                              {Number(o.total || o.valor || 0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div className="section total right">
+                      Total geral: {Number(filtered.reduce((s,o)=> s+ Number(o.total||o.valor||0),0)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {statusModalOpen && (
         <UpdateStatusModal
           open={statusModalOpen}
@@ -1660,6 +1887,19 @@ const canEditService = isOwner || perms.services?.edit
                         onClick={() => { setOptionsMenuOpen(false) }}
                       >
                         Exportar serviços
+                      </button>
+                      <div className="my-1 h-px bg-gray-100"></div>
+                      <button
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setOptionsMenuOpen(false); setReportType('summary'); setReportOpen(true) }}
+                      >
+                        Relatório Resumido
+                      </button>
+                      <button
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                        onClick={() => { setOptionsMenuOpen(false); setReportType('detailed'); setReportOpen(true) }}
+                      >
+                        Relatório Detalhado
                       </button>
                     </div>
                   )}

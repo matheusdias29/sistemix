@@ -29,6 +29,10 @@ type Order = {
   products?: { name?: string; category?: string; cost?: number; quantity?: number }[]
   client?: string
   attendant?: string
+  attendantName?: string
+  technician?: string
+  technicianName?: string
+  technicianId?: string
   payments?: OrderPayment[]
   discount?: number
 }
@@ -632,6 +636,28 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
   }, [filteredSales])
+
+  const osSellers = useMemo(() => {
+    const map = new Map<string, number>()
+    filteredServiceOrders.forEach(o => {
+      const name = (o.attendant || o.attendantName || 'Sem vendedor').trim() || 'Sem vendedor'
+      map.set(name, (map.get(name) || 0) + Number(o.total ?? o.valor ?? 0))
+    })
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+  }, [filteredServiceOrders])
+
+  const osTechnicians = useMemo(() => {
+    const map = new Map<string, number>()
+    filteredServiceOrders.forEach(o => {
+      const name = (o.technician || o.technicianName || 'Sem técnico').trim() || 'Sem técnico'
+      map.set(name, (map.get(name) || 0) + Number(o.total ?? o.valor ?? 0))
+    })
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+  }, [filteredServiceOrders])
 
   const categories = useMemo(() => {
     const map = new Map<string, number>()
@@ -1496,6 +1522,50 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+            </section>
+
+            <section className="rounded-lg bg-white shadow p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-4">Vendedores</h3>
+              <div className="space-y-2 text-sm">
+                {osSellers.length === 0 && (
+                  <div className="text-xs text-gray-500">
+                    Nenhuma ordem de serviço encontrada no período selecionado.
+                  </div>
+                )}
+                {osSellers.map(s => (
+                  <div
+                    key={s.name}
+                    className="flex items-center justify-between py-1.5 border-b last:border-b-0"
+                  >
+                    <span className="text-gray-700">{s.name}</span>
+                    <span className="text-green-700 font-semibold">
+                      {formatCurrency(s.value)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-lg bg-white shadow p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-4">Técnicos</h3>
+              <div className="space-y-2 text-sm">
+                {osTechnicians.length === 0 && (
+                  <div className="text-xs text-gray-500">
+                    Nenhuma ordem de serviço encontrada no período selecionado.
+                  </div>
+                )}
+                {osTechnicians.map(t => (
+                  <div
+                    key={t.name}
+                    className="flex items-center justify-between py-1.5 border-b last:border-b-0"
+                  >
+                    <span className="text-gray-700">{t.name}</span>
+                    <span className="text-green-700 font-semibold">
+                      {formatCurrency(t.value)}
+                    </span>
+                  </div>
+                ))}
               </div>
             </section>
 
