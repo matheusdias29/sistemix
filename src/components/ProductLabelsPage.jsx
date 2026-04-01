@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import ProductsFilterModal from './ProductsFilterModal'
 import SelectVariationModal from './SelectVariationModal'
 
@@ -241,6 +241,8 @@ export default function ProductLabelsPage({
   const [activeFilters, setActiveFilters] = useState({})
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedItems, setSelectedItems] = useState([]) // { product, variation?, qty }
+  const PAGE_SIZE = 30
+  const [page, setPage] = useState(1)
   const PRESETS = useMemo(() => ([
     {
       id: 'pimaco_a4248',
@@ -471,6 +473,105 @@ export default function ProductLabelsPage({
 
     return res
   }, [products, query, activeFilters])
+  
+  useEffect(() => {
+    setPage(1)
+  }, [query, activeFilters])
+
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredProducts.length / PAGE_SIZE) || 1
+  }, [filteredProducts.length])
+
+  const paginatedResults = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE
+    return filteredProducts.slice(start, start + PAGE_SIZE)
+  }, [filteredProducts, page])
+
+  const Pagination = () => {
+    if (totalPages <= 1) return null
+
+    const renderPageNumbers = () => {
+      const pages = []
+      pages.push(
+        <button
+          key={1}
+          onClick={() => setPage(1)}
+          className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+            page === 1
+              ? 'bg-green-100 text-green-700'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
+        >
+          1
+        </button>
+      )
+
+      let start = Math.max(2, page - 1)
+      let end = Math.min(totalPages - 1, page + 1)
+      if (page <= 3) end = Math.min(totalPages - 1, 4)
+      if (page >= totalPages - 2) start = Math.max(2, totalPages - 3)
+
+      if (start > 2) pages.push(<span key="dots1" className="text-gray-400 px-1">...</span>)
+
+      for (let i = start; i <= end; i++) {
+        pages.push(
+          <button
+            key={i}
+            onClick={() => setPage(i)}
+            className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+              page === i
+                ? 'bg-green-100 text-green-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {i}
+          </button>
+        )
+      }
+
+      if (end < totalPages - 1) pages.push(<span key="dots2" className="text-gray-400 px-1">...</span>)
+
+      if (totalPages > 1) {
+        pages.push(
+          <button
+            key={totalPages}
+            onClick={() => setPage(totalPages)}
+            className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+              page === totalPages
+                ? 'bg-green-100 text-green-700'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {totalPages}
+          </button>
+        )
+      }
+
+      return pages
+    }
+
+    return (
+      <div className="flex items-center justify-center gap-2 py-4 border-t bg-white">
+        <button
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page === 1}
+          className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+        >
+          &lt;
+        </button>
+        <div className="flex items-center gap-1">
+          {renderPageNumbers()}
+        </div>
+        <button
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={page === totalPages}
+          className="p-2 text-gray-500 hover:text-gray-700 disabled:opacity-30"
+        >
+          &gt;
+        </button>
+      </div>
+    )
+  }
 
   const handleAdd = (product) => {
     // Check variations
@@ -548,6 +649,8 @@ export default function ProductLabelsPage({
     const subPx = typeof style.subPx === 'number' ? style.subPx : 9
     const refPx = typeof style.refPx === 'number' ? style.refPx : 9
     const pricePx = typeof style.pricePx === 'number' ? style.pricePx : 18
+    const nameBigPx = Math.max(6, Math.round(namePx * 1.2))
+    const priceSmallPx = Math.max(5, Math.round(pricePx * 0.6))
     const barcodeHpx = typeof style.barcodeHpx === 'number' ? style.barcodeHpx : 22
     const barcodeTextPx = typeof style.barcodeTextPx === 'number' ? style.barcodeTextPx : 10
     const subTopMm = typeof style.subTopMm === 'number' ? style.subTopMm : 0.4
@@ -570,20 +673,14 @@ export default function ProductLabelsPage({
       const barcode = buildBarcodeSvgByBestFit(barcodeText)
       const barcodeSvg = barcode?.svg || ''
       const barcodeNum = barcode?.text || barcodeText || ''
-      const ref = String(it?.product?.reference || '').trim()
-      const pricingLabel = formatPricingLabel(it?.variation?.name)
       const priceText = money(price)
       return `
         <div class="label" data-i="${idx}">
-          <div class="label-row">
-            <div class="label-left">
-              <div class="label-name">${escapeHtml(name)}</div>
-              ${pricingLabel ? `<div class="label-sub">${escapeHtml(pricingLabel)}</div>` : ''}
-              ${ref ? `<div class="label-ref">REF: ${escapeHtml(ref)}</div>` : ''}
-            </div>
+          <div class="label-top">
+            <div class="label-name">${escapeHtml(name)}</div>
             <div class="label-price">${escapeHtml(priceText)}</div>
           </div>
-          <div class="label-barcode">
+          <div class="label-bottom">
             ${barcodeSvg ? `<div class="barcode-svg">${barcodeSvg}</div>` : ''}
             ${barcodeNum ? `<div class="barcode-text">${escapeHtml(barcodeNum)}</div>` : ''}
           </div>
@@ -607,15 +704,14 @@ export default function ProductLabelsPage({
             * { box-sizing: border-box; }
             body { margin: 0; padding: 0; font-family: Arial, sans-serif; color: #000; }
             .sheet { page-break-after: always; }
-            .label-row { display: grid; grid-template-columns: 1fr auto; gap: ${rowGapMm}mm; align-items: start; }
-            .label-left { min-width: 0; }
+            .label-top { min-width: 0; }
             .label-name { font-weight: 900; line-height: 1.15; text-transform: uppercase; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
             .label-sub { margin-top: ${subTopMm}mm; font-weight: 800; line-height: 1.15; text-transform: uppercase; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-            .label-ref { margin-top: ${refTopMm}mm; font-weight: 800; letter-spacing: 0.3px; }
-            .label-price { font-weight: 900; white-space: nowrap; }
+            .label-price { margin-top: ${rowGapMm}mm; font-weight: 900; white-space: nowrap; text-align: center; }
+            .label-ref { margin-top: ${refTopMm}mm; font-weight: 800; letter-spacing: 0.3px; text-align: left; }
             .barcode-svg { margin-top: ${barcodeTopMm}mm; }
             .barcode-svg svg { width: 100%; display: block; }
-            .barcode-text { font-weight: 800; letter-spacing: 0.6px; text-align: left; margin-top: 1mm; }
+            .barcode-text { font-weight: 800; letter-spacing: 0.6px; text-align: center; margin-top: 1mm; }
             ${preset.type === 'grid' ? `
               @page { size: ${preset.page.wMm}mm ${preset.page.hMm}mm; margin: 0; }
               .sheet {
@@ -642,10 +738,10 @@ export default function ProductLabelsPage({
                 justify-content: space-between;
                 overflow: hidden;
               }
-              .label-name { font-size: ${namePx}px; }
+              .label-name { font-size: ${nameBigPx}px; }
               .label-sub { font-size: ${subPx}px; }
               .label-ref { font-size: ${refPx}px; }
-              .label-price { font-size: ${pricePx}px; }
+              .label-price { font-size: ${priceSmallPx}px; }
               .barcode-svg svg { height: ${barcodeHpx}px; }
               .barcode-text { font-size: ${barcodeTextPx}px; }
             ` : `
@@ -666,10 +762,10 @@ export default function ProductLabelsPage({
                 page-break-after: always;
                 overflow: hidden;
               }
-              .label-name { font-size: ${namePx}px; }
+              .label-name { font-size: ${nameBigPx}px; }
               .label-sub { font-size: ${subPx}px; }
               .label-ref { font-size: ${refPx}px; }
-              .label-price { font-size: ${pricePx}px; }
+              .label-price { font-size: ${priceSmallPx}px; }
               .barcode-svg svg { height: ${barcodeHpx}px; }
               .barcode-text { font-size: ${barcodeTextPx}px; }
             `}
@@ -796,7 +892,7 @@ export default function ProductLabelsPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-sm">
-                {filteredProducts.map(product => (
+                {paginatedResults.map(product => (
                   <tr 
                     key={product.id} 
                     className="hover:bg-gray-50 group cursor-pointer"
@@ -838,6 +934,7 @@ export default function ProductLabelsPage({
               </tbody>
             </table>
           </div>
+          <Pagination />
         </div>
 
         {/* Right: Selected for Labels */}

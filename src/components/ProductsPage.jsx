@@ -1431,7 +1431,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   if (showLabelsScreen) {
     return (
       <ProductLabelsPage 
-        products={products}
+        products={(cachedProducts && cachedProducts.length) ? cachedProducts : products}
         categories={categories}
         suppliers={suppliers}
         onBack={() => setShowLabelsScreen(false)}
