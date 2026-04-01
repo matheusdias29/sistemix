@@ -1,25 +1,121 @@
-import React, { useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect } from 'react'
 
 export default function SelectClientModal({ open, onClose, clients=[], onChoose, onNew, title = 'Selecionar cliente', newItemLabel = 'Novo Cliente', searchPlaceholder = 'Pesquisar por nome...', emptyLabel = 'Nenhum cliente encontrado' }){
   const [query, setQuery] = useState('')
-  const [limit, setLimit] = useState(20)
+  const PAGE_SIZE = 30
+  const [page, setPage] = useState(1)
 
-  // Reset limit when query changes or modal opens
   useEffect(() => {
     if (open) {
-      setLimit(20)
+      setPage(1)
     }
   }, [open, query])
 
-  if(!open) return null
-
   const q = query.trim().toLowerCase()
-  const filtered = (clients||[]).filter(c => 
-    (c.name||'').toLowerCase().includes(q) ||
-    (String(c.code || '').toLowerCase().includes(q))
-  )
-  const displayed = filtered.slice(0, limit)
-  const hasMore = filtered.length > limit
+  const filtered = useMemo(() => {
+    if (!open) return []
+    return (clients||[]).filter(c => 
+      (c.name||'').toLowerCase().includes(q) ||
+      (String(c.code || '').toLowerCase().includes(q))
+    )
+  }, [clients, q, open])
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1
+  const safePage = Math.min(Math.max(1, page), totalPages)
+  const displayed = useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE
+    return filtered.slice(start, start + PAGE_SIZE)
+  }, [filtered, safePage])
+
+  const Pagination = () => {
+    if (totalPages <= 1) return null
+
+    const renderPageNumbers = () => {
+      const pages = []
+
+      pages.push(
+        <button
+          key={1}
+          onClick={() => setPage(1)}
+          className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+            safePage === 1
+              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          1
+        </button>
+      )
+
+      let start = Math.max(2, safePage - 1)
+      let end = Math.min(totalPages - 1, safePage + 1)
+
+      if (safePage <= 3) end = Math.min(totalPages - 1, 4)
+      if (safePage >= totalPages - 2) start = Math.max(2, totalPages - 3)
+
+      if (start > 2) pages.push(<span key="dots1" className="text-gray-400 px-1">...</span>)
+
+      for (let i = start; i <= end; i++) {
+        pages.push(
+          <button
+            key={i}
+            onClick={() => setPage(i)}
+            className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+              safePage === i
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            {i}
+          </button>
+        )
+      }
+
+      if (end < totalPages - 1) pages.push(<span key="dots2" className="text-gray-400 px-1">...</span>)
+
+      if (totalPages > 1) {
+        pages.push(
+          <button
+            key={totalPages}
+            onClick={() => setPage(totalPages)}
+            className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
+              safePage === totalPages
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+            }`}
+          >
+            {totalPages}
+          </button>
+        )
+      }
+
+      return pages
+    }
+
+    return (
+      <div className="flex items-center justify-center gap-2 py-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+        <button 
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={safePage === 1}
+          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+        >
+          &lt;
+        </button>
+        <div className="flex items-center gap-1">
+          {renderPageNumbers()}
+        </div>
+        <button 
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={safePage === totalPages}
+          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 disabled:opacity-30"
+        >
+          &gt;
+        </button>
+      </div>
+    )
+  }
+
+  if(!open) return null
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
@@ -51,7 +147,7 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
           </div>
           <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex justify-between">
             <span>{filtered.length} encontrados</span>
-            {hasMore && <span>Mostrando {limit} primeiros</span>}
+            {totalPages > 1 && <span>Página {safePage} de {totalPages}</span>}
           </div>
         </div>
 
@@ -78,15 +174,6 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
                   </div>
                 </div>
               ))}
-              
-              {hasMore && (
-                <button 
-                  onClick={() => setLimit(l => l + 20)}
-                  className="w-full py-3 text-sm text-center text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg font-medium transition-colors mt-2"
-                >
-                  Carregar mais...
-                </button>
-              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-40 text-gray-500 dark:text-gray-400">
@@ -95,6 +182,7 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
             </div>
           )}
         </div>
+        <Pagination />
 
         {/* Footer */}
         <div className="p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 shrink-0 flex justify-end">

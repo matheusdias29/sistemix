@@ -5,7 +5,7 @@ import { listenProducts, updateProduct, getAllProducts } from '../services/produ
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
-import { listenClients } from '../services/clients'
+import { listenClients, getAllClients } from '../services/clients'
 import NewClientModal from './NewClientModal'
 import SelectClientModal from './SelectClientModal'
 import SelectVariationModal from './SelectVariationModal'
@@ -436,6 +436,8 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [clientSelectOpen, setClientSelectOpen] = useState(false)
   const [newClientOpen, setNewClientOpen] = useState(false)
   const [clientsAll, setClientsAll] = useState([])
+  const [cachedClients, setCachedClients] = useState(null)
+  const [isClientsCaching, setIsClientsCaching] = useState(false)
   const [technician, setTechnician] = useState('')
   const [attendant, setAttendant] = useState('')
   const [subUsers, setSubUsers] = useState([])
@@ -690,6 +692,21 @@ const canEditService = isOwner || perms.services?.edit
     })
     return () => { unsubP && unsubP(); unsubSv && unsubSv(); unsubC && unsubC(); unsubS && unsubS(); unsubClients && unsubClients(); unsubMembers && unsubMembers(); unsubFees && unsubFees() }
   }, [storeId, ownerId])
+
+  useEffect(() => {
+    setCachedClients(null)
+    setIsClientsCaching(false)
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    if (cachedClients || isClientsCaching) return
+    setIsClientsCaching(true)
+    getAllClients(storeId)
+      .then((rows) => setCachedClients(rows))
+      .catch(() => {})
+      .finally(() => setIsClientsCaching(false))
+  }, [storeId, cachedClients, isClientsCaching])
 
   // Product Cache (Background)
   useEffect(() => {
@@ -1997,7 +2014,7 @@ const canEditService = isOwner || perms.services?.edit
           <SelectClientModal
             open={filterClientSelectOpen}
             onClose={()=>setFilterClientSelectOpen(false)}
-            clients={clientsAll}
+            clients={(cachedClients && cachedClients.length) ? cachedClients : clientsAll}
             onChoose={(c)=>{ setFilterClient(c.name||''); setFilterClientSelectOpen(false) }}
           />
         )}
@@ -2806,7 +2823,7 @@ const canEditService = isOwner || perms.services?.edit
             <SelectClientModal
               open={clientSelectOpen}
               onClose={()=>setClientSelectOpen(false)}
-              clients={clientsAll}
+              clients={(cachedClients && cachedClients.length) ? cachedClients : clientsAll}
               onChoose={(c)=>{ setClient(c.name||''); setClientSelectOpen(false) }}
               onNew={(isOwner || perms.clients?.create) ? ()=>{ setClientSelectOpen(false); setNewClientOpen(true) } : undefined}
             />
