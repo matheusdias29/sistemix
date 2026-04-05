@@ -1,6 +1,89 @@
-import React from 'react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { Bell, X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
+import { listenStoreNotifications } from '../services/notifications'
 
 export default function Header({user, userData, storeData, title, onUserClick, mobileControls, rightAction}){
+  const [showNotifications, setShowNotifications] = useState(false)
+  const notificationRef = useRef(null)
+
+  const storeId = storeData?.id
+  const userId = userData?.memberId || userData?.id || user?.memberId || user?.id || 'anon'
+  const storageKey = storeId ? `notif_read_${storeId}_${userId}` : null
+
+  const [notifications, setNotifications] = useState([])
+  const [readIds, setReadIds] = useState([])
+
+  useEffect(() => {
+    if (!storageKey) {
+      setReadIds([])
+      return
+    }
+    try {
+      const raw = localStorage.getItem(storageKey)
+      const parsed = raw ? JSON.parse(raw) : []
+      setReadIds(Array.isArray(parsed) ? parsed : [])
+    } catch {
+      setReadIds([])
+    }
+  }, [storageKey])
+
+  useEffect(() => {
+    if (!storeId) {
+      setNotifications([])
+      return
+    }
+    const unsub = listenStoreNotifications(storeId, (items) => setNotifications(items || []), { limit: 50 })
+    return () => unsub && unsub()
+  }, [storeId])
+
+  const readSet = useMemo(() => new Set(readIds), [readIds])
+  const unreadCount = useMemo(() => notifications.filter(n => !readSet.has(n.id)).length, [notifications, readSet])
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const persistReadIds = (next) => {
+    setReadIds(next)
+    if (!storageKey) return
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(next))
+    } catch {}
+  }
+
+  const markAsRead = (id) => {
+    if (!id) return
+    if (readSet.has(id)) return
+    persistReadIds([...readIds, id])
+  }
+
+  const markAllAsRead = () => {
+    const all = notifications.map(n => n.id).filter(Boolean)
+    const merged = Array.from(new Set([...readIds, ...all]))
+    persistReadIds(merged)
+  }
+
+  const formatTime = (ts) => {
+    const d = ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
+    if (!d || Number.isNaN(d.getTime())) return ''
+    const diff = Date.now() - d.getTime()
+    const sec = Math.max(0, Math.floor(diff / 1000))
+    if (sec < 30) return 'Agora'
+    const min = Math.floor(sec / 60)
+    if (min < 60) return `${min} min atrás`
+    const hr = Math.floor(min / 60)
+    if (hr < 24) return `${hr}h atrás`
+    const days = Math.floor(hr / 24)
+    if (days < 7) return `${days}d atrás`
+    return d.toLocaleDateString('pt-BR')
+  }
+
   // Fallback for compatibility if userData/storeData are missing
   const displayName = userData?.name || user?.name?.split('—')[0]?.trim() || 'Usuário'
   const storeName = storeData?.name || (user?.name?.includes('—') ? user.name.split('—')[1]?.trim() : '')
@@ -39,6 +122,82 @@ export default function Header({user, userData, storeData, title, onUserClick, m
         {rightAction ? (
           <div className="flex items-center">{rightAction}</div>
         ) : null}
+
+        {/* Ícone de Notificações */}
+        <div className="relative" ref={notificationRef}>
+          <button
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors relative"
+            title="Notificações"
+          >
+            <Bell size={24} />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+
+          {showNotifications && (
+            <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2">
+              <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between bg-gray-50/50 dark:bg-gray-800/50">
+                <h3 className="font-bold text-gray-800 dark:text-gray-100">Notificações</h3>
+                <div className="flex items-center gap-3">
+                  <button onClick={markAllAsRead} className="text-xs text-gray-500 hover:underline font-semibold">Marcar todas como lidas</button>
+                  <button onClick={() => setShowNotifications(false)} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors text-gray-500 dark:text-gray-400">
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="max-h-[400px] overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center gap-2">
+                    <Bell size={32} className="opacity-20" />
+                    <p className="text-sm">Nenhuma notificação por aqui.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-50 dark:divide-gray-700">
+                    {notifications.map(n => (
+                      <div
+                        key={n.id}
+                        className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer relative group ${!readSet.has(n.id) ? 'bg-green-50/20 dark:bg-green-900/10' : ''}`}
+                        onClick={() => markAsRead(n.id)}
+                      >
+                        <div className="flex gap-3">
+                          <div className={`p-2 rounded-full h-fit ${
+                            n.type === 'success' ? 'bg-green-100 text-green-600 dark:bg-green-900/30' :
+                            n.type === 'warning' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30' :
+                            n.type === 'error' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' :
+                            'bg-blue-100 text-blue-600 dark:bg-blue-900/30'
+                          }`}>
+                            {n.type === 'success' ? <CheckCircle size={18} /> :
+                             n.type === 'warning' ? <AlertTriangle size={18} /> :
+                             n.type === 'error' ? <AlertCircle size={18} /> :
+                             <Info size={18} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start mb-1">
+                              <h4 className="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{n.title}</h4>
+                              <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">{n.time || formatTime(n.createdAt)}</span>
+                            </div>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{n.message}</p>
+                          </div>
+                          {!readSet.has(n.id) && (
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="hidden md:flex items-center gap-4">
           <div
             className="group flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full pl-2 pr-6 py-2 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-900 transition-all duration-200"

@@ -3,6 +3,7 @@ import { listenOrders } from '../services/orders'
 import { listenClients } from '../services/clients'
 import { listenStore } from '../services/stores'
 import { listenCurrentCash } from '../services/cash'
+import { listenSubUsers, getOwner } from '../services/users'
 import CommissionsModal from './CommissionsModal'
 import pixIcon from '../assets/pix.svg'
 import { 
@@ -20,7 +21,8 @@ import {
   BarChart2,
   Users,
   Briefcase,
-  User
+  User,
+  Cake
 } from 'lucide-react'
 
 export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
@@ -36,23 +38,64 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
   const [store, setStore] = useState(null)
   const [showAllTeamGoals, setShowAllTeamGoals] = useState(false)
   const [currentCash, setCurrentCash] = useState(null)
+  const [teamMembers, setTeamMembers] = useState([])
+
+  const today = new Date()
+
+  const birthDayBoys = useMemo(() => {
+    const currentMonth = today.getMonth() // 0-11
+    return teamMembers.filter(m => {
+      if (!m.birthDate) return false
+      const [year, month, day] = m.birthDate.split('-').map(Number)
+      return (month - 1) === currentMonth
+    }).sort((a, b) => {
+      const dayA = Number(a.birthDate.split('-')[2])
+      const dayB = Number(b.birthDate.split('-')[2])
+      return dayA - dayB
+    })
+  }, [teamMembers, today])
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
     const unsubClients = listenClients(items => setClients(items), storeId)
     let unsubStore = null
     let unsubCash = null
+    let unsubTeam = null
+
     if (storeId) {
         unsubStore = listenStore(storeId, (data) => setStore(data))
         unsubCash = listenCurrentCash(storeId, (data) => setCurrentCash(data))
+    }
+
+    // Carregar membros da equipe (sub-usuários) e o dono para verificar aniversariantes
+    if (user?.ownerId || user?.id) {
+      const ownerId = user.ownerId || user.id
+      
+      // 1. Escutar sub-usuários
+      unsubTeam = listenSubUsers(ownerId, (members) => {
+        // 2. Buscar dados do dono para incluir na lista de aniversariantes
+        getOwner(ownerId).then(ownerData => {
+          const all = []
+          if (ownerData) all.push({ ...ownerData, isOwner: true })
+          all.push(...members)
+          setTeamMembers(all)
+        })
+      })
     }
     // lazy import para evitar dependência circular
     let unsubGoals = null
     import('../services/goals').then(({ listenGoals }) => {
       unsubGoals = listenGoals(items => setGoals(items), storeId)
     }).catch(() => {})
-    return () => { unsub && unsub(); unsubClients && unsubClients(); unsubGoals && unsubGoals(); unsubStore && unsubStore(); unsubCash && unsubCash() }
-  }, [storeId])
+    return () => { 
+      unsub && unsub(); 
+      unsubClients && unsubClients(); 
+      unsubGoals && unsubGoals(); 
+      unsubStore && unsubStore(); 
+      unsubCash && unsubCash();
+      unsubTeam && unsubTeam();
+    }
+  }, [storeId, user?.id, user?.ownerId])
 
   const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
   const isSameDay = (a, b) => (
@@ -60,8 +103,6 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
     a.getMonth() === b.getMonth() &&
     a.getDate() === b.getDate()
   )
-
-  const today = new Date()
 
   const todayOrders = useMemo(() => orders.filter(o => {
     const d = toDate(o.createdAt)
@@ -843,6 +884,58 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
                  <div className="mt-2 text-right text-sm font-bold text-gray-500 dark:text-gray-400">{monthGoalOSPct}%</div>
             </div>
         </div>
+      </section>
+
+      {/* Aniversariantes do Mês */}
+      <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 rounded-lg bg-pink-50 text-pink-600 dark:bg-pink-900/20 dark:text-pink-400">
+            <Cake size={24} />
+          </div>
+          <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Aniversariantes do Mês</h3>
+        </div>
+
+        {birthDayBoys.length === 0 ? (
+          <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
+            Nenhum membro da equipe faz aniversário este mês.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {birthDayBoys.map((m, i) => {
+              const [y, month, day] = m.birthDate.split('-')
+              const isToday = today.getDate() === Number(day) && today.getMonth() === (Number(month) - 1)
+              
+              return (
+                <div 
+                  key={i} 
+                  className={`p-4 rounded-lg border flex items-center gap-4 transition-all ${
+                    isToday 
+                    ? 'bg-pink-50 border-pink-200 dark:bg-pink-900/10 dark:border-pink-900/50 shadow-sm' 
+                    : 'bg-gray-50 border-gray-100 dark:bg-gray-700/30 dark:border-gray-700 hover:border-pink-100 dark:hover:border-pink-900/30'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shadow-sm ${
+                    isToday 
+                    ? 'bg-pink-500 text-white' 
+                    : 'bg-white text-gray-700 dark:bg-gray-600 dark:text-gray-200'
+                  }`}>
+                    {getInitials(m.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="text-sm font-bold text-gray-900 dark:text-white truncate">{m.name}</h4>
+                      {isToday && <span className="text-xs">🎂</span>}
+                    </div>
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <span>{day}/{month}</span>
+                      {isToday && <span className="text-pink-600 dark:text-pink-400 font-bold ml-1">Parabéns!</span>}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {/* Vendas x Lucro */}

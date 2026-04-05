@@ -16,6 +16,7 @@ export default function AdminLayout({ children, user, onViewChange, currentView,
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stores', label: 'Lojas', icon: Store },
     { id: 'users', label: 'Usuários', icon: Users },
+    { id: 'notifications', label: 'Notificações', icon: Bell },
     { id: 'trials', label: 'Em teste', icon: Bell, badge: trialUsersCount },
   ]
 

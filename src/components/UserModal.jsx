@@ -6,6 +6,7 @@ export default function UserModal({ user, onClose, onSave }){
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '')
+  const [birthDate, setBirthDate] = useState(user?.birthDate || '')
 
   const [isSeller, setIsSeller] = useState(!!user?.isSeller)
   const [isTech, setIsTech] = useState(!!user?.isTech)
@@ -31,6 +32,7 @@ export default function UserModal({ user, onClose, onSave }){
     setName(user?.name || '')
     setEmail(user?.email || '')
     setWhatsapp(user?.whatsapp || '')
+    setBirthDate(user?.birthDate || '')
     setIsSeller(!!user?.isSeller)
     setIsTech(!!user?.isTech)
     setIsAdmin(!!user?.isAdmin)
@@ -64,6 +66,7 @@ export default function UserModal({ user, onClose, onSave }){
       name: name.trim(),
       email: email.trim(),
       whatsapp: whatsapp.trim(),
+      birthDate: birthDate || null,
       isSeller,
       isTech,
       isAdmin,
@@ -111,7 +114,16 @@ export default function UserModal({ user, onClose, onSave }){
                   placeholder="(00) 00000-0000"
                 />
               </div>
-              <div className="md:col-span-2">
+              <div>
+                <label className="block text-sm text-gray-700">Data de Nascimento</label>
+                <input
+                  className="input w-full"
+                  type="date"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                />
+              </div>
+              <div>
                 <label className="block text-sm text-gray-700">E-mail</label>
                 <input
                   className="input w-full"
