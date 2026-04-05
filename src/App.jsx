@@ -457,9 +457,9 @@ export default function App(){
           ) : view === 'caixa' ? (
             <div className="mt-4 md:mt-6"><POSPage storeId={store?.id} user={user} onView={onNavigate} setViewParams={setViewParams} /></div>
           ) : view === 'cpagar' ? (
-            <div className="mt-4 md:mt-6"><AccountsPayablePage storeId={store?.id} user={user} /></div>
+            <div className="mt-4 md:mt-6"><AccountsPayablePage storeId={store?.id} user={user} store={store} /></div>
           ) : view === 'creceber' ? (
-            <div className="mt-4 md:mt-6"><AccountsReceivablePage storeId={store?.id} user={user} /></div>
+            <div className="mt-4 md:mt-6"><AccountsReceivablePage storeId={store?.id} user={user} store={store} /></div>
           ) : view === 'estatisticas' ? (
             <div className="mt-4 md:mt-6"><StatisticsPage storeId={store?.id} user={user} /></div>
           ) : view === 'marketplace' || view.startsWith('marketplace-') ? (

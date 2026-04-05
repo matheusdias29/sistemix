@@ -29,6 +29,11 @@ const ICONS = {
       <path d="M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,19H5V5H19V19M17,12H7V10H17V12M15,16H7V14H15V16M17,8H7V6H17V8Z"/>
     </svg>
   ),
+  valor_negativo: (
+    <svg className="w-8 h-8 text-red-600" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M19,13H5V11H19V13Z"/>
+    </svg>
+  ),
   default: (
     <svg className="w-8 h-8 text-green-600" fill="currentColor" viewBox="0 0 24 24">
       <path d="M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,17A1.5,1.5 0 0,1 10.5,15.5A1.5,1.5 0 0,1 12,14A1.5,1.5 0 0,1 13.5,15.5A1.5,1.5 0 0,1 12,17M12,10A1,1 0 0,1 13,11V13A1,1 0 0,1 11,13V11A1,1 0 0,1 12,10Z"/>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { addProduct, updateProduct, getNextProductReference } from '../services/products'
 import { getStoreById, listStoresByOwner } from '../services/stores'
 import { addCategory } from '../services/categories'
-import { addSupplier } from '../services/suppliers'
+import { addSupplier, updateSupplier, removeSupplier } from '../services/suppliers'
 import { collection, query, where, getDocs } from 'firebase/firestore'
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
 import { db, storage } from '../lib/firebase'
@@ -71,6 +71,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [tab, setTab] = useState('cadastro')
   const [categoryId, setCategoryId] = useState('')
   const [supplier, setSupplier] = useState('')
+  const [editingSupplier, setEditingSupplier] = useState(null)
   const [cost, setCost] = useState('0')
   const [salePrice, setSalePrice] = useState('0')
   const [promoPrice, setPromoPrice] = useState('')
@@ -152,7 +153,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         cost: Number(currentVars[idx]?.cost ?? 0),
         salePrice: Number(currentVars[idx]?.salePrice ?? 0),
         promoPrice: currentVars[idx]?.promoPrice ?? null,
-        barcode: currentVars[idx]?.barcode ?? '',
         reference: currentVars[idx]?.reference ?? '',
         validityDate: currentVars[idx]?.validityDate ?? null,
         stockInitial: Number(currentVars[idx]?.stockInitial ?? 0),
@@ -468,7 +468,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + (parseInt(v.stock, 10) || 0), 0)
         : (parseInt(stock, 10) || 0)
       const stockInitialAgg = hasVars
-        ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + ((parseInt(v.stockInitial, 10) || (parseInt(v.stock, 10) || 0))), 0)
+        ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + (parseInt(v.stockInitial, 10) || 0), 0)
         : (parseInt(stock, 10) || 0)
       const variationsCount = hasVars ? variationsData.length : (parseInt(variations) || 0)
 
@@ -503,7 +503,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         promoPrice: hasVars ? null : promo,
         priceMin: hasVars ? priceMinAgg : (promo ?? sale),
         priceMax: hasVars ? priceMaxAgg : sale,
-        barcode: barcode.trim(),
         reference: finalReference,
         validityDate: validityDate || null,
         controlStock: !!controlStock,
@@ -1030,18 +1029,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
         )}
       </div>
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="text-xs text-gray-600">Código de barras</label>
-          <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-        </div>
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="text-xs text-gray-600">Código do produto</label>
-          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" placeholder="Automático se vazio" />
+          <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Automático se vazio" />
         </div>
         <div>
           <label className="text-xs text-gray-600">Validade</label>
-          <input type="date" value={validityDate} onChange={e=>setValidityDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          <input type="date" value={validityDate} onChange={e=>setValidityDate(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
         </div>
       </div>
       <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1581,7 +1576,26 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 setSupSelectOpen(false); 
               }}
               suppliers={suppliers}
-              onNew={canCreateSupplier ? () => { setSupSelectOpen(false); setNewSupOpen(true) } : null}
+              onNew={canCreateSupplier ? () => { 
+                setEditingSupplier(null);
+                setSupSelectOpen(false); 
+                setNewSupOpen(true) 
+              } : null}
+              onEdit={canCreateSupplier ? (s) => {
+                setEditingSupplier(s);
+                setSupSelectOpen(false);
+                setNewSupOpen(true);
+              } : null}
+              onDelete={async (s) => {
+                if (!window.confirm(`Deseja realmente excluir o fornecedor "${s.name}"?`)) return
+                try {
+                  await removeSupplier(s.id)
+                  if (supplier === s.name) setSupplier('')
+                } catch (error) {
+                  console.error(error)
+                  alert('Erro ao excluir fornecedor')
+                }
+              }}
             />
           )}
           {newSupOpen && (
@@ -1589,6 +1603,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               open={newSupOpen}
               onClose={()=> setNewSupOpen(false)}
               storeId={storeId}
+              isEdit={!!editingSupplier}
+              supplier={editingSupplier}
             />
           )}
       </div>

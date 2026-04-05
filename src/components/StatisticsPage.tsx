@@ -126,10 +126,19 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]
 
-function isSale(order: Order): boolean {
+function isSale(order: Order, includeCancelled = false): boolean {
   const t = (order.type || '').toLowerCase()
   const s = (order.status || '').toLowerCase()
+  
+  // Se não incluir cancelados e estiver cancelado, ignora
+  if (!includeCancelled && s.includes('cancelad')) return false
+
+  // Se o tipo for explicitamente sale, é venda
   if (t === 'sale') return true
+  // Se o tipo for explicitamente service_order, NÃO é venda
+  if (t === 'service_order') return false
+
+  // Fallback baseado no status (para dados legados ou sem type)
   return s === 'venda' || s === 'cliente final' || s === 'cliente lojista' || s === 'pedido'
 }
 
@@ -179,6 +188,22 @@ function formatDateTime(raw: any): string {
   return `${d.toLocaleDateString('pt-BR')} ${d
     .toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     .replace(':', 'h')}`
+}
+
+function isServiceOrder(order: Order, includeCancelled = false): boolean {
+  const t = (order.type || '').toLowerCase()
+  const s = (order.status || '').toLowerCase()
+
+  // Se não incluir cancelados e estiver cancelado, ignora
+  if (!includeCancelled && s.includes('cancelad')) return false
+
+  // Se o tipo for explicitamente service_order, é O.S.
+  if (t === 'service_order') return true
+  // Se o tipo for explicitamente sale, NÃO é O.S.
+  if (t === 'sale') return false
+
+  // Fallback para status de O.S.
+  return s.includes('os ') || s.includes('o.s.') || s.includes('finalizada') || s.includes('iniciado')
 }
 
 export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
@@ -307,7 +332,19 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
 
   const salesInPeriod = useMemo(() => {
     return orders.filter(o => {
-      if (!isSale(o)) return false
+      if (!isSale(o, false)) return false
+      const d = getOrderDate(o)
+      if (!d) return false
+      const { start, end } = dateRange
+      if (!start || !end) return true
+      return d >= start && d <= end
+    })
+  }, [orders, dateRange])
+
+  // Inclui cancelados para estatísticas de status
+  const allSalesInPeriod = useMemo(() => {
+    return orders.filter(o => {
+      if (!isSale(o, true)) return false
       const d = getOrderDate(o)
       if (!d) return false
       const { start, end } = dateRange
@@ -318,7 +355,19 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
 
   const serviceOrdersInPeriod = useMemo(() => {
     return orders.filter(o => {
-      if (isSale(o)) return false
+      if (!isServiceOrder(o, false)) return false
+      const d = getOrderDate(o)
+      if (!d) return false
+      const { start, end } = dateRange
+      if (!start || !end) return true
+      return d >= start && d <= end
+    })
+  }, [orders, dateRange])
+
+  // Inclui cancelados para estatísticas de status de O.S.
+  const allServiceOrdersInPeriod = useMemo(() => {
+    return orders.filter(o => {
+      if (!isServiceOrder(o, true)) return false
       const d = getOrderDate(o)
       if (!d) return false
       const { start, end } = dateRange
@@ -747,9 +796,22 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       ? osTotalValue / filteredServiceOrders.length
       : 0
 
+  const salesStatusStats = useMemo(() => {
+    const map = new Map<string, { count: number; total: number }>()
+    allSalesInPeriod.forEach(o => {
+      const key = (o.status || 'Sem status').trim() || 'Sem status'
+      const current = map.get(key) || { count: 0, total: 0 }
+      const value = Number(o.valor ?? o.total ?? 0)
+      map.set(key, { count: current.count + 1, total: current.total + value })
+    })
+    return Array.from(map.entries())
+      .map(([status, info]) => ({ status, ...info }))
+      .sort((a, b) => b.total - a.total)
+  }, [allSalesInPeriod])
+
   const osStatusStats = useMemo(() => {
     const map = new Map<string, { count: number; total: number }>()
-    filteredServiceOrders.forEach(o => {
+    allServiceOrdersInPeriod.forEach(o => {
       const key = (o.status || 'Sem status').trim() || 'Sem status'
       const current = map.get(key) || { count: 0, total: 0 }
       const value = Number(o.total ?? o.valor ?? 0)
@@ -758,7 +820,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
     return Array.from(map.entries())
       .map(([status, info]) => ({ status, ...info }))
       .sort((a, b) => b.total - a.total)
-  }, [filteredServiceOrders])
+  }, [allServiceOrdersInPeriod])
 
   const osPaymentSummary = useMemo(() => {
     const map = new Map<string, number>()
@@ -1383,6 +1445,32 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                     </div>
                   )
                 })}
+              </div>
+            </section>
+
+            <section className="rounded-lg bg-white shadow p-4">
+              <h3 className="text-sm font-semibold text-gray-800 mb-4">Vendas por Status</h3>
+              <div className="space-y-2 text-sm">
+                {salesStatusStats.length === 0 && (
+                  <div className="text-xs text-gray-500">
+                    Nenhuma venda encontrada no período selecionado.
+                  </div>
+                )}
+                {salesStatusStats.map(st => (
+                  <div
+                    key={st.status}
+                    className="flex items-center justify-between py-1.5 border-b last:border-b-0"
+                  >
+                    <div className="flex flex-col">
+                      <span className="text-gray-700">
+                        {st.status} ({st.count})
+                      </span>
+                    </div>
+                    <span className="text-green-700 font-semibold">
+                      {formatCurrency(st.total)}
+                    </span>
+                  </div>
+                ))}
               </div>
             </section>
           </div>

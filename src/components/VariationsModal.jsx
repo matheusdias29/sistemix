@@ -14,6 +14,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     validityDate: it.validityDate ?? '',
     stockInitial: String(it.stockInitial ?? it.stock ?? '0'),
     stockMin: String(it.stockMin ?? '0'),
+    stock: String(it.stock ?? it.stockInitial ?? '0'),
     active: it.active ?? true,
   })
   const [items, setItems] = useState([toEditable()])
@@ -47,7 +48,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
   if(!open) return null
 
   const addItem = () => {
-    setItems(prev => ([...prev, { name:'', cost:'0', salePrice:'0', promoPrice:'', barcode:'', validityDate:'', stockInitial:'0', stockMin:'0', active:true }]))
+    setItems(prev => ([...prev, { name:'', cost:'0', salePrice:'0', promoPrice:'', validityDate:'', stockInitial:'0', stockMin:'0', stock:'0', active:true }]))
   }
   const updateItem = (idx, field, value) => {
     if (field === 'cost' && idx <= 3) {
@@ -141,9 +142,10 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
     const normalized = items.map((it, idx) => {
       const baseStockInitial = parseInt(it.stockInitial, 10) || 0
       const baseStockMin = parseInt(it.stockMin, 10) || 0
+      const baseStock = parseInt(it.stock, 10) || 0
       const stockInitial = idx === 4 ? 0 : baseStockInitial
       const stockMin = idx === 4 ? 0 : baseStockMin
-      const stock = idx === 4 ? 0 : stockInitial
+      const stock = idx === 4 ? 0 : baseStock
       return {
         name: (it.name || '').trim(),
         cost: parseFloat(it.cost) || 0,
@@ -151,7 +153,6 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
         promoPrice: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : null,
         priceMin: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : (parseFloat(it.salePrice) || 0),
         priceMax: parseFloat(it.salePrice) || 0,
-        barcode: (it.barcode || '').trim(),
         validityDate: it.validityDate || null,
         stockInitial,
         stockMin,
@@ -205,7 +206,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                           <div>
                             <div className="text-sm font-medium leading-tight truncate">{it.name || '-'}</div>
                             <div className="mt-1 text-xs text-gray-600">
-                              <span>Estoque: {idx === 0 ? (parseInt(it.stockInitial || '0', 10) || 0) : 0}</span>
+                              <span>Estoque: {parseInt(it.stock || '0', 10) || 0}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -275,10 +276,6 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                           </div>
                           <div className="mt-3 grid grid-cols-1 gap-3">
                             <div>
-                              <label className="text-xs text-gray-600">Código de barras</label>
-                              <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                            </div>
-                            <div>
                               <label className="text-xs text-gray-600">Validade</label>
                               <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                             </div>
@@ -286,6 +283,10 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             <div className="mt-3 grid grid-cols-1 gap-3">
                             {idx === 0 && (
                               <>
+                                <div>
+                                  <label className="text-xs text-gray-600">Estoque atual</label>
+                                  <input type="number" value={it.stock} onChange={e=>updateItem(idx,'stock', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                                </div>
                                 <div>
                                   <label className="text-xs text-gray-600">Estoque inicial</label>
                                   <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -383,10 +384,6 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs text-gray-600">Código de barras</label>
-                        <input value={it.barcode} onChange={e=>updateItem(idx,'barcode', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                      </div>
-                      <div>
                         <label className="text-xs text-gray-600">Validade</label>
                         <input type="date" value={it.validityDate || ''} onChange={e=>updateItem(idx,'validityDate', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
                       </div>
@@ -394,6 +391,10 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                           <div className="mt-3 grid grid-cols-3 gap-4">
                       {idx === 0 && (
                         <>
+                          <div>
+                            <label className="text-xs text-gray-600">Estoque atual</label>
+                            <input type="number" value={it.stock} onChange={e=>updateItem(idx,'stock', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+                          </div>
                           <div>
                             <label className="text-xs text-gray-600">Estoque inicial</label>
                             <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />

@@ -532,7 +532,7 @@ export default function POSPage({ storeId, user }){
               const displayMethods = paymentsInThisCash.map(p => ({
                 code: p.methodCode,
                 label: p.method || 'Outros',
-                amount: Number(p.amount||0)
+                amount: p.subtractFromCash !== false ? Number(p.amount||0) : 0
               }))
               
               list.push({
@@ -542,7 +542,7 @@ export default function POSPage({ storeId, user }){
                 method: firstP.methodCode, 
                 methodLabel: firstP.method || 'Outros',
                 displayMethods, 
-                value: totalAmt,
+                value: paymentsInThisCash.reduce((s, p) => s + (p.subtractFromCash !== false ? Number(p.amount||0) : 0), 0),
                 type: 'in',
                 originalOrder: o,
                 seller: o.attendant || o.userName || '—'
@@ -552,23 +552,26 @@ export default function POSPage({ storeId, user }){
               const clientType = getClientType(o)
               paymentsInThisCash.forEach(p => {
                  const amount = Number(p.amount || 0)
+                 // Se subtractFromCash for false, o valor não deve afetar o saldo do caixa
+                 const effectiveAmount = p.subtractFromCash !== false ? amount : 0
+
                  if(isSale) {
-                    salesTotal += amount
-                    if (clientType === 'lojista') salesLojista += amount
-                    else salesFinal += amount
+                    salesTotal += effectiveAmount
+                    if (clientType === 'lojista') salesLojista += effectiveAmount
+                    else salesFinal += effectiveAmount
                  } else {
-                    osTotal += amount
-                    if (clientType === 'lojista') osLojista += amount
-                    else osFinal += amount
+                    osTotal += effectiveAmount
+                    if (clientType === 'lojista') osLojista += effectiveAmount
+                    else osFinal += effectiveAmount
                  }
                  
-                 totalIn += amount
+                 totalIn += effectiveAmount
                  
                  let mLabel = p.method || 'Outros'
                  if (p.methodCode === 'cash' || mLabel.toLowerCase() === 'dinheiro') {
                     mLabel = 'Dinheiro'
                  }
-                 methods[mLabel] = (methods[mLabel] || 0) + amount
+                 methods[mLabel] = (methods[mLabel] || 0) + effectiveAmount
               })
           }
         }

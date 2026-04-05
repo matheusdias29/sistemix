@@ -112,6 +112,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
   const [type, setType] = useState('')
   const [tax, setTax] = useState('')
   const [active, setActive] = useState(true)
+  const [subtractFromCash, setSubtractFromCash] = useState(true)
   
   // Credit card specific fields
   const [cnpjCredenciadora, setCnpjCredenciadora] = useState('')
@@ -128,6 +129,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
         setType(initialData.type || '')
         setTax(initialData.tax || '')
         setActive(initialData.active !== false)
+        setSubtractFromCash(initialData.subtractFromCash !== false)
         setCnpjCredenciadora(initialData.cnpjCredenciadora || '')
         setPaymentMode(initialData.paymentMode || 'unique')
         if (initialData.installmentsConfig && initialData.installmentsConfig.length > 0) {
@@ -141,6 +143,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
         setType('')
         setTax('')
         setActive(true)
+        setSubtractFromCash(true)
         setCnpjCredenciadora('')
         setPaymentMode('unique')
         setInstallmentsConfig(Array.from({ length: 24 }, (_, i) => ({ count: i + 1, active: i === 0, tax: '' })))
@@ -185,6 +188,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
               <option value="cartao_debito">Cartão de Débito</option>
               <option value="cheque">Cheque</option>
               <option value="transferencia_bancaria">Transferência Bancária</option>
+              <option value="valor_negativo">VALOR NEGATIVO (Subtrai do caixa)</option>
             </select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -192,6 +196,30 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
               </svg>
             </div>
           </div>
+
+          {type === 'valor_negativo' && (
+            <div className="flex items-center gap-3 py-2">
+              <button
+                type="button"
+                onClick={() => setSubtractFromCash(!subtractFromCash)}
+                className={clsx(
+                  "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2",
+                  subtractFromCash ? "bg-green-500" : "bg-gray-200"
+                )}
+              >
+                <span
+                  className={clsx(
+                    "inline-block h-4 w-4 transform rounded-full bg-white transition-transform",
+                    subtractFromCash ? "translate-x-6" : "translate-x-1"
+                  )}
+                />
+              </button>
+              <div className="flex flex-col">
+                <span className="text-gray-700 font-medium">Subtrair do caixa</span>
+                <span className="text-gray-500 text-xs">Se desmarcado, o valor não afetará o saldo do caixa (ficará zerado no relatório)</span>
+              </div>
+            </div>
+          )}
 
           {type === 'cartao_credito' && (
             <>
@@ -324,6 +352,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
               type, 
               tax, 
               active,
+              subtractFromCash: type === 'valor_negativo' ? subtractFromCash : undefined,
               // Add new fields to the result
               cnpjCredenciadora: type === 'cartao_credito' ? cnpjCredenciadora : undefined,
               paymentMode: type === 'cartao_credito' ? paymentMode : undefined,

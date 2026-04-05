@@ -5,7 +5,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const [catalogEnabled, setCatalogEnabled] = useState(!!(store?.catalogEnabled))
   const [slug, setSlug] = useState(store?.catalogSlug || '')
   const [outOfStock, setOutOfStock] = useState(store?.catalogOutOfStock || 'show')
-  const [banners, setBanners] = useState(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
+  const [banners, setBanners] = useState(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,10) : [])
   const [openingHours, setOpeningHours] = useState(store?.catalogOpeningHours || '')
   const [openingDays, setOpeningDays] = useState(store?.catalogOpeningDays || '')
   const [catalogWhatsapp, setCatalogWhatsapp] = useState(store?.catalogWhatsapp || '')
@@ -15,7 +15,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     setCatalogEnabled(!!(store?.catalogEnabled))
     setSlug(store?.catalogSlug || '')
     setOutOfStock(store?.catalogOutOfStock || 'show')
-    setBanners(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,5) : [])
+    setBanners(Array.isArray(store?.catalogBanners) ? store.catalogBanners.slice(0,10) : [])
     setOpeningHours(store?.catalogOpeningHours || '')
     setOpeningDays(store?.catalogOpeningDays || '')
     setCatalogWhatsapp(store?.catalogWhatsapp || '')
@@ -102,7 +102,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     reader.onload = async () => {
       const dataUrl = reader.result
       const next = [...banners, { url: dataUrl }]
-      const sliced = next.slice(0,5)
+      const sliced = next.slice(0,10)
       setBanners(sliced)
       await save({ catalogBanners: sliced })
     }
@@ -220,7 +220,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
 
       <div className="bg-white rounded-lg shadow p-4">
         <div className="text-sm font-semibold">Banners da loja</div>
-        <div className="text-xs text-gray-600 mt-1">Adicione até 5 banners. Tamanho recomendado: <b>1280x250px</b>. Mantenha o conteúdo principal centralizado.</div>
+        <div className="text-xs text-gray-600 mt-1">Adicione até 10 banners. Tamanho recomendado: <b>1280x250px</b>. Mantenha o conteúdo principal centralizado.</div>
         <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-3">
           {banners.map((b, idx) => (
             <div key={idx} className="relative border rounded overflow-hidden h-28 bg-gray-100">
@@ -228,7 +228,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
               <button type="button" className="absolute top-1 right-1 bg-white rounded px-2 text-xs border" onClick={() => onRemoveBanner(idx)}>Remover</button>
             </div>
           ))}
-          {banners.length < 5 && (
+          {banners.length < 10 && (
             <label className="border rounded flex items-center justify-center h-28 cursor-pointer bg-gray-50">
               <input type="file" className="hidden" accept="image/*" onChange={e => onAddBanner(e.target.files?.[0])} />
               <div className="text-xs text-gray-600">Adicionar imagem</div>

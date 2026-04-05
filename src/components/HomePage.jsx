@@ -215,11 +215,13 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
       }
     })
 
-    const attendants = Object.values(attendantMap).sort((a, b) => b.total - a.total).slice(0, 3)
-    const technicians = Object.values(techMap).sort((a, b) => b.total - a.total).slice(0, 3)
+    const attendants = Object.values(attendantMap).sort((a, b) => b.total - a.total)
+    const technicians = Object.values(techMap).sort((a, b) => b.total - a.total)
 
     return { attendants, technicians }
   }, [monthOrders])
+
+  const [showAllPerformance, setShowAllPerformance] = useState(false)
 
   // Vendas x Lucro (últimos 5 dias)
   const formatCompactCurrency = (n) => {
@@ -585,12 +587,30 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
             </div>
             <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Performance da Equipe</h3>
           </div>
-          <button 
-            className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 dark:bg-gray-700 dark:text-green-400 dark:hover:bg-gray-600 transition-colors" 
-            onClick={() => onNavigate && onNavigate('comissoes')}
-          >
-            Ver comissões
-          </button>
+          <div className="flex items-center gap-2">
+            <button 
+              className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 dark:bg-gray-700 dark:text-green-400 dark:hover:bg-gray-600 transition-colors" 
+              onClick={() => onNavigate && onNavigate('comissoes')}
+            >
+              Ver comissões
+            </button>
+            <button 
+              className="h-10 px-4 rounded-lg bg-gray-50 text-gray-600 font-bold text-sm hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2" 
+              onClick={() => setShowAllPerformance(!showAllPerformance)}
+            >
+              {showAllPerformance ? (
+                <>
+                  <span>Ver menos</span>
+                  <ChevronUp size={16} />
+                </>
+              ) : (
+                <>
+                  <span>Ver todos</span>
+                  <ChevronDown size={16} />
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -598,14 +618,14 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
             <div>
                 <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
-                  Vendas (Top 3)
+                  Vendas {showAllPerformance ? '(Todos)' : '(Top 3)'}
                 </h4>
                 <div className="space-y-3">
                     {performanceSummary.attendants.length === 0 ? (
                         <p className="text-sm text-gray-400 italic">Nenhuma venda registrada.</p>
                     ) : (
-                        performanceSummary.attendants.map((a, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
+                        (showAllPerformance ? performanceSummary.attendants : performanceSummary.attendants.slice(0, 3)).map((a, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600 animate-in fade-in slide-in-from-top-1">
                                 <div className="flex items-center gap-3">
                                     <div className="w-6 h-6 rounded-full bg-white dark:bg-gray-800 text-green-700 dark:text-green-400 shadow-sm flex items-center justify-center text-xs font-bold border border-green-100 dark:border-green-900/50">
                                         {i + 1}
@@ -623,14 +643,14 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
             <div>
                 <h4 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  O.S. (Top 3)
+                  O.S. {showAllPerformance ? '(Todos)' : '(Top 3)'}
                 </h4>
                 <div className="space-y-3">
                     {performanceSummary.technicians.length === 0 ? (
                         <p className="text-sm text-gray-400 italic">Nenhuma O.S. finalizada.</p>
                     ) : (
-                        performanceSummary.technicians.map((t, i) => (
-                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600">
+                        (showAllPerformance ? performanceSummary.technicians : performanceSummary.technicians.slice(0, 3)).map((t, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-gray-700/30 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors border border-transparent hover:border-gray-100 dark:hover:border-gray-600 animate-in fade-in slide-in-from-top-1">
                                 <div className="flex items-center gap-3">
                                     <div className="w-6 h-6 rounded-full bg-white dark:bg-gray-800 text-blue-700 dark:text-blue-400 shadow-sm flex items-center justify-center text-xs font-bold border border-blue-100 dark:border-blue-900/50">
                                         {i + 1}

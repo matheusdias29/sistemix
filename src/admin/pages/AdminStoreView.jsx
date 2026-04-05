@@ -241,9 +241,9 @@ export default function AdminStoreView({ storeId, onExit }) {
             ) : view === 'caixa' ? (
                 <POSPage storeId={store.id} user={user} onView={onNavigate} setViewParams={setViewParams} />
             ) : view === 'cpagar' ? (
-                <AccountsPayablePage storeId={store.id} user={user} />
+                <AccountsPayablePage storeId={store.id} user={user} store={store} />
             ) : view === 'creceber' ? (
-                <AccountsReceivablePage storeId={store.id} user={user} />
+                <AccountsReceivablePage storeId={store.id} user={user} store={store} />
             ) : view === 'estatisticas' ? (
                 <StatisticsPage storeId={store.id} user={user} />
             ) : (

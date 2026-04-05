@@ -19,7 +19,7 @@ const dateStr = (d) => {
   return '-'
 }
 
-export default function AccountsPayablePage({ storeId, user }) {
+export default function AccountsPayablePage({ storeId, user, store }) {
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const [activeTab, setActiveTab] = useState('accounts') // 'accounts' or 'categories'
@@ -212,6 +212,157 @@ export default function AccountsPayablePage({ storeId, user }) {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setEditingAccount(null)
+  }
+
+  const escapeHtml = (str) => {
+    if (!str) return ''
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+
+  const handlePrintPayable = (acc) => {
+    if (!acc) return
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'absolute'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow.document
+    
+    const logoUrl = store?.logoUrl || ''
+    const storeName = store?.name || 'SistemiX'
+    const storeCnpj = store?.cnpj || ''
+    const storePhone = store?.phone || ''
+    const storeEmail = store?.email || ''
+    const storeAddress = [
+      store?.address?.street,
+      store?.address?.number,
+      store?.address?.neighborhood,
+      store?.address?.city,
+      store?.address?.state
+    ].filter(Boolean).join(', ')
+
+    const statusText = acc.status === 'paid' ? 'PAGO' : (acc.status === 'pending' ? 'A PAGAR' : 'CANCELADO')
+    const statusColor = acc.status === 'paid' ? '#16a34a' : (acc.status === 'pending' ? '#dc2626' : '#6b7280')
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Comprovante de Conta a Pagar - ${escapeHtml(acc.supplierName)}</title>
+        <style>
+          @page { margin: 1cm; }
+          body { font-family: sans-serif; font-size: 12px; color: #333; line-height: 1.4; margin: 0; padding: 0; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+          .logo { max-height: 60px; margin-bottom: 10px; }
+          .store-name { font-size: 18px; font-weight: bold; margin-bottom: 2px; text-transform: uppercase; }
+          .store-info { font-size: 10px; color: #666; margin-bottom: 2px; }
+          
+          .report-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; text-align: center; text-transform: uppercase; }
+          
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+          .info-box { background: #f9fafb; border: 1px solid #e5e7eb; padding: 10px; border-radius: 4px; }
+          .info-label { font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+          .info-value { font-size: 13px; font-weight: bold; color: #111827; }
+
+          .details-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          .details-table td { padding: 10px 5px; border-bottom: 1px solid #eee; }
+          .details-table .label { font-weight: bold; color: #666; width: 150px; text-transform: uppercase; font-size: 10px; }
+          
+          .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; color: white; font-weight: bold; font-size: 10px; text-transform: uppercase; }
+          
+          .footer { margin-top: 60px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #eee; padding-top: 10px; }
+          .signature-box { margin-top: 40px; border-top: 1px solid #333; width: 250px; margin-left: auto; margin-right: auto; padding-top: 5px; font-size: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          ${logoUrl ? `<img src="${logoUrl}" class="logo" />` : ''}
+          <div class="store-name">${escapeHtml(storeName)}</div>
+          ${storeCnpj ? `<div class="store-info">CNPJ: ${escapeHtml(storeCnpj)}</div>` : ''}
+          ${(storePhone || storeEmail) ? `<div class="store-info">${escapeHtml([storePhone, storeEmail].filter(Boolean).join(' | '))}</div>` : ''}
+          ${storeAddress ? `<div class="store-info">${escapeHtml(storeAddress)}</div>` : ''}
+        </div>
+
+        <div class="report-title">Comprovante de Conta a Pagar</div>
+
+        <div class="info-grid">
+          <div class="info-box">
+            <div class="info-label">Fornecedor</div>
+            <div class="info-value">${escapeHtml(acc.supplierName || 'N/A')}</div>
+          </div>
+          <div class="info-box">
+            <div class="info-label">Status</div>
+            <div class="info-value"><span style="color: ${statusColor}">${statusText}</span></div>
+          </div>
+        </div>
+
+        <table class="details-table">
+          <tr>
+            <td class="label">Descrição</td>
+            <td>${escapeHtml(acc.description || '-')}</td>
+          </tr>
+          <tr>
+            <td class="label">Categoria</td>
+            <td>${escapeHtml(acc.categoryName || '-')}</td>
+          </tr>
+          <tr>
+            <td class="label">Data de Vencimento</td>
+            <td>${dateStr(acc.dueDate)}</td>
+          </tr>
+          <tr>
+            <td class="label">Data de Pagamento</td>
+            <td>${dateStr(acc.paymentDate)}</td>
+          </tr>
+          <tr>
+            <td class="label">Valor Original</td>
+            <td><strong>${money(acc.originalValue)}</strong></td>
+          </tr>
+          <tr>
+            <td class="label">Valor Pago</td>
+            <td><strong>${money(acc.paidValue)}</strong></td>
+          </tr>
+          <tr>
+            <td class="label">Saldo Restante</td>
+            <td><strong>${money(acc.remainingValue)}</strong></td>
+          </tr>
+          ${acc.details ? `
+          <tr>
+            <td class="label">Observações</td>
+            <td>${escapeHtml(acc.details)}</td>
+          </tr>` : ''}
+        </table>
+
+        <div class="signature-box">
+          Assinatura Responsável
+        </div>
+
+        <div class="footer">
+          Gerado em ${new Date().toLocaleString('pt-BR')} por SistemiX
+        </div>
+
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => {
+              window.frameElement.parentElement.removeChild(window.frameElement);
+            }, 1000);
+          }
+        </script>
+      </body>
+      </html>
+    `
+
+    doc.open()
+    doc.write(html)
+    doc.close()
   }
 
   const handlePaySelected = async () => {
@@ -564,11 +715,24 @@ export default function AccountsPayablePage({ storeId, user }) {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
+                                  handlePrintPayable(acc)
+                                  setOpenMenuId(null)
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                                Imprimir
+                              </button>
+                              
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
                                   handleEdit(acc)
                                   setOpenMenuId(null)
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600"
+                                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2"
                               >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                                 Editar
                               </button>
                               

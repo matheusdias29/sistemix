@@ -452,7 +452,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     return 0
   })()
   const total = round2(subtotal + feesTotal - discountAmount)
-  const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount||0), 0)
+  const totalPaid = payments.reduce((acc, p) => {
+    // Se for valor negativo, somamos o valor absoluto para abater da dívida (subtrair do total a pagar)
+    if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+    return acc + Number(p.amount || 0)
+  }, 0)
   const remainingToPay = Math.max(0, total - totalPaid)
 
   // Open Cash Handler
@@ -490,7 +494,8 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     }
     
     // Validate payment for final sales
-    if ((status === 'Venda' || status === 'Finalizado') && remainingToPay > 0.01) {
+    const isFinalSale = (status === 'Venda' || status === 'Finalizado' || status === 'Cliente Final' || status === 'Cliente Lojista')
+    if (isFinalSale && remainingToPay > 0.01) {
       alert(`Faltam R$ ${remainingToPay.toFixed(2)} para completar o pagamento.`)
       return
     }
@@ -531,6 +536,8 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         payments: payments.map(p => ({
           method: p.method,
           amount: p.amount,
+          methodCode: p.methodCode || null,
+          subtractFromCash: p.subtractFromCash !== undefined ? p.subtractFromCash : true,
           date: new Date()
         })),
         status,
@@ -1324,6 +1331,22 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               const change = Math.max(amt - remainingToPay, 0)
               const newRemaining = Math.max(remainingToPay - applied, 0)
               setPayments(prev=>[...prev, { method: selectedPayMethod.label, methodCode: selectedPayMethod.code, amount: applied, change }])
+              setPayAmountOpen(false)
+              setRemainingSnapshot(newRemaining)
+              if(newRemaining > 0){ setRemainingInfoOpen(true) }
+              else { setChooseClientTypeOpen(true) }
+            } else if (selectedPayMethod.code === 'valor_negativo') {
+              // Valor negativo AGORA abate do total da venda (subtrai da dívida)
+              // e entra como movimentação negativa no caixa (SE configurado)
+              const applied = amt
+              const newRemaining = Math.max(remainingToPay - applied, 0)
+              // Salvamos como negativo para subtrair do saldo do caixa (POS)
+              setPayments(prev=>[...prev, { 
+                method: selectedPayMethod.label, 
+                methodCode: selectedPayMethod.code, 
+                amount: -applied,
+                subtractFromCash: selectedPayMethod.subtractFromCash !== false 
+              }])
               setPayAmountOpen(false)
               setRemainingSnapshot(newRemaining)
               if(newRemaining > 0){ setRemainingInfoOpen(true) }

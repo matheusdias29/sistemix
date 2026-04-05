@@ -173,6 +173,11 @@ export async function addCashTransaction(cashId, transaction) {
     date: transaction.date || new Date() // Garante Data
   }
 
+  // Se for o tipo "VALOR NEGATIVO", inverte o valor para subtrair do caixa
+  if (newTrans.methodCode === 'valor_negativo') {
+    newTrans.value = -Math.abs(newTrans.value)
+  }
+
   await updateDoc(ref, {
     transactions: arrayUnion(newTrans)
   })

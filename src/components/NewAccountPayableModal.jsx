@@ -5,10 +5,11 @@ import NewSupplierModal from './NewSupplierModal'
 import SelectFinancialCategoryModal from './SelectFinancialCategoryModal'
 import NewFinancialCategoryModal from './NewFinancialCategoryModal'
 import { listenFinancialCategories, addFinancialCategory } from '../services/financialCategories'
-import { listenSuppliers } from '../services/suppliers'
+import { listenSuppliers, removeSupplier } from '../services/suppliers'
 
 export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLoading, storeId, initialData }) {
   const [supplier, setSupplier] = useState(null)
+  const [editingSupplier, setEditingSupplier] = useState(null)
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState(null)
   const [details, setDetails] = useState('')
@@ -81,6 +82,17 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
       alert('Erro ao salvar categoria')
     } finally {
       setIsSavingCategory(false)
+    }
+  }
+
+  const handleDeleteSupplier = async (s) => {
+    if (!window.confirm(`Deseja realmente excluir o fornecedor "${s.name}"?`)) return
+    try {
+      await removeSupplier(s.id)
+      if (supplier?.id === s.id) setSupplier(null)
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao excluir fornecedor')
     }
   }
 
@@ -296,9 +308,16 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
             setShowSupplierSelect(false)
           }}
           onNew={() => {
+            setEditingSupplier(null)
             setShowSupplierSelect(false)
             setShowNewSupplierModal(true)
           }}
+          onEdit={(s) => {
+            setEditingSupplier(s)
+            setShowSupplierSelect(false)
+            setShowNewSupplierModal(true)
+          }}
+          onDelete={handleDeleteSupplier}
         />
       )}
 
@@ -307,6 +326,8 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
           open={showNewSupplierModal}
           onClose={() => setShowNewSupplierModal(false)}
           storeId={storeId}
+          isEdit={!!editingSupplier}
+          supplier={editingSupplier}
         />
       )}
 

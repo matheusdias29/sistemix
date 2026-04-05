@@ -772,7 +772,11 @@ const canEditService = isOwner || perms.services?.edit
   const [cashTargetOrder, setCashTargetOrder] = useState(null)
 
   const totalPaidAgg = useMemo(() => {
-    return osPayments.reduce((s, p) => s + (parseFloat(p.amount)||0), 0)
+    return osPayments.reduce((s, p) => {
+      // Se for valor negativo, somamos o valor absoluto para abater da dívida
+      if (p.methodCode === 'valor_negativo') return s + Math.abs(parseFloat(p.amount) || 0)
+      return s + (parseFloat(p.amount)||0)
+    }, 0)
   }, [osPayments])
   const remainingToPay = useMemo(() => {
     const r = ((parseFloat(totalProductsAgg)||0) + (parseFloat(totalServicesAgg)||0)) - (parseFloat(totalPaidAgg)||0)
@@ -788,7 +792,11 @@ const canEditService = isOwner || perms.services?.edit
         ? cashTargetOrder.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0)
         : 0)
     ) || 0
-    const paid = osPayments.reduce((s,p)=> s + (parseFloat(p.amount)||0), 0)
+    const paid = osPayments.reduce((s,p)=> {
+      // Se for valor negativo, somamos o valor absoluto para abater da dívida (subtrair do total a pagar)
+      if (p.methodCode === 'valor_negativo') return s + Math.abs(parseFloat(p.amount) || 0)
+      return s + (parseFloat(p.amount)||0)
+    }, 0)
     return Math.max(0, total - paid)
   }, [cashTargetOrder, osPayments, remainingToPay])
 
@@ -1736,6 +1744,41 @@ const canEditService = isOwner || perms.services?.edit
                 setPayMethodsOpen(false)
                 if (cashTargetOrder && currentCash) {
                   // Antes de atualizar, abre modal para escolher o status final
+                  setFinalStatusTarget({ orderId: cashTargetOrder.id, cashId: currentCash.id, payments: newPaymentsList })
+                  setChooseFinalStatusOpen(true)
+                }
+                setCashTargetOrder(null) 
+              }
+            } else if (selectedPayMethod.code === 'valor_negativo') {
+              // Valor negativo AGORA abate do total da venda (subtrai da dívida)
+              // e entra como movimentação negativa no caixa (SE configurado)
+              const applied = amt
+              const newRemaining = Math.max(remaining - applied, 0)
+              // Salvamos como negativo para subtrair do saldo do caixa (POS)
+              const newPayment = { 
+                method: selectedPayMethod.label, 
+                methodCode: selectedPayMethod.code, 
+                amount: -applied, 
+                subtractFromCash: selectedPayMethod.subtractFromCash !== false,
+                date: new Date() 
+              }
+              const newPaymentsList = [...osPayments, newPayment]
+              setOsPayments(newPaymentsList)
+
+              if (cashTargetOrder) {
+                 updateOrder(cashTargetOrder.id, { 
+                   payments: newPaymentsList,
+                   updatedAt: new Date(),
+                   updatedBy: user?.name || attendant || 'Sistema'
+                 }).catch(()=>{})
+              }
+
+              setPayAmountOpen(false)
+              setRemainingSnapshot(newRemaining)
+              if(newRemaining > 0){ 
+                setRemainingInfoOpen(true) 
+              } else { 
+                if (cashTargetOrder && currentCash) {
                   setFinalStatusTarget({ orderId: cashTargetOrder.id, cashId: currentCash.id, payments: newPaymentsList })
                   setChooseFinalStatusOpen(true)
                 }
@@ -2936,25 +2979,50 @@ const canEditService = isOwner || perms.services?.edit
           setFinalStatusTarget(null)
           setCashTargetOrder(null)
         }}
-        onChoose={(statusChosen) => {
+        onChoose={async (statusChosen) => {
           // Close immediately for better UX
           setChooseFinalStatusOpen(false)
 
           if (!finalStatusTarget) return
 
-          updateOrder(finalStatusTarget.orderId, { 
-            status: statusChosen,
-            cashLaunched: true,
-            cashLaunchCashId: finalStatusTarget.cashId
-          })
-          .catch(e => {
+          try {
+            const { orderId, cashId, payments } = finalStatusTarget
+            const order = orders.find(o => o.id === orderId)
+            const orderNumber = order ? (order.osNumber || order.number || 'OS') : 'OS'
+
+            // 1. Lançar cada pagamento no caixa
+            if (payments && payments.length > 0) {
+              for (const p of payments) {
+                const isNegative = p.methodCode === 'valor_negativo'
+                // Se subtractFromCash for false, o valor deve mostrar zerado no caixa (nem soma nem subtrai)
+                const shouldAffectCash = p.subtractFromCash !== false
+                const transactionValue = !shouldAffectCash ? 0 : (isNegative ? -Math.abs(p.amount) : Math.abs(p.amount))
+                
+                await addCashTransaction(cashId, {
+                  type: 'service_order',
+                  value: transactionValue,
+                  description: `O.S. ${orderNumber} - ${order?.client || 'Cliente'}${isNegative ? ' (Valor Negativo)' : ''}`,
+                  paymentMethod: p.method,
+                  paymentMethodCode: p.methodCode || null,
+                  originalOrder: { id: orderId, number: orderNumber },
+                  date: new Date()
+                })
+              }
+            }
+
+            // 2. Atualizar status da OS
+            await updateOrder(orderId, { 
+              status: statusChosen,
+              cashLaunched: true,
+              cashLaunchCashId: cashId
+            })
+          } catch (e) {
             console.error(e)
-            alert('Erro ao atualizar status da OS')
-          })
-          .finally(() => {
+            alert('Erro ao finalizar faturamento da OS')
+          } finally {
             setFinalStatusTarget(null)
             setCashTargetOrder(null)
-          })
+          }
         }}
       />
       {alertModalOpen && (

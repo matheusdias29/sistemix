@@ -15,7 +15,7 @@ const dateStr = (d) => {
   return '-'
 }
 
-export default function AccountsReceivablePage({ storeId, user }) {
+export default function AccountsReceivablePage({ storeId, user, store }) {
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const [accounts, setAccounts] = useState([])
@@ -37,6 +37,7 @@ export default function AccountsReceivablePage({ storeId, user }) {
   const [selectedDetailIds, setSelectedDetailIds] = useState(new Set())
   const [detailMenuOpenId, setDetailMenuOpenId] = useState(null)
   const [detailMenuPos, setDetailMenuPos] = useState(null)
+  const [printMenuOpen, setPrintMenuOpen] = useState(false)
   const [currentCash, setCurrentCash] = useState(null)
   const [receiveTargetAccounts, setReceiveTargetAccounts] = useState([])
   const [receivePayments, setReceivePayments] = useState([])
@@ -86,6 +87,173 @@ export default function AccountsReceivablePage({ storeId, user }) {
       window.removeEventListener('keydown', onKeyDown)
     }
   }, [detailMenuOpenId])
+
+  const escapeHtml = (str) => {
+    if (!str) return ''
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+
+  const handlePrintReceivables = () => {
+    if (!detailGroup) return
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'absolute'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow.document
+    const clientName = detailGroup.clientName || 'Cliente Sem Nome'
+    
+    // Sort items by due date
+    const sortedItems = [...detailItems].sort((a, b) => {
+      if (!a.dueDate) return 1
+      if (!b.dueDate) return -1
+      return a.dueDate.localeCompare(b.dueDate)
+    })
+
+    const rowsHtml = sortedItems.map(acc => {
+      const remaining = acc.remainingValue ?? (acc.value - (acc.paidValue || 0))
+      const isOverdue = acc.status === 'pending' && acc.dueDate && acc.dueDate < detailToday
+      const statusText = acc.status === 'paid' ? 'RECEBIDO' : (isOverdue ? 'VENCIDO' : 'A RECEBER')
+      const statusColor = acc.status === 'paid' ? '#16a34a' : (isOverdue ? '#dc2626' : '#ea580c')
+
+      return `
+        <tr>
+          <td>${escapeHtml(acc.description || acc.id)}</td>
+          <td class="text-right">${money(acc.value)}</td>
+          <td class="text-right">${money(acc.paidValue || 0)}</td>
+          <td class="text-right">${money(remaining)}</td>
+          <td class="text-center">${dateStr(acc.dueDate)}</td>
+          <td class="text-center"><span style="color: ${statusColor}; font-weight: bold;">${statusText}</span></td>
+        </tr>
+      `
+    }).join('')
+
+    const logoUrl = store?.logoUrl || ''
+    const storeName = store?.name || 'SistemiX'
+    const storeCnpj = store?.cnpj || ''
+    const storePhone = store?.phone || ''
+    const storeEmail = store?.email || ''
+    const storeAddress = [
+      store?.address?.street,
+      store?.address?.number,
+      store?.address?.neighborhood,
+      store?.address?.city,
+      store?.address?.state
+    ].filter(Boolean).join(', ')
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Relatório de Contas - ${escapeHtml(clientName)}</title>
+        <style>
+          @page { margin: 1cm; }
+          body { font-family: sans-serif; font-size: 12px; color: #333; line-height: 1.4; margin: 0; padding: 0; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+          .logo { max-height: 60px; margin-bottom: 10px; }
+          .store-name { font-size: 18px; font-weight: bold; margin-bottom: 2px; text-transform: uppercase; }
+          .store-info { font-size: 10px; color: #666; margin-bottom: 2px; }
+          
+          .report-title { font-size: 16px; font-weight: bold; margin: 20px 0 10px 0; text-align: center; text-transform: uppercase; }
+          .client-box { background: #f9fafb; border: 1px solid #e5e7eb; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
+          .client-label { font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+          .client-name { font-size: 14px; font-weight: bold; color: #111827; }
+
+          table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+          th { background: #f3f4f6; color: #374151; font-weight: bold; text-align: left; padding: 8px 4px; border-bottom: 2px solid #e5e7eb; text-transform: uppercase; font-size: 10px; }
+          td { padding: 8px 4px; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          
+          .totals-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 20px; border-top: 2px solid #333; padding-top: 10px; }
+          .total-item { text-align: center; }
+          .total-label { font-size: 10px; color: #6b7280; text-transform: uppercase; font-weight: bold; margin-bottom: 2px; }
+          .total-value { font-size: 14px; font-weight: bold; }
+          .val-green { color: #16a34a; }
+          .val-red { color: #dc2626; }
+          
+          .footer { margin-top: 40px; text-align: center; font-size: 10px; color: #9ca3af; border-top: 1px solid #eee; padding-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          ${logoUrl ? `<img src="${logoUrl}" class="logo" />` : ''}
+          <div class="store-name">${escapeHtml(storeName)}</div>
+          ${storeCnpj ? `<div class="store-info">CNPJ: ${escapeHtml(storeCnpj)}</div>` : ''}
+          ${(storePhone || storeEmail) ? `<div class="store-info">${escapeHtml([storePhone, storeEmail].filter(Boolean).join(' | '))}</div>` : ''}
+          ${storeAddress ? `<div class="store-info">${escapeHtml(storeAddress)}</div>` : ''}
+        </div>
+
+        <div class="report-title">Extrato de Contas a Receber</div>
+
+        <div class="client-box">
+          <div class="client-label">Cliente</div>
+          <div class="client-name">${escapeHtml(clientName)}</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Conta / Descrição</th>
+              <th class="text-right">Vlr. Original</th>
+              <th class="text-right">Vlr. Pago</th>
+              <th class="text-right">A Receber</th>
+              <th class="text-center">Vencimento</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="totals-grid">
+          <div class="total-item">
+            <div class="total-label">Total Pago</div>
+            <div class="total-value">${money(detailTotalPaid)}</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">Total Vencido</div>
+            <div class="total-value val-red">${money(detailTotalOverdue)}</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">Total Créditos</div>
+            <div class="total-value val-green">${money(detailTotalCredits)}</div>
+          </div>
+          <div class="total-item">
+            <div class="total-label">Saldo devedor</div>
+            <div class="total-value val-red">${money(detailTotalReceivable)}</div>
+          </div>
+        </div>
+
+        <div class="footer">
+          Gerado em ${new Date().toLocaleString('pt-BR')} por SistemiX
+        </div>
+
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => {
+              window.frameElement.parentElement.removeChild(window.frameElement);
+            }, 1000);
+          }
+        </script>
+      </body>
+      </html>
+    `
+
+    doc.open()
+    doc.write(html)
+    doc.close()
+  }
 
   // Agrupar por Cliente
   const { grouped, totalReceivable, totalOverdue, totalCredits } = useMemo(() => {
@@ -235,7 +403,11 @@ export default function AccountsReceivablePage({ storeId, user }) {
     : 0
 
   const receiveRemaining = Math.max(
-    receiveTotal - receivePayments.reduce((sum, p) => sum + Number(p.amount || 0), 0),
+    receiveTotal - receivePayments.reduce((sum, p) => {
+      // Se for valor negativo, somamos o valor absoluto para abater da dívida
+      if (p.methodCode === 'valor_negativo') return sum + Math.abs(Number(p.amount || 0))
+      return sum + Number(p.amount || 0)
+    }, 0),
     0
   )
 
@@ -310,7 +482,11 @@ export default function AccountsReceivablePage({ storeId, user }) {
 
       if (currentCash && paymentsToSave.length > 0) {
         const totalValue = paymentsToSave.reduce(
-          (sum, p) => sum + Number(p.amount || 0),
+          (sum, p) => {
+            // Se subtractFromCash for false, o valor não deve afetar o caixa
+            if (p.subtractFromCash === false) return sum
+            return sum + Number(p.amount || 0)
+          },
           0
         )
         const mainMethod =
@@ -630,27 +806,60 @@ export default function AccountsReceivablePage({ storeId, user }) {
               </button>
             </div>
 
-            <div className="px-6 border-b flex gap-4 mt-2">
-              <button
-                className={`pb-2 text-sm font-medium ${
-                  detailTab === 'receivable'
-                    ? 'text-green-600 border-b-2 border-green-600'
-                    : 'text-gray-500'
-                }`}
-                onClick={() => setDetailTab('receivable')}
-              >
-                A Receber
-              </button>
-              <button
-                className={`pb-2 text-sm font-medium ${
-                  detailTab === 'received'
-                    ? 'text-green-600 border-b-2 border-green-600'
-                    : 'text-gray-500'
-                }`}
-                onClick={() => setDetailTab('received')}
-              >
-                Recebido
-              </button>
+            <div className="px-6 border-b flex items-center justify-between mt-2">
+              <div className="flex gap-4">
+                <button
+                  className={`pb-2 text-sm font-medium ${
+                    detailTab === 'receivable'
+                      ? 'text-green-600 border-b-2 border-green-600'
+                      : 'text-gray-500'
+                  }`}
+                  onClick={() => setDetailTab('receivable')}
+                >
+                  A Receber
+                </button>
+                <button
+                  className={`pb-2 text-sm font-medium ${
+                    detailTab === 'received'
+                      ? 'text-green-600 border-b-2 border-green-600'
+                      : 'text-gray-500'
+                  }`}
+                  onClick={() => setDetailTab('received')}
+                >
+                  Recebido
+                </button>
+              </div>
+
+              <div className="relative">
+                <button
+                  onClick={() => setPrintMenuOpen(!printMenuOpen)}
+                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                  title="Opções"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                </button>
+                
+                {printMenuOpen && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-[80]" 
+                      onClick={() => setPrintMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border dark:border-gray-700 py-1 z-[81]">
+                      <button
+                        onClick={() => {
+                          setPrintMenuOpen(false)
+                          handlePrintReceivables()
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50 flex items-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                        Imprimir Contas
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             <div className="px-6 py-4 space-y-4">
@@ -1111,15 +1320,20 @@ export default function AccountsReceivablePage({ storeId, user }) {
             const amt = parseFloat(receivePayAmountInput) || 0
             if (!receiveSelectedMethod) return
             const remaining = receiveRemaining
-            const applied = Math.min(amt, remaining)
+            const applied = amt
             if (applied <= 0) {
               setReceivePayError('Valor deve ser maior que zero')
               return
             }
+            
+            // Se for valor negativo, salvamos como negativo para subtrair do caixa
+            const finalAmount = receiveSelectedMethod.code === 'valor_negativo' ? -applied : applied
+            
             const newPayment = {
               method: receiveSelectedMethod.label,
               methodCode: receiveSelectedMethod.code,
-              amount: applied,
+              amount: finalAmount,
+              subtractFromCash: receiveSelectedMethod.subtractFromCash !== false,
               date: new Date()
             }
             setReceivePayments(prev => [...prev, newPayment])
