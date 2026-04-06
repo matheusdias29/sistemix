@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { initializeFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { getAuth, signInAnonymously } from 'firebase/auth'
+import { getFunctions } from 'firebase/functions'
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -21,6 +22,7 @@ export const db = initializeFirestore(app, {
   ignoreUndefinedProperties: true,
 }, "sistemix")
 export const storage = getStorage(app)
+export const functions = getFunctions(app)
 
 // Auth: realiza login anônimo automático para cumprir regras que exigem request.auth
 export const auth = getAuth(app)

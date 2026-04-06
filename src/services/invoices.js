@@ -18,6 +18,13 @@ export function listenInvoices(ownerId, cb) {
   })
 }
 
+export async function getInvoicesByOwner(ownerId) {
+  if (!ownerId) return []
+  const q = query(colRef, where('ownerId', '==', ownerId))
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
 async function nextSequentialNumber(ownerId){
   const q = query(colRef, where('ownerId','==',ownerId))
   const c = await getCountFromServer(q)

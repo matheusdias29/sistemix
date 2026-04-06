@@ -30,7 +30,7 @@ import { getStoreBySlug, listenStore } from './services/stores'
 import StatisticsPage from './components/StatisticsPage'
 import CommissionsPage from './components/CommissionsPage'
 import MarketplacePage from './components/MarketplacePage'
-import { updateUserPresence, listenUser } from './services/users'
+import { updateUserPresence, listenUser, updateUser } from './services/users'
 import SubscriptionPage from './components/SubscriptionPage'
 import { listenSubscription, computeStatusWithInvoices } from './services/subscriptions'
 import { listenInvoices } from './services/invoices'
@@ -84,7 +84,12 @@ export default function App(){
   const [invoiceReminderOpen, setInvoiceReminderOpen] = useState(false)
   const [subscriptionState, setSubscriptionState] = useState(null)
   const [ownerInvoices, setOwnerInvoices] = useState([])
+  const [billingStatus, setBillingStatus] = useState('ativo')
+  const [overduePromptOpen, setOverduePromptOpen] = useState(false)
+  const [overdueRedirected, setOverdueRedirected] = useState(false)
   const isOwner = user && !user.memberId
+
+  const isOverdue = !!(store && user && (billingStatus === 'em_atraso' || user.status === 'em_atraso'))
 
   // Sync Dark Mode with DOM and LocalStorage
   useEffect(() => {
@@ -183,11 +188,45 @@ export default function App(){
   }, [user?.id, user?.memberId])
 
   useEffect(() => {
-    const status = computeStatusWithInvoices(subscriptionState, ownerInvoices)
+    const status = subscriptionState ? computeStatusWithInvoices(subscriptionState, ownerInvoices) : 'ativo'
+    setBillingStatus(status)
     // Popup de fatura próxima do vencimento temporariamente desativado
     // setInvoiceReminderOpen(status === 'em_atraso')
     setInvoiceReminderOpen(false)
-  }, [subscriptionState, ownerInvoices])
+    if (user) {
+      const ownerId = user?.memberId ? user?.ownerId : user?.id
+      if (ownerId) {
+        if (status === 'em_atraso' && user.status !== 'em_atraso') {
+          updateUser(ownerId, { status: 'em_atraso', active: true }).catch(() => {})
+        } else if (status === 'ativo' && user.status === 'em_atraso') {
+          updateUser(ownerId, { status: 'ativo', active: true }).catch(() => {})
+        }
+      }
+    }
+  }, [subscriptionState, ownerInvoices, user])
+
+  useEffect(() => {
+    if (!store || !user) {
+      setOverduePromptOpen(false)
+      setOverdueRedirected(false)
+      return
+    }
+    if (!isOverdue) {
+      setOverduePromptOpen(false)
+      setOverdueRedirected(false)
+      return
+    }
+    if (!overdueRedirected) {
+      setOverduePromptOpen(true)
+    }
+  }, [billingStatus, user?.status, store, user, isOverdue, overdueRedirected])
+
+  useEffect(() => {
+    if (isOverdue && overdueRedirected && view !== 'assinatura') {
+      setView('assinatura')
+      setViewParams({})
+    }
+  }, [isOverdue, overdueRedirected, view])
 
   // Tema escuro: restaura preferência e aplica classe global
   useEffect(() => {
@@ -312,12 +351,18 @@ export default function App(){
   }
 
   function onNavigate(next, params){
+    if (isOverdue && next !== 'assinatura') return
+    if (isOverdue && next === 'assinatura') {
+      setOverdueRedirected(true)
+      setOverduePromptOpen(false)
+    }
     setView(next)
     setViewParams(params || {})
     setMobileSidebarOpen(false) // fecha sidebar no mobile ao navegar
   }
 
   function handleOpenNewSale() {
+    if (isOverdue) return
     setView('vendas')
     setOpenNewSaleSignal(s => s + 1)
     setMobileSidebarOpen(false)
@@ -347,6 +392,7 @@ export default function App(){
           onOpenNewSale={handleOpenNewSale}
           user={user}
           allowedPages={store?.sidebarPages}
+          locked={isOverdue}
         />
         {/* Overlay para mobile */}
         {mobileSidebarOpen ? (
@@ -441,7 +487,7 @@ export default function App(){
           ) : view === 'configuracoes' ? (
             <div className="mt-4 md:mt-6"><SettingsPage user={user} store={store} onNavigate={onNavigate} onLogout={handleLogout} darkMode={darkMode} onToggleDark={()=>setDarkMode(v=>!v)} /></div>
           ) : view === 'assinatura' ? (
-            <div className="mt-4 md:mt-6"><SubscriptionPage user={user} onBack={() => onNavigate('configuracoes')} /></div>
+            <div className="mt-4 md:mt-6"><SubscriptionPage user={user} onBack={isOverdue ? null : () => onNavigate('configuracoes')} /></div>
           ) : view === 'dadosEmpresa' ? (
             <div className="mt-4 md:mt-6"><CompanyPage storeId={store?.id} onBack={() => onNavigate('configuracoes')} /></div>
           ) : view === 'taxas' ? (
@@ -471,6 +517,44 @@ export default function App(){
           )}
         </div>
       </div>
+      {overduePromptOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div className="p-5 border-b">
+              <h3 className="text-lg font-bold text-gray-900">Assinatura em atraso</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Sua conta está com pagamento pendente. Para continuar usando o aplicativo, regularize a assinatura.
+              </p>
+            </div>
+            <div className="p-5 space-y-3 text-sm text-gray-700">
+              <div className="rounded-xl bg-gray-50 border border-gray-100 p-4">
+                <div className="font-semibold text-gray-900">Acesso limitado</div>
+                <div className="text-gray-600 mt-1">
+                  Você pode acessar apenas a área de Assinatura para concluir o pagamento.
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-gray-500">
+                <span>Loja selecionada:</span>
+                <span className="font-semibold text-gray-700">{store?.name || '—'}</span>
+              </div>
+            </div>
+            <div className="p-4 border-t flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 font-semibold text-gray-700"
+              >
+                Sair
+              </button>
+              <button
+                onClick={() => onNavigate('assinatura')}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold text-white"
+              >
+                Ir para Assinatura
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <Calculator />
       {user && store && <ChatWidget user={user} />}
       {invoiceReminderOpen && (

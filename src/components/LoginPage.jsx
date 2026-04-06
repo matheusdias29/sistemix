@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { login, findUserByEmail, findMemberByEmail, addUser, updateUser } from '../services/users'
+import { login, findUserByEmail, findMemberByEmail, addUser, updateUser, computeOwnerBillingStatus } from '../services/users'
 import { addStore } from '../services/stores'
 import { startTrial } from '../services/subscriptions'
 import { auth } from '../lib/firebase'
@@ -63,12 +63,20 @@ export default function LoginPage({ onLoggedIn }){
             setLoading(false)
             return
           }
+          const billingStatus = await computeOwnerBillingStatus(owner.id)
+          if (billingStatus === 'em_atraso') {
+            try { await updateUser(owner.id, { status: 'em_atraso', active: true }) } catch {}
+          }
           onLoggedIn(owner)
           setInfo('')
           return
         }
         const member = await findMemberByEmail(authedEmail)
         if (member) {
+          const billingStatus = await computeOwnerBillingStatus(member.ownerId)
+          if (billingStatus === 'em_atraso') {
+            try { await updateUser(member.ownerId, { status: 'em_atraso', active: true }) } catch {}
+          }
           onLoggedIn({
             id: member.ownerId,
             ownerId: member.ownerId,
@@ -144,12 +152,20 @@ export default function LoginPage({ onLoggedIn }){
           setLoading(false)
           return
         }
+        const billingStatus = await computeOwnerBillingStatus(owner.id)
+        if (billingStatus === 'em_atraso') {
+          try { await updateUser(owner.id, { status: 'em_atraso', active: true }) } catch {}
+        }
         onLoggedIn(owner)
         setInfo('')
         return
       }
       const member = await findMemberByEmail(authedEmail)
       if (member) {
+        const billingStatus = await computeOwnerBillingStatus(member.ownerId)
+        if (billingStatus === 'em_atraso') {
+          try { await updateUser(member.ownerId, { status: 'em_atraso', active: true }) } catch {}
+        }
         onLoggedIn({
           id: member.ownerId,
           ownerId: member.ownerId,

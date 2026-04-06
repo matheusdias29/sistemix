@@ -1,8 +1,18 @@
 import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { addStore, deleteStoresByOwner } from './stores'
+import { computeStatusWithInvoices, getSubscription } from './subscriptions'
+import { getInvoicesByOwner } from './invoices'
 
 const usersCol = collection(db, 'users')
+
+export async function computeOwnerBillingStatus(ownerId) {
+  if (!ownerId) return 'ativo'
+  const sub = await getSubscription(ownerId)
+  if (!sub) return 'ativo'
+  const invoices = await getInvoicesByOwner(ownerId)
+  return computeStatusWithInvoices(sub, invoices)
+}
 
 export async function findUserByEmail(email){
   const q = query(usersCol, where('email', '==', email))
@@ -216,6 +226,17 @@ export async function login(email, password){
     if (status === 'cancelado') throw new Error('Acesso cancelado')
     const cur = String(owner.password || '')
     if (cur !== pass) throw new Error('Senha incorreta')
+    const billingStatus = await computeOwnerBillingStatus(owner.id)
+    if (billingStatus === 'em_atraso') {
+      if (owner.status !== 'em_atraso') {
+        try { await updateUser(owner.id, { status: 'em_atraso', active: true }) } catch {}
+      }
+      owner.status = 'em_atraso'
+    }
+    if (owner.status === 'em_atraso' && billingStatus === 'ativo') {
+      try { await updateUser(owner.id, { status: 'ativo', active: true }) } catch {}
+      owner.status = 'ativo'
+    }
     return owner
   }
   const member = await findMemberByEmail(emailTrim)
@@ -224,6 +245,10 @@ export async function login(email, password){
     if (status === 'cancelado') throw new Error('Acesso cancelado')
     const cur = String(member.password || '')
     if (cur !== pass) throw new Error('Senha incorreta')
+    const billingStatus = await computeOwnerBillingStatus(member.ownerId)
+    if (billingStatus === 'em_atraso') {
+      try { await updateUser(member.ownerId, { status: 'em_atraso', active: true }) } catch {}
+    }
     return {
       id: member.ownerId,
       ownerId: member.ownerId,
@@ -235,6 +260,7 @@ export async function login(email, password){
       isTech: !!member.isTech,
       isAdmin: !!member.isAdmin,
       active: member.active !== false,
+      status: billingStatus === 'em_atraso' ? 'em_atraso' : (member.status || 'ativo'),
       permissions: member.permissions || {},
     }
   }

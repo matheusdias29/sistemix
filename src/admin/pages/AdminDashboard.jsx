@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { listenUsers, updateUser } from '../../services/users'
-import { listenAllStores } from '../../services/stores'
-import { listenAllSubscriptions } from '../../services/subscriptions'
-import { Users, Store, ChevronDown, ChevronRight, User, MoreVertical, UserCheck, Clock, Ban } from 'lucide-react'
+import { listenAllStores, updateStore } from '../../services/stores'
+import { listenAllSubscriptions, updateSubscription } from '../../services/subscriptions'
+import { getInvoicesByOwner } from '../../services/invoices'
+import { Users, Store, ChevronDown, ChevronRight, User, MoreVertical, UserCheck, Clock, Ban, X } from 'lucide-react'
 
 export default function AdminDashboard() {
   const [users, setUsers] = useState([])
@@ -14,6 +15,13 @@ export default function AdminDashboard() {
   const [selectedStatus, setSelectedStatus] = useState('ativo')
   const [savingStatus, setSavingStatus] = useState(false)
   const [subs, setSubs] = useState([])
+  const [editModalUser, setEditModalUser] = useState(null)
+  const [editInvoices, setEditInvoices] = useState([])
+  const [editLoading, setEditLoading] = useState(false)
+  const [storeDateEdits, setStoreDateEdits] = useState({})
+  const [savingStoreDate, setSavingStoreDate] = useState({})
+  const [expiryEdit, setExpiryEdit] = useState('')
+  const [savingExpiry, setSavingExpiry] = useState(false)
 
   useEffect(() => {
     const unsubUsers = listenUsers((data) => {
@@ -58,6 +66,106 @@ export default function AdminDashboard() {
       if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000)
       return new Date(d)
     } catch { return null }
+  }
+
+  const toDateInputValue = (d) => {
+    const dt = normalizeDate(d)
+    if (!dt) return ''
+    const y = dt.getFullYear()
+    const m = String(dt.getMonth() + 1).padStart(2, '0')
+    const day = String(dt.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  }
+
+  const invoiceComputedStatus = (inv) => {
+    const raw = String(inv?.status || '').toLowerCase()
+    const payRaw = String(inv?.paymentStatus || '').toLowerCase()
+    if (raw === 'paid' || payRaw === 'paid') return 'paid'
+    const due = normalizeDate(inv?.dueDate)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (due) {
+      const dd = new Date(due)
+      dd.setHours(0, 0, 0, 0)
+      if (dd < today) return 'overdue'
+    }
+    return 'pending'
+  }
+
+  const daysOverdue = (due) => {
+    const dd = normalizeDate(due)
+    if (!dd) return 0
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    const d0 = new Date(dd)
+    d0.setHours(0,0,0,0)
+    const diff = Math.floor((today.getTime() - d0.getTime()) / (1000*60*60*24))
+    return diff > 0 ? diff : 0
+  }
+
+  const currentEditStores = useMemo(() => {
+    if (!editModalUser) return []
+    return stores.filter(s => s.ownerId === editModalUser.id)
+  }, [stores, editModalUser])
+
+  const openEditModal = async (user) => {
+    const sub = subsMap[user.id]
+    const trialEnd = normalizeDate(sub?.trialEnd) || (user.trialValidUntil ? normalizeDate(user.trialValidUntil) : null)
+    const nextDue = normalizeDate(sub?.nextDueDate)
+    const refDate = trialEnd || nextDue
+    setExpiryEdit(toDateInputValue(refDate))
+
+    setEditModalUser(user)
+    setEditInvoices([])
+    setEditLoading(true)
+    setStoreDateEdits({})
+    try {
+      const inv = await getInvoicesByOwner(user.id)
+      setEditInvoices(inv || [])
+    } catch (e) {
+      console.error('Erro ao carregar faturas', e)
+      setEditInvoices([])
+    } finally {
+      setEditLoading(false)
+    }
+  }
+
+  const saveExpiryDate = async () => {
+    if (!editModalUser?.id) return
+    const dateStr = String(expiryEdit || '').trim()
+    if (!dateStr) return
+    setSavingExpiry(true)
+    try {
+      const dt = new Date(`${dateStr}T00:00:00`)
+      const sub = subsMap[editModalUser.id]
+      const hasTrial = !!(sub?.trialEnd || editModalUser?.trialValidUntil || editModalUser?.trial)
+      if (hasTrial) {
+        await updateSubscription(editModalUser.id, { trialEnd: dt })
+        await updateUser(editModalUser.id, { trialValidUntil: dt })
+      } else {
+        await updateSubscription(editModalUser.id, { nextDueDate: dt })
+      }
+    } catch (e) {
+      console.error('Erro ao salvar expiração', e)
+      alert('Erro ao salvar data de expiração')
+    } finally {
+      setSavingExpiry(false)
+    }
+  }
+
+  const saveStoreCreatedAt = async (storeId) => {
+    const dateStr = storeDateEdits[storeId]
+    if (!dateStr) return
+    setSavingStoreDate(prev => ({ ...prev, [storeId]: true }))
+    try {
+      const dt = new Date(`${dateStr}T00:00:00`)
+      await updateStore(storeId, { createdAt: dt })
+    } catch (e) {
+      console.error('Erro ao salvar data de criação', e)
+      alert('Erro ao salvar data de criação da loja')
+    } finally {
+      setSavingStoreDate(prev => ({ ...prev, [storeId]: false }))
+    }
   }
 
   const getExpiryInfo = (user) => {
@@ -223,6 +331,15 @@ export default function AdminDashboard() {
                         >
                           Mudar status
                         </button>
+                        <button
+                          className="w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                          onClick={() => {
+                            openEditModal(user)
+                            setOpenMenuUserId(null)
+                          }}
+                        >
+                          Editar
+                        </button>
                       </div>
                     )}
                   </div>
@@ -265,6 +382,160 @@ export default function AdminDashboard() {
           </div>
         )}
       </div>
+
+      {editModalUser && (
+        <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden">
+            <div className="p-5 border-b flex items-center justify-between">
+              <div>
+                <div className="text-lg font-bold text-gray-900">Editar</div>
+                <div className="text-sm text-gray-600">{editModalUser.name} • {editModalUser.email}</div>
+              </div>
+              <button
+                className="p-2 rounded-full hover:bg-gray-100 text-gray-600"
+                onClick={() => setEditModalUser(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="rounded-xl border border-gray-100">
+                <div className="p-4 border-b bg-gray-50">
+                  <div className="font-semibold text-gray-800">Lojas do usuário</div>
+                  <div className="text-xs text-gray-500 mt-1">Edite a data de criação da loja.</div>
+                </div>
+                <div className="p-4 space-y-3">
+                  <div className="p-4 rounded-xl border border-gray-100 bg-white">
+                    <div className="text-sm font-semibold text-gray-900">Data que expira</div>
+                    <div className="text-xs text-gray-500 mt-1">Referência do teste/vencimento da assinatura.</div>
+                    <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-end">
+                      <div className="flex-1">
+                        <label className="text-[11px] font-semibold text-gray-600">Expira em</label>
+                        <input
+                          type="date"
+                          className="mt-1 px-3 py-2 border rounded-lg text-sm w-full"
+                          value={expiryEdit}
+                          onChange={(e) => setExpiryEdit(e.target.value)}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingExpiry}
+                        onClick={saveExpiryDate}
+                        className="px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold"
+                      >
+                        {savingExpiry ? 'Salvando...' : 'Salvar'}
+                      </button>
+                    </div>
+                  </div>
+                  {currentEditStores.length === 0 ? (
+                    <div className="text-sm text-gray-500">Nenhuma loja vinculada.</div>
+                  ) : (
+                    currentEditStores.map(s => {
+                      const value = storeDateEdits[s.id] !== undefined ? storeDateEdits[s.id] : toDateInputValue(s.createdAt)
+                      return (
+                        <div key={s.id} className="p-4 rounded-xl border border-gray-100">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <div className="font-semibold text-gray-900 truncate">{s.name || s.id}</div>
+                              <div className="text-xs text-gray-500 truncate">{s.city || '—'} {s.state ? `• ${s.state}` : ''}</div>
+                              <div className="text-[11px] text-gray-400 mt-1 truncate">ID: {s.id}</div>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <label className="text-[11px] font-semibold text-gray-600">Criada em</label>
+                              <input
+                                type="date"
+                                className="px-3 py-2 border rounded-lg text-sm"
+                                value={value}
+                                onChange={(e) => setStoreDateEdits(prev => ({ ...prev, [s.id]: e.target.value }))}
+                              />
+                              <button
+                                type="button"
+                                disabled={!!savingStoreDate[s.id]}
+                                onClick={() => saveStoreCreatedAt(s.id)}
+                                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold"
+                              >
+                                {savingStoreDate[s.id] ? 'Salvando...' : 'Salvar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-100">
+                <div className="p-4 border-b bg-gray-50">
+                  <div className="font-semibold text-gray-800">Faturas</div>
+                  <div className="text-xs text-gray-500 mt-1">Histórico de cobranças da assinatura.</div>
+                </div>
+                <div className="p-4">
+                  {editLoading ? (
+                    <div className="text-sm text-gray-500">Carregando faturas...</div>
+                  ) : editInvoices.length === 0 ? (
+                    <div className="text-sm text-gray-500">Nenhuma fatura encontrada.</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-600">
+                            <th className="px-3 py-2">Nº</th>
+                            <th className="px-3 py-2">Vencimento</th>
+                            <th className="px-3 py-2 text-right">Valor</th>
+                            <th className="px-3 py-2">Status</th>
+                            <th className="px-3 py-2">Dias</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {editInvoices
+                            .slice()
+                            .sort((a, b) => {
+                              const da = normalizeDate(a.dueDate)?.getTime() || 0
+                              const db = normalizeDate(b.dueDate)?.getTime() || 0
+                              return da - db
+                            })
+                            .map(inv => {
+                              const st = invoiceComputedStatus(inv)
+                              const badge = st === 'paid'
+                                ? 'bg-green-100 text-green-700'
+                                : st === 'overdue'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-gray-100 text-gray-700'
+                              const label = st === 'paid' ? 'Paga' : st === 'overdue' ? 'Em atraso' : 'Pendente'
+                              return (
+                                <tr key={inv.id} className="border-t">
+                                  <td className="px-3 py-2">{inv.number || '-'}</td>
+                                  <td className="px-3 py-2">{normalizeDate(inv.dueDate)?.toLocaleDateString() || '-'}</td>
+                                  <td className="px-3 py-2 text-right">R$ {Number(inv.amount || 0).toFixed(2)}</td>
+                                  <td className="px-3 py-2">
+                                    <span className={`px-2 py-1 rounded text-xs ${badge}`}>{label}</span>
+                                  </td>
+                                  <td className="px-3 py-2">{st === 'overdue' ? daysOverdue(inv.dueDate) : 0}</td>
+                                </tr>
+                              )
+                            })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t flex justify-end">
+              <button
+                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 font-semibold text-gray-700"
+                onClick={() => setEditModalUser(null)}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {statusModalUser && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

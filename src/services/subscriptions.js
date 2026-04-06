@@ -65,6 +65,12 @@ export async function setNextDueDate(ownerId, date) {
   await updateDoc(ref, { nextDueDate: date, updatedAt: serverTimestamp() })
 }
 
+export async function updateSubscription(ownerId, partial) {
+  if (!ownerId) throw new Error('ownerId obrigatório')
+  const ref = doc(db, 'subscriptions', ownerId)
+  await updateDoc(ref, { ...(partial || {}), updatedAt: serverTimestamp() })
+}
+
 export function computeStatus(sub) {
   const now = new Date()
   if (sub?.canceledAt) return 'cancelado'
@@ -120,10 +126,23 @@ export function computeStatusWithInvoices(sub, invoices) {
   if (trialEnd && now > trialEnd) {
     const paidFirst = Array.isArray(invoices) && invoices.some(i => {
       const due = normalizeDate(i?.dueDate)
-      return i?.status === 'paid' && due && sameDay(due, trialEnd)
+      const paid = String(i?.status || '').toLowerCase() === 'paid' || String(i?.paymentStatus || '').toLowerCase() === 'paid'
+      return paid && due && sameDay(due, trialEnd)
     })
-    if (paidFirst) return 'ativo'
-    return 'em_atraso'
+    if (!paidFirst) return 'em_atraso'
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const hasOverdueUnpaid = Array.isArray(invoices) && invoices.some(i => {
+      const due = normalizeDate(i?.dueDate)
+      if (!due) return false
+      const d0 = new Date(due)
+      d0.setHours(0, 0, 0, 0)
+      if (d0.getFullYear() < 2000) return false
+      const paid = String(i?.status || '').toLowerCase() === 'paid' || String(i?.paymentStatus || '').toLowerCase() === 'paid'
+      return !paid && d0 < today
+    })
+    return hasOverdueUnpaid ? 'em_atraso' : 'ativo'
   }
   return computeStatus(sub)
 }

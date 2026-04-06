@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 
 
-export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages}){
+export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages, locked=false}){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const [expandedKey, setExpandedKey] = useState(null)
@@ -157,15 +157,15 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     </div>
 
 
-    <button 
-      onClick={onOpenNewSale} 
-      className="mt-4 md:mt-6 w-full bg-green-600 text-white py-2 rounded hover:opacity-95"
-    >
-      Vender
-    </button>
+    <div className={locked ? 'opacity-60 pointer-events-none' : ''}>
+      <button 
+        onClick={onOpenNewSale} 
+        className="mt-4 md:mt-6 w-full bg-green-600 text-white py-2 rounded hover:opacity-95"
+      >
+        Vender
+      </button>
 
-
-    <nav className="mt-6 space-y-1">
+      <nav className="mt-6 space-y-1">
       {items.map(i => {
         const hasSubItems = i.subItems && i.subItems.length > 0
         const isExpanded = expandedKey === i.key
@@ -226,10 +226,9 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
           </div>
         )
       })}
-    </nav>
+      </nav>
 
-
-<div className="mt-8 border-t pt-4 space-y-1 dark:border-gray-800">
+      <div className="mt-8 border-t pt-4 space-y-1 dark:border-gray-800">
 <div 
   className="p-3 cursor-pointer text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white rounded-lg font-medium text-[15px] transition-colors flex items-center gap-3"
   onClick={() => {
@@ -250,14 +249,18 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
   <span>Configurações</span>
 </div>
 )}
-<div 
-  className="p-3 cursor-pointer text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 rounded-lg font-bold text-[15px] transition-colors flex items-center gap-3"
-  onClick={() => { onLogout && onLogout(); closeIfMobile() }}
->
-  <span className="w-6"><LogOut size={20} /></span>
-  <span>Sair</span>
 </div>
-</div>
+    </div>
+
+    <div className="mt-8 border-t pt-4 space-y-1 dark:border-gray-800">
+      <div 
+        className="p-3 cursor-pointer text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 dark:hover:text-red-300 rounded-lg font-bold text-[15px] transition-colors flex items-center gap-3"
+        onClick={() => { onLogout && onLogout(); closeIfMobile() }}
+      >
+        <span className="w-6"><LogOut size={20} /></span>
+        <span>Sair</span>
+      </div>
+    </div>
 </div>
 </aside>
   )
