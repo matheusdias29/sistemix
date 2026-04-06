@@ -1,4 +1,4 @@
-import { collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, getCountFromServer, doc, getDocs, writeBatch, getDoc, updateDoc } from 'firebase/firestore'
+import { collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, getCountFromServer, doc, getDocs, writeBatch, getDoc, updateDoc, deleteDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'invoices')
@@ -217,4 +217,11 @@ export async function requestInfinitePayCheckout(invoiceId) {
   })
 
   return { paymentUrl, orderNsu: returnedNsu }
+}
+
+export async function deleteInvoice(invoiceId) {
+  if (!invoiceId) throw new Error('invoiceId é obrigatório')
+  const ref = doc(colRef, invoiceId)
+  await deleteDoc(ref)
+  return true
 }

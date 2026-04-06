@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder, deleteOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
-import { listenProducts, updateProduct, getAllProducts } from '../services/products'
+import { listenProducts, updateProduct, getAllProducts, getProductById } from '../services/products'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
@@ -993,6 +993,24 @@ const canEditService = isOwner || perms.services?.edit
         updatedAt: new Date(),
         updatedBy: user?.name || attendant || 'Sistema'
       }
+
+      const productCache = new Map()
+      const resolveProduct = async (productId) => {
+        const id = String(productId || '').trim()
+        if (!id) return null
+        if (productCache.has(id)) return productCache.get(id)
+        const mem =
+          (productsAll || []).find(pr => pr.id === id) ||
+          (cachedProducts || []).find(pr => pr.id === id)
+        if (mem) {
+          productCache.set(id, mem)
+          return mem
+        }
+        const fetched = await getProductById(id).catch(() => null)
+        if (fetched) productCache.set(id, fetched)
+        return fetched
+      }
+
       if (editingOrderId) {
                 // Verificar produtos removidos ou com quantidade reduzida para devolver ao estoque
         const originalOrder = orders.find(o => o.id === editingOrderId)
@@ -1017,7 +1035,7 @@ const canEditService = isOwner || perms.services?.edit
             }
 
             if (qtyToReturn > 0) {
-              const p = productsAll.find(pr => pr.id === origItem.productId)
+              const p = await resolveProduct(origItem.productId)
               if (!p) continue
 
               const vname = origItem.variationName ? String(origItem.variationName).trim() : ''
@@ -1094,7 +1112,7 @@ const canEditService = isOwner || perms.services?.edit
           }
 
           if (qtyToRemove > 0) {
-            const p = productsAll.find(pr => pr.id === newItem.productId)
+            const p = await resolveProduct(newItem.productId)
             if (!p) continue
 
             const vname = newItem.variationName ? String(newItem.variationName).trim() : ''
@@ -1167,7 +1185,7 @@ const canEditService = isOwner || perms.services?.edit
         }
         const items = Array.isArray(osProducts) ? osProducts : []
         for (const it of items) {
-          const p = productsAll.find(pr => pr.id === it.productId)
+          const p = await resolveProduct(it.productId)
           if (!p) continue
           const qty = Math.max(0, parseFloat(it.quantity) || 0)
           const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
@@ -2761,7 +2779,7 @@ const canEditService = isOwner || perms.services?.edit
                 const item = {
                   productId: selectedProduct.id,
                   name: selectedProduct.name,
-                  variationName: selectedVariation ? selectedVariation.name : null,
+                  variationName: selectedVariation ? (selectedVariation.name || selectedVariation.label || null) : null,
                   price: parseFloat(priceInput)||0,
                   quantity: parseFloat(qtyInput)||1,
                 }

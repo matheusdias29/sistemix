@@ -1,7 +1,396 @@
 const admin = require('firebase-admin')
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
+const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore')
+const { getFirestore } = require('firebase-admin/firestore')
+const crypto = require('crypto')
 
 admin.initializeApp()
+
+function normalizeTimestampToDate(v) {
+  try {
+    if (!v) return null
+    if (typeof v.toDate === 'function') return v.toDate()
+    if (typeof v.seconds === 'number') return new Date(v.seconds * 1000)
+    const d = new Date(v)
+    return Number.isNaN(d.getTime()) ? null : d
+  } catch {
+    return null
+  }
+}
+
+function isPixStillValid(invoice) {
+  const exp = normalizeTimestampToDate(invoice?.pixExpiresAt)
+  if (!exp) return false
+  return exp.getTime() > Date.now()
+}
+
+function addDays(date, days) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + Number(days || 0))
+  return d
+}
+
+function toDateOnly(d) {
+  const dt = normalizeTimestampToDate(d)
+  if (!dt) return null
+  const x = new Date(dt)
+  x.setHours(0, 0, 0, 0)
+  return x
+}
+
+function cycleMonths(cycle) {
+  const c = String(cycle || '').toLowerCase()
+  if (c === 'annual') return 12
+  if (c === 'semiannual') return 6
+  return 1
+}
+
+function addMonthsWithFebRule(base, months) {
+  const dt = toDateOnly(base)
+  if (!dt) return null
+  const day = dt.getDate()
+  const baseMonth = dt.getMonth()
+  const baseYear = dt.getFullYear()
+  const total = baseMonth + Number(months || 0)
+  const year = baseYear + Math.floor(total / 12)
+  const month = ((total % 12) + 12) % 12
+  if (month === 1 && day >= 29) {
+    const m1 = new Date(year, 2, 1)
+    m1.setHours(0, 0, 0, 0)
+    return m1
+  }
+  const candidate = new Date(year, month, day)
+  candidate.setHours(0, 0, 0, 0)
+  return candidate
+}
+
+function isPaidInvoice(inv) {
+  const s = String(inv?.status || '').toLowerCase()
+  const ps = String(inv?.paymentStatus || '').toLowerCase()
+  return s === 'paid' || ps === 'paid'
+}
+
+async function ensureTwoPendingInvoices({ db, ownerId }) {
+  if (!ownerId) return
+
+  const subRef = db.collection('subscriptions').doc(ownerId)
+  const subSnap = await subRef.get()
+  if (!subSnap.exists) return
+  const sub = { id: subSnap.id, ...subSnap.data() }
+  if (!sub.planId) return
+
+  const invSnap = await db.collection('invoices').where('ownerId', '==', ownerId).get()
+  const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+  const validInvoices = invoices.filter(i => {
+    const due = toDateOnly(i.dueDate)
+    return due && due.getFullYear() >= 2000
+  })
+
+  const unpaid = validInvoices.filter(i => !isPaidInvoice(i))
+  const unpaidSorted = unpaid
+    .slice()
+    .sort((a, b) => (toDateOnly(a.dueDate)?.getTime() || 0) - (toDateOnly(b.dueDate)?.getTime() || 0))
+
+  const amount = Number(sub.price || 0)
+  const cycle = cycleMonths(sub.billingCycle)
+
+  const existingDueKeys = new Set(
+    validInvoices
+      .map(i => {
+        const d = toDateOnly(i.dueDate)
+        if (!d) return ''
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      })
+      .filter(Boolean)
+  )
+
+  const findStartDue = () => {
+    const trialEnd = toDateOnly(sub.trialEnd)
+    if (trialEnd) return trialEnd
+    const nextDue = toDateOnly(sub.nextDueDate)
+    if (nextDue) return nextDue
+    return toDateOnly(new Date())
+  }
+
+  let lastDue = null
+  for (const i of validInvoices) {
+    const d = toDateOnly(i.dueDate)
+    if (!d) continue
+    if (!lastDue || d.getTime() > lastDue.getTime()) lastDue = d
+  }
+  if (!lastDue) lastDue = findStartDue()
+
+  const createInvoiceForDue = async (due) => {
+    const d0 = toDateOnly(due)
+    if (!d0) return false
+    const key = `${d0.getFullYear()}-${String(d0.getMonth() + 1).padStart(2, '0')}-${String(d0.getDate()).padStart(2, '0')}`
+    if (existingDueKeys.has(key)) return false
+    existingDueKeys.add(key)
+    lastDue = d0
+
+    const countSnap = await db.collection('invoices').where('ownerId', '==', ownerId).count().get()
+    const seq = Number(countSnap.data().count || 0) + 1
+    await db.collection('invoices').add({
+      ownerId,
+      amount,
+      status: 'pending',
+      dueDate: d0,
+      paymentMethod: 'PIX',
+      clientRef: ownerId,
+      description: sub.planName || 'Assinatura',
+      number: seq,
+      orderNsu: String(seq),
+      paymentStatus: 'pending',
+      paymentUrl: '',
+      issuedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      history: [{ type: 'created', at: new Date().toISOString(), by: 'auto' }],
+    })
+    return true
+  }
+
+  if (unpaidSorted.length >= 2) return
+
+  if (unpaidSorted.length === 0) {
+    const startDue = findStartDue()
+    await createInvoiceForDue(startDue)
+  }
+
+  const invSnap2 = await db.collection('invoices').where('ownerId', '==', ownerId).get()
+  const invoices2 = invSnap2.docs.map(d => ({ id: d.id, ...d.data() }))
+  let pendingCount = invoices2.filter(i => {
+    const due = toDateOnly(i.dueDate)
+    if (!due || due.getFullYear() < 2000) return false
+    return !isPaidInvoice(i)
+  }).length
+
+  let attempts = 0
+  while (pendingCount < 2 && attempts < 24) {
+    const next = addMonthsWithFebRule(lastDue, cycle)
+    const created = await createInvoiceForDue(next)
+    if (created) pendingCount += 1
+    lastDue = next || lastDue
+    attempts += 1
+  }
+}
+
+async function updateUnpaidInvoicesAmount({ db, ownerId }) {
+  if (!ownerId) return
+  const subSnap = await db.collection('subscriptions').doc(ownerId).get()
+  if (!subSnap.exists) return
+  const sub = { id: subSnap.id, ...subSnap.data() }
+  if (!sub.planId) return
+  const amount = Number(sub.price || 0)
+  const name = sub.planName || 'Assinatura'
+
+  const invSnap = await db.collection('invoices').where('ownerId', '==', ownerId).get()
+  const batch = db.batch()
+  let touched = 0
+  invSnap.docs.forEach(docSnap => {
+    const inv = docSnap.data()
+    if (isPaidInvoice(inv)) return
+    const due = toDateOnly(inv.dueDate)
+    if (!due || due.getFullYear() < 2000) return
+    batch.update(docSnap.ref, {
+      amount,
+      description: name,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      history: admin.firestore.FieldValue.arrayUnion({
+        type: 'plan_sync',
+        at: new Date().toISOString(),
+        by: 'system',
+      }),
+    })
+    touched += 1
+  })
+  if (touched) await batch.commit()
+}
+
+async function fetchMpPayment(token, paymentId) {
+  const res = await fetch(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(paymentId)}`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${token}` },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg = data?.message || data?.error || 'Falha ao consultar pagamento Mercado Pago'
+    throw new Error(msg)
+  }
+  return data
+}
+
+function parseXSignature(headerValue) {
+  const raw = String(headerValue || '').trim()
+  if (!raw) return { ts: '', v1: '' }
+  const parts = raw.split(',').map(s => s.trim())
+  let ts = ''
+  let v1 = ''
+  for (const p of parts) {
+    const kv = p.split('=')
+    if (kv.length < 2) continue
+    const k = String(kv[0] || '').trim()
+    const v = String(kv.slice(1).join('=') || '').trim()
+    if (k === 'ts') ts = v
+    if (k === 'v1') v1 = v
+  }
+  return { ts, v1 }
+}
+
+function safeEqualHex(a, b) {
+  const aa = String(a || '')
+  const bb = String(b || '')
+  if (!aa || !bb) return false
+  if (aa.length !== bb.length) return false
+  try {
+    return crypto.timingSafeEqual(Buffer.from(aa, 'hex'), Buffer.from(bb, 'hex'))
+  } catch {
+    return false
+  }
+}
+
+function verifyMpWebhookSignature({ secret, xSignature, xRequestId, dataId }) {
+  const { ts, v1 } = parseXSignature(xSignature)
+  const reqId = String(xRequestId || '').trim()
+  const id = String(dataId || '').trim().toLowerCase()
+  if (!secret || !ts || !v1 || !reqId || !id) return { ok: false, reason: 'missing_fields' }
+
+  const tsNum = Number(ts)
+  if (!Number.isFinite(tsNum)) return { ok: false, reason: 'invalid_ts' }
+  const drift = Math.abs(Date.now() - tsNum)
+  if (drift > 10 * 60 * 1000) return { ok: false, reason: 'ts_out_of_range' }
+
+  const manifest = `id:${id};request-id:${reqId};ts:${ts};`
+  const expected = crypto.createHmac('sha256', secret).update(manifest).digest('hex')
+  return { ok: safeEqualHex(expected, v1), reason: 'mismatch' }
+}
+
+exports.mpWebhook = onRequest({ secrets: ['MERCADOPAGO_ACCESS_TOKEN', 'MERCADOPAGO_WEBHOOK_SECRET'] }, async (req, res) => {
+  try {
+    const token = process.env.MERCADOPAGO_ACCESS_TOKEN
+    if (!token) return res.status(500).send('missing_token')
+
+    const webhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET
+    const xSignature = req.get('x-signature') || req.get('X-Signature') || ''
+    const xRequestId = req.get('x-request-id') || req.get('X-Request-Id') || ''
+
+    const dataIdUrl = String(req.query?.['data.id'] || '').trim()
+    const idUrl = String(req.query?.id || '').trim()
+    const signatureDataId = dataIdUrl || idUrl
+    if (webhookSecret) {
+      const v = verifyMpWebhookSignature({ secret: webhookSecret, xSignature, xRequestId, dataId: signatureDataId })
+      if (!v.ok) return res.status(200).send('invalid_signature')
+    }
+
+    const idFromQuery = idUrl
+    const typeFromQuery = String(req.query?.type || req.query?.topic || '').trim()
+    const idFromBody = String(req.body?.data?.id || req.body?.id || '').trim()
+
+    const paymentId = dataIdUrl || idFromQuery || idFromBody
+    if (!paymentId) return res.status(200).send('no_payment_id')
+
+    const mp = await fetchMpPayment(token, paymentId)
+    const mpStatus = String(mp?.status || '').toLowerCase()
+    const approved = mpStatus === 'approved'
+
+    const externalRef = String(mp?.external_reference || '').trim()
+    if (!externalRef) return res.status(200).send('no_external_reference')
+
+    const db = getFirestore('sistemix')
+    const invRef = db.collection('invoices').doc(externalRef)
+    const invSnap = await invRef.get()
+    if (!invSnap.exists) return res.status(200).send('invoice_not_found')
+
+    if (!approved) {
+      await invRef.update({
+        mpStatus,
+        mpPaymentId: mp?.id || paymentId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        history: admin.firestore.FieldValue.arrayUnion({
+          type: 'mp_payment_update',
+          at: new Date().toISOString(),
+          by: 'webhook',
+          mpStatus,
+          topic: typeFromQuery || null,
+        }),
+      })
+      return res.status(200).send('ok')
+    }
+
+    await invRef.update({
+      status: 'paid',
+      paymentStatus: 'paid',
+      paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      mpStatus,
+      mpPaymentId: mp?.id || paymentId,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      history: admin.firestore.FieldValue.arrayUnion({
+        type: 'mp_payment_paid',
+        at: new Date().toISOString(),
+        by: 'webhook',
+        mpStatus,
+        topic: typeFromQuery || null,
+      }),
+    })
+
+    return res.status(200).send('ok')
+  } catch (e) {
+    return res.status(200).send('error')
+  }
+})
+
+exports.mpSyncInvoicePayment = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }, async (req) => {
+  const invoiceId = String(req?.data?.invoiceId || '').trim()
+  if (!invoiceId) throw new HttpsError('invalid-argument', 'invoiceId é obrigatório')
+  if (!req.auth) throw new HttpsError('unauthenticated', 'Autenticação necessária')
+
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN
+  if (!token) throw new HttpsError('failed-precondition', 'MERCADOPAGO_ACCESS_TOKEN não configurado')
+
+  const db = getFirestore('sistemix')
+  const invRef = db.collection('invoices').doc(invoiceId)
+  const invSnap = await invRef.get()
+  if (!invSnap.exists) throw new HttpsError('not-found', 'Fatura não encontrada')
+  const inv = { id: invSnap.id, ...invSnap.data() }
+
+  const mpPaymentId = String(inv.mpPaymentId || '').trim()
+  if (!mpPaymentId) {
+    return { ok: true, status: 'missing_mp_payment_id' }
+  }
+
+  const mp = await fetchMpPayment(token, mpPaymentId)
+  const mpStatus = String(mp?.status || '').toLowerCase()
+  const approved = mpStatus === 'approved'
+
+  if (!approved) {
+    await invRef.update({
+      mpStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      history: admin.firestore.FieldValue.arrayUnion({
+        type: 'mp_payment_sync',
+        at: new Date().toISOString(),
+        by: req.auth.uid,
+        mpStatus,
+      }),
+    })
+    return { ok: true, status: mpStatus }
+  }
+
+  await invRef.update({
+    status: 'paid',
+    paymentStatus: 'paid',
+    paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    mpStatus,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    history: admin.firestore.FieldValue.arrayUnion({
+      type: 'mp_payment_sync_paid',
+      at: new Date().toISOString(),
+      by: req.auth.uid,
+      mpStatus,
+    }),
+  })
+  return { ok: true, status: 'approved' }
+})
 
 exports.mpCreatePixForInvoice = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }, async (req) => {
   const invoiceId = String(req?.data?.invoiceId || '').trim()
@@ -10,13 +399,21 @@ exports.mpCreatePixForInvoice = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }
 
   const token = process.env.MERCADOPAGO_ACCESS_TOKEN
   if (!token) throw new HttpsError('failed-precondition', 'MERCADOPAGO_ACCESS_TOKEN não configurado')
+  const forcedAmount = 1
 
-  const db = admin.firestore()
+  const db = getFirestore('sistemix')
   const invRef = db.collection('invoices').doc(invoiceId)
   const invSnap = await invRef.get()
   if (!invSnap.exists) throw new HttpsError('not-found', 'Fatura não encontrada')
 
   const invoice = { id: invSnap.id, ...invSnap.data() }
+  const existingQr = String(invoice.pixQrCodeBase64 || '')
+  const existingCode = String(invoice.pixCopyPaste || '')
+  const existingTicket = String(invoice.ticketUrl || invoice.paymentUrl || '')
+  if ((existingQr || existingCode) && isPixStillValid(invoice)) {
+    return { qr_code: existingCode, qr_code_base64: existingQr, ticket_url: existingTicket, mpPaymentId: invoice.mpPaymentId || null }
+  }
+
   const amount = Number(invoice.amount || 0)
   if (!amount || amount <= 0) throw new HttpsError('failed-precondition', 'Valor da fatura inválido')
 
@@ -26,13 +423,16 @@ exports.mpCreatePixForInvoice = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }
   const payerEmail = ownerEmail || String(req?.auth?.token?.email || '').trim()
   if (!payerEmail) throw new HttpsError('failed-precondition', 'E-mail do pagador não encontrado')
 
+  const expDate = addDays(new Date(), 7)
   const description = String(invoice.description || 'Assinatura Sistemix').slice(0, 240)
+  const nextVersion = Number(invoice.mpPixVersion || 0) + 1
   const body = {
-    transaction_amount: Number(amount.toFixed(2)),
+    transaction_amount: Number(forcedAmount.toFixed(2)),
     description,
     payment_method_id: 'pix',
     payer: { email: payerEmail },
     external_reference: invoiceId,
+    date_of_expiration: expDate.toISOString(),
   }
 
   const res = await fetch('https://api.mercadopago.com/v1/payments', {
@@ -40,7 +440,7 @@ exports.mpCreatePixForInvoice = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
-      'X-Idempotency-Key': `inv_${invoiceId}`,
+      'X-Idempotency-Key': `inv_${invoiceId}_v${nextVersion}`,
     },
     body: JSON.stringify(body),
   })
@@ -61,11 +461,15 @@ exports.mpCreatePixForInvoice = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }
     paymentProvider: 'mercadopago',
     paymentMethod: 'PIX',
     paymentStatus: 'pending',
+    pixAmount: Number(forcedAmount.toFixed(2)),
     paymentUrl: ticket_url || invoice.paymentUrl || '',
     ticketUrl: ticket_url || '',
     pixCopyPaste: qr_code || '',
     pixQrCodeBase64: qr_code_base64 || '',
+    pixGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
+    pixExpiresAt: admin.firestore.Timestamp.fromDate(expDate),
     mpPaymentId,
+    mpPixVersion: nextVersion,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     history: admin.firestore.FieldValue.arrayUnion({
       type: 'mp_pix_created',
@@ -75,4 +479,280 @@ exports.mpCreatePixForInvoice = onCall({ secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }
   })
 
   return { qr_code, qr_code_base64, ticket_url, mpPaymentId }
+})
+
+exports.mpPixJobProcessor = onDocumentCreated({ document: 'mp_pix_jobs/{jobId}', database: 'sistemix', secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }, async (event) => {
+  const jobId = String(event?.params?.jobId || '').trim()
+  const jobData = event?.data?.data?.() ? event.data.data() : null
+  if (!jobId || !jobData) return
+
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN
+  if (!token) return
+  const forcedAmount = 1
+
+  const db = getFirestore('sistemix')
+  const jobRef = db.collection('mp_pix_jobs').doc(jobId)
+
+  const invoiceId = String(jobData.invoiceId || '').trim()
+  if (!invoiceId) {
+    await jobRef.update({
+      status: 'error',
+      error: 'invoiceId é obrigatório',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  await jobRef.update({
+    status: 'processing',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+
+  const invRef = db.collection('invoices').doc(invoiceId)
+  const invSnap = await invRef.get()
+  if (!invSnap.exists) {
+    await jobRef.update({
+      status: 'error',
+      error: 'Fatura não encontrada',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  const invoice = { id: invSnap.id, ...invSnap.data() }
+  const existingQr = String(invoice.pixQrCodeBase64 || '')
+  const existingCode = String(invoice.pixCopyPaste || '')
+  if ((existingQr || existingCode) && isPixStillValid(invoice)) {
+    await jobRef.update({
+      status: 'done',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  const amount = Number(invoice.amount || 0)
+  if (!amount || amount <= 0) {
+    await jobRef.update({
+      status: 'error',
+      error: 'Valor da fatura inválido',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  const ownerId = String(invoice.ownerId || '').trim()
+  const ownerSnap = ownerId ? await db.collection('users').doc(ownerId).get() : null
+  const ownerEmail = ownerSnap && ownerSnap.exists ? String(ownerSnap.data().email || '').trim() : ''
+  if (!ownerEmail) {
+    await jobRef.update({
+      status: 'error',
+      error: 'E-mail do pagador não encontrado',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  const expDate = addDays(new Date(), 7)
+  const description = String(invoice.description || 'Assinatura Sistemix').slice(0, 240)
+  const nextVersion = Number(invoice.mpPixVersion || 0) + 1
+  const body = {
+    transaction_amount: Number(forcedAmount.toFixed(2)),
+    description,
+    payment_method_id: 'pix',
+    payer: { email: ownerEmail },
+    external_reference: invoiceId,
+    date_of_expiration: expDate.toISOString(),
+  }
+
+  const res = await fetch('https://api.mercadopago.com/v1/payments', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+      'X-Idempotency-Key': `inv_${invoiceId}_v${nextVersion}`,
+    },
+    body: JSON.stringify(body),
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg = data?.message || data?.error || 'Falha ao criar pagamento Mercado Pago'
+    await jobRef.update({
+      status: 'error',
+      error: msg,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    await invRef.update({
+      paymentProvider: 'mercadopago',
+      paymentMethod: 'PIX',
+      paymentStatus: 'error',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      history: admin.firestore.FieldValue.arrayUnion({
+        type: 'mp_pix_error',
+        at: new Date().toISOString(),
+        by: 'system',
+        error: msg,
+      }),
+    })
+    return
+  }
+
+  const tx = data?.point_of_interaction?.transaction_data || {}
+  const qr_code = String(tx.qr_code || '')
+  const qr_code_base64 = String(tx.qr_code_base64 || '')
+  const ticket_url = String(tx.ticket_url || '')
+  const mpPaymentId = data?.id || null
+
+  await invRef.update({
+    paymentProvider: 'mercadopago',
+    paymentMethod: 'PIX',
+    paymentStatus: 'pending',
+    pixAmount: Number(forcedAmount.toFixed(2)),
+    paymentUrl: ticket_url || invoice.paymentUrl || '',
+    ticketUrl: ticket_url || '',
+    pixCopyPaste: qr_code || '',
+    pixQrCodeBase64: qr_code_base64 || '',
+    pixGeneratedAt: admin.firestore.FieldValue.serverTimestamp(),
+    pixExpiresAt: admin.firestore.Timestamp.fromDate(expDate),
+    mpPaymentId,
+    mpPixVersion: nextVersion,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    history: admin.firestore.FieldValue.arrayUnion({
+      type: 'mp_pix_created',
+      at: new Date().toISOString(),
+      by: 'system',
+    }),
+  })
+
+  await jobRef.update({
+    status: 'done',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+})
+
+exports.mpPaymentSyncJobProcessor = onDocumentCreated({ document: 'mp_payment_sync_jobs/{jobId}', database: 'sistemix', secrets: ['MERCADOPAGO_ACCESS_TOKEN'] }, async (event) => {
+  const jobId = String(event?.params?.jobId || '').trim()
+  const jobData = event?.data?.data?.() ? event.data.data() : null
+  if (!jobId || !jobData) return
+
+  const token = process.env.MERCADOPAGO_ACCESS_TOKEN
+  if (!token) return
+
+  const db = getFirestore('sistemix')
+  const jobRef = db.collection('mp_payment_sync_jobs').doc(jobId)
+
+  const invoiceId = String(jobData.invoiceId || '').trim()
+  if (!invoiceId) {
+    await jobRef.update({
+      status: 'error',
+      error: 'invoiceId é obrigatório',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  await jobRef.update({
+    status: 'processing',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+
+  const invRef = db.collection('invoices').doc(invoiceId)
+  const invSnap = await invRef.get()
+  if (!invSnap.exists) {
+    await jobRef.update({
+      status: 'error',
+      error: 'Fatura não encontrada',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  const inv = { id: invSnap.id, ...invSnap.data() }
+  const mpPaymentId = String(inv.mpPaymentId || '').trim()
+  if (!mpPaymentId) {
+    await jobRef.update({
+      status: 'error',
+      error: 'mpPaymentId não encontrado na fatura',
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  let mp
+  try {
+    mp = await fetchMpPayment(token, mpPaymentId)
+  } catch (e) {
+    await jobRef.update({
+      status: 'error',
+      error: String(e?.message || 'Falha ao consultar pagamento'),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  const mpStatus = String(mp?.status || '').toLowerCase()
+  const approved = mpStatus === 'approved'
+
+  if (!approved) {
+    await invRef.update({
+      mpStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      history: admin.firestore.FieldValue.arrayUnion({
+        type: 'mp_payment_sync_job',
+        at: new Date().toISOString(),
+        by: 'system',
+        mpStatus,
+      }),
+    })
+    await jobRef.update({
+      status: 'done',
+      result: mpStatus,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    })
+    return
+  }
+
+  await invRef.update({
+    status: 'paid',
+    paymentStatus: 'paid',
+    paidAt: admin.firestore.FieldValue.serverTimestamp(),
+    mpStatus,
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    history: admin.firestore.FieldValue.arrayUnion({
+      type: 'mp_payment_sync_job_paid',
+      at: new Date().toISOString(),
+      by: 'system',
+      mpStatus,
+    }),
+  })
+
+  await jobRef.update({
+    status: 'done',
+    result: 'approved',
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  })
+})
+
+exports.subscriptionSyncProcessor = onDocumentWritten({ document: 'subscriptions/{ownerId}', database: 'sistemix' }, async (event) => {
+  const ownerId = String(event?.params?.ownerId || '').trim()
+  if (!ownerId) return
+  const db = getFirestore('sistemix')
+  await updateUnpaidInvoicesAmount({ db, ownerId })
+  await ensureTwoPendingInvoices({ db, ownerId })
+})
+
+exports.invoicePaidProcessor = onDocumentUpdated({ document: 'invoices/{invoiceId}', database: 'sistemix' }, async (event) => {
+  const after = event?.data?.after?.data?.() ? event.data.after.data() : null
+  const before = event?.data?.before?.data?.() ? event.data.before.data() : null
+  if (!after || !before) return
+
+  const wasPaid = isPaidInvoice(before)
+  const isPaid = isPaidInvoice(after)
+  if (wasPaid || !isPaid) return
+
+  const ownerId = String(after.ownerId || '').trim()
+  if (!ownerId) return
+
+  const db = getFirestore('sistemix')
+  await ensureTwoPendingInvoices({ db, ownerId })
 })

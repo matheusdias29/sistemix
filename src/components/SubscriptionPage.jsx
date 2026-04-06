@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { listenSubscription, upsertPlan, computeStatusWithInvoices } from '../services/subscriptions'
 import { listenInvoices, generateInvoicesBatch, requestInfinitePayCheckout } from '../services/invoices'
 import { addInvoice } from '../services/invoices'
 import { updateUser } from '../services/users'
-import { createMercadoPagoPixForInvoice } from '../services/mercadopago'
+import { createMercadoPagoPixForInvoice, syncMercadoPagoInvoicePayment } from '../services/mercadopago'
 
 const PLANS = [
   {
@@ -75,7 +75,12 @@ export default function SubscriptionPage({ user, onBack }) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [payingId, setPayingId] = useState('')
-  const [pixModal, setPixModal] = useState({ open: false, qrBase64: '', qrCode: '', ticketUrl: '' })
+  const [pixModal, setPixModal] = useState({ open: false, invoiceId: '', loading: false, error: '', qrBase64: '', qrCode: '', ticketUrl: '' })
+  const [syncingPayment, setSyncingPayment] = useState(false)
+  const [pixPaidBanner, setPixPaidBanner] = useState(false)
+  const autoSyncIntervalRef = useRef(null)
+  const autoCloseTimeoutRef = useRef(null)
+  const lastSyncAtRef = useRef(0)
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [choosePlanOpen, setChoosePlanOpen] = useState(false)
   const [invoices, setInvoices] = useState([])
@@ -115,6 +120,11 @@ export default function SubscriptionPage({ user, onBack }) {
       if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000)
       return new Date(d)
     } catch { return null }
+  }
+  const isPixValid = (inv) => {
+    const exp = parseDate(inv?.pixExpiresAt)
+    if (!exp || Number.isNaN(exp.getTime())) return true
+    return exp.getTime() > Date.now()
   }
   const startOfToday = () => {
     const t = new Date()
@@ -213,6 +223,165 @@ export default function SubscriptionPage({ user, onBack }) {
     return { text: 'Pendente', className: 'bg-gray-100 text-gray-700' }
   }, [primaryInvoice])
 
+  const isLocalhost = () => {
+    const h = String(window?.location?.hostname || '')
+    return h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0'
+  }
+
+  const generatePixForInvoice = async (invoiceId) => {
+    if (!invoiceId) return
+    setPixModal(prev => ({ ...prev, open: true, invoiceId, loading: true, error: '' }))
+    try {
+      await createMercadoPagoPixForInvoice(invoiceId)
+      setPixModal(prev => ({ ...prev, open: true, invoiceId, loading: true, error: '' }))
+    } catch (e) {
+      const msg = String(e?.message || e || '')
+      setPixModal(prev => ({
+        ...prev,
+        open: true,
+        invoiceId,
+        loading: false,
+        error: msg || 'Falha ao gerar PIX',
+      }))
+    }
+  }
+
+  useEffect(() => {
+    if (!pixModal.open || !pixModal.invoiceId) return
+    const inv = (invoices || []).find(i => i.id === pixModal.invoiceId)
+    if (!inv) return
+    const paid = String(inv.status || '').toLowerCase() === 'paid' || String(inv.paymentStatus || '').toLowerCase() === 'paid'
+    if (paid) {
+      if (autoSyncIntervalRef.current) {
+        clearInterval(autoSyncIntervalRef.current)
+        autoSyncIntervalRef.current = null
+      }
+      setPixPaidBanner(true)
+      if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
+      autoCloseTimeoutRef.current = setTimeout(() => {
+        setPixPaidBanner(false)
+        setPixModal({ open: false, invoiceId: '', loading: false, error: '', qrBase64: '', qrCode: '', ticketUrl: '' })
+      }, 1200)
+      return
+    }
+    const existingQr = inv.pixQrCodeBase64 || inv.qrCodeBase64 || ''
+    const existingCode = inv.pixCopyPaste || inv.qrCode || ''
+    const existingTicket = inv.ticketUrl || inv.paymentUrl || ''
+    if ((existingQr || existingCode) && isPixValid(inv)) {
+      setPixModal(prev => ({
+        ...prev,
+        open: true,
+        loading: false,
+        error: '',
+        qrBase64: existingQr,
+        qrCode: existingCode,
+        ticketUrl: existingTicket,
+      }))
+    } else if ((existingQr || existingCode) && !isPixValid(inv)) {
+      setPixModal(prev => ({
+        ...prev,
+        open: true,
+        loading: false,
+        error: 'PIX expirado. Gere um novo.',
+        qrBase64: '',
+        qrCode: '',
+        ticketUrl: existingTicket,
+      }))
+    } else if (pixModal.loading) {
+      const status = String(inv.paymentStatus || inv.status || '').toLowerCase()
+      if (status === 'error') {
+        setPixModal(prev => ({ ...prev, open: true, loading: false, error: 'Falha ao gerar PIX' }))
+      }
+    }
+  }, [pixModal.open, pixModal.invoiceId, pixModal.loading, invoices])
+
+  const triggerPaymentSync = useCallback(async (invoiceId) => {
+    const id = String(invoiceId || '').trim()
+    if (!id) return
+    const now = Date.now()
+    if (now - lastSyncAtRef.current < 6000) return
+    lastSyncAtRef.current = now
+    setSyncingPayment(true)
+    try {
+      await syncMercadoPagoInvoicePayment(id)
+    } finally {
+      setSyncingPayment(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!pixModal.open || !pixModal.invoiceId) return
+    if (!pixModal.qrBase64 && !pixModal.qrCode) return
+    if (pixPaidBanner) return
+
+    if (!autoSyncIntervalRef.current) {
+      triggerPaymentSync(pixModal.invoiceId).catch(() => {})
+      autoSyncIntervalRef.current = setInterval(() => {
+        triggerPaymentSync(pixModal.invoiceId).catch(() => {})
+      }, 8000)
+    }
+
+    return () => {
+      if (autoSyncIntervalRef.current) {
+        clearInterval(autoSyncIntervalRef.current)
+        autoSyncIntervalRef.current = null
+      }
+    }
+  }, [pixModal.open, pixModal.invoiceId, pixModal.qrBase64, pixModal.qrCode, pixPaidBanner, triggerPaymentSync])
+
+  useEffect(() => {
+    return () => {
+      if (autoSyncIntervalRef.current) clearInterval(autoSyncIntervalRef.current)
+      if (autoCloseTimeoutRef.current) clearTimeout(autoCloseTimeoutRef.current)
+    }
+  }, [])
+
+  const printPix = () => {
+    const qrBase64 = pixModal.qrBase64 || ''
+    const qrCode = pixModal.qrCode || ''
+    const ticketUrl = pixModal.ticketUrl || ''
+    const win = window.open('', '_blank', 'noopener,noreferrer,width=800,height=900')
+    if (!win) return
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>Pagamento PIX</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 24px; color: #111; }
+            .wrap { max-width: 520px; margin: 0 auto; }
+            h1 { font-size: 18px; margin: 0 0 8px; }
+            p { font-size: 12px; color: #444; margin: 0 0 16px; }
+            .qr { display: flex; justify-content: center; margin: 16px 0; }
+            img { width: 260px; height: 260px; border: 1px solid #e5e7eb; border-radius: 12px; }
+            .label { font-size: 11px; font-weight: 700; color: #555; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: .04em; }
+            .code { font-size: 11px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; word-break: break-all; white-space: pre-wrap; }
+            .link { font-size: 11px; margin-top: 10px; color: #111; word-break: break-all; }
+            .footer { margin-top: 18px; font-size: 10px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="wrap">
+            <h1>Pagamento via PIX</h1>
+            <p>Escaneie o QR Code ou utilize o PIX Copia e Cola.</p>
+            ${qrBase64 ? `<div class="qr"><img src="data:image/png;base64,${qrBase64}" alt="QR Code PIX" /></div>` : ''}
+            ${qrCode ? `<div class="label">PIX Copia e Cola</div><div class="code">${qrCode}</div>` : ''}
+            ${ticketUrl ? `<div class="link">Link: ${ticketUrl}</div>` : ''}
+            <div class="footer">Gerado pelo SistemaMix</div>
+          </div>
+          <script>
+            setTimeout(() => { window.print(); }, 200);
+          </script>
+        </body>
+      </html>
+    `
+    win.document.open()
+    win.document.write(html)
+    win.document.close()
+  }
+
   const openPaymentForInvoice = async (inv) => {
     if (!inv?.id) return
     setError('')
@@ -224,18 +393,14 @@ export default function SubscriptionPage({ user, onBack }) {
       const existingCode = inv.pixCopyPaste || inv.qrCode || ''
       const existingTicket = inv.ticketUrl || inv.paymentUrl || ''
 
-      if (provider === 'mercadopago' && (existingQr || existingCode)) {
-        setPixModal({ open: true, qrBase64: existingQr, qrCode: existingCode, ticketUrl: existingTicket })
+      if (provider === 'mercadopago' && (existingQr || existingCode) && isPixValid(inv)) {
+        setPixModal({ open: true, invoiceId: inv.id, loading: false, error: '', qrBase64: existingQr, qrCode: existingCode, ticketUrl: existingTicket })
         return
       }
 
       if (pm === 'PIX') {
-        const data = await createMercadoPagoPixForInvoice(inv.id)
-        const qrCode = data?.qr_code || data?.qrCode || ''
-        const qrBase64 = data?.qr_code_base64 || data?.qrBase64 || ''
-        const ticketUrl = data?.ticket_url || data?.ticketUrl || ''
-        if (!qrCode && !qrBase64 && !ticketUrl) throw new Error('Não foi possível gerar o PIX.')
-        setPixModal({ open: true, qrBase64, qrCode, ticketUrl })
+        setPixModal({ open: true, invoiceId: inv.id, loading: false, error: '', qrBase64: '', qrCode: '', ticketUrl: existingTicket })
+        await generatePixForInvoice(inv.id)
         return
       }
 
@@ -597,6 +762,8 @@ export default function SubscriptionPage({ user, onBack }) {
             <tbody>
               {invoices
                 .filter(i => {
+                  const due = parseDate(i?.dueDate)
+                  if (!due || due.getFullYear() < 2000) return false
                   const st = invoiceComputedStatus(i)
                   if (filters.status !== 'all' && st !== filters.status) return false
                   if (filters.start) {
@@ -676,13 +843,61 @@ export default function SubscriptionPage({ user, onBack }) {
               <button
                 type="button"
                 className="p-2 rounded-full hover:bg-gray-100 text-gray-600"
-                onClick={() => setPixModal({ open: false, qrBase64: '', qrCode: '', ticketUrl: '' })}
+                onClick={() => {
+                  if (autoSyncIntervalRef.current) {
+                    clearInterval(autoSyncIntervalRef.current)
+                    autoSyncIntervalRef.current = null
+                  }
+                  if (autoCloseTimeoutRef.current) {
+                    clearTimeout(autoCloseTimeoutRef.current)
+                    autoCloseTimeoutRef.current = null
+                  }
+                  setPixPaidBanner(false)
+                  setPixModal({ open: false, invoiceId: '', loading: false, error: '', qrBase64: '', qrCode: '', ticketUrl: '' })
+                }}
               >
                 ×
               </button>
             </div>
 
             <div className="p-5 space-y-4">
+              {pixPaidBanner && (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 font-semibold">
+                  Pago
+                </div>
+              )}
+
+              {!pixModal.qrBase64 && !pixModal.qrCode && (
+                <div className="rounded-xl border bg-gray-50 p-4 text-sm text-gray-700">
+                  <div className="font-semibold text-gray-900">Gerar PIX</div>
+                  <div className="text-xs text-gray-600 mt-1">
+                    Se a integração ainda não estiver publicada, o QR Code não será gerado. Você pode publicar a function e tentar novamente.
+                  </div>
+                  {pixModal.error ? (
+                    <div className="mt-3 text-xs text-red-600 font-semibold">{pixModal.error}</div>
+                  ) : null}
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      disabled={pixModal.loading}
+                      className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
+                      onClick={() => generatePixForInvoice(pixModal.invoiceId)}
+                    >
+                      {pixModal.loading ? 'Gerando...' : 'Gerar QR Code'}
+                    </button>
+                    {pixModal.ticketUrl ? (
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                        onClick={() => window.open(pixModal.ticketUrl, '_blank', 'noopener,noreferrer')}
+                      >
+                        Abrir link
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              )}
+
               {pixModal.qrBase64 ? (
                 <div className="flex items-center justify-center">
                   <img
@@ -695,7 +910,13 @@ export default function SubscriptionPage({ user, onBack }) {
 
               {pixModal.qrCode ? (
                 <div>
-                  <div className="text-xs font-semibold text-gray-600 mb-2">PIX Copia e Cola</div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="text-xs font-semibold text-gray-600">PIX Copia e Cola</div>
+                    <div className="flex items-center gap-2 text-[11px] text-gray-500 font-semibold">
+                      <span className={`inline-block w-3 h-3 rounded-full border-2 border-gray-300 ${syncingPayment ? 'border-t-blue-600' : 'border-t-gray-500'} animate-spin`}></span>
+                      <span>{syncingPayment ? 'Verificando pagamento...' : 'Aguardando pagamento...'}</span>
+                    </div>
+                  </div>
                   <div className="p-3 rounded-xl border bg-gray-50 text-xs text-gray-700 break-all">
                     {pixModal.qrCode}
                   </div>
@@ -708,6 +929,13 @@ export default function SubscriptionPage({ user, onBack }) {
                       }}
                     >
                       Copiar código
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-xl border text-sm hover:bg-gray-50"
+                      onClick={printPix}
+                    >
+                      Imprimir
                     </button>
                     {pixModal.ticketUrl ? (
                       <button

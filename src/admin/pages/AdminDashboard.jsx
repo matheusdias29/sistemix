@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { listenUsers, updateUser } from '../../services/users'
 import { listenAllStores, updateStore } from '../../services/stores'
 import { listenAllSubscriptions, updateSubscription } from '../../services/subscriptions'
-import { getInvoicesByOwner } from '../../services/invoices'
+import { deleteInvoice, getInvoicesByOwner } from '../../services/invoices'
 import { Users, Store, ChevronDown, ChevronRight, User, MoreVertical, UserCheck, Clock, Ban, X } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -22,6 +22,7 @@ export default function AdminDashboard() {
   const [savingStoreDate, setSavingStoreDate] = useState({})
   const [expiryEdit, setExpiryEdit] = useState('')
   const [savingExpiry, setSavingExpiry] = useState(false)
+  const [deletingInvoice, setDeletingInvoice] = useState({})
 
   useEffect(() => {
     const unsubUsers = listenUsers((data) => {
@@ -165,6 +166,23 @@ export default function AdminDashboard() {
       alert('Erro ao salvar data de criação da loja')
     } finally {
       setSavingStoreDate(prev => ({ ...prev, [storeId]: false }))
+    }
+  }
+
+  const handleDeleteInvoice = async (invoice) => {
+    if (!invoice?.id) return
+    const label = invoice?.number ? `#${invoice.number}` : invoice.id
+    const ok = window.confirm(`Deseja excluir a fatura ${label}? Isso não pode ser desfeito.`)
+    if (!ok) return
+    setDeletingInvoice(prev => ({ ...prev, [invoice.id]: true }))
+    try {
+      await deleteInvoice(invoice.id)
+      setEditInvoices(prev => (prev || []).filter(i => i.id !== invoice.id))
+    } catch (e) {
+      console.error('Erro ao excluir fatura', e)
+      alert('Erro ao excluir fatura')
+    } finally {
+      setDeletingInvoice(prev => ({ ...prev, [invoice.id]: false }))
     }
   }
 
@@ -487,6 +505,7 @@ export default function AdminDashboard() {
                             <th className="px-3 py-2 text-right">Valor</th>
                             <th className="px-3 py-2">Status</th>
                             <th className="px-3 py-2">Dias</th>
+                            <th className="px-3 py-2 text-right">Ações</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -514,6 +533,16 @@ export default function AdminDashboard() {
                                     <span className={`px-2 py-1 rounded text-xs ${badge}`}>{label}</span>
                                   </td>
                                   <td className="px-3 py-2">{st === 'overdue' ? daysOverdue(inv.dueDate) : 0}</td>
+                                  <td className="px-3 py-2 text-right">
+                                    <button
+                                      type="button"
+                                      disabled={!!deletingInvoice[inv.id]}
+                                      className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
+                                      onClick={() => handleDeleteInvoice(inv)}
+                                    >
+                                      {deletingInvoice[inv.id] ? 'Excluindo...' : 'Excluir'}
+                                    </button>
+                                  </td>
                                 </tr>
                               )
                             })}
