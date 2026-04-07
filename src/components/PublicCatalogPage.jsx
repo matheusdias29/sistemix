@@ -11,6 +11,8 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   const [storeData, setStoreData] = useState(store)
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Todos')
+  const [currentPage, setCurrentPage] = useState(1)
+  const ITEMS_PER_PAGE = 30
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [bannerIndex, setBannerIndex] = useState(0)
   const hoverRef = useRef(false)
@@ -21,6 +23,11 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   useEffect(() => {
     setStoreData(store)
   }, [store])
+
+  // Reset page when filtering
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [query, selectedCategory])
 
   useEffect(() => {
     if (!storeId) return
@@ -100,6 +107,13 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
 
     return list
   }, [productsWithCategory, query, selectedCategory, outOfStockSetting])
+
+  const paginatedResults = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE
+    return filtered.slice(start, start + ITEMS_PER_PAGE)
+  }, [filtered, currentPage, ITEMS_PER_PAGE])
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1
 
   if (loading) {
     return (
@@ -309,13 +323,14 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                <h2 className="text-2xl font-bold text-gray-900">{selectedCategory}</h2>
                <p className="text-sm text-gray-500 mt-1">
                  {filtered.length} {filtered.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+                 {totalPages > 1 && ` - Exibindo página ${currentPage} de ${totalPages}`}
                </p>
              </div>
           </div>
 
           {/* Product Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {filtered.map(p => {
+            {paginatedResults.map(p => {
               const variations = Array.isArray(p.variationsData) ? p.variationsData : []
               
               // Pricing Logic
@@ -454,6 +469,66 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
               )
             })}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 py-10">
+              <button 
+                onClick={() => {
+                  setCurrentPage(p => Math.max(1, p - 1))
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                disabled={currentPage === 1}
+                className="p-2.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-600 transition-all shadow-sm disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200"
+              >
+                <ChevronRight className="rotate-180" size={20} />
+              </button>
+              
+              <div className="flex items-center gap-2">
+                {[...Array(totalPages)].map((_, i) => {
+                  const p = i + 1
+                  // Mostrar apenas as primeiras 3, a atual, e as últimas 3 se houver muitas páginas
+                  const isNearCurrent = Math.abs(p - currentPage) <= 1
+                  const isStartOrEnd = p <= 2 || p >= totalPages - 1
+                  
+                  if (!isNearCurrent && !isStartOrEnd) {
+                    if (p === 3 || p === totalPages - 2) {
+                      return <span key={p} className="text-gray-400 px-1">...</span>
+                    }
+                    return null
+                  }
+
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        setCurrentPage(p)
+                        window.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      className={`w-10 h-10 rounded-full text-sm font-bold transition-all ${
+                        currentPage === p 
+                          ? 'bg-green-600 text-white shadow-md' 
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-green-600 hover:text-green-600'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+              </div>
+
+              <button 
+                onClick={() => {
+                  setCurrentPage(p => Math.min(totalPages, p + 1))
+                  window.scrollTo({ top: 0, behavior: 'smooth' })
+                }}
+                disabled={currentPage === totalPages}
+                className="p-2.5 rounded-full bg-white border border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-600 transition-all shadow-sm disabled:opacity-30 disabled:hover:text-gray-500 disabled:hover:border-gray-200"
+              >
+                <ChevronRight size={20} />
+              </button>
+            </div>
+          )}
 
           {filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
