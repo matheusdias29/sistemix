@@ -1,16 +1,46 @@
 import React, { useEffect, useState } from 'react'
 import { LayoutDashboard, Users, Store, LogOut, Bell } from 'lucide-react'
 import { listenUsers } from '../../services/users'
+import { listenAllSubscriptions } from '../../services/subscriptions'
 
 export default function AdminLayout({ children, user, onViewChange, currentView, onLogout }) {
   const [trialUsersCount, setTrialUsersCount] = useState(0)
+  const [users, setUsers] = useState([])
+  const [subs, setSubs] = useState([])
+
+  const toDate = (d) => {
+    if (!d) return null
+    try {
+      if (typeof d?.toDate === 'function') return d.toDate()
+      if (typeof d?.seconds === 'number') return new Date(d.seconds * 1000)
+      const x = new Date(d)
+      return Number.isNaN(x.getTime()) ? null : x
+    } catch {
+      return null
+    }
+  }
+
   useEffect(() => {
-    const unsub = listenUsers((list) => {
-      const count = list.filter(u => !!u.trial).length
-      setTrialUsersCount(count)
-    })
-    return () => unsub && unsub()
+    const unsubUsers = listenUsers((list) => setUsers(list))
+    const unsubSubs = listenAllSubscriptions((list) => setSubs(list))
+    return () => { unsubUsers && unsubUsers(); unsubSubs && unsubSubs() }
   }, [])
+
+  useEffect(() => {
+    const now = new Date()
+    const subsByOwner = {}
+    ;(subs || []).forEach(s => { if (s?.id) subsByOwner[s.id] = s })
+
+    const count = (users || []).filter(u => {
+      if (!u) return false
+      if (!!u.trial) return true
+      const sub = subsByOwner[u.id]
+      const trialEnd = toDate(sub?.trialEnd)
+      return !!trialEnd && trialEnd.getTime() >= now.getTime()
+    }).length
+
+    setTrialUsersCount(count)
+  }, [users, subs])
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

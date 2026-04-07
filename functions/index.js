@@ -870,6 +870,8 @@ exports.verifyCodeAndCompleteRegistration = onCall({ cors: true }, async (reques
       email,
       password,
       whatsapp,
+      trial: true,
+      trialValidUntil: admin.firestore.Timestamp.fromDate(trialEnd),
       isAdmin: false,
       isSeller: false,
       isTech: false,

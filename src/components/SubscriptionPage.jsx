@@ -100,6 +100,13 @@ export default function SubscriptionPage({ user, onBack }) {
   }, [ownerId])
 
   const statusLabel = useMemo(() => {
+    const now = new Date()
+    try {
+      const trialEnd = sub?.trialEnd?.toDate ? sub.trialEnd.toDate() : (sub?.trialEnd ? new Date(sub.trialEnd) : null)
+      if (trialEnd && trialEnd.getTime && trialEnd.getTime() >= now.getTime()) {
+        return { text: 'Em teste', className: 'bg-blue-100 text-blue-700' }
+      }
+    } catch {}
     const st = computeStatusWithInvoices(sub, invoices)
     if (st === 'cancelado') return { text: 'Cancelado', className: 'bg-red-100 text-red-700' }
     if (st === 'em_atraso') return { text: 'Em atraso', className: 'bg-amber-100 text-amber-700' }
