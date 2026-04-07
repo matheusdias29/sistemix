@@ -556,12 +556,16 @@ export default function SubscriptionPage({ user, onBack }) {
           {PLANS.map(p => (
             <div
               key={p.id}
-              className={`rounded-2xl border border-gray-100 p-6 bg-gradient-to-br from-slate-50 to-white shadow-sm hover:shadow-md ${p.id==='premium-2026' ? 'ring-1 ring-blue-300' : ''}`}
+              className={`rounded-2xl border p-6 bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all ${
+                p.id === 'premium-2026' 
+                  ? 'border-blue-500 ring-1 ring-blue-500/20' 
+                  : 'border-gray-100 dark:border-gray-700'
+              }`}
             >
               <div className="flex items-center justify-between">
-                <div className="text-lg font-bold text-gray-900">{p.name}</div>
+                <div className="text-lg font-bold text-gray-900 dark:text-white">{p.name}</div>
                 {p.id==='premium-2026' && (
-                  <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-700">Recomendado</span>
+                  <span className="px-2 py-1 rounded text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400">Recomendado</span>
                 )}
               </div>
               <div className="mt-4 grid grid-cols-1 gap-3">
@@ -577,17 +581,17 @@ export default function SubscriptionPage({ user, onBack }) {
                       billingCycle: cycle.id,
                       graceDays: p.graceDays
                     })}
-                    className="flex items-center justify-between px-4 py-3 rounded-lg border text-sm transition-colors hover:bg-gray-50"
+                    className="flex items-center justify-between px-4 py-3 rounded-lg border text-sm transition-colors bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/50"
                   >
                     <span>{cycle.label}</span>
                     <span className="font-semibold">R$ {cycle.price.toFixed(2)}</span>
                   </button>
                 ))}
               </div>
-              <div className="mt-3 rounded-lg border border-gray-200 bg-white/90 p-4 space-y-2">
+              <div className="mt-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-4 space-y-2">
                 {p.details.map((t, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-sm text-gray-700">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <div key={idx} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-green-600 dark:text-green-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
                     </svg>
                     <span>{t}</span>
@@ -600,41 +604,41 @@ export default function SubscriptionPage({ user, onBack }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="rounded-2xl bg-white p-6 shadow border border-gray-100">
-          <div className="text-base font-semibold text-gray-800">Status atual</div>
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow border border-gray-100 dark:border-gray-700">
+          <div className="text-base font-semibold text-gray-800 dark:text-white">Status atual</div>
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusLabel.className}`}>
               {statusLabel.text}
             </span>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-600 dark:text-gray-400">
               Plano: {sub?.planName || '—'}
               {sub?.billingCycle ? ` • ${sub.billingCycle === 'monthly' ? 'Mensal' : sub.billingCycle === 'semiannual' ? 'Semestral' : 'Anual'}` : ''}
               {sub?.price ? ` • R$ ${Number(sub.price).toFixed(2)}` : ''}
             </span>
-            <span className="text-sm text-gray-600">Próx. vencimento: {formatDate(sub?.nextDueDate)}</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">Próx. vencimento: {formatDate(sub?.nextDueDate)}</span>
             {sub?.trialEnd && (
-              <span className="text-sm text-blue-700 bg-blue-50 px-2 py-1 rounded">
+              <span className="text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded">
                 Teste expira em: {formatDate(sub.trialEnd)}
               </span>
             )}
           </div>
-          {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+          {error && <div className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</div>}
         </div>
 
-        <div className="rounded-2xl bg-white p-6 shadow border border-gray-100">
-          <div className="text-base font-semibold text-gray-800">Fatura</div>
+        <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow border border-gray-100 dark:border-gray-700">
+          <div className="text-base font-semibold text-gray-800 dark:text-white">Fatura</div>
           <div className="mt-3 flex items-center gap-3">
             <span className={`px-3 py-1 rounded-full text-xs font-medium ${invoiceTopStatus.className}`}>
               {invoiceTopStatus.text}
             </span>
             {primaryInvoice ? (
-              <span className="text-sm text-gray-600">Vencimento: {formatDate(primaryInvoice.dueDate)}</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Vencimento: {formatDate(primaryInvoice.dueDate)}</span>
             ) : (
-              <span className="text-sm text-gray-600">Nenhuma fatura pendente.</span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">Nenhuma fatura pendente.</span>
             )}
           </div>
           {primaryInvoice ? (
-            <div className="mt-2 text-sm text-gray-700">
+            <div className="mt-2 text-sm text-gray-700 dark:text-gray-300">
               Valor: <span className="font-semibold">R$ {Number(primaryInvoice.amount || 0).toFixed(2)}</span>
             </div>
           ) : null}
@@ -650,37 +654,37 @@ export default function SubscriptionPage({ user, onBack }) {
               </button>
             ) : null}
           </div>
-          <div className="mt-4 pt-4 border-t">
-            <div className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Próxima</div>
+          <div className="mt-4 pt-4 border-t dark:border-gray-700">
+            <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Próxima</div>
             {nextInvoice ? (
               <div className="mt-2 flex items-center justify-between gap-3">
-                <div className="text-sm text-gray-700">
+                <div className="text-sm text-gray-700 dark:text-gray-300">
                   {formatDate(nextInvoice.dueDate)} • R$ {Number(nextInvoice.amount || 0).toFixed(2)}
                 </div>
                 <span className={`px-2 py-1 rounded text-xs ${
                   invoiceComputedStatus(nextInvoice) === 'paid'
-                    ? 'bg-green-100 text-green-700'
+                    ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                     : invoiceComputedStatus(nextInvoice) === 'overdue'
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-gray-100 text-gray-700'
+                      ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                 }`}>
                   {invoiceComputedStatus(nextInvoice) === 'paid' ? 'Em dia' : invoiceComputedStatus(nextInvoice) === 'overdue' ? 'Em atraso' : 'Pendente'}
                 </span>
               </div>
             ) : (
-              <div className="mt-2 text-sm text-gray-600">Próxima fatura ainda não gerada.</div>
+              <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">Próxima fatura ainda não gerada.</div>
             )}
           </div>
         </div>
 
         {needsFirstInvoice && (
-          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-6">
-            <div className="text-sm text-blue-900">Crie a primeira fatura para após o período de teste.</div>
+          <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-6">
+            <div className="text-sm text-blue-900 dark:text-blue-300 font-medium">Crie a primeira fatura para após o período de teste.</div>
             <div className="mt-3 flex items-center gap-3">
               <select
                 value={firstInvoiceMethod}
                 onChange={e => setFirstInvoiceMethod(e.target.value)}
-                className="px-3 py-2 border rounded text-sm"
+                className="px-3 py-2 border rounded text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
               >
                 <option value="PIX">PIX</option>
                 <option value="CARTAO">Cartão</option>
@@ -699,15 +703,15 @@ export default function SubscriptionPage({ user, onBack }) {
         )}
       </div>
 
-      <div className="rounded-2xl bg-white p-6 shadow border border-gray-100">
+      <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow border border-gray-100 dark:border-gray-700">
         <div className="flex items-center justify-between">
-          <div className="text-base font-semibold text-gray-800">Faturas</div>
+          <div className="text-base font-semibold text-gray-800 dark:text-white">Faturas</div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={saving}
               onClick={runBatchGeneration}
-              className="px-3 py-2 rounded bg-gray-900 text-white text-sm hover:bg-black disabled:opacity-60"
+              className="px-3 py-2 rounded bg-gray-900 dark:bg-gray-700 text-white text-sm hover:bg-black dark:hover:bg-gray-600 disabled:opacity-60"
             >
               Gerar automaticamente
             </button>
@@ -717,7 +721,7 @@ export default function SubscriptionPage({ user, onBack }) {
           <select
             value={filters.status}
             onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))}
-            className="px-3 py-2 border rounded text-sm"
+            className="px-3 py-2 border rounded text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
           >
             <option value="all">Todos</option>
             <option value="pending">Pendentes</option>
@@ -728,28 +732,28 @@ export default function SubscriptionPage({ user, onBack }) {
             type="date"
             value={filters.start}
             onChange={e => setFilters(prev => ({ ...prev, start: e.target.value }))}
-            className="px-3 py-2 border rounded text-sm"
+            className="px-3 py-2 border rounded text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
             placeholder="Início"
           />
           <input
             type="date"
             value={filters.end}
             onChange={e => setFilters(prev => ({ ...prev, end: e.target.value }))}
-            className="px-3 py-2 border rounded text-sm"
+            className="px-3 py-2 border rounded text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
             placeholder="Fim"
           />
           <input
             type="text"
             value={filters.search}
             onChange={e => setFilters(prev => ({ ...prev, search: e.target.value }))}
-            className="px-3 py-2 border rounded text-sm"
+            className="px-3 py-2 border rounded text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
             placeholder="Buscar cliente/descrição"
           />
         </div>
         <div className="mt-4 overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-600">
+              <tr className="text-left text-gray-600 dark:text-gray-400">
                 <th className="px-3 py-2">Nº</th>
                 <th className="px-3 py-2">Cliente</th>
                 <th className="px-3 py-2 text-right">Valor</th>
@@ -759,7 +763,7 @@ export default function SubscriptionPage({ user, onBack }) {
                 <th className="px-3 py-2 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
               {invoices
                 .filter(i => {
                   const due = parseDate(i?.dueDate)
@@ -790,20 +794,26 @@ export default function SubscriptionPage({ user, onBack }) {
                   return da - db
                 })
                 .map(i => (
-                  <tr key={i.id} className="border-t">
-                    <td className="px-3 py-2">{i.number || '-'}</td>
-                    <td className="px-3 py-2">{i.clientName || 'Assinatura'}</td>
-                    <td className="px-3 py-2 text-right">R$ {Number(i.amount||0).toFixed(2)}</td>
-                    <td className="px-3 py-2">{formatDate(i.dueDate)}</td>
-                    <td className="px-3 py-2">{invoiceComputedStatus(i)==='overdue' ? daysOverdue(i.dueDate) : 0}</td>
+                  <tr key={i.id} className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors">
+                    <td className="px-3 py-2 dark:text-gray-300">{i.number || '-'}</td>
+                    <td className="px-3 py-2 dark:text-gray-300">{i.clientName || 'Assinatura'}</td>
+                    <td className="px-3 py-2 text-right dark:text-gray-300 font-medium">R$ {Number(i.amount||0).toFixed(2)}</td>
+                    <td className="px-3 py-2 dark:text-gray-300">{formatDate(i.dueDate)}</td>
+                    <td className="px-3 py-2 dark:text-gray-300">{invoiceComputedStatus(i)==='overdue' ? daysOverdue(i.dueDate) : 0}</td>
                     <td className="px-3 py-2">
-                      <span className={`px-2 py-1 rounded text-xs ${invoiceComputedStatus(i)==='paid' ? 'bg-green-100 text-green-700' : invoiceComputedStatus(i)==='overdue' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-700'}`}>
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        invoiceComputedStatus(i)==='paid' 
+                          ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
+                          : invoiceComputedStatus(i)==='overdue' 
+                            ? 'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400' 
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                      }`}>
                         {invoiceComputedStatus(i)==='paid' ? 'Paga' : invoiceComputedStatus(i)==='overdue' ? 'Em atraso' : 'Pendente'}
                       </span>
                     </td>
                     <td className="px-3 py-2 text-right">
                       {invoiceComputedStatus(i)==='paid' ? (
-                        <button type="button" disabled className="px-3 py-1.5 rounded border text-xs text-gray-500">
+                        <button type="button" disabled className="px-3 py-1.5 rounded border border-gray-200 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500">
                           Pago
                         </button>
                       ) : (
@@ -811,7 +821,7 @@ export default function SubscriptionPage({ user, onBack }) {
                           type="button"
                           onClick={() => openPaymentForInvoice(i)}
                           disabled={!!payingId}
-                          className="px-3 py-1.5 rounded border text-xs hover:bg-gray-50 disabled:opacity-60"
+                          className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
                         >
                           {payingId === i.id ? 'Abrindo...' : 'Pagar'}
                         </button>
@@ -821,14 +831,14 @@ export default function SubscriptionPage({ user, onBack }) {
                 ))}
               {invoices.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-3 py-4 text-gray-600">Nenhuma fatura encontrada.</td>
+                  <td colSpan={7} className="px-3 py-4 text-gray-600 dark:text-gray-400">Nenhuma fatura encontrada.</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
         {batchLog.open && (
-          <div className="mt-3 text-xs text-gray-600">Resultado: {batchLog.text}</div>
+          <div className="mt-3 text-xs text-gray-600 dark:text-gray-400">Resultado: {batchLog.text}</div>
         )}
       </div>
 
