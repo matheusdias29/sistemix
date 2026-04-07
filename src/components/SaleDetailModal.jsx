@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { updateOrder, deleteOrder } from '../services/orders'
-import { updateProduct } from '../services/products'
+import { updateProduct, getProductById } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
 import ShareSaleModal from './ShareSaleModal'
 
@@ -98,118 +98,138 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
             onClick={async () => {
               if (!window.confirm('Tem certeza que deseja cancelar esta venda? O estoque dos produtos será devolvido.')) return
               try {
-                // Restock products
-                const items = Array.isArray(sale.products) ? sale.products : []
+                const currentStatus = (sale.status || '').toLowerCase()
+                // Somente devolve estoque se o status atual for um que reservou/descontou estoque
+                // De acordo com NewSaleModal.jsx, esses são: Venda, Pedido, Cliente Final, Cliente Lojista
+                const statusesThatDeductStock = ['venda', 'pedido', 'cliente final', 'cliente lojista', 'finalizado', 'pago']
+                const shouldRestock = statusesThatDeductStock.includes(currentStatus)
+
+                if (shouldRestock) {
+                  // Restock products - Grouping by product/variation to avoid race conditions
+                  const items = Array.isArray(sale.products) ? sale.products : []
+                
+                // key: productId + (variationName || '')
+                const restockingMap = new Map()
+                
+                for (const it of items) {
+                  const qty = Math.max(0, parseFloat(it.quantity) || 0)
+                  if (qty <= 0) continue
+                  
+                  const pid = String(it.id || '')
+                  const vname = String(it.variationName || '').trim() || null
+                  const key = vname ? `${pid}|${vname}` : pid
+                  
+                  if (restockingMap.has(key)) {
+                    restockingMap.get(key).quantity += qty
+                  } else {
+                    restockingMap.set(key, { 
+                      productId: pid, 
+                      variationName: vname, 
+                      quantity: qty,
+                      originalName: it.name 
+                    })
+                  }
+                }
+
                 let restoredCount = 0
 
-                for (const it of items) {
-                    const qty = Math.max(0, parseFloat(it.quantity) || 0)
-                    if (qty <= 0) continue
-
-                    let prod = products.find(p => p.id === it.id)
+                for (const [key, entry] of restockingMap.entries()) {
+                    const { productId, variationName, quantity, originalName } = entry
                     
-                    // Fallback 1: Composite ID Check (BaseID-VariationName)
-                    if (!prod && String(it.id).includes('-')) {
-                      // Try to find a product whose ID is the prefix of the item ID
-                      prod = products.find(p => String(it.id).startsWith(p.id + '-'))
+                    let prod = products.find(p => p.id === productId)
+                    
+                    // Fallback 1: Composite ID Check (BaseID-VariationName) if ID in sale was composite
+                    if (!prod && productId.includes('-')) {
+                      prod = products.find(p => productId.startsWith(p.id + '-'))
                     }
 
-                    // Fallback 2: Name Matching
+                    // Fallback 2: Get from Firestore if not in cache
                     if (!prod) {
-                      const pNameRaw = String(it.name || '')
-                      // Split by ' - ' to separate Base and Variation (common pattern)
+                      let pid = productId
+                      if (String(pid).includes('-')) {
+                        pid = String(pid).split('-')[0]
+                      }
+                      try {
+                        prod = await getProductById(pid)
+                      } catch (err) {
+                        console.error('Erro ao buscar produto do banco:', err)
+                      }
+                    }
+
+                    // Fallback 3: Name Matching (using originalName from sale)
+                    if (!prod) {
+                      const pNameRaw = String(originalName || '')
                       const parts = pNameRaw.split(' - ')
                       let baseName = parts.length > 1 ? parts[0] : pNameRaw
-                      
-                      // Clean up potential " -- 1" suffix from base name (seen in some formats)
                       baseName = baseName.replace(/ -- \d+$/, '').trim()
 
-                      // Try exact match
                       let candidates = products.filter(p => String(p.name || '').trim() === baseName)
-                      
-                      // If no exact match, try checking if product name is contained in the item name
                       if (candidates.length === 0) {
                          candidates = products.filter(p => pNameRaw.startsWith(String(p.name || '').trim()))
                       }
-                      
                       if (candidates.length > 0) prod = candidates[0]
                     }
 
                     if (prod) {
-                      console.log('Restocking product:', prod.name, 'Qty:', qty)
+                      console.log('Restocking product:', prod.name, 'Qty:', quantity)
                       
-                      // Check if it's a variation
-                      let isVariation = false
-                      let varName = it.variationName || null
+                      let isVariationUpdated = false
+                      let targetVarName = variationName
 
-                      // Improved variation detection strategy
-                      if (Array.isArray(prod.variationsData) && prod.variationsData.length > 0) {
-                        // If we don't have explicit varName, try to extract it
-                        if (!varName) {
-                           const pName = String(it.name || '')
-                           // Sort variations by length descending to match longest possible suffix first
-                           const sortedVars = [...prod.variationsData].sort((a, b) => (b.name || b.label || '').length - (a.name || a.label || '').length)
-                           
-                           for (const v of sortedVars) {
-                             const vLabel = v.name || v.label || ''
-                             // Check for " - Label" or just "Label" at the end, or if the name contains the label
-                             if (vLabel && (pName.endsWith(` - ${vLabel}`) || pName.includes(vLabel))) {
-                               varName = vLabel
-                               break
-                             }
+                      // If variationName was not in sale, try to extract from originalName if product has variations
+                      if (!targetVarName && Array.isArray(prod.variationsData) && prod.variationsData.length > 0) {
+                         const pName = String(originalName || '')
+                         const sortedVars = [...prod.variationsData].sort((a, b) => (b.name || b.label || '').length - (a.name || a.label || '').length)
+                         for (const v of sortedVars) {
+                           const vLabel = v.name || v.label || ''
+                           if (vLabel && (pName.endsWith(` - ${vLabel}`) || pName.includes(vLabel))) {
+                             targetVarName = vLabel
+                             break
                            }
-                        }
+                         }
                       }
 
-                      if (Array.isArray(prod.variationsData) && prod.variationsData.length > 0 && varName) {
-                        const idx = prod.variationsData.findIndex(v => String(v?.name || v?.label || '') === varName)
+                      // Apply restocking to variationsData if applicable
+                      if (Array.isArray(prod.variationsData) && prod.variationsData.length > 0 && targetVarName) {
+                        const idx = prod.variationsData.findIndex(v => String(v?.name || v?.label || '') === targetVarName)
                         if (idx >= 0) {
-                          isVariation = true
+                          isVariationUpdated = true
                           const itemsVar = prod.variationsData.map(v => ({ ...v }))
-                          
-                          // Determine if we should restore to Shared Stock (Base) or Own Stock
-                          // Logic: If the variation has 0 stock capacity (stock + stockInitial approx 0), it uses shared stock.
                           const ownVar = itemsVar[idx]
                           
-                          // If it's the base variation (idx 0), we always update it.
-                          // If it's a sub-variation (idx > 0) AND has no own stock capability, we update base (idx 0).
+                          // Shared Stock Logic
                           const shouldUseSharedStock = idx > 0 && Number(ownVar.stock || 0) === 0 && Number(ownVar.stockInitial || 0) === 0
 
                           if (shouldUseSharedStock) {
-                             // Restore to Base Variation (Index 0)
-                             const baseCur = Number(itemsVar[0].stock ?? 0)
-                             itemsVar[0].stock = Math.max(0, baseCur + qty)
+                             itemsVar[0].stock = Math.max(0, Number(itemsVar[0].stock ?? 0) + quantity)
                           } else {
-                             // Restore to Specific Variation
-                             const cur = Number(itemsVar[idx].stock ?? 0)
-                             itemsVar[idx].stock = Math.max(0, cur + qty)
+                             itemsVar[idx].stock = Math.max(0, Number(itemsVar[idx].stock ?? 0) + quantity)
                           }
                           
-                          // Recalculate total stock based on variations
-                          const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
+                          const totalStock = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
                           
-                          await updateProduct(prod.id, { variationsData: itemsVar, stock: total })
+                          await updateProduct(prod.id, { variationsData: itemsVar, stock: totalStock })
                           restoredCount++
                           
                           await recordStockMovement({
                             productId: prod.id,
                             productName: prod.name,
                             variationId: itemsVar[idx].id || null,
-                            variationName: itemsVar[idx].name || itemsVar[idx].label || varName,
+                            variationName: itemsVar[idx].name || itemsVar[idx].label || targetVarName,
                             type: 'in',
-                            quantity: qty,
+                            quantity: quantity,
                             reason: 'cancel',
                             referenceId: sale.id,
                             description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
-                            userId: null
+                            userId: user?.id || null
                           })
                         }
                       }
 
-                      // If not identified as a variation (or simple product), update main stock
-                      if (!isVariation) {
+                      // Simple product or variation not matched
+                      if (!isVariationUpdated) {
                         const cur = Number(prod.stock ?? 0)
-                        const next = Math.max(0, cur + qty)
+                        const next = Math.max(0, cur + quantity)
                         await updateProduct(prod.id, { stock: next })
                         restoredCount++
                         
@@ -217,15 +237,15 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                           productId: prod.id,
                           productName: prod.name,
                           type: 'in',
-                          quantity: qty,
+                          quantity: quantity,
                           reason: 'cancel',
                           referenceId: sale.id,
                           description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
-                          userId: null
+                          userId: user?.id || null
                         })
                       }
                     } else {
-                        console.warn('Product not found for restocking:', it.name, it.id)
+                        console.warn('Product not found for restocking:', originalName, productId)
                     }
                   }
                   
@@ -234,6 +254,10 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                   } else {
                       alert('Venda cancelada. Nenhum produto foi devolvido ao estoque (produtos não encontrados ou serviço).')
                   }
+                } else {
+                  // Se o status era orçamento/condicional, apenas cancela sem mexer no estoque
+                  alert('Venda cancelada com sucesso.')
+                }
                 
                 await updateOrder(sale.id, { status: 'Cancelada' })
                 onClose && onClose()
@@ -251,11 +275,11 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
             className="px-3 py-1.5 bg-red-600 text-white border border-red-600 rounded text-sm hover:bg-red-700 flex items-center gap-1"
             onClick={async () => {
               const s = (sale.status || '').toLowerCase()
-              // Permitir excluir se estiver cancelada ou for apenas um pedido (não faturado)
-              const isSafeToDelete = s === 'cancelada' || s === 'pedido'
+              // Permitir excluir apenas se já estiver cancelada, para garantir que o estoque foi devolvido via botão Cancelar
+              const isSafeToDelete = s === 'cancelada'
               
               if (!isSafeToDelete) {
-                alert('Para excluir o registro, primeiro cancele a venda/O.S. para garantir o estorno do estoque e financeiro.')
+                alert('Para excluir o registro, primeiro cancele a venda/O.S. clicando no botão "Cancelar" para garantir o estorno do estoque e financeiro.')
                 return
               }
 
