@@ -296,7 +296,19 @@ export default function ChatWidget({ user, open, onOpenChange, hideLauncher = fa
       <audio ref={audioRef} src={notificationSound} preload="auto" />
       {/* Chat Window */}
       {isOpen && (
-        <div className="mb-4 w-[800px] max-w-[90vw] h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden flex flex-col md:flex-row border border-gray-200 dark:border-gray-700">
+        <div className="relative mb-4 w-[800px] max-w-[90vw] h-[500px] bg-white dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden flex flex-col md:flex-row border border-gray-200 dark:border-gray-700">
+          <button
+            onClick={() => {
+              setSelectedUser(null)
+              setOpen(false)
+            }}
+            className="absolute top-2 right-2 z-10 h-9 w-9 rounded-full bg-white/90 hover:bg-white dark:bg-gray-800/90 dark:hover:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 flex items-center justify-center"
+            title="Fechar chat"
+            aria-label="Fechar chat"
+            type="button"
+          >
+            ✕
+          </button>
           
           {/* Sidebar (User List) */}
           <div className="w-full md:w-1/3 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -379,7 +391,7 @@ export default function ChatWidget({ user, open, onOpenChange, hideLauncher = fa
                     </div>
                     <span className="font-bold text-gray-800 dark:text-gray-100">{selectedUser.name}</span>
                   </div>
-                  <button onClick={() => { setIsOpen(false); setSelectedUser(null); }} className="md:hidden text-gray-500">✕</button>
+                  <button onClick={() => { setOpen(false); setSelectedUser(null); }} className="md:hidden text-gray-500">✕</button>
                 </div>
 
                 {/* Messages */}

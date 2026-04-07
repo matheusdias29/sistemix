@@ -33,6 +33,7 @@ export default function POSPage({ storeId, user }){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
 
+  const [storeData, setStoreData] = useState(null)
   const [currentCash, setCurrentCash] = useState(null) // null = loading or not exists
   const [orders, setOrders] = useState([])
   const [clients, setClients] = useState([])
@@ -64,6 +65,10 @@ export default function POSPage({ storeId, user }){
   const [transValue, setTransValue] = useState('')
   const [transSaving, setTransSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
+  const [receiptOpen, setReceiptOpen] = useState(false)
+  const [receiptFormat, setReceiptFormat] = useState('Térmica')
+  const [receiptTarget, setReceiptTarget] = useState(null)
+  const receiptContentRef = useRef(null)
 
   // Click outside to close menu
   useEffect(() => {
@@ -85,6 +90,16 @@ export default function POSPage({ storeId, user }){
       setLoading(false)
     })
     return () => unsub && unsub()
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) {
+      setStoreData(null)
+      return
+    }
+    getDoc(doc(db, 'stores', storeId))
+      .then((snap) => setStoreData(snap.exists() ? { id: snap.id, ...snap.data() } : null))
+      .catch(() => setStoreData(null))
   }, [storeId])
 
   // Listen to orders (ALWAYS, to allow history view)
@@ -352,6 +367,15 @@ export default function POSPage({ storeId, user }){
 
   // Helpers de formatação
   const money = (v) => Number(v||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  const escapeHtml = (value) => {
+    const s = String(value ?? '')
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
   const dateStr = (ts) => {
     if(!ts) return ''
     const d = ts.toDate ? ts.toDate() : new Date(ts)
@@ -363,6 +387,66 @@ export default function POSPage({ storeId, user }){
     if(!ts) return ''
     const d = ts.toDate ? ts.toDate() : new Date(ts)
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+
+  const handlePrintReceipt = () => {
+    const content = receiptContentRef.current
+    if (!content) return
+
+    const isThermal = receiptFormat === 'Térmica'
+    const width = isThermal ? '80mm' : '210mm'
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
+
+    const docRef = iframe.contentWindow.document
+    const printStyles = `
+      @page { size: ${isThermal ? '80mm auto' : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
+      body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; }
+      .sheet { width: ${width}; margin: 0 auto; }
+      .center { text-align: center; }
+      .right { text-align: right; }
+      .muted { color: #444; }
+      .hr { border-top: 1px dashed #000; margin: 10px 0; }
+      .title { font-weight: 900; font-size: 14px; text-transform: uppercase; }
+      .store { font-weight: 900; font-size: 13px; }
+      .small { font-size: 11px; }
+      .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+      .label { color: #333; font-weight: 700; }
+      .value { font-weight: 900; }
+      .amount { font-size: 18px; font-weight: 900; }
+    `
+
+    docRef.open()
+    docRef.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1" />
+          <title>Recibo</title>
+          <style>${printStyles}</style>
+        </head>
+        <body>
+          <div class="sheet">${content.innerHTML}</div>
+          <script>
+            var __didPrint = false;
+            function __tryPrint(){ if(__didPrint) return; __didPrint = true; try{window.focus()}catch(e){} try{window.print()}catch(e){} }
+            window.onload = function(){ setTimeout(__tryPrint, 300) };
+            setTimeout(__tryPrint, 1200);
+            window.onafterprint = function(){ setTimeout(function(){ try{ if(window.frameElement) window.frameElement.remove() }catch(e){} }, 50) };
+          <\/script>
+        </body>
+      </html>
+    `)
+    docRef.close()
+    iframe.contentWindow.focus()
   }
 
   const { transactions, financials } = useMemo(() => {
@@ -1112,7 +1196,14 @@ export default function POSPage({ storeId, user }){
 
                   <div className="flex gap-3 mb-8">
                     {selectedTransaction?.originalOrder?.type !== 'accounts_receivable' && (
-                      <button className="flex items-center gap-2 px-4 py-2 border border-green-500 text-green-600 rounded bg-green-50 hover:bg-green-100 text-sm font-medium transition-colors">
+                      <button
+                        onClick={() => {
+                          setReceiptTarget(selectedTransaction)
+                          setReceiptFormat('Térmica')
+                          setReceiptOpen(true)
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 border border-green-500 text-green-600 rounded bg-green-50 hover:bg-green-100 text-sm font-medium transition-colors"
+                      >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                         </svg>
@@ -1193,6 +1284,142 @@ export default function POSPage({ storeId, user }){
                   >
                     <span>&larr;</span> Voltar
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {receiptOpen && receiptTarget && (
+            <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4">
+              <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+                <div className="p-4 border-b flex items-center justify-between">
+                  <div className="text-lg font-semibold text-gray-800">Recibo do Caixa</div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                      <span>Formato:</span>
+                      <select
+                        value={receiptFormat}
+                        onChange={(e) => setReceiptFormat(e.target.value)}
+                        className="border rounded px-2 py-1 text-sm bg-white text-gray-900"
+                      >
+                        <option value="Térmica">Térmica</option>
+                        <option value="A4">A4</option>
+                      </select>
+                    </div>
+                    <button
+                      onClick={handlePrintReceipt}
+                      className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 shadow-sm transition-all"
+                    >
+                      Imprimir
+                    </button>
+                    <button
+                      onClick={() => setReceiptOpen(false)}
+                      className="text-gray-500 hover:text-gray-700"
+                      aria-label="Fechar"
+                      title="Fechar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+                <div className="p-4 overflow-y-auto overflow-x-auto bg-gray-50">
+                  {(() => {
+                    const isThermal = receiptFormat === 'Térmica'
+                    const width = isThermal ? '80mm' : '210mm'
+                    const previewCss = `
+                      .receipt-preview .sheet { width: ${width}; margin: 0 auto; }
+                      .receipt-preview .paper { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }
+                      .receipt-preview .center { text-align: center; }
+                      .receipt-preview .right { text-align: right; white-space: nowrap; }
+                      .receipt-preview .muted { color: #444; }
+                      .receipt-preview .hr { border-top: 1px dashed #000; margin: 10px 0; }
+                      .receipt-preview .title { font-weight: 900; font-size: 14px; text-transform: uppercase; }
+                      .receipt-preview .store { font-weight: 900; font-size: 13px; }
+                      .receipt-preview .small { font-size: 11px; }
+                      .receipt-preview .row { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+                      .receipt-preview .label { color: #333; font-weight: 700; }
+                      .receipt-preview .value { font-weight: 900; }
+                      .receipt-preview .amount { font-size: 18px; font-weight: 900; }
+                    `
+                    return (
+                      <>
+                        <style>{previewCss}</style>
+                        <div className="receipt-preview flex justify-center">
+                          <div className="paper">
+                            <div className="sheet">
+                              <div ref={receiptContentRef}>
+                                {(() => {
+                                  const t = receiptTarget
+                                  const dt = t?.date?.toDate ? t.date.toDate() : (t?.date ? new Date(t.date) : null)
+                                  const dateTime = dt && !Number.isNaN(dt.getTime())
+                                    ? dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                                    : ''
+                                  const value = Number(t?.value || 0)
+                                  const type = (t?.type || (value < 0 ? 'remove' : 'add'))
+                                  const title =
+                                    type === 'remove'
+                                      ? 'RECIBO DE RETIRADA'
+                                      : type === 'expense'
+                                      ? 'RECIBO DE DESPESA'
+                                      : 'RECIBO DE SUPRIMENTO'
+                                  const storeName = storeData?.name || storeData?.razaoSocial || 'Loja'
+                                  const cnpj = storeData?.cnpj || ''
+                                  const phone = storeData?.whatsapp || storeData?.phone || ''
+                                  const email = storeData?.emailEmpresarial || storeData?.email || ''
+                                  const address = storeData?.address || storeData?.endereco || ''
+                                  const city = storeData?.city || storeData?.cidade || ''
+                                  const state = storeData?.state || storeData?.estado || ''
+                                  const addressLine = [address, city && state ? `${city} - ${state}` : (city || state)].filter(Boolean).join(' • ')
+                                  const methodLabel = t?.methodLabel || (t?.method === 'cash' ? 'Dinheiro' : 'Outros')
+                                  const by = t?.userName || user?.name || '—'
+                                  const cashNumber = currentCash?.number || '—'
+                                  const desc = t?.description || '—'
+                                  const notes = t?.notes || ''
+
+                                  return (
+                                    <div className="small">
+                                      <div className="center">
+                                        <div className="store">{storeName}</div>
+                                        {cnpj ? <div className="muted small">CNPJ: {cnpj}</div> : null}
+                                        {(phone || email) ? <div className="muted small">{[phone, email].filter(Boolean).join(' • ')}</div> : null}
+                                        {addressLine ? <div className="muted small">{addressLine}</div> : null}
+                                      </div>
+
+                                      <div className="hr"></div>
+
+                                      <div className="center title">{title}</div>
+                                      {dateTime ? <div className="center muted small">{dateTime}</div> : null}
+
+                                      <div className="hr"></div>
+
+                                      <div className="row"><span className="label">Valor</span><span className="value amount">{money(value)}</span></div>
+                                      <div className="row"><span className="label">Meio de pagamento</span><span className="value">{methodLabel}</span></div>
+                                      <div className="row"><span className="label">Caixa</span><span className="value">#{cashNumber}</span></div>
+                                      <div className="row"><span className="label">Usuário</span><span className="value">{by}</span></div>
+
+                                      <div className="hr"></div>
+
+                                      <div className="label small">Descrição</div>
+                                      <div className="small">{desc}</div>
+                                      {notes ? (
+                                        <>
+                                          <div className="label small" style={{ marginTop: 8 }}>Observações</div>
+                                          <div className="small">{notes}</div>
+                                        </>
+                                      ) : null}
+
+                                      <div className="hr"></div>
+                                      <div className="center small muted">Assinatura: __________________________</div>
+                                    </div>
+                                  )
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </div>

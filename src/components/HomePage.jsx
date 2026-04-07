@@ -621,22 +621,22 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
       {/* Performance da Equipe */}
       {(isOwner || perms.sales?.viewAll) && (
       <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-lg bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400">
               <Users size={24} />
             </div>
-            <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Performance da Equipe</h3>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight truncate">Performance da Equipe</h3>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 justify-start sm:justify-end">
             <button 
-              className="h-10 px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-sm hover:bg-green-100 dark:bg-gray-700 dark:text-green-400 dark:hover:bg-gray-600 transition-colors" 
+              className="h-9 md:h-10 px-3 md:px-4 rounded-lg bg-gray-50 text-green-600 font-bold text-xs md:text-sm hover:bg-green-100 dark:bg-gray-700 dark:text-green-400 dark:hover:bg-gray-600 transition-colors whitespace-nowrap" 
               onClick={() => onNavigate && onNavigate('comissoes')}
             >
               Ver comissões
             </button>
             <button 
-              className="h-10 px-4 rounded-lg bg-gray-50 text-gray-600 font-bold text-sm hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2" 
+              className="h-9 md:h-10 px-3 md:px-4 rounded-lg bg-gray-50 text-gray-600 font-bold text-xs md:text-sm hover:bg-gray-100 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 whitespace-nowrap" 
               onClick={() => setShowAllPerformance(!showAllPerformance)}
             >
               {showAllPerformance ? (

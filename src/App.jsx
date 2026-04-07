@@ -426,16 +426,7 @@ export default function App(){
               toggle: () => setMobileSidebarOpen(v => !v),
               isOpen: mobileSidebarOpen,
             }}
-            rightAction={view==='produtos' ? (
-              <button
-                className="md:hidden h-9 px-3 rounded bg-green-600 text-white text-sm flex items-center gap-2 shadow-sm active:scale-[0.98]"
-                onClick={() => setAddNewSignal(s => s + 1)}
-                aria-label="Adicionar novo"
-                title="Adicionar novo"
-              >
-                <span>+ Novo</span>
-              </button>
-            ) : view==='os' ? (
+            rightAction={view==='os' ? (
               <button
                 className="md:hidden h-9 px-3 rounded bg-green-600 text-white text-sm flex items-center gap-2 shadow-sm active:scale-[0.98]"
                 onClick={() => setAddNewOrderSignal(s => s + 1)}
@@ -566,7 +557,7 @@ export default function App(){
         </div>
       )}
       <Calculator open={calculatorOpen} onOpenChange={setCalculatorOpen} hideLauncher />
-      {user && store && <ChatWidget user={user} open={chatOpen} onOpenChange={setChatOpen} hideLauncher onUnreadChange={setChatUnreadCount} />}
+      {user && <ChatWidget user={user} open={chatOpen} onOpenChange={setChatOpen} hideLauncher onUnreadChange={setChatUnreadCount} />}
       {invoiceReminderOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">

@@ -1333,6 +1333,13 @@ const canEditService = isOwner || perms.services?.edit
                 {reportType === 'summary' ? 'Relatório Resumido - O.S.' : 'Relatório Detalhado - O.S.'}
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setDateFilterOpen(true)}
+                  className="px-3 py-2 rounded text-sm border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+                  title="Selecionar período"
+                >
+                  📅 {dateRange.label}
+                </button>
                 <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
                   <span>Formato:</span>
                   <select value={reportFormat} onChange={e => setReportFormat(e.target.value)} className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">

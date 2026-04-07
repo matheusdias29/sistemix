@@ -3,9 +3,12 @@ import React, { useState, useEffect } from 'react'
 const OPTIONS = [
   { label: 'Hoje', key: 'today' },
   { label: 'Ontem', key: 'yesterday' },
+  { label: 'Esta Semana', key: 'thisWeek' },
   { label: 'Últimos 7 Dias', key: 'last7' },
   { label: 'Este Mês', key: 'thisMonth' },
   { label: 'Último Mês', key: 'lastMonth' },
+  { label: 'Este Ano', key: 'thisYear' },
+  { label: 'Último Ano', key: 'lastYear' },
   { label: 'Personalizado', key: 'custom' },
   { label: 'Limpar Filtros', key: 'clear' },
 ]
@@ -48,6 +51,18 @@ export default function SalesDateFilterModal({ open, onClose, onApply, currentLa
         end = new Date(y.getFullYear(), y.getMonth(), y.getDate(), 23, 59, 59, 999)
         label = 'Ontem'
         break
+      case 'thisWeek': {
+        const day = now.getDay()
+        const diffToMonday = (day + 6) % 7
+        const monday = new Date(now)
+        monday.setDate(now.getDate() - diffToMonday)
+        start = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate(), 0, 0, 0, 0)
+        const sunday = new Date(start)
+        sunday.setDate(start.getDate() + 6)
+        end = new Date(sunday.getFullYear(), sunday.getMonth(), sunday.getDate(), 23, 59, 59, 999)
+        label = 'Esta Semana'
+        break
+      }
       case 'last7':
         end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
         const l7 = new Date(now)
@@ -64,6 +79,16 @@ export default function SalesDateFilterModal({ open, onClose, onApply, currentLa
         start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
         end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999)
         label = 'Último Mês'
+        break
+      case 'thisYear':
+        start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0)
+        end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999)
+        label = 'Este Ano'
+        break
+      case 'lastYear':
+        start = new Date(now.getFullYear() - 1, 0, 1, 0, 0, 0, 0)
+        end = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999)
+        label = 'Último Ano'
         break
       case 'custom':
         if (customStart) start = new Date(customStart + 'T00:00:00')
@@ -82,7 +107,7 @@ export default function SalesDateFilterModal({ open, onClose, onApply, currentLa
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 z-[10050] flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-4 border-b dark:border-gray-700">
           <h3 className="text-lg font-semibold text-center text-gray-800 dark:text-white">Selecione um periodo</h3>

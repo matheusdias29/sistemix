@@ -190,6 +190,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [showLabelsScreen, setShowLabelsScreen] = useState(false)
   const [categoryMenuId, setCategoryMenuId] = useState(null)
   const [pricingModalOpen, setPricingModalOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportFormat, setReportFormat] = useState('A4')
+  const reportContentRef = useRef(null)
   const [pricingConfig, setPricingConfig] = useState({ groups: [] })
   const [activePricingGroupIdx, setActivePricingGroupIdx] = useState(0)
   const [bulkCategory, setBulkCategory] = useState(null)
@@ -205,6 +208,109 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkConfig, setBulkConfig] = useState(null)
   const [bulkReviewQuery, setBulkReviewQuery] = useState('')
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+
+  const openReport = async () => {
+    setOptionsOpen(false)
+    setReportOpen(true)
+    if (!storeId) return
+    if (cachedProducts || isCaching) return
+    try {
+      setIsCaching(true)
+      const all = await getAllProducts(storeId)
+      setCachedProducts(all)
+      if (!query.trim()) setTotalResults(all.length)
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setIsCaching(false)
+    }
+  }
+
+  const categoriesById = useMemo(() => {
+    const out = {}
+    ;(categories || []).forEach(c => { if (c?.id) out[c.id] = c.name || '' })
+    return out
+  }, [categories])
+
+  const reportProducts = useMemo(() => {
+    const list = (cachedProducts && cachedProducts.length) ? cachedProducts : []
+    return [...list].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'))
+  }, [cachedProducts])
+
+  const reportSummary = useMemo(() => {
+    const total = reportProducts.length
+    const active = reportProducts.filter(p => p?.active !== false).length
+    const inactive = total - active
+    const withStock = reportProducts.filter(p => Number(p?.stock || 0) > 0).length
+    const noStock = total - withStock
+    return { total, active, inactive, withStock, noStock }
+  }, [reportProducts])
+
+  const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const handlePrintReport = () => {
+    const content = reportContentRef.current
+    if (!content) return
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    document.body.appendChild(iframe)
+
+    const docRef = iframe.contentWindow.document
+    const isThermal = reportFormat === 'Térmica'
+    const width = isThermal ? '80mm' : '210mm'
+
+    const printStyles = `
+      @page { size: ${isThermal ? '80mm auto' : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
+      body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; }
+      .sheet { width: ${width}; margin: 0 auto; }
+      h1 { font-size: 18px; margin: 0 0 6px 0; }
+      .subtitle { font-size: 12px; color: #444; margin-bottom: 10px; }
+      .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+      .chip { border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; font-size: 12px; }
+      .chip strong { display: block; font-size: 13px; margin-top: 2px; }
+      table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+      th, td { border: 1px solid #e5e7eb; padding: 6px; font-size: 11px; vertical-align: top; word-break: break-word; }
+      th { background: #f3f4f6; text-align: left; }
+      .right { text-align: right; white-space: nowrap; }
+      .center { text-align: center; }
+      .status { font-weight: 700; }
+      .status.active { color: #15803d; }
+      .status.inactive { color: #b91c1c; }
+    `
+
+    docRef.open()
+    docRef.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1" />
+          <title>Relatório de Produtos</title>
+          <style>${printStyles}</style>
+        </head>
+        <body>
+          <div class="sheet">
+            ${content.innerHTML}
+          </div>
+          <script>
+            var __didPrint = false;
+            function __tryPrint(){ if(__didPrint) return; __didPrint = true; try{window.focus()}catch(e){} try{window.print()}catch(e){} }
+            window.onload = function(){ setTimeout(__tryPrint, 300) };
+            setTimeout(__tryPrint, 1200);
+            window.onafterprint = function(){ setTimeout(function(){ try{ if(window.frameElement) window.frameElement.remove() }catch(e){} }, 50) };
+          </script>
+        </body>
+      </html>
+    `)
+    docRef.close()
+    iframe.contentWindow.focus()
+  }
 
   useEffect(() => {
     // Categories and Suppliers (Listeners)
@@ -1466,6 +1572,118 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         </div>
       )}
 
+      {reportOpen && (
+        <div className="fixed inset-0 z-[120] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-6xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b dark:border-gray-700 flex items-center justify-between gap-3">
+              <div className="text-lg font-semibold text-gray-800 dark:text-white">Relatório de Produtos</div>
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2">
+                  <span>Formato:</span>
+                  <select value={reportFormat} onChange={e => setReportFormat(e.target.value)} className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">
+                    <option value="A4">A4</option>
+                    <option value="Térmica">Térmica</option>
+                  </select>
+                </div>
+                <button onClick={handlePrintReport} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 shadow-sm transition-all">
+                  Imprimir
+                </button>
+                <button onClick={() => setReportOpen(false)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+              </div>
+            </div>
+
+            <div className="p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/30">
+              <div ref={reportContentRef} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">Relatório de Produtos</h1>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Gerado em {new Date().toLocaleString('pt-BR')}
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Total</div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">{reportSummary.total}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Ativos</div>
+                    <div className="text-lg font-bold text-green-700 dark:text-green-400">{reportSummary.active}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Inativos</div>
+                    <div className="text-lg font-bold text-red-700 dark:text-red-400">{reportSummary.inactive}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Com estoque</div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">{reportSummary.withStock}</div>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Sem estoque</div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">{reportSummary.noStock}</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-x-auto">
+                  {isCaching && reportProducts.length === 0 ? (
+                    <div className="text-sm text-gray-600 dark:text-gray-400 py-6">Carregando todos os produtos…</div>
+                  ) : reportProducts.length === 0 ? (
+                    <div className="text-sm text-gray-600 dark:text-gray-400 py-6">Nenhum produto encontrado.</div>
+                  ) : (
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-gray-100 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200">
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-left">Produto</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-left">Categoria</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-left">Fornecedor</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-left">Código</th>
+                          {(isOwner || perms.products?.viewCost) && <th className="border border-gray-200 dark:border-gray-700 p-2 text-right">Custo</th>}
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-right">Preço</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-right">Promo</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-center">Variações</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-right">Estoque</th>
+                          <th className="border border-gray-200 dark:border-gray-700 p-2 text-center">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {reportProducts.map(p => {
+                          const statusActive = p?.active !== false
+                          const categoryName = categoriesById[p?.categoryId] || '—'
+                          const supplierName = String(p?.supplier || '').trim() ? String(p.supplier) : '—'
+                          const code = String(p?.reference || p?.code || p?.barcode || '').trim() || '—'
+                          const variationsCount = Number(p?.variations || (Array.isArray(p?.variationsData) ? p.variationsData.length : 0) || 0)
+                          return (
+                            <tr key={p.id} className="text-gray-800 dark:text-gray-100">
+                              <td className="border border-gray-200 dark:border-gray-700 p-2">
+                                <div className="font-semibold">{p.name || '—'}</div>
+                                {String(p?.reference || '').trim() ? (
+                                  <div className="text-[10px] text-gray-500 dark:text-gray-400">Ref: {p.reference}</div>
+                                ) : null}
+                              </td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2">{categoryName}</td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2">{supplierName}</td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2">{code}</td>
+                              {(isOwner || perms.products?.viewCost) && <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{money(p.cost || 0)}</td>}
+                              <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{money(p.salePrice ?? p.priceMin ?? 0)}</td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{p.promoPrice != null ? money(p.promoPrice) : '—'}</td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">{variationsCount}</td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{Number(p.stock || 0)}</td>
+                              <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">
+                                <span className={statusActive ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-red-700 dark:text-red-400 font-semibold'}>
+                                  {statusActive ? 'Ativo' : 'Inativo'}
+                                </span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs no topo: rolável no mobile */}
       <div className="mb-3">
         <div className="flex items-center gap-3 text-sm overflow-x-auto whitespace-nowrap md:overflow-visible scrollbar-none -mx-2 px-2">
@@ -1478,6 +1696,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           ))}
         </div>
       </div>
+
+      {['produto', 'categorias', 'fornecedores'].includes(tab) && (
+        <div className="md:hidden mb-2">
+          <button
+            className="w-full px-4 py-2 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700"
+            onClick={addNew}
+          >
+            + Novo
+          </button>
+        </div>
+      )}
 
       {/* Toolbar de busca com botões à direita */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-2">
@@ -1577,6 +1806,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v12m6-6H6" />
                    </svg>
                    Precificações
+                 </button>
+                 )}
+                 {(isOwner || perms.products?.view) && (
+                 <button 
+                   className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200"
+                   onClick={openReport}
+                 >
+                   <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-6m3 6V7m4 14H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z" />
+                   </svg>
+                   Relatório
                  </button>
                  )}
                  {(isOwner || perms.products?.delete) && (
@@ -1933,13 +2173,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                               const price = promo != null ? promo : sale
                               const stockVar = Number(v?.stock ?? 0)
                               return (
-                                <div key={idx} className="grid grid-cols-[1fr_6rem] items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
-                                  <div className="truncate" title={v?.name || v?.label || `Variação ${idx+1}`}>
-                                    <span className="font-medium">{v?.name || v?.label || `Variação ${idx+1}`}</span>
-                                    {p.reference ? (<span className="ml-1 text-gray-500 dark:text-gray-400">({p.reference})</span>) : null}
-                                    {stockVar ? (<span className="ml-2 text-gray-500 dark:text-gray-400">Estoque: {stockVar.toLocaleString('pt-BR')}</span>) : null}
+                                <div key={idx} className="grid grid-cols-[minmax(0,1fr)_6rem] items-start gap-2 text-xs text-gray-700 dark:text-gray-200">
+                                  <div className="min-w-0">
+                                    <div className="truncate font-medium" title={v?.name || v?.label || `Variação ${idx+1}`}>
+                                      {v?.name || v?.label || `Variação ${idx+1}`}
+                                    </div>
+                                    <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                      <span className="whitespace-nowrap">Estoque: {stockVar.toLocaleString('pt-BR')}</span>
+                                      {p.reference ? <span className="truncate max-w-[10rem]">Cód: {p.reference}</span> : null}
+                                    </div>
                                   </div>
-                                  <div className="text-right whitespace-nowrap">
+                                  <div className="text-right whitespace-nowrap pt-[1px]">
                                     {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                                   </div>
                                 </div>

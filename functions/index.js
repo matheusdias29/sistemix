@@ -815,6 +815,116 @@ exports.requestRegistrationCode = onCall({ cors: true }, async (request) => {
   }
 });
 
+exports.verifyCodeAndCompleteRegistration = onCall({ cors: true }, async (request) => {
+  const email = String(request.data?.email || '').trim().toLowerCase()
+  const code = String(request.data?.code || '').trim()
+  const name = String(request.data?.name || '').trim()
+  const password = String(request.data?.password || '')
+  const whatsapp = String(request.data?.whatsapp || '').trim()
+  const storeName = String(request.data?.storeName || '').trim()
+
+  if (!email || !code || !name || !password || !whatsapp || !storeName) {
+    throw new HttpsError('invalid-argument', 'Todos os campos são obrigatórios.')
+  }
+  if (code.length !== 6) {
+    throw new HttpsError('invalid-argument', 'Código inválido.')
+  }
+  if (password.length < 6) {
+    throw new HttpsError('invalid-argument', 'A senha deve ter pelo menos 6 caracteres.')
+  }
+
+  const db = getFirestore('sistemix')
+
+  try {
+    const codeRef = db.collection('registration_codes').doc(email)
+    const codeSnap = await codeRef.get()
+    if (!codeSnap.exists) {
+      throw new HttpsError('not-found', 'Código não encontrado ou expirado.')
+    }
+
+    const codeData = codeSnap.data()
+    const storedCode = String(codeData?.code || '').trim()
+    const expiresAt = codeData?.expiresAt?.toDate ? codeData.expiresAt.toDate() : null
+    if (storedCode !== code) {
+      throw new HttpsError('invalid-argument', 'Código de verificação incorreto.')
+    }
+    if (!expiresAt || expiresAt.getTime() < Date.now()) {
+      throw new HttpsError('deadline-exceeded', 'Código expirado.')
+    }
+
+    const userSnap = await db.collection('users').where('email', '==', email).get()
+    if (!userSnap.empty) {
+      throw new HttpsError('already-exists', 'Este e-mail já está em uso em uma conta ativa.')
+    }
+
+    const ownerRef = db.collection('users').doc()
+    const storeRef = db.collection('stores').doc()
+
+    const now = admin.firestore.FieldValue.serverTimestamp()
+    const trialStart = new Date()
+    const trialEnd = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
+    const batch = db.batch()
+    batch.set(ownerRef, {
+      name,
+      email,
+      password,
+      whatsapp,
+      isAdmin: false,
+      isSeller: false,
+      isTech: false,
+      allowDiscount: false,
+      active: true,
+      role: '',
+      storeId: storeRef.id,
+      permissions: {},
+      cep: '',
+      address: '',
+      number: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      status: 'ativo',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    batch.set(storeRef, {
+      name: storeName,
+      ownerId: ownerRef.id,
+      adminId: ownerRef.id,
+      cep: '',
+      address: '',
+      number: '',
+      neighborhood: '',
+      city: '',
+      state: '',
+      createdAt: now,
+      updatedAt: now,
+    })
+
+    const subRef = db.collection('subscriptions').doc(ownerRef.id)
+    batch.set(subRef, {
+      ownerId: ownerRef.id,
+      trialStart: admin.firestore.Timestamp.fromDate(trialStart),
+      trialEnd: admin.firestore.Timestamp.fromDate(trialEnd),
+      computedStatus: 'ativo',
+      computedAt: now,
+      updatedAt: now,
+      createdAt: now,
+    }, { merge: true })
+
+    batch.delete(codeRef)
+    await batch.commit()
+
+    return { ok: true, ownerId: ownerRef.id, storeId: storeRef.id, trialUntil: trialEnd.toISOString() }
+  } catch (error) {
+    console.error('Erro em verifyCodeAndCompleteRegistration:', error)
+    if (error instanceof HttpsError) throw error
+    throw new HttpsError('internal', error?.message || 'Erro ao concluir cadastro.')
+  }
+})
+
 exports.requestPasswordResetCode = onCall({ cors: true }, async (request) => {
   const email = String(request.data?.email || '').trim().toLowerCase();
   if (!email) throw new HttpsError('invalid-argument', 'E-mail é obrigatório');

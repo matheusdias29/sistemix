@@ -843,7 +843,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[980px] max-w-[98vw]">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[980px] max-w-[98vw] max-h-[95vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
           <h3 className="font-semibold text-lg dark:text-white">{isEdit ? 'Editar produto' : 'Novo produto'}</h3>
           <button onClick={close} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
@@ -852,7 +852,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <button onClick={()=>setTab('cadastro')} className={`pb-2 ${tab==='cadastro' ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400 dark:border-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'}`}>Cadastro</button>
           <button onClick={isEdit ? ()=>setTab('estoque') : undefined} className={`pb-2 ${tab==='estoque' ? 'text-green-600 border-b-2 border-green-600 dark:text-green-400 dark:border-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400'} ${isEdit ? '' : 'opacity-50 cursor-not-allowed'}`}>Estoque</button>
         </div>
-        <form onSubmit={handleSubmit}><div className="p-4"><div className="max-h-[70vh] overflow-y-auto space-y-4 pr-1">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
+          <div className="p-4 flex-1 min-h-0 overflow-y-auto space-y-4 pr-1">
           {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
 
 {tab==='cadastro' ? (
@@ -877,29 +878,29 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
             </div>
           </div>
           <div className="mt-3">
-            <div className="flex flex-wrap items-center gap-6">
-              <div className="flex items-center gap-3">
-                <span className="text-sm dark:text-gray-300">Smarthphone</span>
-                <button type="button" onClick={()=>setIsSmartphone(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSmartphone ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isSmartphone ? 'translate-x-4' : 'translate-x-1'}`}></span>
+            <div className="grid grid-cols-2 gap-3 w-full md:flex md:flex-wrap md:items-center md:gap-6">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs md:text-sm dark:text-gray-300">Smartphone</span>
+                <button type="button" onClick={()=>setIsSmartphone(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${isSmartphone ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${isSmartphone ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm dark:text-gray-300">Peças</span>
-                <button type="button" onClick={()=>setIsParts(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isParts ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isParts ? 'translate-x-4' : 'translate-x-1'}`}></span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs md:text-sm dark:text-gray-300">Peças</span>
+                <button type="button" onClick={()=>setIsParts(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${isParts ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${isParts ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm dark:text-gray-300">Acessórios</span>
-                <button type="button" onClick={()=>setIsAccessories(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isAccessories ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isAccessories ? 'translate-x-4' : 'translate-x-1'}`}></span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs md:text-sm dark:text-gray-300">Acessórios</span>
+                <button type="button" onClick={()=>setIsAccessories(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${isAccessories ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${isAccessories ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm dark:text-gray-300">Diversos</span>
-                <button type="button" onClick={()=>setIsSundries(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${isSundries ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${isSundries ? 'translate-x-4' : 'translate-x-1'}`}></span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs md:text-sm dark:text-gray-300">Diversos</span>
+                <button type="button" onClick={()=>setIsSundries(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${isSundries ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                  <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${isSundries ? 'translate-x-4' : 'translate-x-1'}`}></span>
                 </button>
               </div>
             </div>
@@ -1150,8 +1151,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         <div className="mt-2 border dark:border-gray-600 rounded overflow-hidden">
           {variationsData.map((v, idx) => (
             <div key={idx} className="px-3 py-3 border-b dark:border-gray-700 last:border-0">
-              <div className="grid grid-cols-[1fr_auto_auto] items-start gap-3">
-                <div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3">
+                <div className="min-w-0">
                   <div className="text-sm font-medium leading-tight truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
                   {idx === 0 && (
                     <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
@@ -1159,7 +1160,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                     </div>
                   )}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400 pt-[1px]">{(reference || '').trim() ? reference : ''}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 pt-[1px] max-w-[6rem] truncate">{(reference || '').trim() ? reference : ''}</div>
                 <div className="text-right">
                   <div className="text-base font-semibold leading-tight dark:text-white">{((v.promoPrice ?? v.salePrice) ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
                   {canViewCost && <div className="text-xs text-gray-600 dark:text-gray-400">Custo: {(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>}
@@ -1310,28 +1311,23 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   </>
 )}
 </div>
-</div>
 
-<div className="px-6 py-3 border-t dark:border-gray-700 flex items-center justify-between">
-  <div className="flex items-center gap-6">
-    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-      <span>Cadastro Ativo</span>
-      <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
+<div className="border-t dark:border-gray-700 px-4 md:px-6 py-3 bg-white dark:bg-gray-800 shrink-0">
+  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs md:text-sm dark:text-gray-300">Cadastro Ativo</span>
+      <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+        <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
       </button>
-    </label>
+    </div>
     
     <div className="flex flex-col gap-1">
-      <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-        <span>Exibir no catálogo</span>
-        <button 
-          type="button" 
-          onClick={()=>setShowInCatalog(v=>!v)} 
-          className={`relative inline-flex h-5 w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}
-        >
-          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs md:text-sm dark:text-gray-300">Exibir no catálogo</span>
+        <button type="button" onClick={()=>setShowInCatalog(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${showInCatalog ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+          <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${showInCatalog ? 'translate-x-4' : 'translate-x-1'}`}></span>
         </button>
-      </label>
+      </div>
       {showInCatalog && (
         <button
           type="button"
@@ -1349,18 +1345,18 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       )}
     </div>
     
-    <label className="flex items-center gap-2 text-sm dark:text-gray-300">
-      <span>Destacar Produto</span>
-      <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs md:text-sm dark:text-gray-300">Destacar Produto</span>
+      <button type="button" onClick={()=>setFeatured(v=>!v)} className={`relative inline-flex h-4 w-8 md:h-5 md:w-9 items-center rounded-full ${featured ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+        <span className={`inline-block h-3 w-3 md:h-4 md:w-4 transform rounded-full bg-white transition ${featured ? 'translate-x-4' : 'translate-x-1'}`}></span>
       </button>
-    </label>
+    </div>
   </div>
- </div>
 
-<div className="flex items-center justify-end gap-3 pt-2 px-6">
-  <button type="button" onClick={close} className="px-3 py-2 border dark:border-gray-600 rounded text-sm dark:text-gray-300 dark:hover:bg-gray-700">Cancelar</button>
-  <button disabled={saving} type="submit" className="px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Confirmar</button>
+  <div className="mt-3 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3">
+    <button type="button" onClick={close} className="w-full sm:w-auto px-3 py-2 border dark:border-gray-600 rounded text-sm dark:text-gray-300 dark:hover:bg-gray-700">Cancelar</button>
+    <button disabled={saving} type="submit" className="w-full sm:w-auto px-3 py-2 rounded text-sm bg-green-600 text-white disabled:opacity-60">Confirmar</button>
+  </div>
 </div>
         </form>
         {catalogConfigOpen && (
