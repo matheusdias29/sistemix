@@ -158,6 +158,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         variations: p.variations,
         variationsData: p.variationsData,
         stockInitial: p.stockInitial,
+        active: p.active,
         image: p.image
       }))
       setCachedProducts(optimized)
@@ -255,6 +256,9 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   const filteredProducts = useMemo(() => {
     // Use cachedProducts if available (full list), otherwise fallback to products (initial 50)
     let list = cachedProducts || products
+    
+    // Filtrar apenas produtos ativos
+    list = list.filter(p => p.active !== false)
     
     if (selectedCategory !== 'todos') {
       list = list.filter(p => p.categoryId === selectedCategory)

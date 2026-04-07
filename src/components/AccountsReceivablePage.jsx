@@ -255,6 +255,102 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
     doc.close()
   }
 
+  const handlePrintPromissory = (acc) => {
+    if (!acc) return
+
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'absolute'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    document.body.appendChild(iframe)
+
+    const doc = iframe.contentWindow.document
+    const clientName = acc.clientName || 'Cliente Sem Nome'
+    const value = Number(acc.remainingValue ?? acc.value ?? 0)
+    const dueDate = dateStr(acc.dueDate)
+    const storeName = store?.name || 'SistemiX'
+    const storeCnpj = store?.cnpj || ''
+    const storeAddress = [
+      store?.address?.street,
+      store?.address?.number,
+      store?.address?.neighborhood,
+      store?.address?.city,
+      store?.address?.state
+    ].filter(Boolean).join(', ')
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Nota Promissória - ${escapeHtml(clientName)}</title>
+        <style>
+          @page { size: auto; margin: 0.5cm; }
+          body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; line-height: 1.2; margin: 0; padding: 0; display: flex; justify-content: center; }
+          .border-box { border: 1px dashed #000; padding: 15px; width: 80mm; background: #fff; }
+          .header { text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 5px; }
+          .row { margin-bottom: 5px; display: flex; justify-content: space-between; }
+          .label { font-weight: bold; }
+          .value { text-decoration: underline; }
+          .content { margin: 15px 0; text-align: justify; font-size: 11px; }
+          .signature { margin-top: 30px; border-top: 1px solid #000; text-align: center; padding-top: 5px; font-size: 10px; }
+          .footer { margin-top: 10px; text-align: center; font-size: 9px; border-top: 1px dashed #ccc; padding-top: 5px; }
+          @media print { .no-print { display: none; } }
+        </style>
+      </head>
+      <body>
+        <div class="border-box">
+          <div class="header">NOTA PROMISSÓRIA</div>
+          <div class="row">
+            <span class="label">VENCIMENTO:</span>
+            <span class="value">${dueDate}</span>
+          </div>
+          <div class="row">
+            <span class="label">VALOR:</span>
+            <span class="value">${money(value)}</span>
+          </div>
+          
+          <div class="content">
+            Pagarei por esta única via de NOTA PROMISSÓRIA a <strong>${escapeHtml(storeName)}</strong>, 
+            inscrita no CNPJ <strong>${escapeHtml(storeCnpj)}</strong>, ou à sua ordem, a quantia de 
+            <strong>${money(value)}</strong> em moeda corrente deste país, pagável em 
+            <strong>${escapeHtml(store?.address?.city || 'sua praça')}</strong>.
+          </div>
+
+          <div class="row" style="margin-top: 10px;">
+            <span class="label">EMITENTE:</span>
+            <span class="value">${escapeHtml(clientName)}</span>
+          </div>
+          ${acc.clientCpf ? `<div class="row"><span class="label">CPF/CNPJ:</span><span class="value">${escapeHtml(acc.clientCpf)}</span></div>` : ''}
+
+          <div class="signature">
+            ASSINATURA DO EMITENTE
+          </div>
+          
+          <div class="footer">
+            ${escapeHtml(storeName)}<br/>
+            ${escapeHtml(storeAddress)}<br/>
+            Gerado em ${new Date().toLocaleString('pt-BR')}
+          </div>
+        </div>
+
+        <script>
+          window.onload = () => {
+            window.print();
+            setTimeout(() => {
+              window.frameElement.parentElement.removeChild(window.frameElement);
+            }, 1000);
+          }
+        </script>
+      </body>
+      </html>
+    `
+
+    doc.open()
+    doc.write(html)
+    doc.close()
+  }
+
   // Agrupar por Cliente
   const { grouped, totalReceivable, totalOverdue, totalCredits } = useMemo(() => {
     const today = new Date().toISOString().split('T')[0]
@@ -793,7 +889,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
           }}
         >
           <div
-            className="bg-white rounded-lg shadow-xl w-full max-w-3xl flex flex-col max-h-[90vh]"
+            className="bg-white rounded-lg shadow-xl w-full max-w-5xl flex flex-col max-h-[90vh]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="px-6 py-4 border-b flex items-center justify-between shrink-0">
@@ -908,7 +1004,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                 </div>
               )}
 
-              <div className="border rounded-lg overflow-hidden">
+              <div className="border rounded-lg overflow-hidden pr-1">
                 <table className="min-w-full divide-y divide-gray-100">
                   <thead className="bg-gray-50">
                     <tr>
@@ -1084,8 +1180,10 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
               <button
                 className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50"
                 onClick={() => {
+                  const acc = filteredDetailItems.find(i => i.id === detailMenuOpenId)
                   setDetailMenuOpenId(null)
                   setDetailMenuPos(null)
+                  if (acc) handlePrintPromissory(acc)
                 }}
               >
                 Promissória

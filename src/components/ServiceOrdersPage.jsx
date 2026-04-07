@@ -728,6 +728,7 @@ const canEditService = isOwner || perms.services?.edit
         variations: p.variations,
         variationsData: p.variationsData,
         stockInitial: p.stockInitial,
+        active: p.active,
         image: p.image
       }))
       setCachedProducts(optimized)
@@ -3788,7 +3789,10 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew, priceInd
 
   if(!open) return null
   
-  const filtered = (products||[]).filter(p => (p.name||'').toLowerCase().includes(query.trim().toLowerCase()))
+  const filtered = (products||[]).filter(p => 
+    p.active !== false && 
+    (p.name||'').toLowerCase().includes(query.trim().toLowerCase())
+  )
   const displayed = filtered.slice(0, limit)
   const hasMore = filtered.length > limit
 

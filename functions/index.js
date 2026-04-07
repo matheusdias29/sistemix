@@ -3,6 +3,7 @@ const { onCall, onRequest, HttpsError } = require('firebase-functions/v2/https')
 const { onDocumentCreated, onDocumentUpdated, onDocumentWritten } = require('firebase-functions/v2/firestore')
 const { getFirestore } = require('firebase-admin/firestore')
 const crypto = require('crypto')
+const { Resend } = require('resend')
 
 admin.initializeApp()
 
@@ -756,3 +757,166 @@ exports.invoicePaidProcessor = onDocumentUpdated({ document: 'invoices/{invoiceI
   const db = getFirestore('sistemix')
   await ensureTwoPendingInvoices({ db, ownerId })
 })
+
+exports.requestRegistrationCode = onCall({ cors: true }, async (request) => {
+  const email = String(request.data?.email || '').trim().toLowerCase();
+  if (!email) throw new HttpsError('invalid-argument', 'E-mail é obrigatório');
+
+  const db = getFirestore('sistemix');
+  
+  try {
+    // Verificar se já existe usuário com esse email
+    const userSnap = await db.collection('users').where('email', '==', email).get();
+    if (!userSnap.empty) {
+      throw new HttpsError('already-exists', 'Este e-mail já está em uso em uma conta ativa.');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+
+    await db.collection('registration_codes').doc(email).set({
+      code,
+      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.error('ERRO: RESEND_API_KEY não encontrada no process.env');
+      throw new HttpsError('failed-precondition', 'Configuração de e-mail ausente no servidor.');
+    }
+
+    const resend = new Resend(apiKey);
+    const from = process.env.RESEND_SENDER_EMAIL || 'contato@sistemixcomercio.app.br';
+
+    await resend.emails.send({
+      from,
+      to: email,
+      subject: 'Seu código de verificação Sistemix',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+          <h2 style="color: #111827; text-align: center;">Bem-vindo ao Sistemix</h2>
+          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">Olá! Para finalizar seu cadastro, use o código de verificação abaixo:</p>
+          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #059669;">${code}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 14px; text-align: center;">Este código expira em 15 minutos.</p>
+          <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">Se você não solicitou este código, ignore este e-mail.</p>
+        </div>
+      `,
+    });
+
+    return { ok: true };
+  } catch (error) {
+    console.error('Erro em requestRegistrationCode:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', error.message || 'Falha ao processar solicitação.');
+  }
+});
+
+exports.requestPasswordResetCode = onCall({ cors: true }, async (request) => {
+  const email = String(request.data?.email || '').trim().toLowerCase();
+  if (!email) throw new HttpsError('invalid-argument', 'E-mail é obrigatório');
+
+  const db = getFirestore('sistemix');
+  
+  try {
+    // 1. Verificar se o usuário existe
+    const userSnap = await db.collection('users').where('email', '==', email).get();
+    if (userSnap.empty) {
+      // Por segurança, não confirmamos que o e-mail não existe, 
+      // mas aqui para o sistema interno vamos dar o erro para o usuário saber.
+      throw new HttpsError('not-found', 'E-mail não cadastrado no sistema.');
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos para reset
+
+    await db.collection('password_reset_codes').doc(email).set({
+      code,
+      expiresAt: admin.firestore.Timestamp.fromDate(expiresAt),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    const apiKey = process.env.RESEND_API_KEY;
+    const from = process.env.RESEND_SENDER_EMAIL || 'contato@sistemixcomercio.app.br';
+    const resend = new Resend(apiKey);
+
+    await resend.emails.send({
+      from,
+      to: email,
+      subject: 'Recuperação de Senha - Sistemix',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
+          <h2 style="color: #111827; text-align: center;">Recuperação de Senha</h2>
+          <p style="color: #4b5563; font-size: 16px; line-height: 1.5;">Você solicitou a recuperação de sua senha. Use o código abaixo para prosseguir:</p>
+          <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; text-align: center; margin: 30px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #ef4444;">${code}</span>
+          </div>
+          <p style="color: #6b7280; font-size: 14px; text-align: center;">Este código expira em 10 minutos.</p>
+          <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">Se você não solicitou a troca de senha, por favor ignore este e-mail.</p>
+        </div>
+      `,
+    });
+
+    return { ok: true };
+  } catch (error) {
+    console.error('Erro em requestPasswordResetCode:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Erro ao processar solicitação de senha.');
+  }
+});
+
+exports.verifyResetCodeAndChangePassword = onCall({ cors: true }, async (request) => {
+  const { email, code, newPassword } = request.data || {};
+  const emailLower = String(email || '').trim().toLowerCase();
+  
+  if (!emailLower || !code || !newPassword) {
+    throw new HttpsError('invalid-argument', 'Todos os campos são obrigatórios.');
+  }
+
+  const db = getFirestore('sistemix');
+  
+  try {
+    const codeRef = db.collection('password_reset_codes').doc(emailLower);
+    const codeSnap = await codeRef.get();
+
+    if (!codeSnap.exists) {
+      throw new HttpsError('not-found', 'Código não encontrado ou expirado.');
+    }
+
+    const data = codeSnap.data();
+    if (data.code !== code) {
+      throw new HttpsError('invalid-argument', 'Código de verificação incorreto.');
+    }
+
+    if (data.expiresAt.toDate() < new Date()) {
+      throw new HttpsError('deadline-exceeded', 'Código expirado.');
+    }
+
+    // 1. Buscar o usuário
+    const userSnap = await db.collection('users').where('email', '==', emailLower).get();
+    if (userSnap.empty) {
+      throw new HttpsError('not-found', 'Usuário não encontrado.');
+    }
+
+    const userDoc = userSnap.docs[0];
+    
+    // 2. Atualizar a senha
+    await userDoc.ref.update({
+      password: newPassword,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+
+    // 3. Limpar o código usado
+    await codeRef.delete();
+
+    return { ok: true };
+  } catch (error) {
+    console.error('Erro em verifyResetCodeAndChangePassword:', error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError('internal', 'Erro ao atualizar senha.');
+  }
+});

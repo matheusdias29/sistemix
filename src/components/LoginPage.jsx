@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { login, findUserByEmail, findMemberByEmail, addUser, updateUser, computeOwnerBillingStatus } from '../services/users'
 import { addStore } from '../services/stores'
 import { startTrial } from '../services/subscriptions'
-import { auth } from '../lib/firebase'
+import { auth, functions } from '../lib/firebase'
 import { isSignInWithEmailLink, sendSignInLinkToEmail, signInWithEmailLink } from 'firebase/auth'
+import { httpsCallable } from 'firebase/functions'
 import iPhoneImg from '../assets/17pm.webp'
 import logoWhite from '../assets/logofundobranco.png'
 
@@ -18,10 +19,20 @@ export default function LoginPage({ onLoggedIn }){
 
   // Estados para cadastro
   const [isRegistering, setIsRegistering] = useState(false)
+  const [isForgotPassword, setIsForgotPassword] = useState(false)
+  const [resetStep, setResetStep] = useState(1) // 1: Email, 2: Code, 3: New Password
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetCode, setResetCode] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false)
+  const [verificationCode, setVerificationCode] = useState('')
   const [regName, setRegName] = useState('')
   const [regWhatsapp, setRegWhatsapp] = useState('')
   const [regEmail, setRegEmail] = useState('')
   const [regPassword, setRegPassword] = useState('')
+  const [storeName, setStoreName] = useState('')
+  const [isAskingStoreName, setIsAskingStoreName] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [regSuccessOpen, setRegSuccessOpen] = useState(false)
@@ -210,30 +221,140 @@ export default function LoginPage({ onLoggedIn }){
             setLoading(false)
             return
         }
-        const ownerId = await addUser({
-          name: regName,
-          email: regEmail,
-          password: regPassword,
-          role: 'manager',
-          isAdmin: true,
-          active: true,
-          whatsapp: regWhatsapp
-        })
-        const storeId = await addStore({
-          name: `Loja de ${regName || regEmail}`,
-          ownerId,
-          adminId: ownerId
-        })
-        const trialValidUntil = new Date(Date.now() + 7*24*60*60*1000)
-        await updateUser(ownerId, { trial: true, trialStoreId: storeId, trialValidUntil })
-        await startTrial(ownerId, 7)
-        setRegSuccessOpen(true)
-        setRegTrialUntil(trialValidUntil)
-        setInfo('Conta criada com sucesso! Seu teste de 7 dias já está ativo.')
-
+        
+        const requestRegistrationCode = httpsCallable(functions, 'requestRegistrationCode')
+        await requestRegistrationCode({ email: regEmail })
+        
+        setIsVerifyingCode(true)
+        setInfo(`Enviamos um código de 6 dígitos para ${regEmail}. Verifique sua caixa de entrada (e spam).`)
     } catch (err) {
         console.error(err)
-        setError(err?.message || 'Não foi possível enviar sua solicitação. Tente novamente.')
+        setError(err?.message || 'Não foi possível enviar o código de verificação. Tente novamente.')
+    } finally {
+        setLoading(false)
+    }
+  }
+
+  async function handleVerifyCode(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    if(!verificationCode || verificationCode.length !== 6) {
+      setError('Informe o código de 6 dígitos enviado para seu e-mail.')
+      setLoading(false)
+      return
+    }
+
+    try {
+        const verifyCodeAndCompleteRegistration = httpsCallable(functions, 'verifyCodeAndCompleteRegistration')
+        
+        // Se ainda não temos o nome da loja, abrimos o popup primeiro
+        if (!isAskingStoreName) {
+            // Validar o código ANTES de perguntar o nome da loja seria ideal,
+            // mas para simplificar o fluxo conforme pedido, vamos perguntar agora.
+            setIsAskingStoreName(true)
+            setInfo('')
+            setLoading(false)
+            return
+        }
+
+        const res = await verifyCodeAndCompleteRegistration({
+          email: regEmail,
+          code: verificationCode,
+          name: regName,
+          password: regPassword,
+          whatsapp: regWhatsapp,
+          storeName: storeName
+        })
+        
+        if (res.data?.ok) {
+          setInfo('Código verificado! Criando sua conta...')
+          const user = await login(regEmail, regPassword)
+          onLoggedIn(user)
+        }
+    } catch (err) {
+        console.error(err)
+        setError(err?.message || 'Código inválido ou expirado. Verifique se digitou corretamente.')
+        // Se der erro, volta para a tela de código
+        setIsAskingStoreName(false)
+    } finally {
+        setLoading(false)
+    }
+  }
+
+  async function handleRequestResetCode(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    if(!resetEmail) {
+      setError('Informe seu e-mail.')
+      setLoading(false)
+      return
+    }
+
+    try {
+        const requestPasswordResetCode = httpsCallable(functions, 'requestPasswordResetCode')
+        await requestPasswordResetCode({ email: resetEmail })
+        setResetStep(2)
+        setInfo(`Enviamos um código para ${resetEmail}`)
+    } catch (err) {
+        console.error(err)
+        setError(err?.message || 'Erro ao solicitar código. Verifique o e-mail.')
+    } finally {
+        setLoading(false)
+    }
+  }
+
+  async function handleVerifyResetCode(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    if(!resetCode || resetCode.length !== 6) {
+      setError('Informe o código de 6 dígitos.')
+      setLoading(false)
+      return
+    }
+
+    setResetStep(3)
+    setInfo('Código validado! Escolha sua nova senha.')
+    setLoading(false)
+  }
+
+  async function handleConfirmNewPassword(e) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    
+    if(!newPassword || newPassword.length < 6) {
+      setError('A senha deve ter pelo menos 6 caracteres.')
+      setLoading(false)
+      return
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError('As senhas não coincidem. Verifique se digitou corretamente.')
+      setLoading(false)
+      return
+    }
+
+    try {
+        const verifyResetCodeAndChangePassword = httpsCallable(functions, 'verifyResetCodeAndChangePassword')
+        await verifyResetCodeAndChangePassword({
+          email: resetEmail,
+          code: resetCode,
+          newPassword: newPassword
+        })
+        
+        setInfo('Senha alterada com sucesso! Faça login agora.')
+        setIsForgotPassword(false)
+        setResetStep(1)
+        setEmail(resetEmail)
+    } catch (err) {
+        console.error(err)
+        setError(err?.message || 'Erro ao atualizar senha. Tente novamente.')
     } finally {
         setLoading(false)
     }
@@ -420,85 +541,287 @@ export default function LoginPage({ onLoggedIn }){
       <div className="flex flex-col justify-center items-center p-8 bg-gray-100">
         <div className="w-full max-w-md space-y-8">
           
-          {isRegistering ? (
+          {isForgotPassword ? (
+            // FORMULÁRIO DE RECUPERAÇÃO DE SENHA
+            <>
+              <div className="text-left">
+                <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Recuperar Senha</h2>
+                <p className="mt-2 text-sm text-gray-500">
+                  {resetStep === 1 && "Informe seu e-mail para receber um código de verificação."}
+                  {resetStep === 2 && `Digite o código de 6 dígitos enviado para ${resetEmail}.`}
+                  {resetStep === 3 && "Escolha sua nova senha de acesso."}
+                </p>
+              </div>
+
+              <form className="space-y-4" onSubmit={
+                resetStep === 1 ? handleRequestResetCode : 
+                resetStep === 2 ? handleVerifyResetCode : 
+                handleConfirmNewPassword
+              }>
+                {resetStep === 1 && (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <input 
+                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                      type="email" 
+                      value={resetEmail} 
+                      onChange={e=>setResetEmail(e.target.value)} 
+                      placeholder="seuemail@exemplo.com" 
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                {resetStep === 2 && (
+                  <div className="animate-in fade-in zoom-in-95 duration-300">
+                    <input 
+                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-4 text-center text-3xl font-bold tracking-[0.5em] text-gray-700 placeholder-gray-300 transition-colors" 
+                      type="text" 
+                      maxLength={6}
+                      value={resetCode} 
+                      onChange={e=>setResetCode(e.target.value.replace(/\D/g, ''))} 
+                      placeholder="000000" 
+                      required
+                      autoFocus
+                    />
+                  </div>
+                )}
+
+                {resetStep === 3 && (
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-4">
+                    <div className="relative">
+                      <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors pr-10" 
+                        type={showPassword ? "text" : "password"}
+                        value={newPassword} 
+                        onChange={e=>setNewPassword(e.target.value)} 
+                        placeholder="Nova Senha" 
+                        required
+                        autoFocus
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+
+                    <div className="relative">
+                      <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors pr-10" 
+                        type={showPassword ? "text" : "password"}
+                        value={confirmPassword} 
+                        onChange={e=>setConfirmPassword(e.target.value)} 
+                        placeholder="Confirmar Nova Senha" 
+                        required
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {error && <div className="text-red-500 text-sm text-center font-medium bg-red-50 p-2 rounded-md">{error}</div>}
+                {info && <div className="text-blue-500 text-sm text-center font-medium bg-blue-50 p-2 rounded-md">{info}</div>}
+
+                <button 
+                  className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed mt-4" 
+                  disabled={loading} 
+                  type="submit"
+                >
+                  {loading ? 'Processando...' : 
+                    resetStep === 1 ? 'Solicitar Código' : 
+                    resetStep === 2 ? 'Verificar Código' : 
+                    'Alterar Senha'}
+                </button>
+
+                <div className="text-center mt-4">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setIsForgotPassword(false)
+                      setResetStep(1)
+                      setError('')
+                      setInfo('')
+                    }}
+                    className="text-sm text-gray-500 hover:text-gray-700 font-bold uppercase tracking-tight"
+                  >
+                    Voltar para o Login
+                  </button>
+                </div>
+              </form>
+            </>
+          ) : isRegistering ? (
              // FORMULÁRIO DE CADASTRO
              <>
                <div className="text-left">
-                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Teste grátis por 7 dias!</h2>
+                  <h2 className="text-3xl font-bold text-gray-900 tracking-tight">
+                    {isVerifyingCode ? 'Verifique seu e-mail' : 'Teste grátis por 7 dias!'}
+                  </h2>
                   <p className="mt-2 text-sm text-gray-500">
-                    Já possui conta? <button onClick={() => setIsRegistering(false)} className="text-green-500 font-bold hover:underline uppercase">FAÇA LOGIN</button>
+                    {isVerifyingCode ? (
+                      <>Digitou o e-mail errado? <button onClick={() => { setIsVerifyingCode(false); setInfo(''); setError(''); }} className="text-green-500 font-bold hover:underline uppercase">VOLTAR</button></>
+                    ) : (
+                      <>Já possui conta? <button onClick={() => setIsRegistering(false)} className="text-green-500 font-bold hover:underline uppercase">FAÇA LOGIN</button></>
+                    )}
                   </p>
                </div>
 
-               <form className="space-y-4" onSubmit={handleRegister}>
-                  <input 
-                    className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
-                    type="text" 
-                    value={regName} 
-                    onChange={e=>setRegName(e.target.value)} 
-                    placeholder="Seu NOME" 
-                    required
-                  />
-                  <input 
-                    className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
-                    type="text" 
-                    value={regWhatsapp} 
-                    onChange={e=>setRegWhatsapp(e.target.value)} 
-                    placeholder="Seu WHATSAPP"
-                    required 
-                  />
-                  <input 
-                    className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
-                    type="email" 
-                    value={regEmail} 
-                    onChange={e=>setRegEmail(e.target.value)} 
-                    placeholder="seuemail@exemplo.com" 
-                    required
-                  />
+               {isVerifyingCode ? (
+                 <form className="space-y-4" onSubmit={handleVerifyCode}>
+                    {!isAskingStoreName ? (
+                      <div className="text-center space-y-4 animate-in fade-in duration-300">
+                        <p className="text-sm text-gray-600">Insira o código de 6 dígitos enviado para <strong>{regEmail}</strong></p>
+                        <input 
+                          className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-4 text-center text-3xl font-bold tracking-[0.5em] text-gray-700 placeholder-gray-300 transition-colors" 
+                          type="text" 
+                          maxLength={6}
+                          value={verificationCode} 
+                          onChange={e=>setVerificationCode(e.target.value.replace(/\D/g, ''))} 
+                          placeholder="000000" 
+                          required
+                          autoFocus
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-center space-y-4 animate-in zoom-in-95 duration-300">
+                        <div className="bg-green-100 text-green-700 p-3 rounded-lg flex items-center justify-center gap-2 mb-4">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="font-medium text-sm">Código Correto!</span>
+                        </div>
+                        <p className="text-sm text-gray-600 font-medium">Como se chamará sua loja?</p>
+                        <input 
+                          className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-center text-xl font-semibold text-gray-700 placeholder-gray-400 transition-colors" 
+                          type="text" 
+                          value={storeName} 
+                          onChange={e=>setStoreName(e.target.value)} 
+                          placeholder="Ex: Minha Loja Top" 
+                          required
+                          autoFocus
+                        />
+                      </div>
+                    )}
 
-                  {/* Campos de endereço removidos */}
+                    {error && <div className="text-red-500 text-sm text-center font-medium bg-red-50 p-2 rounded-md">{error}</div>}
+                    {info && <div className="text-blue-500 text-sm text-center font-medium">{info}</div>}
 
-                  <div className="relative">
+                    <button 
+                      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed mt-4" 
+                      disabled={loading} 
+                      type="submit"
+                    >
+                      {loading ? 'Processando...' : (isAskingStoreName ? 'Finalizar Cadastro' : 'Verificar Código')}
+                    </button>
+                    
+                    {!isAskingStoreName && (
+                      <div className="text-center">
+                        <button 
+                          type="button"
+                          onClick={handleRegister}
+                          disabled={loading}
+                          className="text-sm text-gray-500 hover:text-gray-700 font-medium disabled:opacity-50"
+                        >
+                          Não recebeu? Reenviar código
+                        </button>
+                      </div>
+                    )}
+                 </form>
+               ) : (
+                 <form className="space-y-4" onSubmit={handleRegister}>
                     <input 
-                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors pr-10" 
-                      type={showPassword ? "text" : "password"}
-                      value={regPassword} 
-                      onChange={e=>setRegPassword(e.target.value)} 
-                      placeholder="Senha" 
+                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                      type="text" 
+                      value={regName} 
+                      onChange={e=>setRegName(e.target.value)} 
+                      placeholder="Seu NOME" 
                       required
                     />
+                    <input 
+                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                      type="text" 
+                      value={regWhatsapp} 
+                      onChange={e=>setRegWhatsapp(e.target.value)} 
+                      placeholder="Seu WHATSAPP"
+                      required 
+                    />
+                    <input 
+                      className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors" 
+                      type="email" 
+                      value={regEmail} 
+                      onChange={e=>setRegEmail(e.target.value)} 
+                      placeholder="seuemail@exemplo.com" 
+                      required
+                    />
+
+                    <div className="relative">
+                      <input 
+                        className="w-full bg-[#E8F0FE] border-transparent focus:border-green-500 focus:bg-white focus:ring-0 rounded-lg px-4 py-3 text-gray-700 placeholder-gray-400 transition-colors pr-10" 
+                        type={showPassword ? "text" : "password"}
+                        value={regPassword} 
+                        onChange={e=>setRegPassword(e.target.value)} 
+                        placeholder="Senha" 
+                        required
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                          </svg>
+                        ) : (
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+
+                    {error && <div className="text-red-500 text-sm">{error}</div>}
+
                     <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed mt-4" 
+                      disabled={loading} 
+                      type="submit"
                     >
-                      {showPassword ? (
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      )}
+                      {loading ? 'Criando conta...' : 'Testar Gratuitamente'}
                     </button>
-                  </div>
 
-                  {error && <div className="text-red-500 text-sm">{error}</div>}
-
-                  <button 
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 rounded-lg uppercase tracking-wide transition-colors shadow-md disabled:opacity-60 disabled:cursor-not-allowed mt-4" 
-                    disabled={loading} 
-                    type="submit"
-                  >
-                    {loading ? 'Criando conta...' : 'Testar Gratuitamente'}
-                  </button>
-
-                  <p className="text-xs text-gray-500 mt-4 text-center">
-                    Ao criar sua conta você concorda com nossos <a href="#" className="text-green-600 hover:underline">Termos de Uso</a> e <a href="#" className="text-green-600 hover:underline">Política de Privacidade</a>
-                  </p>
-               </form>
+                    <p className="text-xs text-gray-500 mt-4 text-center">
+                      Ao criar sua conta você concorda com nossos <a href="#" className="text-green-600 hover:underline">Termos de Uso</a> e <a href="#" className="text-green-600 hover:underline">Política de Privacidade</a>
+                    </p>
+                 </form>
+               )}
              </>
           ) : (
              // FORMULÁRIO DE LOGIN
@@ -577,7 +900,18 @@ export default function LoginPage({ onLoggedIn }){
                     <div className="text-gray-500">
                       Não possui conta? <button type="button" onClick={() => setIsRegistering(true)} className="text-green-500 font-semibold hover:underline">Experimente Grátis</button>
                     </div>
-                    <a href="#" className="text-green-500 font-semibold hover:underline">Esqueceu sua Senha?</a>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setIsForgotPassword(true)
+                        setResetEmail(email)
+                        setError('')
+                        setInfo('')
+                      }}
+                      className="text-green-500 font-semibold hover:underline"
+                    >
+                      Esqueceu sua Senha?
+                    </button>
                   </div>
 
                   <button 

@@ -37,7 +37,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     return base
   }, [slug, store?.name])
 
-  const catalogLink = `https://sistmix.app.br/${displaySlug || ''}`
+  const catalogLink = `https://sistemixcomercio.app.br/${displaySlug || ''}`
 
   const save = async (partial) => {
     if (!storeId) return
@@ -138,7 +138,7 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
           <input
             value={displaySlug}
             onChange={e => onChangeSlug(e.target.value)}
-            placeholder="sistemix.netlify.app/seuslug"
+            placeholder="sistemixcomercio.app.br/seuslug"
             className="w-full border rounded px-3 py-2 text-sm"
           />
           <button

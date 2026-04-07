@@ -179,8 +179,8 @@ export async function requestInfinitePayCheckout(invoiceId) {
 
   const body = {
     handle,
-    redirect_url: 'https://sistmix.app.br/',
-    webhook_url: 'https://sistmix.app.br/',
+    redirect_url: 'https://sistemixcomercio.app.br/',
+    webhook_url: 'https://sistemixcomercio.app.br/',
     order_nsu: orderNsu,
     items: [
       {
