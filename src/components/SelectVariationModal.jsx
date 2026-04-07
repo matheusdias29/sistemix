@@ -1,12 +1,15 @@
 import React, { useState } from 'react'
 
-export default function SelectVariationModal({ open, onClose, product, onChoose, hideFifth = false }){
+export default function SelectVariationModal({ open, onClose, product, onChoose, hideFifth = false, reservedList = [] }){
   const [query, setQuery] = useState('')
   if(!open || !product) return null
   
   const allVariations = product.variationsData || []
   const variations = hideFifth ? allVariations.filter((_, idx) => idx !== 4) : allVariations
   const filtered = variations.filter(v => (v.name||'').toLowerCase().includes(query.trim().toLowerCase()))
+  const reservedQty = Array.isArray(reservedList) 
+    ? reservedList.filter(it => it.productId === product.id).reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0)
+    : 0
   
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70]">
@@ -30,9 +33,10 @@ export default function SelectVariationModal({ open, onClose, product, onChoose,
           <div className="flex-1 overflow-y-auto -mx-2 px-2 space-y-1">
             {filtered.map((variation, idx) => {
               const price = variation.promoPrice ?? variation.salePrice ?? 0
-              const stock = variation.stock ?? variation.stockInitial ?? 0
+              const rawStock = variation.stock ?? variation.stockInitial ?? 0
               const originalIndex = allVariations.indexOf(variation)
               const showStock = originalIndex === 0
+              const stock = showStock ? Math.max(0, Number(rawStock) - Number(reservedQty)) : rawStock
               return (
                 <div 
                   key={idx} 

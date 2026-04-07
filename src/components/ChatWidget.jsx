@@ -6,8 +6,15 @@ import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import notificationSound from '../assets/sons/notification.mp3'
 
-export default function ChatWidget({ user }) {
-  const [isOpen, setIsOpen] = useState(false)
+export default function ChatWidget({ user, open, onOpenChange, hideLauncher = false, onUnreadChange }) {
+  const [internalOpen, setInternalOpen] = useState(false)
+  const isControlled = typeof open === 'boolean'
+  const isOpen = isControlled ? open : internalOpen
+  const setOpen = (next) => {
+    const value = typeof next === 'function' ? next(isOpen) : next
+    if (!isControlled) setInternalOpen(value)
+    if (typeof onOpenChange === 'function') onOpenChange(value)
+  }
   const [colleagues, setColleagues] = useState([])
   const [selectedUser, setSelectedUser] = useState(null)
   const [messages, setMessages] = useState([])
@@ -17,6 +24,10 @@ export default function ChatWidget({ user }) {
   const [now, setNow] = useState(Date.now()) // For refreshing online status
   const messagesEndRef = useRef(null)
   const audioRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) setSelectedUser(null)
+  }, [isOpen])
 
   // Force refresh for online status every 5 seconds
   useEffect(() => {
@@ -251,6 +262,10 @@ export default function ChatWidget({ user }) {
   // Total unread count
   const totalUnread = userChats.reduce((acc, chat) => acc + (chat.unreadCounts?.[myUid] || 0), 0)
 
+  useEffect(() => {
+    if (typeof onUnreadChange === 'function') onUnreadChange(totalUnread)
+  }, [totalUnread, onUnreadChange])
+
   // Monitor unread count for sound
   const prevUnreadRef = useRef(totalUnread)
   const mountedRef = useRef(false)
@@ -419,29 +434,31 @@ export default function ChatWidget({ user }) {
       )}
 
       {/* Floating Button */}
-      <div className="relative">
-        {totalUnread > 0 && !isOpen && (
-            <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900 z-[60] pointer-events-none">
-                {totalUnread > 9 ? '9+' : totalUnread}
-            </div>
-        )}
-        <button
-            onClick={() => {
-                if (isOpen) setSelectedUser(null)
-                setIsOpen(!isOpen)
-            }}
-            className="w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 z-50"
-            title="Chat da Equipe"
-        >
-            {isOpen ? (
-                <span className="text-2xl font-bold">✕</span>
-            ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                </svg>
-            )}
-        </button>
-      </div>
+      {!hideLauncher ? (
+        <div className="relative">
+          {totalUnread > 0 && !isOpen && (
+              <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900 z-[60] pointer-events-none">
+                  {totalUnread > 9 ? '9+' : totalUnread}
+              </div>
+          )}
+          <button
+              onClick={() => {
+                  if (isOpen) setSelectedUser(null)
+                  setOpen(!isOpen)
+              }}
+              className="w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-105 active:scale-95 z-50"
+              title="Chat da Equipe"
+          >
+              {isOpen ? (
+                  <span className="text-2xl font-bold">✕</span>
+              ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+              )}
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }

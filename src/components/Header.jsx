@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
-import { Bell, X, Info, CheckCircle, AlertTriangle, AlertCircle } from 'lucide-react'
+import { Bell, X, Info, CheckCircle, AlertTriangle, AlertCircle, Sun, Moon } from 'lucide-react'
 import { listenStoreNotifications } from '../services/notifications'
 
-export default function Header({user, userData, storeData, title, onUserClick, mobileControls, rightAction}){
+export default function Header({user, userData, storeData, title, onUserClick, mobileControls, rightAction, onToggleChat, onToggleCalculator, chatUnreadCount = 0, chatOpen = false, calculatorOpen = false, darkMode = false, onToggleDarkMode}){
   const [showNotifications, setShowNotifications] = useState(false)
   const notificationRef = useRef(null)
 
@@ -123,20 +123,78 @@ export default function Header({user, userData, storeData, title, onUserClick, m
           <div className="flex items-center">{rightAction}</div>
         ) : null}
 
+        {typeof onToggleDarkMode === 'function' ? (
+          <div className="flex flex-col items-center leading-none">
+            <button
+              onClick={onToggleDarkMode}
+              className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors relative"
+              title={darkMode ? 'Modo escuro' : 'Modo claro'}
+            >
+              {darkMode ? <Moon size={24} /> : <Sun size={24} />}
+            </button>
+            <div className="mt-1 text-[10px] font-semibold text-gray-500 dark:text-gray-400">{darkMode ? 'Modo escuro' : 'Modo claro'}</div>
+          </div>
+        ) : null}
+
+        {typeof onToggleChat === 'function' ? (
+          <div className="flex flex-col items-center leading-none">
+            <button
+              onClick={onToggleChat}
+              className={`p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors relative ${chatOpen ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200' : ''}`}
+              title="Chat interno"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              {chatUnreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900">
+                  {chatUnreadCount > 9 ? '9+' : chatUnreadCount}
+                </span>
+              )}
+            </button>
+            <div className="mt-1 text-[10px] font-semibold text-gray-500 dark:text-gray-400">Chat interno</div>
+          </div>
+        ) : null}
+
+        {typeof onToggleCalculator === 'function' ? (
+          <div className="flex flex-col items-center leading-none">
+            <button
+              onClick={onToggleCalculator}
+              className={`p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors relative ${calculatorOpen ? 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200' : ''}`}
+              title="Calculadora"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="4" y="2" width="16" height="20" rx="2"></rect>
+                <line x1="8" y1="6" x2="16" y2="6"></line>
+                <line x1="16" y1="14" x2="16" y2="14"></line>
+                <line x1="16" y1="18" x2="16" y2="18"></line>
+                <line x1="12" y1="14" x2="12" y2="14"></line>
+                <line x1="12" y1="18" x2="12" y2="18"></line>
+                <line x1="8" y1="14" x2="8" y2="14"></line>
+                <line x1="8" y1="18" x2="8" y2="18"></line>
+              </svg>
+            </button>
+            <div className="mt-1 text-[10px] font-semibold text-gray-500 dark:text-gray-400">Calculadora</div>
+          </div>
+        ) : null}
+
         {/* Ícone de Notificações */}
         <div className="relative" ref={notificationRef}>
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors relative"
-            title="Notificações"
-          >
-            <Bell size={24} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1.5 right-1.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900">
-                {unreadCount}
-              </span>
-            )}
-          </button>
+          <div className="flex flex-col items-center leading-none">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-2.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 transition-colors relative"
+              title="Notificações"
+            >
+              <Bell size={24} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-4 w-4 bg-red-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white dark:border-gray-900">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+            <div className="mt-1 text-[10px] font-semibold text-gray-500 dark:text-gray-400">Notificações</div>
+          </div>
 
           {showNotifications && (
             <div className="absolute right-0 mt-3 w-80 md:w-96 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-100 dark:border-gray-700 z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2">

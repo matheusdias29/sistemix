@@ -625,6 +625,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [shareTargetOrder, setShareTargetOrder] = useState(null)
   // Produtos na OS e modais
   const [osProducts, setOsProducts] = useState([])
+  const [originalOsProducts, setOriginalOsProducts] = useState([])
   const [osServices, setOsServices] = useState([])
   const [serviceSelectOpen, setServiceSelectOpen] = useState(false)
   const [addProdOpen, setAddProdOpen] = useState(false)
@@ -747,6 +748,36 @@ const canEditService = isOwner || perms.services?.edit
   const totalProductsAgg = useMemo(() => {
     return osProducts.reduce((s, p) => s + ((parseFloat(p.price)||0) * (parseFloat(p.quantity)||0)), 0)
   }, [osProducts])
+  const pendingReservedProducts = useMemo(() => {
+    const keyOf = (it) => `${String(it.productId || '').trim()}_${String(it.variationName || '').trim()}`
+    const sumMap = (list) => {
+      const map = new Map()
+      const items = Array.isArray(list) ? list : []
+      for (const it of items) {
+        const k = keyOf(it)
+        const qty = Math.max(0, parseFloat(it.quantity) || 0)
+        map.set(k, (map.get(k) || 0) + qty)
+      }
+      return map
+    }
+    const curMap = sumMap(osProducts)
+    const origMap = sumMap(originalOsProducts)
+
+    const out = []
+    for (const [k, curQty] of curMap.entries()) {
+      const [productId, variationName] = String(k).split('_')
+      const origQty = origMap.get(k) || 0
+      const delta = Math.max(0, Number(curQty) - Number(origQty))
+      if (delta > 0) {
+        out.push({
+          productId,
+          variationName: variationName ? variationName : null,
+          quantity: delta
+        })
+      }
+    }
+    return out
+  }, [osProducts, originalOsProducts])
   const totalServicesAgg = useMemo(() => {
     return osServices.reduce((s, sv) => s + ((parseFloat(sv.price)||0) * (parseFloat(sv.quantity)||0)), 0)
   }, [osServices])
@@ -821,6 +852,7 @@ const canEditService = isOwner || perms.services?.edit
 
     setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts([])
+    setOriginalOsProducts([])
     setOsServices([])
     setOsPayments([])
     setPaymentInfo('')
@@ -868,6 +900,7 @@ const canEditService = isOwner || perms.services?.edit
     setInternalNotes(o.internalNotes || '')
     setWarrantyInfo(o.warrantyInfo || activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts(Array.isArray(o.products) ? o.products : [])
+    setOriginalOsProducts(Array.isArray(o.products) ? o.products : [])
     setOsServices(Array.isArray(o.services) ? o.services : [])
     setOsPayments(Array.isArray(o.payments) ? o.payments : [])
     setPaymentInfo(o.paymentInfo || '')
@@ -1013,159 +1046,118 @@ const canEditService = isOwner || perms.services?.edit
       }
 
       if (editingOrderId) {
-                // Verificar produtos removidos ou com quantidade reduzida para devolver ao estoque
         const originalOrder = orders.find(o => o.id === editingOrderId)
         if (originalOrder && Array.isArray(originalOrder.products)) {
-          for (const origItem of originalOrder.products) {
-            const newItem = osProducts.find(p => 
-              p.productId === origItem.productId && 
-              (String(p.variationName || '').trim() === String(origItem.variationName || '').trim())
-            )
-            
-            let qtyToReturn = 0
-            if (!newItem) {
-              // Produto foi removido
-              qtyToReturn = parseFloat(origItem.quantity) || 0
-            } else {
-              // Produto existe, verificar se quantidade diminuiu
-              const origQty = parseFloat(origItem.quantity) || 0
-              const newQty = parseFloat(newItem.quantity) || 0
-              if (newQty < origQty) {
-                qtyToReturn = origQty - newQty
-              }
+          const keyOf = (it) => `${String(it.productId || '').trim()}_${String(it.variationName || '').trim()}`
+          const sumMap = (list) => {
+            const m = new Map()
+            const items = Array.isArray(list) ? list : []
+            for (const it of items) {
+              const k = keyOf(it)
+              const qty = Math.max(0, parseFloat(it.quantity) || 0)
+              if (qty <= 0) continue
+              m.set(k, (m.get(k) || 0) + qty)
             }
+            return m
+          }
 
-            if (qtyToReturn > 0) {
-              const p = await resolveProduct(origItem.productId)
+          const origMap = sumMap(originalOrder.products)
+          const newMap = sumMap(osProducts)
+
+          const returnsByProduct = new Map()
+          for (const [k, origQty] of origMap.entries()) {
+            const newQty = newMap.get(k) || 0
+            const diff = Math.max(0, Number(origQty) - Number(newQty))
+            if (diff <= 0) continue
+            const [pid, vname] = String(k).split('_')
+            if (!returnsByProduct.has(pid)) returnsByProduct.set(pid, new Map())
+            const vm = returnsByProduct.get(pid)
+            vm.set(vname, (vm.get(vname) || 0) + diff)
+          }
+
+          const removalsByProduct = new Map()
+          for (const [k, newQty] of newMap.entries()) {
+            const origQty = origMap.get(k) || 0
+            const diff = Math.max(0, Number(newQty) - Number(origQty))
+            if (diff <= 0) continue
+            const [pid, vname] = String(k).split('_')
+            if (!removalsByProduct.has(pid)) removalsByProduct.set(pid, new Map())
+            const vm = removalsByProduct.get(pid)
+            vm.set(vname, (vm.get(vname) || 0) + diff)
+          }
+
+          const applyChange = async (type, byProduct, description) => {
+            for (const [productId, vmap] of byProduct.entries()) {
+              const p = await resolveProduct(productId)
               if (!p) continue
 
-              const vname = origItem.variationName ? String(origItem.variationName).trim() : ''
               const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+              if (hasVars) {
+                const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                const totalsByTarget = new Map()
+                const movementRows = []
 
-              if (hasVars && vname) {
-                const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
-                if (idx >= 0) {
-                  const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                  
-                  // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+                for (const [vname, qty] of vmap.entries()) {
+                  const name = String(vname || '').trim()
+                  if (!name) continue
+                  const idx = itemsVar.findIndex(vr => String(vr?.name || vr?.label || '').trim() === name)
+                  if (idx < 0) continue
                   let targetIdx = idx
-                  if (idx > 0 && idx < 4 && itemsVar[0]) {
-                    targetIdx = 0
-                  }
+                  if (idx > 0 && idx < 4 && itemsVar[0]) targetIdx = 0
+                  totalsByTarget.set(String(targetIdx), (totalsByTarget.get(String(targetIdx)) || 0) + qty)
+                  movementRows.push({ idx, qty, vname: name })
+                }
 
-                  const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
-                  itemsVar[targetIdx].stock = cur + qtyToReturn
-                  const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
+                if (totalsByTarget.size > 0) {
+                  for (const [k, qty] of totalsByTarget.entries()) {
+                    const tIdx = parseInt(k, 10)
+                    const cur = Number(itemsVar[tIdx]?.stock ?? itemsVar[tIdx]?.stockInitial ?? 0)
+                    const next = type === 'in' ? (cur + qty) : Math.max(0, cur - qty)
+                    itemsVar[tIdx].stock = next
+                  }
+                  const total = itemsVar.reduce((s, vr) => s + Number(vr.stock ?? vr.stockInitial ?? 0), 0)
                   await updateProduct(p.id, { variationsData: itemsVar, stock: total })
-                  
-                  await recordStockMovement({
-                    productId: p.id,
-                    productName: p.name,
-                    variationId: itemsVar[idx].id || null,
-                    variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
-                    type: 'in',
-                    quantity: qtyToReturn,
-                    reason: 'adjustment',
-                    referenceId: editingOrderId,
-                    description: `Remoção de item na edição da OS ${originalOrder.number || originalOrder.id}`,
-                    userId: ownerId
-                  })
+
+                  for (const row of movementRows) {
+                    const idx = row.idx
+                    await recordStockMovement({
+                      productId: p.id,
+                      productName: p.name,
+                      variationId: itemsVar[idx]?.id || null,
+                      variationName: itemsVar[idx]?.name || itemsVar[idx]?.label || row.vname,
+                      type,
+                      quantity: row.qty,
+                      reason: 'adjustment',
+                      referenceId: editingOrderId,
+                      description,
+                      userId: ownerId
+                    })
+                  }
                   continue
                 }
               }
 
-              const cur = Number(p.stock ?? 0)
-              const next = cur + qtyToReturn
-              await updateProduct(p.id, { stock: next })
-              
-              await recordStockMovement({
-                productId: p.id,
-                productName: p.name,
-                type: 'in',
-                quantity: qtyToReturn,
-                reason: 'adjustment',
-                referenceId: editingOrderId,
-                description: `Remoção de item na edição da OS ${originalOrder.number || originalOrder.id}`,
-                userId: ownerId
-              })
-            }
-          }
-        }
-
-        // Verificar produtos adicionados ou com quantidade aumentada para debitar do estoque
-        for (const newItem of osProducts) {
-          const origItem = originalOrder.products.find(p => 
-            p.productId === newItem.productId && 
-            (String(p.variationName || '').trim() === String(newItem.variationName || '').trim())
-          )
-          
-          let qtyToRemove = 0
-          if (!origItem) {
-            // Produto novo
-            qtyToRemove = parseFloat(newItem.quantity) || 0
-          } else {
-            // Produto já existia, verificar se aumentou
-            const origQty = parseFloat(origItem.quantity) || 0
-            const newQty = parseFloat(newItem.quantity) || 0
-            if (newQty > origQty) {
-              qtyToRemove = newQty - origQty
-            }
-          }
-
-          if (qtyToRemove > 0) {
-            const p = await resolveProduct(newItem.productId)
-            if (!p) continue
-
-            const vname = newItem.variationName ? String(newItem.variationName).trim() : ''
-            const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-
-            if (hasVars && vname) {
-              const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
-              if (idx >= 0) {
-                const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                
-                // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
-                let targetIdx = idx
-                if (idx > 0 && idx < 4 && itemsVar[0]) {
-                  targetIdx = 0
-                }
-
-                const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
-                itemsVar[targetIdx].stock = Math.max(0, cur - qtyToRemove)
-                const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
-                await updateProduct(p.id, { variationsData: itemsVar, stock: total })
-                
+              const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
+              if (totalQty > 0) {
+                const cur = Number(p.stock ?? p.stockInitial ?? 0)
+                const next = type === 'in' ? (cur + totalQty) : Math.max(0, cur - totalQty)
+                await updateProduct(p.id, { stock: next })
                 await recordStockMovement({
                   productId: p.id,
                   productName: p.name,
-                  variationId: itemsVar[idx].id || null,
-                  variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
-                  type: 'out',
-                  quantity: qtyToRemove,
+                  type,
+                  quantity: totalQty,
                   reason: 'adjustment',
                   referenceId: editingOrderId,
-                  description: `Adição de item na edição da OS ${originalOrder.number || originalOrder.id}`,
+                  description,
                   userId: ownerId
                 })
-                continue
               }
             }
-
-            const cur = Number(p.stock ?? 0)
-            const next = Math.max(0, cur - qtyToRemove)
-            await updateProduct(p.id, { stock: next })
-            
-            await recordStockMovement({
-              productId: p.id,
-              productName: p.name,
-              type: 'out',
-              quantity: qtyToRemove,
-              reason: 'adjustment',
-              referenceId: editingOrderId,
-              description: `Adição de item na edição da OS ${originalOrder.number || originalOrder.id}`,
-              userId: ownerId
-            })
           }
+
+          await applyChange('in', returnsByProduct, `Remoção de item na edição da OS ${originalOrder.number || originalOrder.id}`)
+          await applyChange('out', removalsByProduct, `Adição de item na edição da OS ${originalOrder.number || originalOrder.id}`)
         }
         await updateOrder(editingOrderId, basePayload)
       } else {
@@ -1186,61 +1178,53 @@ const canEditService = isOwner || perms.services?.edit
         }
         const items = Array.isArray(osProducts) ? osProducts : []
         
-        // Agrupar produtos por ID e Variação para descontar estoque corretamente
-        // Isso evita o bug de descontar apenas 1 quando o mesmo produto aparece várias vezes com precificações diferentes
-        const stockDeductionMap = new Map()
+        // Agrupar por produto (e, internamente, por variação) para descontar corretamente mesmo com linhas duplicadas
+        const byProduct = new Map()
         for (const it of items) {
-          const key = `${it.productId}_${String(it.variationName || '').trim()}`
+          const pid = it.productId
           const qty = Math.max(0, parseFloat(it.quantity) || 0)
-          if (stockDeductionMap.has(key)) {
-            stockDeductionMap.get(key).totalQty += qty
-          } else {
-            stockDeductionMap.set(key, { 
-              productId: it.productId, 
-              variationName: it.variationName,
-              totalQty: qty,
-              productName: it.name
-            })
-          }
+          const vname = String(it.variationName || '').trim()
+          if (!byProduct.has(pid)) byProduct.set(pid, [])
+          byProduct.get(pid).push({ vname, qty, name: it.name })
         }
 
-        for (const [key, deduction] of stockDeductionMap.entries()) {
-          const p = await resolveProduct(deduction.productId)
+        for (const [productId, entries] of byProduct.entries()) {
+          const p = await resolveProduct(productId)
           if (!p) continue
-          
-          const qty = deduction.totalQty
+
           const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-          const vname = deduction.variationName ? String(deduction.variationName).trim() : ''
-          
-          let variationId = null
-          let variationName = null
 
-          if (hasVars && vname) {
-            const idx = p.variationsData.findIndex(v => String(v?.name || v?.label || '').trim() === vname)
-            if (idx >= 0) {
-              const itemsVar = p.variationsData.map(v => ({ ...v }))
-              
-              variationId = itemsVar[idx].id || null
-              variationName = itemsVar[idx].name || itemsVar[idx].label || vname
+          if (hasVars) {
+            const itemsVar = p.variationsData.map(v => ({ ...v }))
+            const totalsByTarget = new Map()
 
-              // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
+            for (const { vname, qty } of entries) {
+              const name = String(vname || '').trim()
+              if (!name) continue
+              const idx = itemsVar.findIndex(v => String(v?.name || v?.label || '').trim() === name)
+              if (idx < 0) continue
               let targetIdx = idx
-              if (idx > 0 && idx < 4 && itemsVar[0]) {
-                targetIdx = 0
-              }
+              if (idx > 0 && idx < 4 && itemsVar[0]) targetIdx = 0
+              const keyT = String(targetIdx)
+              totalsByTarget.set(keyT, (totalsByTarget.get(keyT) || 0) + qty)
+            }
 
-              const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
-              itemsVar[targetIdx].stock = Math.max(0, cur - qty)
+            if (totalsByTarget.size > 0) {
+              for (const [k, totalQty] of totalsByTarget.entries()) {
+                const tIdx = parseInt(k, 10)
+                const cur = Number(itemsVar[tIdx]?.stock ?? 0)
+                itemsVar[tIdx].stock = Math.max(0, cur - totalQty)
+              }
               const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
               await updateProduct(p.id, { variationsData: itemsVar, stock: total })
               
+              // Registrar movimentação agregada por produto
+              const sumQty = Array.from(totalsByTarget.values()).reduce((s, q) => s + q, 0)
               await recordStockMovement({
                 productId: p.id,
                 productName: p.name,
-                variationId,
-                variationName,
                 type: 'out',
-                quantity: qty,
+                quantity: sumQty,
                 reason: 'service_order',
                 referenceId: newOsId,
                 description: `OS para ${client}`,
@@ -1250,21 +1234,25 @@ const canEditService = isOwner || perms.services?.edit
               continue
             }
           }
-          const cur = Number(p.stock ?? 0)
-          const next = Math.max(0, cur - deduction.totalQty)
-          await updateProduct(p.id, { stock: next })
-          
-          await recordStockMovement({
-            productId: p.id,
-            productName: p.name,
-            type: 'out',
-            quantity: deduction.totalQty,
-            reason: 'service_order',
-            referenceId: newOsId,
-            description: `OS para ${client}`,
-            userId: ownerId,
-            userName: attendant
-          })
+
+          // Produto simples (sem variações) ou variação não encontrada: desconta soma total
+          const totalQty = entries.reduce((s, e) => s + e.qty, 0)
+          if (totalQty > 0) {
+            const cur = Number(p.stock ?? 0)
+            const next = Math.max(0, cur - totalQty)
+            await updateProduct(p.id, { stock: next })
+            await recordStockMovement({
+              productId: p.id,
+              productName: p.name,
+              type: 'out',
+              quantity: totalQty,
+              reason: 'service_order',
+              referenceId: newOsId,
+              description: `OS para ${client}`,
+              userId: ownerId,
+              userName: attendant
+            })
+          }
         }
       }
       resetForm()
@@ -1577,55 +1565,78 @@ const canEditService = isOwner || perms.services?.edit
               
               if (newStatus.includes('cancelad') && !oldStatus.includes('cancelad')) {
                 const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
+                const byProduct = new Map()
                 for (const it of items) {
-                  const p = (cachedProducts || productsAll).find(pr => pr.id === it.productId)
-                  if (!p) continue
+                  const pid = String(it.productId || '').trim()
+                  if (!pid) continue
+                  const vname = String(it.variationName || '').trim()
                   const qty = Math.max(0, parseFloat(it.quantity) || 0)
-                  
-                  const vname = it.variationName ? String(it.variationName).trim() : ''
-                  const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-                  
-                  if (hasVars && vname) {
-                    const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
-                    if (idx >= 0) {
-                      const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                      
-                      // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
-                      let targetIdx = idx
-                      if (idx > 0 && idx < 4 && itemsVar[0]) {
-                        targetIdx = 0
-                      }
+                  if (qty <= 0) continue
+                  if (!byProduct.has(pid)) byProduct.set(pid, new Map())
+                  const m = byProduct.get(pid)
+                  m.set(vname, (m.get(vname) || 0) + qty)
+                }
 
-                      const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
-                      itemsVar[targetIdx].stock = cur + qty
+                for (const [productId, vmap] of byProduct.entries()) {
+                  const p =
+                    (await getProductById(productId).catch(() => null)) ||
+                    (cachedProducts || productsAll).find(pr => pr.id === productId)
+                  if (!p) continue
+
+                  const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+                  if (hasVars) {
+                    const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                    const totalsByTarget = new Map()
+                    const movementRows = []
+
+                    for (const [vname, qty] of vmap.entries()) {
+                      const name = String(vname || '').trim()
+                      if (!name) continue
+                      const idx = itemsVar.findIndex(vr => String(vr?.name || vr?.label || '').trim() === name)
+                      if (idx < 0) continue
+                      let targetIdx = idx
+                      if (idx > 0 && idx < 4 && itemsVar[0]) targetIdx = 0
+                      totalsByTarget.set(String(targetIdx), (totalsByTarget.get(String(targetIdx)) || 0) + qty)
+                      movementRows.push({ idx, qty, vname: name })
+                    }
+
+                    if (totalsByTarget.size > 0) {
+                      for (const [k, qty] of totalsByTarget.entries()) {
+                        const tIdx = parseInt(k, 10)
+                        const cur = Number(itemsVar[tIdx]?.stock ?? 0)
+                        itemsVar[tIdx].stock = cur + qty
+                      }
                       const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                       await updateProduct(p.id, { variationsData: itemsVar, stock: total })
-                      
-                      await recordStockMovement({
-                        productId: p.id,
-                        productName: p.name,
-                        variationId: itemsVar[idx].id || null,
-                        variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
-                        type: 'in',
-                        quantity: qty,
-                        reason: 'cancel',
-                        referenceId: statusTargetOrder.id,
-                        description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
-                        userId: ownerId
-                      })
+
+                      for (const row of movementRows) {
+                        const idx = row.idx
+                        await recordStockMovement({
+                          productId: p.id,
+                          productName: p.name,
+                          variationId: itemsVar[idx]?.id || null,
+                          variationName: itemsVar[idx]?.name || itemsVar[idx]?.label || row.vname,
+                          type: 'in',
+                          quantity: row.qty,
+                          reason: 'cancel',
+                          referenceId: statusTargetOrder.id,
+                          description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                          userId: ownerId
+                        })
+                      }
                       continue
                     }
                   }
-                  
+
+                  const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
                   const cur = Number(p.stock ?? 0)
-                  const next = cur + qty
+                  const next = cur + totalQty
                   await updateProduct(p.id, { stock: next })
-                  
                   await recordStockMovement({
                     productId: p.id,
                     productName: p.name,
                     type: 'in',
-                    quantity: qty,
+                    quantity: totalQty,
                     reason: 'cancel',
                     referenceId: statusTargetOrder.id,
                     description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
@@ -1646,55 +1657,79 @@ const canEditService = isOwner || perms.services?.edit
               } else if (oldStatus.includes('cancelad') && newStatus.includes('iniciado')) {
                 // Lógica inversa: Cancelado -> Iniciado (baixa no estoque)
                 const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
+                const byProduct = new Map()
                 for (const it of items) {
-                  const p = productsAll.find(pr => pr.id === it.productId)
-                  if (!p) continue
+                  const pid = String(it.productId || '').trim()
+                  if (!pid) continue
+                  const vname = String(it.variationName || '').trim()
                   const qty = Math.max(0, parseFloat(it.quantity) || 0)
-                  
-                  const vname = it.variationName ? String(it.variationName).trim() : ''
-                  const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-                  
-                  if (hasVars && vname) {
-                    const idx = p.variationsData.findIndex(vr => String(vr?.name || vr?.label || '').trim() === vname)
-                    if (idx >= 0) {
-                      const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                      
-                      // Lógica compartilhada: Precificações 2,3,4 (índices 1,2,3) usam estoque da 1 (índice 0)
-                      let targetIdx = idx
-                      if (idx > 0 && idx < 4 && itemsVar[0]) {
-                        targetIdx = 0
-                      }
+                  if (qty <= 0) continue
+                  if (!byProduct.has(pid)) byProduct.set(pid, new Map())
+                  const m = byProduct.get(pid)
+                  m.set(vname, (m.get(vname) || 0) + qty)
+                }
 
-                      const cur = Number(itemsVar[targetIdx]?.stock ?? 0)
-                      itemsVar[targetIdx].stock = Math.max(0, cur - qty)
+                for (const [productId, vmap] of byProduct.entries()) {
+                  const p =
+                    (await getProductById(productId).catch(() => null)) ||
+                    (productsAll || []).find(pr => pr.id === productId) ||
+                    (cachedProducts || []).find(pr => pr.id === productId)
+                  if (!p) continue
+
+                  const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+                  if (hasVars) {
+                    const itemsVar = p.variationsData.map(vr => ({ ...vr }))
+                    const totalsByTarget = new Map()
+                    const movementRows = []
+
+                    for (const [vname, qty] of vmap.entries()) {
+                      const name = String(vname || '').trim()
+                      if (!name) continue
+                      const idx = itemsVar.findIndex(vr => String(vr?.name || vr?.label || '').trim() === name)
+                      if (idx < 0) continue
+                      let targetIdx = idx
+                      if (idx > 0 && idx < 4 && itemsVar[0]) targetIdx = 0
+                      totalsByTarget.set(String(targetIdx), (totalsByTarget.get(String(targetIdx)) || 0) + qty)
+                      movementRows.push({ idx, qty, vname: name })
+                    }
+
+                    if (totalsByTarget.size > 0) {
+                      for (const [k, qty] of totalsByTarget.entries()) {
+                        const tIdx = parseInt(k, 10)
+                        const cur = Number(itemsVar[tIdx]?.stock ?? 0)
+                        itemsVar[tIdx].stock = Math.max(0, cur - qty)
+                      }
                       const total = itemsVar.reduce((s, vr) => s + (Number(vr.stock ?? 0)), 0)
                       await updateProduct(p.id, { variationsData: itemsVar, stock: total })
-                      
-                      await recordStockMovement({
-                        productId: p.id,
-                        productName: p.name,
-                        variationId: itemsVar[idx].id || null,
-                        variationName: itemsVar[idx].name || itemsVar[idx].label || vname,
-                        type: 'out',
-                        quantity: qty,
-                        reason: 'service_order',
-                        referenceId: statusTargetOrder.id,
-                        description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
-                        userId: ownerId
-                      })
+
+                      for (const row of movementRows) {
+                        const idx = row.idx
+                        await recordStockMovement({
+                          productId: p.id,
+                          productName: p.name,
+                          variationId: itemsVar[idx]?.id || null,
+                          variationName: itemsVar[idx]?.name || itemsVar[idx]?.label || row.vname,
+                          type: 'out',
+                          quantity: row.qty,
+                          reason: 'service_order',
+                          referenceId: statusTargetOrder.id,
+                          description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                          userId: ownerId
+                        })
+                      }
                       continue
                     }
                   }
-                  
+
+                  const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
                   const cur = Number(p.stock ?? 0)
-                  const next = Math.max(0, cur - qty)
+                  const next = Math.max(0, cur - totalQty)
                   await updateProduct(p.id, { stock: next })
-                  
                   await recordStockMovement({
                     productId: p.id,
                     productName: p.name,
                     type: 'out',
-                    quantity: qty,
+                    quantity: totalQty,
                     reason: 'service_order',
                     referenceId: statusTargetOrder.id,
                     description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
@@ -2776,6 +2811,14 @@ const canEditService = isOwner || perms.services?.edit
                 const currentInList = osProducts
                   .filter(p => p.productId === selectedProduct.id && p.variationName === (selectedVariation ? (selectedVariation.name || selectedVariation.label) : null))
                   .reduce((acc, p) => acc + (parseFloat(p.quantity) || 0), 0)
+                
+                // Em edição: o estoque do banco já foi descontado pelos itens originais da OS.
+                // Então a reserva para validar deve considerar apenas o que foi ADICIONADO além do original.
+                const originalInList = originalOsProducts
+                  .filter(p => p.productId === selectedProduct.id && p.variationName === (selectedVariation ? (selectedVariation.name || selectedVariation.label) : null))
+                  .reduce((acc, p) => acc + (parseFloat(p.quantity) || 0), 0)
+                
+                const pendingInList = Math.max(0, Number(currentInList) - Number(originalInList))
 
                 let maxStock = 0
                 if (selectedVariation) {
@@ -2799,7 +2842,7 @@ const canEditService = isOwner || perms.services?.edit
                    maxStock = Number(selectedProduct.stock || 0)
                 }
 
-                if ((q + currentInList) > maxStock) {
+                if ((q + pendingInList) > maxStock) {
                    showAlert(`Estoque insuficiente para adicionar essa quantidade. Você já tem ${currentInList} na lista e o total disponível é ${maxStock}.`)
                    return
                 }
@@ -2823,8 +2866,12 @@ const canEditService = isOwner || perms.services?.edit
               products={cachedProducts || productsAll}
               priceIndex={activeStore?.serviceOrderSettings?.defaultPriceIndex || 0}
               showStock={activeStore?.serviceOrderSettings?.showStockInSelection || false}
+              reservedList={pendingReservedProducts}
               onChoose={(p)=>{
                 const defIdx = activeStore?.serviceOrderSettings?.defaultPriceIndex || 0
+                const reservedQty = pendingReservedProducts
+                  .filter(it => it.productId === p.id)
+                  .reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0)
                 
                 // Tentativa de auto-seleção baseada na configuração
                 if (defIdx > 0 && p.variationsData && p.variationsData[defIdx]) {
@@ -2837,6 +2884,7 @@ const canEditService = isOwner || perms.services?.edit
                     const base = vars[0]
                     if (base) effectiveStock = Number(base.stock ?? base.stockInitial ?? 0)
                   }
+                  effectiveStock = Math.max(0, effectiveStock - reservedQty)
 
                   // Verificar se a variação está ativa e tem estoque
                   if (variation.active !== false && effectiveStock > 0) {
@@ -2860,7 +2908,7 @@ const canEditService = isOwner || perms.services?.edit
                 if(p.variations > 0 && p.variationsData && p.variationsData.length > 0){
                   setVarSelectOpen(true)
                 } else {
-                  const currentStock = Number(p.stock || 0)
+                  const currentStock = Math.max(0, Number(p.stock || 0) - reservedQty)
                   if (currentStock <= 0) {
                     showAlert('Produto com estoque zerado. Não é possível adicionar.')
                     return
@@ -2876,6 +2924,7 @@ const canEditService = isOwner || perms.services?.edit
               open={varSelectOpen}
               onClose={()=>setVarSelectOpen(false)}
               product={selectedProduct}
+              reservedList={pendingReservedProducts}
               onChoose={(variation)=>{
                 const vars = selectedProduct?.variationsData || []
                 const index = vars.findIndex(v => v.name === variation.name)
@@ -2888,6 +2937,10 @@ const canEditService = isOwner || perms.services?.edit
                     effectiveStock = Number(base.stock ?? base.stockInitial ?? 0)
                   }
                 }
+                const reservedQty = pendingReservedProducts
+                  .filter(it => it.productId === selectedProduct?.id)
+                  .reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0)
+                effectiveStock = Math.max(0, effectiveStock - reservedQty)
 
                 if (effectiveStock <= 0) {
                   showAlert('Variação com estoque zerado. Não é possível adicionar.')
@@ -3806,7 +3859,7 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
   )
 }
 
-function SelectProductModal({ open, onClose, products, onChoose, onNew, priceIndex = 0, showStock = false }){
+function SelectProductModal({ open, onClose, products, onChoose, onNew, priceIndex = 0, showStock = false, reservedList = [] }){
   const [query, setQuery] = useState('')
   const [limit, setLimit] = useState(20)
 
@@ -3833,6 +3886,13 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew, priceInd
     return p.priceMin ?? p.salePrice ?? 0
   }
 
+  const getReservedQty = (p) => {
+    if (!Array.isArray(reservedList) || reservedList.length === 0) return 0
+    return reservedList
+      .filter(it => it.productId === p.id)
+      .reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0)
+  }
+
   const getStock = (p) => {
     // Se tiver variação correspondente ao índice
     if (priceIndex > 0 && p.variationsData && p.variationsData[priceIndex]) {
@@ -3840,12 +3900,20 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew, priceInd
       // Lógica de estoque compartilhado (índices 1,2,3 usam estoque do 0)
       if (priceIndex < 4) {
         const base = p.variationsData[0]
-        if (base) return Number(base.stock ?? base.stockInitial ?? 0)
+        if (base) {
+          const raw = Number(base.stock ?? base.stockInitial ?? 0)
+          const reserved = getReservedQty(p)
+          return Math.max(0, raw - reserved)
+        }
       }
-      return Number(v.stock ?? v.stockInitial ?? 0)
+      const raw = Number(v.stock ?? v.stockInitial ?? 0)
+      const reserved = getReservedQty(p)
+      return Math.max(0, raw - reserved)
     }
     // Fallback: estoque total do produto ou da variação 0
-    return Number(p.stock || 0)
+    const raw = Number(p.stock || 0)
+    const reserved = getReservedQty(p)
+    return Math.max(0, raw - reserved)
   }
 
   return (

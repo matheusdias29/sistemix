@@ -87,6 +87,9 @@ export default function App(){
   const [billingStatus, setBillingStatus] = useState('ativo')
   const [overduePromptOpen, setOverduePromptOpen] = useState(false)
   const [overdueRedirected, setOverdueRedirected] = useState(false)
+  const [calculatorOpen, setCalculatorOpen] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatUnreadCount, setChatUnreadCount] = useState(0)
   const isOwner = user && !user.memberId
 
   const isOverdue = !!(store && user && (billingStatus === 'em_atraso' || user.status === 'em_atraso'))
@@ -410,6 +413,13 @@ export default function App(){
             storeData={store}
             title={labels[view] || 'Início'}
             onUserClick={() => setStore(null)}
+            onToggleChat={() => setChatOpen(v => !v)}
+            onToggleCalculator={() => setCalculatorOpen(v => !v)}
+            darkMode={darkMode}
+            onToggleDarkMode={() => setDarkMode(v => !v)}
+            chatUnreadCount={chatUnreadCount}
+            chatOpen={chatOpen}
+            calculatorOpen={calculatorOpen}
             mobileControls={{
               open: () => setMobileSidebarOpen(true),
               close: () => setMobileSidebarOpen(false),
@@ -555,8 +565,8 @@ export default function App(){
           </div>
         </div>
       )}
-      <Calculator />
-      {user && store && <ChatWidget user={user} />}
+      <Calculator open={calculatorOpen} onOpenChange={setCalculatorOpen} hideLauncher />
+      {user && store && <ChatWidget user={user} open={chatOpen} onOpenChange={setChatOpen} hideLauncher onUnreadChange={setChatUnreadCount} />}
       {invoiceReminderOpen && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
