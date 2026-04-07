@@ -1185,12 +1185,32 @@ const canEditService = isOwner || perms.services?.edit
           setPendingImageFiles([])
         }
         const items = Array.isArray(osProducts) ? osProducts : []
+        
+        // Agrupar produtos por ID e Variação para descontar estoque corretamente
+        // Isso evita o bug de descontar apenas 1 quando o mesmo produto aparece várias vezes com precificações diferentes
+        const stockDeductionMap = new Map()
         for (const it of items) {
-          const p = await resolveProduct(it.productId)
-          if (!p) continue
+          const key = `${it.productId}_${String(it.variationName || '').trim()}`
           const qty = Math.max(0, parseFloat(it.quantity) || 0)
+          if (stockDeductionMap.has(key)) {
+            stockDeductionMap.get(key).totalQty += qty
+          } else {
+            stockDeductionMap.set(key, { 
+              productId: it.productId, 
+              variationName: it.variationName,
+              totalQty: qty,
+              productName: it.name
+            })
+          }
+        }
+
+        for (const [key, deduction] of stockDeductionMap.entries()) {
+          const p = await resolveProduct(deduction.productId)
+          if (!p) continue
+          
+          const qty = deduction.totalQty
           const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-          const vname = it.variationName ? String(it.variationName).trim() : ''
+          const vname = deduction.variationName ? String(deduction.variationName).trim() : ''
           
           let variationId = null
           let variationName = null
@@ -1224,21 +1244,21 @@ const canEditService = isOwner || perms.services?.edit
                 reason: 'service_order',
                 referenceId: newOsId,
                 description: `OS para ${client}`,
-                userId: ownerId, // Assuming ownerId is available or pass user
+                userId: ownerId,
                 userName: attendant
               })
               continue
             }
           }
           const cur = Number(p.stock ?? 0)
-          const next = Math.max(0, cur - qty)
+          const next = Math.max(0, cur - deduction.totalQty)
           await updateProduct(p.id, { stock: next })
           
           await recordStockMovement({
             productId: p.id,
             productName: p.name,
             type: 'out',
-            quantity: qty,
+            quantity: deduction.totalQty,
             reason: 'service_order',
             referenceId: newOsId,
             description: `OS para ${client}`,
@@ -2750,6 +2770,13 @@ const canEditService = isOwner || perms.services?.edit
               onConfirm={()=>{
                 if(!selectedProduct) return;
 
+                const q = parseFloat(qtyInput)||1
+                
+                // Calcular quanto desse produto (e variação) já está na lista atual da OS
+                const currentInList = osProducts
+                  .filter(p => p.productId === selectedProduct.id && p.variationName === (selectedVariation ? (selectedVariation.name || selectedVariation.label) : null))
+                  .reduce((acc, p) => acc + (parseFloat(p.quantity) || 0), 0)
+
                 let maxStock = 0
                 if (selectedVariation) {
                    // Se for precificação 2, 3 ou 4 (índices 1, 2, 3), verificar se deve usar estoque da precificação 1 (índice 0)
@@ -2758,7 +2785,7 @@ const canEditService = isOwner || perms.services?.edit
                    
                    let effectiveStock = Number(selectedVariation.stock ?? selectedVariation.stockInitial ?? 0)
                    const vars = selectedProduct?.variationsData || []
-                   const idx = vars.findIndex(v => v.name === selectedVariation.name)
+                   const idx = vars.findIndex(v => (v.name || v.label) === (selectedVariation.name || selectedVariation.label))
                    
                    if (idx > 0 && idx < 4) {
                       const base = vars[0]
@@ -2771,9 +2798,9 @@ const canEditService = isOwner || perms.services?.edit
                 } else {
                    maxStock = Number(selectedProduct.stock || 0)
                 }
-                const q = parseFloat(qtyInput)||1
-                if (q > maxStock) {
-                   showAlert('Estoque insuficiente para adicionar essa quantidade.')
+
+                if ((q + currentInList) > maxStock) {
+                   showAlert(`Estoque insuficiente para adicionar essa quantidade. Você já tem ${currentInList} na lista e o total disponível é ${maxStock}.`)
                    return
                 }
 
@@ -2782,7 +2809,7 @@ const canEditService = isOwner || perms.services?.edit
                   name: selectedProduct.name,
                   variationName: selectedVariation ? (selectedVariation.name || selectedVariation.label || null) : null,
                   price: parseFloat(priceInput)||0,
-                  quantity: parseFloat(qtyInput)||1,
+                  quantity: q,
                 }
                 setOsProducts(prev=>[...prev, item])
                 setAddProdOpen(false)

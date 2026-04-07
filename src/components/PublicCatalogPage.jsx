@@ -12,7 +12,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   const [query, setQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('Todos')
   const [currentPage, setCurrentPage] = useState(1)
-  const ITEMS_PER_PAGE = 30
+  const ITEMS_PER_PAGE = 16
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [bannerIndex, setBannerIndex] = useState(0)
   const hoverRef = useRef(false)
