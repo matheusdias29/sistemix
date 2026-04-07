@@ -81,11 +81,50 @@ async function ensureTwoPendingInvoices({ db, ownerId }) {
   if (!sub.planId) return
 
   const invSnap = await db.collection('invoices').where('ownerId', '==', ownerId).get()
-  const invoices = invSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+  const invoices = invSnap.docs.map(d => ({ id: d.id, _ref: d.ref, ...d.data() }))
   const validInvoices = invoices.filter(i => {
     const due = toDateOnly(i.dueDate)
     return due && due.getFullYear() >= 2000
   })
+
+  // Dedup: se houver mais de uma fatura pendente no mesmo dia, mantém só 1 (evita "duplicadas")
+  const dueKeyOf = (d) => {
+    const dt = toDateOnly(d)
+    if (!dt) return ''
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+  }
+  const dupMap = new Map()
+  for (const inv of validInvoices) {
+    const key = dueKeyOf(inv.dueDate)
+    if (!key) continue
+    if (!dupMap.has(key)) dupMap.set(key, [])
+    dupMap.get(key).push(inv)
+  }
+  const dupBatch = db.batch()
+  let dupDeletes = 0
+  for (const [key, list] of dupMap.entries()) {
+    const unpaidList = list.filter(i => !isPaidInvoice(i))
+    if (unpaidList.length <= 1) continue
+    const sorted = unpaidList.slice().sort((a, b) => {
+      const na = Number(a.number || 0)
+      const nb = Number(b.number || 0)
+      if (na && nb && na !== nb) return na - nb
+      const ca = normalizeTimestampToDate(a.createdAt)?.getTime?.() || 0
+      const cb = normalizeTimestampToDate(b.createdAt)?.getTime?.() || 0
+      return ca - cb
+    })
+    const keep = sorted[0]
+    for (const it of sorted.slice(1)) {
+      if (it._ref) {
+        dupBatch.delete(it._ref)
+        dupDeletes += 1
+      }
+    }
+    // Garante o docId determinístico também marcado como existente (se já existir outro ID, não cria outro)
+    // Nada a fazer aqui além de deletar os extras
+    void keep
+  }
+  if (dupDeletes) await dupBatch.commit()
 
   const unpaid = validInvoices.filter(i => !isPaidInvoice(i))
   const unpaidSorted = unpaid
@@ -131,11 +170,14 @@ async function ensureTwoPendingInvoices({ db, ownerId }) {
 
     const countSnap = await db.collection('invoices').where('ownerId', '==', ownerId).count().get()
     const seq = Number(countSnap.data().count || 0) + 1
-    await db.collection('invoices').add({
+    const docId = `${ownerId}_${key}`
+    try {
+      await db.collection('invoices').doc(docId).create({
       ownerId,
       amount,
       status: 'pending',
       dueDate: d0,
+      dueKey: key,
       paymentMethod: 'PIX',
       clientRef: ownerId,
       description: sub.planName || 'Assinatura',
@@ -147,8 +189,12 @@ async function ensureTwoPendingInvoices({ db, ownerId }) {
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       history: [{ type: 'created', at: new Date().toISOString(), by: 'auto' }],
-    })
-    return true
+      })
+      return true
+    } catch (e) {
+      // Já existe
+      return false
+    }
   }
 
   if (unpaidSorted.length >= 2) return

@@ -56,7 +56,17 @@ export async function upsertPlan(ownerId, plan) {
       createdAt: serverTimestamp(),
     }, { merge: true })
   } else {
-    await setDoc(ref, base, { merge: true })
+    const nextDue = new Date()
+    nextDue.setHours(0, 0, 0, 0)
+    await setDoc(ref, {
+      ...base,
+      trialStart: null,
+      trialEnd: null,
+      canceledAt: null,
+      nextDueDate: nextDue,
+      computedStatus: 'ativo',
+      computedAt: serverTimestamp(),
+    }, { merge: true })
   }
 }
 

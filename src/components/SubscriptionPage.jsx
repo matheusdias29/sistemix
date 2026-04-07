@@ -436,7 +436,7 @@ export default function SubscriptionPage({ user, onBack }) {
     setError('')
     try {
       await upsertPlan(ownerId, plan)
-      await updateUser(ownerId, { trial: false })
+      await updateUser(ownerId, { trial: false, trialValidUntil: null })
       setChoosePlanOpen(false)
     } catch (e) {
       setError('Erro ao salvar plano')
@@ -445,57 +445,8 @@ export default function SubscriptionPage({ user, onBack }) {
     }
   }
 
-  const [firstInvoiceMethod, setFirstInvoiceMethod] = useState('PIX')
-  const hasAnyInvoice = invoices && invoices.length > 0
-  const needsFirstInvoice = useMemo(() => {
-    const trialEnd = parseDate(sub?.trialEnd)
-    return !!(sub?.planId && trialEnd && !hasAnyInvoice)
-  }, [sub, hasAnyInvoice])
-
-  const handleCreateFirstInvoice = useCallback(async () => {
-    if (!ownerId || !sub?.planId) return
-    setSaving(true)
-    setError('')
-    try {
-      const trialEndRaw = parseDate(sub?.trialEnd)
-      const dueOnly = toDateOnly(trialEndRaw) || toDateOnly(new Date())
-      if (!dueOnly) throw new Error('Data de vencimento inválida')
-
-      const existing = new Set((invoices || []).map(i => dateKey(parseDate(i.dueDate))).filter(Boolean))
-      const amount = sub?.price || 0
-
-      const firstKey = dateKey(dueOnly)
-      if (firstKey && !existing.has(firstKey)) {
-        await addInvoice({
-          ownerId,
-          amount,
-          dueDate: dueOnly,
-          paymentMethod: firstInvoiceMethod
-        })
-      }
-
-      const nextDue = addMonthsWithFebRule(dueOnly, 1)
-      const nextKey = dateKey(nextDue)
-      if (nextDue && nextKey && !existing.has(nextKey)) {
-        await addInvoice({
-          ownerId,
-          amount,
-          dueDate: nextDue,
-          paymentMethod: firstInvoiceMethod
-        })
-      }
-    } catch (e) {
-      console.error('Erro ao criar primeira fatura', e)
-      setError(e?.message ? `Erro ao criar primeira fatura: ${e.message}` : 'Erro ao criar primeira fatura')
-    } finally {
-      setSaving(false)
-    }
-  }, [ownerId, sub?.planId, sub?.trialEnd, sub?.price, firstInvoiceMethod, invoices])
-
-  useEffect(() => {
-    if (!needsFirstInvoice || saving) return
-    handleCreateFirstInvoice().catch(() => {})
-  }, [needsFirstInvoice, saving, handleCreateFirstInvoice])
+  const [firstInvoiceMethod] = useState('PIX')
+  const needsFirstInvoice = false
 
   const runBatchGeneration = async () => {
     setSaving(true)
@@ -684,30 +635,7 @@ export default function SubscriptionPage({ user, onBack }) {
           </div>
         </div>
 
-        {needsFirstInvoice && (
-          <div className="rounded-2xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-6">
-            <div className="text-sm text-blue-900 dark:text-blue-300 font-medium">Crie a primeira fatura para após o período de teste.</div>
-            <div className="mt-3 flex items-center gap-3">
-              <select
-                value={firstInvoiceMethod}
-                onChange={e => setFirstInvoiceMethod(e.target.value)}
-                className="px-3 py-2 border rounded text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200"
-              >
-                <option value="PIX">PIX</option>
-                <option value="CARTAO">Cartão</option>
-                <option value="BOLETO">Boleto</option>
-              </select>
-              <button
-                type="button"
-                disabled={saving}
-                onClick={handleCreateFirstInvoice}
-                className="px-3 py-2 rounded bg-blue-600 text-white text-sm hover:bg-blue-700 disabled:opacity-60"
-              >
-                {saving ? 'Criando...' : 'Criar primeira fatura'}
-              </button>
-            </div>
-          </div>
-        )}
+        {needsFirstInvoice ? null : null}
       </div>
 
       <div className="rounded-2xl bg-white dark:bg-gray-800 p-6 shadow border border-gray-100 dark:border-gray-700">

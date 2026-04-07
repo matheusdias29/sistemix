@@ -1,4 +1,4 @@
-import { collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, getCountFromServer, doc, getDocs, writeBatch, getDoc, updateDoc, deleteDoc } from 'firebase/firestore'
+import { collection, onSnapshot, query, where, orderBy, addDoc, serverTimestamp, getCountFromServer, doc, getDocs, writeBatch, getDoc, updateDoc, deleteDoc, setDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'invoices')
@@ -31,14 +31,57 @@ async function nextSequentialNumber(ownerId){
   return (c.data().count || 0) + 1
 }
 
+function dueKeyFromDate(d) {
+  try {
+    const dt = d?.toDate ? d.toDate() : new Date(d)
+    if (Number.isNaN(dt.getTime())) return ''
+    const x = new Date(dt)
+    x.setHours(0, 0, 0, 0)
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+  } catch {
+    return ''
+  }
+}
+
 export async function addInvoice({ ownerId, amount, dueDate, paymentMethod, clientRef, description }) {
   if (!ownerId) throw new Error('ownerId é obrigatório')
+  const dueKey = dueKeyFromDate(dueDate)
+  const deterministicId = dueKey ? `${ownerId}_${dueKey}` : ''
+  if (deterministicId) {
+    const ref = doc(colRef, deterministicId)
+    const snap = await getDoc(ref)
+    if (snap.exists()) return ref.id
+    const seq = await nextSequentialNumber(ownerId)
+    const payload = {
+      ownerId,
+      amount: Number(amount || 0),
+      status: 'pending',
+      dueDate,
+      dueKey,
+      paymentMethod: paymentMethod || '',
+      clientRef: clientRef || ownerId,
+      description: description || '',
+      number: seq,
+      orderNsu: String(seq),
+      paymentStatus: 'pending',
+      paymentUrl: '',
+      issuedAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      history: [
+        { type: 'created', at: new Date().toISOString(), by: 'system' }
+      ],
+    }
+    await setDoc(ref, payload)
+    return ref.id
+  }
   const seq = await nextSequentialNumber(ownerId)
   const payload = {
     ownerId,
     amount: Number(amount || 0),
     status: 'pending',
     dueDate,
+    dueKey: '',
     paymentMethod: paymentMethod || '',
     clientRef: clientRef || ownerId,
     description: description || '',
@@ -97,16 +140,18 @@ export async function generateInvoicesBatch({ now = new Date() } = {}){
     const dueOnly = new Date(due)
     dueOnly.setHours(0,0,0,0)
     // Sempre garantir fatura do vencimento configurado (mesmo futuro)
-    const existingQ = query(colRef, where('ownerId','==',ownerId), where('dueDate','==', dueOnly))
-    const existingSnap = await getDocs(existingQ)
-    if (existingSnap.empty) {
+    const key1 = dueKeyFromDate(dueOnly)
+    const id1 = key1 ? `${ownerId}_${key1}` : ''
+    const ref1 = id1 ? doc(colRef, id1) : doc(colRef)
+    const existingSnap = id1 ? await getDoc(ref1) : null
+    if (!id1 ? true : !existingSnap.exists()) {
       const seq = await nextSequentialNumber(ownerId)
-      const docRef = doc(colRef)
       const payload = {
         ownerId,
         amount: baseAmount,
         status: 'pending',
         dueDate: dueOnly,
+        dueKey: key1 || '',
         paymentMethod: '',
         clientRef: ownerId,
         description: sub.planName || 'Assinatura',
@@ -121,22 +166,24 @@ export async function generateInvoicesBatch({ now = new Date() } = {}){
           { type: 'created', at: new Date().toISOString(), by: 'auto' }
         ],
       }
-      batch.set(docRef, payload)
+      batch.set(ref1, payload)
       results.push({ ownerId, number: seq })
     }
     // Também garantir a próxima fatura já criada
     const next = new Date(dueOnly)
     next.setDate(next.getDate() + cycleDays(cycle))
-    const nextQ = query(colRef, where('ownerId','==',ownerId), where('dueDate','==', next))
-    const nextSnap = await getDocs(nextQ)
-    if (nextSnap.empty) {
+    const key2 = dueKeyFromDate(next)
+    const id2 = key2 ? `${ownerId}_${key2}` : ''
+    const ref2 = id2 ? doc(colRef, id2) : doc(colRef)
+    const nextSnap = id2 ? await getDoc(ref2) : null
+    if (!id2 ? true : !nextSnap.exists()) {
       const nextSeq = await nextSequentialNumber(ownerId)
-      const nextDocRef = doc(colRef)
       const nextPayload = {
         ownerId,
         amount: baseAmount,
         status: 'pending',
         dueDate: next,
+        dueKey: key2 || '',
         paymentMethod: '',
         clientRef: ownerId,
         description: sub.planName || 'Assinatura',
@@ -151,7 +198,7 @@ export async function generateInvoicesBatch({ now = new Date() } = {}){
           { type: 'created', at: new Date().toISOString(), by: 'auto' }
         ],
       }
-      batch.set(nextDocRef, nextPayload)
+      batch.set(ref2, nextPayload)
       results.push({ ownerId, number: nextSeq })
     }
   }
