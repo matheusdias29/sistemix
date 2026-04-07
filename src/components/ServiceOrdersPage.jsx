@@ -3096,31 +3096,14 @@ const canEditService = isOwner || perms.services?.edit
             const order = orders.find(o => o.id === orderId)
             const orderNumber = order ? (order.osNumber || order.number || 'OS') : 'OS'
 
-            // 1. Lançar cada pagamento no caixa
-            if (payments && payments.length > 0) {
-              for (const p of payments) {
-                const isNegative = p.methodCode === 'valor_negativo'
-                // Se subtractFromCash for false, o valor deve mostrar zerado no caixa (nem soma nem subtrai)
-                const shouldAffectCash = p.subtractFromCash !== false
-                const transactionValue = !shouldAffectCash ? 0 : (isNegative ? -Math.abs(p.amount) : Math.abs(p.amount))
-                
-                await addCashTransaction(cashId, {
-                  type: 'service_order',
-                  value: transactionValue,
-                  description: `O.S. ${orderNumber} - ${order?.client || 'Cliente'}${isNegative ? ' (Valor Negativo)' : ''}`,
-                  paymentMethod: p.method,
-                  paymentMethodCode: p.methodCode || null,
-                  originalOrder: { id: orderId, number: orderNumber },
-                  date: new Date()
-                })
-              }
-            }
-
-            // 2. Atualizar status da OS
+            // Atualizar status da OS (os pagamentos já foram persistidos no documento da OS)
             await updateOrder(orderId, { 
               status: statusChosen,
               cashLaunched: true,
-              cashLaunchCashId: cashId
+              cashLaunchCashId: cashId,
+              payments: Array.isArray(payments) ? payments : [],
+              updatedAt: new Date(),
+              updatedBy: user?.name || attendant || 'Sistema'
             })
           } catch (e) {
             console.error(e)
