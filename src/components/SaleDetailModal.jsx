@@ -429,7 +429,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
   useEffect(() => {
     if (format === 'a4') setWidth('210mm')
-    else setWidth('80mm')
+    else setWidth((prev) => (String(prev) === '210mm' ? '80mm' : prev))
   }, [format])
 
   useEffect(() => {
@@ -625,7 +625,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       .print-items-cell-qty,
       .print-items-cell-total { white-space: nowrap; overflow: hidden; text-overflow: clip; }
       @media print {
-        @page { margin: 0; }
+        @page { size: ${format === 'a4' ? 'A4' : `${width} auto`}; margin: ${format === 'a4' ? '10mm' : '0'}; }
         body { margin: 0; }
         img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }
@@ -701,6 +701,15 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 <option value="a4">A4</option>
               </select>
             </div>
+            {format === 'thermal' && (
+              <div className="flex items-center bg-white border rounded px-2 py-1">
+                <span className="text-sm text-gray-600 mr-2">Largura:</span>
+                <select value={width} onChange={e => setWidth(e.target.value)} className="text-sm bg-transparent outline-none">
+                  <option value="80mm">80mm</option>
+                  <option value="58mm">58mm</option>
+                </select>
+              </div>
+            )}
             <button onClick={handlePrint} className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 text-sm font-medium shadow-sm">
               Imprimir
             </button>

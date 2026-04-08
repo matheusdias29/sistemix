@@ -1344,7 +1344,8 @@ const canEditService = isOwner || perms.services?.edit
                   <span>Formato:</span>
                   <select value={reportFormat} onChange={e => setReportFormat(e.target.value)} className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">
                     <option value="A4">A4</option>
-                    <option value="Térmica">Térmica</option>
+                    <option value="Térmica 80mm">Térmica 80mm</option>
+                    <option value="Térmica 58mm">Térmica 58mm</option>
                   </select>
                 </div>
                 <button
@@ -1359,19 +1360,21 @@ const canEditService = isOwner || perms.services?.edit
                     iframe.style.height = '0'
                     iframe.style.border = '0'
                     document.body.appendChild(iframe)
-                    const width = reportFormat === 'Térmica' ? '80mm' : '210mm'
+                    const isThermal = String(reportFormat || '').startsWith('Térmica')
+                    const thermalWidth = String(reportFormat || '').includes('58') ? '58mm' : '80mm'
+                    const width = isThermal ? thermalWidth : '210mm'
                     const doc = iframe.contentWindow.document
                     const printStyles = `
-                      @page { size: ${reportFormat === 'Térmica' ? '80mm auto' : 'A4'}; margin: ${reportFormat === 'Térmica' ? '0' : '10mm'}; }
+                      @page { size: ${isThermal ? `${thermalWidth} auto` : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
                       body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; }
                       .sheet { width: ${width}; margin: 0 auto; }
                       h1 { font-size: 18px; margin: 0 0 8px 0; }
                       .subtitle { font-size: 12px; color: #555; margin-bottom: 10px; }
                       .right { text-align: right; }
-                      .section { margin: ${reportFormat === 'Térmica' ? '6mm' : '8mm'} 0; }
+                      .section { margin: ${isThermal ? '6mm' : '8mm'} 0; }
                       .total { font-weight: 700; color: #065f46; }
                       .muted { color: #6b7280; }
-                      .sale-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: ${reportFormat === 'Térmica' ? '10px' : '12px'}; margin: 0 0 10px 0; }
+                      .sale-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: ${isThermal ? '10px' : '12px'}; margin: 0 0 10px 0; }
                       .sale-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
                       .sale-title { font-weight: 800; font-size: 13px; }
                       .sale-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }

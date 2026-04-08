@@ -66,7 +66,7 @@ export default function POSPage({ storeId, user }){
   const [transSaving, setTransSaving] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [receiptOpen, setReceiptOpen] = useState(false)
-  const [receiptFormat, setReceiptFormat] = useState('Térmica')
+  const [receiptFormat, setReceiptFormat] = useState('Térmica 80mm')
   const [receiptTarget, setReceiptTarget] = useState(null)
   const receiptContentRef = useRef(null)
 
@@ -393,8 +393,9 @@ export default function POSPage({ storeId, user }){
     const content = receiptContentRef.current
     if (!content) return
 
-    const isThermal = receiptFormat === 'Térmica'
-    const width = isThermal ? '80mm' : '210mm'
+    const isThermal = String(receiptFormat || '').startsWith('Térmica')
+    const thermalWidth = String(receiptFormat || '').includes('58') ? '58mm' : '80mm'
+    const width = isThermal ? thermalWidth : '210mm'
 
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
@@ -407,7 +408,7 @@ export default function POSPage({ storeId, user }){
 
     const docRef = iframe.contentWindow.document
     const printStyles = `
-      @page { size: ${isThermal ? '80mm auto' : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
+      @page { size: ${isThermal ? `${thermalWidth} auto` : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
       body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; }
       .sheet { width: ${width}; margin: 0 auto; }
       .center { text-align: center; }
@@ -1199,7 +1200,7 @@ export default function POSPage({ storeId, user }){
                       <button
                         onClick={() => {
                           setReceiptTarget(selectedTransaction)
-                          setReceiptFormat('Térmica')
+                          setReceiptFormat('Térmica 80mm')
                           setReceiptOpen(true)
                         }}
                         className="flex items-center gap-2 px-4 py-2 border border-green-500 text-green-600 rounded bg-green-50 hover:bg-green-100 text-sm font-medium transition-colors"
@@ -1302,7 +1303,8 @@ export default function POSPage({ storeId, user }){
                         onChange={(e) => setReceiptFormat(e.target.value)}
                         className="border rounded px-2 py-1 text-sm bg-white text-gray-900"
                       >
-                        <option value="Térmica">Térmica</option>
+                        <option value="Térmica 80mm">Térmica 80mm</option>
+                        <option value="Térmica 58mm">Térmica 58mm</option>
                         <option value="A4">A4</option>
                       </select>
                     </div>
@@ -1324,8 +1326,9 @@ export default function POSPage({ storeId, user }){
                 </div>
                 <div className="p-4 overflow-y-auto overflow-x-auto bg-gray-50">
                   {(() => {
-                    const isThermal = receiptFormat === 'Térmica'
-                    const width = isThermal ? '80mm' : '210mm'
+                    const isThermal = String(receiptFormat || '').startsWith('Térmica')
+                    const thermalWidth = String(receiptFormat || '').includes('58') ? '58mm' : '80mm'
+                    const width = isThermal ? thermalWidth : '210mm'
                     const previewCss = `
                       .receipt-preview .sheet { width: ${width}; margin: 0 auto; }
                       .receipt-preview .paper { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; }

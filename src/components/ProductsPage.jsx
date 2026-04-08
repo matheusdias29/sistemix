@@ -262,11 +262,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     document.body.appendChild(iframe)
 
     const docRef = iframe.contentWindow.document
-    const isThermal = reportFormat === 'Térmica'
-    const width = isThermal ? '80mm' : '210mm'
+    const isThermal = String(reportFormat || '').startsWith('Térmica')
+    const thermalWidth = String(reportFormat || '').includes('58') ? '58mm' : '80mm'
+    const width = isThermal ? thermalWidth : '210mm'
 
     const printStyles = `
-      @page { size: ${isThermal ? '80mm auto' : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
+      @page { size: ${isThermal ? `${thermalWidth} auto` : 'A4'}; margin: ${isThermal ? '0' : '10mm'}; }
       body { font-family: Arial, sans-serif; color: #000; margin: 0; padding: 0; }
       .sheet { width: ${width}; margin: 0 auto; }
       h1 { font-size: 18px; margin: 0 0 6px 0; }
@@ -1582,7 +1583,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   <span>Formato:</span>
                   <select value={reportFormat} onChange={e => setReportFormat(e.target.value)} className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600">
                     <option value="A4">A4</option>
-                    <option value="Térmica">Térmica</option>
+                    <option value="Térmica 80mm">Térmica 80mm</option>
+                    <option value="Térmica 58mm">Térmica 58mm</option>
                   </select>
                 </div>
                 <button onClick={handlePrintReport} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 shadow-sm transition-all">

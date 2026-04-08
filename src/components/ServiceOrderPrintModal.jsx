@@ -109,7 +109,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
   // Auto-select width based on format
   useEffect(() => {
     if (format === 'a4') setWidth('210mm')
-    else setWidth('80mm')
+    else setWidth((prev) => (String(prev) === '210mm' ? '80mm' : prev))
   }, [format])
 
   // Fetch client details to enrich print (phone, whatsapp, cpf, code)
@@ -179,7 +179,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       .print-items-cell-qty,
       .print-items-cell-total { white-space: nowrap; overflow: hidden; text-overflow: clip; }
       @media print {
-        @page { margin: 0; }
+        @page { size: ${format === 'a4' ? 'A4' : `${width} auto`}; margin: ${format === 'a4' ? '10mm' : '0'}; }
         body { margin: 0; }
         img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       }
@@ -334,6 +334,24 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                   A4
                 </button>
               </div>
+              
+              {format === 'thermal' && (
+                <div className="flex items-center bg-white border rounded px-2 py-1">
+                  <span className="text-sm text-gray-600 mr-2">Largura:</span>
+                  <button
+                    onClick={() => setWidth('80mm')}
+                    className={`px-3 py-1 rounded text-sm transition ${width === '80mm' ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    80mm
+                  </button>
+                  <button
+                    onClick={() => setWidth('58mm')}
+                    className={`px-3 py-1 rounded text-sm transition ${width === '58mm' ? 'bg-green-100 text-green-700 font-medium' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    58mm
+                  </button>
+                </div>
+              )}
 
               <button 
                 onClick={handlePrint} 
