@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState, useRef } from 'react'
 import { listenCatalogProducts } from '../services/products'
 import { listenCategories } from '../services/categories'
 import { listenStore } from '../services/stores'
-import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart } from 'lucide-react'
+import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart, MessageCircle } from 'lucide-react'
 import logoWhite from '../assets/logofundobranco.png'
 
 export default function PublicCatalogPage({ storeId, store, loading }) {
@@ -452,8 +452,8 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                           if (isUnavailable) e.preventDefault()
                         }}
                       >
-                        <ShoppingCart size={16} />
-                        {isUnavailable ? 'Indisponível' : 'Comprar'}
+                        <MessageCircle size={16} />
+                        {isUnavailable ? 'Indisponível' : 'Atendimento via WhatsApp'}
                       </a>
                     </div>
                   </div>
