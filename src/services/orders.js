@@ -69,6 +69,8 @@ export async function addOrder(order, storeId){
     brand: order.brand || '',
     model: order.model || '',
     serialNumber: order.serialNumber || '',
+    imei1: order.imei1 || '',
+    imei2: order.imei2 || '',
     equipment: order.equipment || '',
     problem: order.problem || '',
     // Observações

@@ -894,6 +894,8 @@ const canEditService = isOwner || perms.services?.edit
     setBrand(o.brand || '')
     setModel(o.model || '')
     setSerialNumber(o.serialNumber || '')
+    setImei1(o.imei1 || '')
+    setImei2(o.imei2 || '')
     setEquipment(o.equipment || '')
     setProblem(o.problem || '')
     setReceiptNotes(o.receiptNotes || '')
