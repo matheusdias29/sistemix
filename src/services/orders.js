@@ -85,10 +85,13 @@ export async function addOrder(order, storeId){
     // Totais
     totalServices: Number(order.totalServices || 0),
     totalProducts: Number(order.totalProducts || 0),
-    discount: Number(order.discount || 0),
+    feesApplied: Array.isArray(order.feesApplied) ? order.feesApplied : [],
+    discount: (order.discount && typeof order.discount === 'object') ? order.discount : Number(order.discount || 0),
     total: Number(order.total || 0),
     // Pagamentos
     payments: Array.isArray(order.payments) ? order.payments : [],
+    plannedPayments: Array.isArray(order.plannedPayments) ? order.plannedPayments : [],
+    plannedPayment: (order.plannedPayment && typeof order.plannedPayment === 'object') ? order.plannedPayment : null,
     paymentInfo: order.paymentInfo || '',
     preEstablishedPayment: order.preEstablishedPayment || '',
     // Status

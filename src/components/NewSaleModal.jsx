@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { getAllProducts, updateProduct, listenProducts } from '../services/products'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
@@ -40,6 +40,19 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   const [clientSearch, setClientSearch] = useState('')
   const [cart, setCart] = useState([])
   const [payments, setPayments] = useState([])
+  const [plannedPayments, setPlannedPayments] = useState([])
+  const [pendingSaveStatus, setPendingSaveStatus] = useState(null)
+  const [confirmPedidoOpen, setConfirmPedidoOpen] = useState(false)
+  const [planningPayMethodsOpen, setPlanningPayMethodsOpen] = useState(false)
+  const [planningPayAmountOpen, setPlanningPayAmountOpen] = useState(false)
+  const [planningPayAboveConfirmOpen, setPlanningPayAboveConfirmOpen] = useState(false)
+  const [planningRemainingInfoOpen, setPlanningRemainingInfoOpen] = useState(false)
+  const [planningAfterAboveAdjustedOpen, setPlanningAfterAboveAdjustedOpen] = useState(false)
+  const [planningSelectedPayMethod, setPlanningSelectedPayMethod] = useState(null)
+  const [planningPayAmountInput, setPlanningPayAmountInput] = useState('')
+  const [planningPayError, setPlanningPayError] = useState('')
+  const [planningRemainingSnapshot, setPlanningRemainingSnapshot] = useState(0)
+  const [editingPlannedForConfirm, setEditingPlannedForConfirm] = useState(false)
   
   // Modals
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -50,6 +63,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   const [editItemModalOpen, setEditItemModalOpen] = useState(false)
   const [editingItemIndex, setEditingItemIndex] = useState(null)
   const [saving, setSaving] = useState(false)
+  const saveLockRef = useRef(false)
   const [notesOpen, setNotesOpen] = useState(false)
   const [notesText, setNotesText] = useState('')
   const [warrantyOpen, setWarrantyOpen] = useState(false)
@@ -214,9 +228,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
   useEffect(() => {
     if (open) {
+      saveLockRef.current = false
       if (!isEdit) {
         setCart([])
         setPayments([])
+        setPlannedPayments([])
         setSelectedClient(null)
         setNotesText('')
         setWarrantyText(String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO)
@@ -231,6 +247,13 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         })) : []
         setCart(initialCart)
         setPayments(Array.isArray(sale.payments) ? sale.payments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0) })) : [])
+        setPlannedPayments(
+          Array.isArray(sale.plannedPayments)
+            ? sale.plannedPayments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0), subtractFromCash: p.subtractFromCash }))
+            : (sale.plannedPayment && typeof sale.plannedPayment === 'object' && sale.plannedPayment.method
+              ? [{ method: sale.plannedPayment.method, methodCode: sale.plannedPayment.methodCode, amount: Number(sale.total || sale.valor || 0) }]
+              : [])
+        )
         setSelectedClient(sale.clientId || sale.client ? { id: sale.clientId || null, name: sale.client || 'Consumidor Final' } : null)
         setNotesText(sale.receiptNotes || '')
         setWarrantyText(String(sale.warrantyInfo || '').trim() ? String(sale.warrantyInfo) : (String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO))
@@ -249,6 +272,18 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       setRemainingInfoOpen(false)
       setAfterAboveAdjustedOpen(false)
       setWarrantyOpen(false)
+      setPendingSaveStatus(null)
+      setConfirmPedidoOpen(false)
+      setEditingPlannedForConfirm(false)
+      setPlanningPayMethodsOpen(false)
+      setPlanningPayAmountOpen(false)
+      setPlanningPayAboveConfirmOpen(false)
+      setPlanningRemainingInfoOpen(false)
+      setPlanningAfterAboveAdjustedOpen(false)
+      setPlanningSelectedPayMethod(null)
+      setPlanningPayAmountInput('')
+      setPlanningPayError('')
+      setPlanningRemainingSnapshot(0)
     }
   }, [open])
 
@@ -462,6 +497,8 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     return acc + Number(p.amount || 0)
   }, 0)
   const remainingToPay = Math.max(0, total - totalPaid)
+  const plannedPaidTotal = plannedPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0)
+  const remainingToPlan = Math.max(0, total - plannedPaidTotal)
 
   // Open Cash Handler
   const handleOpenCash = async (e) => {
@@ -491,7 +528,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   }
 
   // Handlers
-  const handleSave = async (status = 'Venda') => {
+  const handleSave = async (status = 'Venda', paymentsOverride = null, plannedPaymentsOverride = undefined) => {
     if (cart.length === 0) {
       alert('Adicione produtos à venda.')
       return
@@ -499,11 +536,31 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     
     // Validate payment for final sales
     const isFinalSale = (status === 'Venda' || status === 'Finalizado' || status === 'Cliente Final' || status === 'Cliente Lojista')
-    if (isFinalSale && remainingToPay > 0.01) {
-      alert(`Faltam R$ ${remainingToPay.toFixed(2)} para completar o pagamento.`)
+    const paymentsToUse = Array.isArray(paymentsOverride) ? paymentsOverride : payments
+    const totalPaidLocal = paymentsToUse.reduce((acc, p) => {
+      if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+      return acc + Number(p.amount || 0)
+    }, 0)
+    const remainingLocal = Math.max(0, total - totalPaidLocal)
+    if (isFinalSale && remainingLocal > 0.01) {
+      alert(`Faltam R$ ${remainingLocal.toFixed(2)} para completar o pagamento.`)
       return
     }
 
+    if (status === 'Pedido') {
+      const plannedToUse = plannedPaymentsOverride !== undefined ? plannedPaymentsOverride : plannedPayments
+      const plannedPaid = (plannedToUse || []).reduce((s, p) => s + Number(p.amount || 0), 0)
+      const plannedRemaining = Math.max(0, total - plannedPaid)
+      if (!plannedToUse || plannedToUse.length === 0 || plannedRemaining > 0.01) {
+        setPendingSaveStatus(status)
+        setPlanningPayMethodsOpen(true)
+        setOptionsOpen(false)
+        return
+      }
+    }
+
+    if (saveLockRef.current) return
+    saveLockRef.current = true
     setSaving(true)
     try {
       // Calculate Commission
@@ -537,7 +594,9 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         valor: total,
         receiptNotes: notesText,
         warrantyInfo: warrantyText,
-        payments: payments.map(p => ({
+        plannedPayments: isFinalSale ? [] : (plannedPaymentsOverride !== undefined ? (plannedPaymentsOverride || []) : plannedPayments),
+        plannedPayment: null,
+        payments: (status === 'Pedido' ? [] : paymentsToUse).map(p => ({
           method: p.method,
           amount: p.amount,
           methodCode: p.methodCode || null,
@@ -563,6 +622,8 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           valor: payload.valor,
           receiptNotes: payload.receiptNotes,
           warrantyInfo: payload.warrantyInfo,
+          plannedPayments: payload.plannedPayments,
+          plannedPayment: null,
           payments: payload.payments,
           status: status,
           commissions: payload.commissions,
@@ -647,6 +708,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       console.error(err)
       alert('Erro ao salvar venda.')
     } finally {
+      saveLockRef.current = false
       setSaving(false)
     }
   }
@@ -1007,7 +1069,14 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
               {(isOwner || perms.sales?.finalize || (isEdit && perms.sales?.edit)) && (
               <button 
-                onClick={() => setPayMethodsOpen(true)}
+                onClick={() => {
+                  const isPedido = String(sale?.status || '').toLowerCase() === 'pedido'
+                  if (isEdit && isPedido && (!payments || payments.length === 0) && plannedPayments && plannedPayments.length > 0) {
+                    setConfirmPedidoOpen(true)
+                    return
+                  }
+                  setPayMethodsOpen(true)
+                }}
                 disabled={cart.length === 0}
                 className="flex-[2] py-3 bg-green-600 text-white rounded font-medium hover:bg-green-700 transition-colors disabled:opacity-50 shadow-sm flex flex-col items-center justify-center leading-tight"
               >
@@ -1019,6 +1088,70 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           </div>
         </div>
       </div>
+
+      {confirmPedidoOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm p-6">
+            <div className="text-lg font-semibold text-gray-800 dark:text-white mb-2 text-center">Faturar pedido</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400 text-center mb-4">Confirme as formas de pagamento e selecione o tipo de cliente.</div>
+            <div className="mb-4">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">Pagamento (salvo no pedido)</div>
+              <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/20">
+                {(plannedPayments || []).map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-3 py-2 text-sm border-b border-gray-200 dark:border-gray-700 last:border-0">
+                    <span className="text-gray-700 dark:text-gray-200">{p.method}</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{money(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmPedidoOpen(false)
+                  setEditingPlannedForConfirm(true)
+                  setPlanningPayMethodsOpen(true)
+                }}
+                className="mt-2 text-xs text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200 underline"
+              >
+                Editar forma de pagamento
+              </button>
+            </div>
+            <div className="mb-4 flex items-center justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">Total</span>
+              <span className="font-bold text-gray-900 dark:text-white">{money(total)}</span>
+            </div>
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmPedidoOpen(false)
+                  handleSave('Cliente Final', plannedPayments, null).catch(() => {})
+                }}
+                className="w-full py-3 bg-green-600 text-white rounded font-medium hover:bg-green-700 shadow-sm flex items-center justify-center gap-2"
+              >
+                <span>👤</span> Cliente Final
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmPedidoOpen(false)
+                  handleSave('Cliente Lojista', plannedPayments, null).catch(() => {})
+                }}
+                className="w-full py-3 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 shadow-sm flex items-center justify-center gap-2"
+              >
+                <span>🏢</span> Lojista
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmPedidoOpen(false)}
+              className="mt-4 w-full py-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-sm hover:underline"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Client Modal */}
       <SelectClientModal 
@@ -1405,6 +1538,106 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           method={selectedPayMethod}
           remaining={remainingSnapshot}
           onClose={()=>setAfterAboveAdjustedOpen(false)}
+        />
+      )}
+
+      {planningPayMethodsOpen && (
+        <PaymentMethodsModal
+          storeId={storeId}
+          open={planningPayMethodsOpen}
+          onClose={() => {
+            setPlanningPayMethodsOpen(false)
+            setPlanningPayAmountOpen(false)
+            setPlanningPayAboveConfirmOpen(false)
+            if (editingPlannedForConfirm) {
+              setEditingPlannedForConfirm(false)
+              setConfirmPedidoOpen(true)
+              return
+            }
+            setPendingSaveStatus(null)
+          }}
+          remaining={remainingToPlan}
+          payments={plannedPayments}
+          onRemovePayment={(idx) => setPlannedPayments(prev => prev.filter((_, i) => i !== idx))}
+          onChooseMethod={(m) => {
+            setPlanningSelectedPayMethod(m)
+            setPlanningPayAmountInput(String(remainingToPlan))
+            setPlanningPayError('')
+            setPlanningPayAmountOpen(true)
+          }}
+          onConfirm={() => {
+            if (remainingToPlan > 0.01) {
+              showAlert(`Faltam ${money(remainingToPlan)} para completar a forma de pagamento do pedido.`)
+              return
+            }
+            setPlanningPayMethodsOpen(false)
+            if (editingPlannedForConfirm) {
+              setEditingPlannedForConfirm(false)
+              if (isEdit && sale?.id) {
+                updateOrder(sale.id, { plannedPayments: plannedPayments, plannedPayment: null }).catch(() => {})
+              }
+              setPlanningPayAmountOpen(false)
+              setPlanningPayAboveConfirmOpen(false)
+              setConfirmPedidoOpen(true)
+              return
+            }
+            const st = pendingSaveStatus || 'Pedido'
+            setPendingSaveStatus(null)
+            handleSave(st, null, plannedPayments).catch(() => {})
+          }}
+        />
+      )}
+      {planningPayAmountOpen && (
+        <PaymentAmountModal
+          open={planningPayAmountOpen}
+          onClose={() => setPlanningPayAmountOpen(false)}
+          method={planningSelectedPayMethod}
+          remaining={remainingToPlan}
+          amount={planningPayAmountInput}
+          setAmount={setPlanningPayAmountInput}
+          error={planningPayError}
+          setError={setPlanningPayError}
+          onConfirm={() => {
+            const amt = parseFloat(planningPayAmountInput) || 0
+            if (!planningSelectedPayMethod) return
+            if (planningSelectedPayMethod.code === 'cash') {
+              const applied = Math.min(amt, remainingToPlan)
+              const next = [...plannedPayments, { method: planningSelectedPayMethod.label, methodCode: planningSelectedPayMethod.code, amount: applied }]
+              setPlannedPayments(next)
+              setPlanningPayAmountOpen(false)
+            } else if (planningSelectedPayMethod.code === 'valor_negativo') {
+              const applied = amt
+              const next = [...plannedPayments, { method: planningSelectedPayMethod.label, methodCode: planningSelectedPayMethod.code, amount: -applied, subtractFromCash: planningSelectedPayMethod.subtractFromCash !== false }]
+              setPlannedPayments(next)
+              setPlanningPayAmountOpen(false)
+            } else {
+              if (amt > remainingToPlan) {
+                setPlanningPayAmountOpen(false)
+                setPlanningPayAboveConfirmOpen(true)
+                return
+              }
+              const next = [...plannedPayments, { method: planningSelectedPayMethod.label, methodCode: planningSelectedPayMethod.code, amount: amt, subtractFromCash: planningSelectedPayMethod.subtractFromCash }]
+              setPlannedPayments(next)
+              setPlanningPayAmountOpen(false)
+            }
+          }}
+        />
+      )}
+      {planningPayAboveConfirmOpen && (
+        <AboveAmountConfirmModal
+          open={planningPayAboveConfirmOpen}
+          amount={parseFloat(planningPayAmountInput) || 0}
+          remaining={remainingToPlan}
+          method={planningSelectedPayMethod}
+          onCancel={() => { setPlanningPayAboveConfirmOpen(false); setPlanningPayAmountOpen(true) }}
+          onConfirm={() => {
+            const amt = parseFloat(planningPayAmountInput) || 0
+            const applied = Math.min(amt, remainingToPlan)
+            const next = [...plannedPayments, { method: planningSelectedPayMethod?.label, methodCode: planningSelectedPayMethod?.code, amount: applied, subtractFromCash: planningSelectedPayMethod?.subtractFromCash }]
+            setPlannedPayments(next)
+            setPlanningPayAboveConfirmOpen(false)
+            setPlanningPayAmountOpen(false)
+          }}
         />
       )}
       

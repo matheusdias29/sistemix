@@ -371,7 +371,27 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                 </div>
               ))}
               {(!sale.payments || sale.payments.length === 0) && (
-                <div className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhum pagamento registrado</div>
+                Array.isArray(sale.plannedPayments) && sale.plannedPayments.length > 0 ? (
+                  sale.plannedPayments.map((p, idx) => (
+                    <div key={idx} className="flex justify-between items-center text-sm text-gray-700 dark:text-gray-300">
+                      <div className="flex items-center gap-2">
+                        <span>🧾</span>
+                        <span>Previsto: {p.method}</span>
+                      </div>
+                      <span className="font-medium text-gray-900 dark:text-white">{money(p.amount)}</span>
+                    </div>
+                  ))
+                ) : (sale.plannedPayment?.method ? (
+                  <div className="flex justify-between items-center text-sm text-gray-700 dark:text-gray-300">
+                    <div className="flex items-center gap-2">
+                      <span>🧾</span>
+                      <span>Previsto: {sale.plannedPayment.method}</span>
+                    </div>
+                    <span className="font-medium text-gray-900 dark:text-white">{money(sale.total || sale.valor)}</span>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhum pagamento registrado</div>
+                ))
               )}
             </div>
           </div>
@@ -861,17 +881,31 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 </div>
               )}
 
-              {receiptConfig.payments?.showSection && (sale.payments && sale.payments.length > 0) && (
+              {receiptConfig.payments?.showSection && ((sale.payments && sale.payments.length > 0) || (Array.isArray(sale.plannedPayments) && sale.plannedPayments.length > 0) || sale.plannedPayment?.method) && (
                 <>
                   <div className="border-b border-black my-2"></div>
                   <div className="mb-2">
-                    <div className="font-bold mb-1">PAGAMENTOS</div>
-                    {sale.payments.map((p, i) => (
-                      <div key={i} className="flex justify-between text-xs">
-                        <span>{p.method}</span>
-                        <span>{money(p.amount)}</span>
+                    <div className="font-bold mb-1">{(sale.payments && sale.payments.length > 0) ? 'PAGAMENTOS' : 'PAGAMENTO (PREVISTO)'}</div>
+                    {(sale.payments && sale.payments.length > 0) ? (
+                      sale.payments.map((p, i) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span>{p.method}</span>
+                          <span>{money(p.amount)}</span>
+                        </div>
+                      ))
+                    ) : (Array.isArray(sale.plannedPayments) && sale.plannedPayments.length > 0) ? (
+                      sale.plannedPayments.map((p, i) => (
+                        <div key={i} className="flex justify-between text-xs">
+                          <span>{p.method}</span>
+                          <span>{money(p.amount)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex justify-between text-xs">
+                        <span>{sale.plannedPayment.method}</span>
+                        <span>{money(total)}</span>
                       </div>
-                    ))}
+                    )}
                   </div>
                 </>
               )}

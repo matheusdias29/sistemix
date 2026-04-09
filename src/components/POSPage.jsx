@@ -471,11 +471,34 @@ export default function POSPage({ storeId, user }){
       // Se fechado mas sem data, assumimos até agora para visualizar (fallback)
       
       const list = []
+
+      const resolveClientName = (orderLike) => {
+        if (!orderLike) return ''
+        const direct = String(orderLike.client || orderLike.clientName || '').trim()
+        if (direct) return direct
+        const clientId = orderLike.clientId
+        if (clientId) {
+          const c = clients.find(x => x.id === clientId)
+          if (c?.name) return String(c.name).trim()
+        }
+        const accounts = Array.isArray(orderLike.accounts) ? orderLike.accounts : []
+        if (accounts.length > 0) {
+          const a = accounts[0]
+          const name = String(a?.clientName || '').trim()
+          if (name) return name
+          if (a?.clientId) {
+            const c = clients.find(x => x.id === a.clientId)
+            if (c?.name) return String(c.name).trim()
+          }
+        }
+        return ''
+      }
       
       // Abertura
       list.push({
         id: 'opening',
         description: 'Abertura de caixa',
+        client: '',
         date: cash.openedAt,
         method: 'cash',
         methodLabel: 'Dinheiro',
@@ -517,6 +540,7 @@ export default function POSPage({ storeId, user }){
           list.push({
             id: t.id || `trans_${tTime}`,
             description: t.description || (t.value > 0 ? 'Suprimento' : 'Sangria'),
+            client: resolveClientName(t.originalOrder),
             notes: t.notes || '',
             date: t.date,
             method: t.methodCode || 'cash',
@@ -623,6 +647,7 @@ export default function POSPage({ storeId, user }){
               list.push({
                 id: `${o.id}_grouped`,
                 description: formatSaleNumber(o),
+                client: resolveClientName(o),
                 date: firstP.pDateObj,
                 method: firstP.methodCode, 
                 methodLabel: firstP.method || 'Outros',
@@ -816,6 +841,7 @@ export default function POSPage({ storeId, user }){
                      <thead className="bg-gray-50 text-gray-600 font-medium border-b">
                        <tr>
                          <th className="py-3 px-4">Descrição</th>
+                        <th className="py-3 px-4">Cliente</th>
                          <th className="py-3 px-4">Data</th>
                          <th className="py-3 px-4">Hora</th>
                          <th className="py-3 px-4">Vendedor</th>
@@ -845,6 +871,7 @@ export default function POSPage({ storeId, user }){
                           }}
                          >
                            <td className="py-3 px-4 text-gray-800 font-medium">{t.description}</td>
+                           <td className="py-3 px-4 text-gray-500 text-xs truncate max-w-[160px]" title={t.client || ''}>{t.client || '—'}</td>
                            <td className="py-3 px-4 text-gray-500 text-xs">{dateStr(t.date)}</td>
                            <td className="py-3 px-4 text-gray-500 text-xs">{timeStr(t.date)}</td>
                            <td className="py-3 px-4 text-gray-500 text-xs truncate max-w-[100px]" title={t.seller}>{t.seller}</td>
@@ -872,7 +899,7 @@ export default function POSPage({ storeId, user }){
                          </tr>
                        ))}
                        {transactions.length === 0 && (
-                         <tr><td colSpan="6" className="py-8 text-center text-gray-400">Nenhuma movimentação</td></tr>
+                        <tr><td colSpan="8" className="py-8 text-center text-gray-400">Nenhuma movimentação</td></tr>
                        )}
                      </tbody>
                    </table>
