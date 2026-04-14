@@ -198,6 +198,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkCategory, setBulkCategory] = useState(null)
   const [bulkModalOpen, setBulkModalOpen] = useState(false)
   const [bulkType, setBulkType] = useState('add')
+  const [bulkField, setBulkField] = useState('sale') // 'sale' | 'cost'
   const [bulkAmount, setBulkAmount] = useState('')
   const [bulkPercent, setBulkPercent] = useState('')
   const [bulkSaving, setBulkSaving] = useState(false)
@@ -1260,6 +1261,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     if(!isOwner && !perms.categories?.bulkPricing) return
     setBulkCategory(category)
     setBulkType('add')
+    setBulkField('sale')
     setBulkAmount('')
     setBulkPercent('')
     setBulkModalOpen(true)
@@ -1321,7 +1323,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       return
     }
     const type = bulkType === 'remove' ? -1 : 1
-    setBulkConfig({ amountValue, percentValue, type })
+    setBulkConfig({ amountValue, percentValue, type, field: bulkField })
     setBulkCandidateIds(affected.map(p => p.id))
     setBulkSelectedIds(new Set())
     setBulkSelectedSlots([true, true, true, true, true])
@@ -1335,7 +1337,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       setBulkReviewOpen(false)
       return
     }
-    const { amountValue, percentValue, type } = bulkConfig
+    const { amountValue, percentValue, type, field } = bulkConfig
     if (!amountValue && !percentValue) {
       setBulkReviewOpen(false)
       return
@@ -1353,9 +1355,6 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     try {
       setBulkSaving(true)
       for (const p of affected) {
-        const baseSale = Number(p.salePrice ?? 0)
-        const baseMin = Number(p.priceMin ?? baseSale)
-        const baseMax = Number(p.priceMax ?? (baseSale || baseMin))
         const applyAmount = (value, amount) => {
           const next = value + type * amount
           return next < 0 ? 0 : Number(next.toFixed(2))
@@ -1365,57 +1364,97 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           const next = value * factor
           return next < 0 ? 0 : Number(next.toFixed(2))
         }
-        let nextSale = baseSale
-        let nextMin = baseMin
-        let nextMax = baseMax
-        if (amountValue) {
-          if (baseSale) nextSale = applyAmount(baseSale, amountValue)
-          if (baseMin) nextMin = applyAmount(baseMin, amountValue)
-          if (baseMax) nextMax = applyAmount(baseMax, amountValue)
-        }
-        if (percentValue) {
-          if (baseSale) nextSale = applyPercent(nextSale, percentValue)
-          if (baseMin) nextMin = applyPercent(nextMin, percentValue)
-          if (baseMax) nextMax = applyPercent(nextMax, percentValue)
-        }
         const payload = {}
-        if (!isNaN(nextSale) && baseSale) payload.salePrice = nextSale
-        if (!isNaN(nextMin) && baseMin) payload.priceMin = nextMin
-        if (!isNaN(nextMax) && baseMax) payload.priceMax = nextMax
-        if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-          const items = p.variationsData.map((v, idx) => {
-            const slotSelected =
-              bulkMaxSlots > 0 &&
-              idx < bulkMaxSlots &&
-              idx < bulkSelectedSlots.length &&
-              bulkSelectedSlots[idx]
-            if (!slotSelected) {
-              return v
-            }
-            const vSaleBase = Number(v.salePrice ?? 0)
-            const vMinBase = Number(v.priceMin ?? vSaleBase)
-            const vMaxBase = Number(v.priceMax ?? (vSaleBase || vMinBase))
-            let vSale = vSaleBase
-            let vMin = vMinBase
-            let vMax = vMaxBase
-            if (amountValue) {
-              if (vSaleBase) vSale = applyAmount(vSaleBase, amountValue)
-              if (vMinBase) vMin = applyAmount(vMinBase, amountValue)
-              if (vMaxBase) vMax = applyAmount(vMaxBase, amountValue)
-            }
-            if (percentValue) {
-              if (vSaleBase) vSale = applyPercent(vSale, percentValue)
-              if (vMinBase) vMin = applyPercent(vMin, percentValue)
-              if (vMaxBase) vMax = applyPercent(vMax, percentValue)
-            }
-            return {
-              ...v,
-              salePrice: !isNaN(vSale) && vSaleBase ? vSale : v.salePrice,
-              priceMin: !isNaN(vMin) && vMinBase ? vMin : v.priceMin,
-              priceMax: !isNaN(vMax) && vMaxBase ? vMax : v.priceMax,
-            }
-          })
-          payload.variationsData = items
+
+        if (field === 'cost') {
+          const hasBaseCost = p.cost != null
+          const baseCost = Number(p.cost ?? 0)
+          const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
+          const slot0Selected = bulkSelectedSlots && bulkSelectedSlots.length > 0 ? !!bulkSelectedSlots[0] : true
+          let nextCost = baseCost
+          if (amountValue) nextCost = applyAmount(nextCost, amountValue)
+          if (percentValue) nextCost = applyPercent(nextCost, percentValue)
+          if (hasBaseCost && (!hasVars || slot0Selected)) payload.cost = nextCost
+
+          if (hasVars) {
+            const items = p.variationsData.map((v, idx) => {
+              const slotSelected =
+                bulkMaxSlots > 0 &&
+                idx < bulkMaxSlots &&
+                idx < bulkSelectedSlots.length &&
+                bulkSelectedSlots[idx]
+              if (!slotSelected) return v
+              if (v.cost == null) return v
+              const base = Number(v.cost ?? 0)
+              let next = base
+              if (amountValue) next = applyAmount(next, amountValue)
+              if (percentValue) next = applyPercent(next, percentValue)
+              return { ...v, cost: next }
+            })
+            payload.variationsData = items
+          }
+        } else {
+          const hasBaseSale = p.salePrice != null
+          const hasBaseMin = p.priceMin != null
+          const hasBaseMax = p.priceMax != null
+          const baseSale = Number(p.salePrice ?? 0)
+          const baseMin = Number(p.priceMin ?? baseSale)
+          const baseMax = Number(p.priceMax ?? (baseSale || baseMin))
+          let nextSale = baseSale
+          let nextMin = baseMin
+          let nextMax = baseMax
+          if (amountValue) {
+            nextSale = applyAmount(nextSale, amountValue)
+            nextMin = applyAmount(nextMin, amountValue)
+            nextMax = applyAmount(nextMax, amountValue)
+          }
+          if (percentValue) {
+            nextSale = applyPercent(nextSale, percentValue)
+            nextMin = applyPercent(nextMin, percentValue)
+            nextMax = applyPercent(nextMax, percentValue)
+          }
+          if (hasBaseSale) payload.salePrice = nextSale
+          if (hasBaseMin) payload.priceMin = nextMin
+          if (hasBaseMax) payload.priceMax = nextMax
+
+          if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+            const items = p.variationsData.map((v, idx) => {
+              const slotSelected =
+                bulkMaxSlots > 0 &&
+                idx < bulkMaxSlots &&
+                idx < bulkSelectedSlots.length &&
+                bulkSelectedSlots[idx]
+              if (!slotSelected) {
+                return v
+              }
+              const vHasSale = v.salePrice != null
+              const vHasMin = v.priceMin != null
+              const vHasMax = v.priceMax != null
+              const vSaleBase = Number(v.salePrice ?? 0)
+              const vMinBase = Number(v.priceMin ?? vSaleBase)
+              const vMaxBase = Number(v.priceMax ?? (vSaleBase || vMinBase))
+              let vSale = vSaleBase
+              let vMin = vMinBase
+              let vMax = vMaxBase
+              if (amountValue) {
+                vSale = applyAmount(vSale, amountValue)
+                vMin = applyAmount(vMin, amountValue)
+                vMax = applyAmount(vMax, amountValue)
+              }
+              if (percentValue) {
+                vSale = applyPercent(vSale, percentValue)
+                vMin = applyPercent(vMin, percentValue)
+                vMax = applyPercent(vMax, percentValue)
+              }
+              return {
+                ...v,
+                salePrice: vHasSale ? vSale : v.salePrice,
+                priceMin: vHasMin ? vMin : v.priceMin,
+                priceMax: vHasMax ? vMax : v.priceMax,
+              }
+            })
+            payload.variationsData = items
+          }
         }
         // Registrar responsável e momento da precificação em massa
         payload.lastEditedBy = (user && (user.name || user.email || user.id)) || 'Sistema'
@@ -2816,6 +2855,17 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     Remover
                   </button>
                 </div>
+              </div>
+              <div>
+                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Aplicar em</div>
+                <select
+                  value={bulkField}
+                  onChange={e => setBulkField(e.target.value)}
+                  className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white"
+                >
+                  <option value="sale">Valor de venda</option>
+                  <option value="cost">Custo</option>
+                </select>
               </div>
               <div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Ajuste R$</div>
