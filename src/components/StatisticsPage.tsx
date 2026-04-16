@@ -1477,8 +1477,8 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
 
           <section className="rounded-lg bg-white shadow p-4 flex flex-col">
             <h3 className="text-sm font-semibold text-gray-800 mb-4">Meios de pagamento</h3>
-            <div className="flex-1 flex flex-col lg:flex-col xl:flex-row gap-4 items-center">
-              <div className="relative w-40 h-40">
+            <div className="flex-1 flex flex-col gap-4 items-center">
+              <div className="relative w-56 h-56 md:w-64 md:h-64">
                 <svg viewBox="0 0 36 36" className="w-full h-full">
                   <circle
                     cx="18"
@@ -1518,7 +1518,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                   </span>
                 </div>
               </div>
-              <div className="flex-1 w-full space-y-2 text-xs">
+              <div className="w-full space-y-2 text-xs">
                 {paymentSummary.segments.length === 0 && (
                   <div className="text-gray-500">
                     Nenhuma venda com meio de pagamento registrado neste período.
@@ -1690,8 +1690,8 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
             <h3 className="text-sm font-semibold text-gray-800 mb-4">
               Meios de pagamento
             </h3>
-            <div className="flex-1 flex flex-col lg:flex-col xl:flex-row gap-4 items-center">
-              <div className="relative w-40 h-40">
+            <div className="flex-1 flex flex-col gap-4 items-center">
+              <div className="relative w-56 h-56 md:w-64 md:h-64">
                 <svg viewBox="0 0 36 36" className="w-full h-full">
                   <circle
                     cx="18"
@@ -1731,7 +1731,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                   </span>
                 </div>
               </div>
-              <div className="flex-1 w-full space-y-2 text-xs">
+              <div className="w-full space-y-2 text-xs">
                 {osPaymentSummary.segments.length === 0 && (
                   <div className="text-gray-500">
                     Nenhuma ordem de serviço com meio de pagamento registrado

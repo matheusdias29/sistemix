@@ -818,11 +818,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               {receiptConfig.items?.showSection && (
                 <div className="mb-2">
                   <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                  <table className="print-items-table text-base">
+                  <table className="print-items-table text-base w-full table-fixed" style={{ width: '100%', tableLayout: 'fixed' }}>
                     <colgroup>
                       <col />
-                      {receiptConfig.items?.showQty && <col className="print-items-col-qty" />}
-                      {receiptConfig.items?.showTotal && <col className="print-items-col-total" />}
+                      {receiptConfig.items?.showQty && <col className="print-items-col-qty" style={{ width: '4ch' }} />}
+                      {receiptConfig.items?.showTotal && <col className="print-items-col-total" style={{ width: '11ch' }} />}
                     </colgroup>
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
@@ -832,15 +832,37 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                       </tr>
                     </thead>
                     <tbody>
-                      {items.map((p, i) => (
-                        <tr key={i}>
-                          <td className="pr-1 py-1 print-items-cell-item">
-                            <div className="font-bold">{p.name}</div>
-                          </td>
-                          {receiptConfig.items?.showQty && <td className="text-right py-1 align-top print-items-cell-qty">{p.quantity}</td>}
-                          {receiptConfig.items?.showTotal && <td className="text-right py-1 align-top font-bold print-items-cell-total">{money(p.total ?? (Number(p.price || 0) * Number(p.quantity || 0)))}</td>}
-                        </tr>
-                      ))}
+                      {items.map((p, i) => {
+                        const colSpan =
+                          1 +
+                          (receiptConfig.items?.showQty ? 1 : 0) +
+                          (receiptConfig.items?.showTotal ? 1 : 0)
+                        const lineTotal = p.total ?? (Number(p.price || 0) * Number(p.quantity || 0))
+                        return (
+                          <React.Fragment key={i}>
+                            <tr>
+                              <td className="pr-1 pt-1 pb-0.5 print-items-cell-item" colSpan={colSpan}>
+                                <div className="font-bold whitespace-pre-wrap break-words leading-tight">
+                                  {p.name}
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="pr-1 pb-1 print-items-cell-item">{'\u00A0'}</td>
+                              {receiptConfig.items?.showQty && (
+                                <td className="text-right pb-1 align-top print-items-cell-qty">
+                                  {p.quantity}
+                                </td>
+                              )}
+                              {receiptConfig.items?.showTotal && (
+                                <td className="text-right pb-1 align-top font-bold print-items-cell-total">
+                                  {money(lineTotal)}
+                                </td>
+                              )}
+                            </tr>
+                          </React.Fragment>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>
