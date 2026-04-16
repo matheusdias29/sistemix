@@ -818,7 +818,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               {receiptConfig.items?.showSection && (
                 <div className="mb-2">
                   <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                  <table className="print-items-table text-base w-full table-fixed" style={{ width: '100%', tableLayout: 'fixed' }}>
+                  <table className="print-items-table w-full table-fixed" style={{ width: '100%', tableLayout: 'fixed' }}>
                     <colgroup>
                       <col />
                       {receiptConfig.items?.showQty && <col className="print-items-col-qty" style={{ width: '4ch' }} />}
@@ -842,7 +842,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                           <React.Fragment key={i}>
                             <tr>
                               <td className="pr-1 pt-1 pb-0.5 print-items-cell-item" colSpan={colSpan}>
-                                <div className="font-bold whitespace-pre-wrap break-words leading-tight">
+                                <div className="whitespace-pre-wrap break-words leading-tight" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>
                                   {p.name}
                                 </div>
                               </td>
