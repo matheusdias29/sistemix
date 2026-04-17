@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Switch from './Switch'
 
 const defaultPermissions = {
+  home: { view: true },
   products: { create: false, edit: false, delete: false, view: false, viewCost: false },
   sales: { viewAll: false, finalize: false, cancel: false, delete: false, changePrice: false, edit: false, discount: false, fees: false },
   serviceOrders: { view: false, create: false, edit: false, delete: false, changeStatus: false, changeValues: false, invoice: false },
@@ -53,6 +54,10 @@ export default function PermissionsModal({ open, onClose, initialPermissions={},
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700">✕</button>
         </div>
         <div className="p-4 max-h-[70vh] overflow-y-auto">
+          <Section title="Início">
+            <Switch checked={perms.home?.view !== false} onChange={toggle('home','view')} label="Visualizar início" />
+          </Section>
+
           <Section title="Termos">
             <Switch checked={perms.terms?.view} onChange={toggle('terms','view')} label="Visualizar termos" />
             <Switch checked={perms.terms?.edit} onChange={toggle('terms','edit')} label="Editar termos" />

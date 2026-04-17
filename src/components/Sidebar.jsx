@@ -58,7 +58,7 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
     // Filter by permissions if not owner
     if (!isOwner) {
       base = base.filter(i => {
-        if (i.key === 'inicio') return true
+        if (i.key === 'inicio') return perms.home?.view !== false
         if (i.key === 'termos') return perms.terms?.view || perms.terms?.edit
         if (i.key === 'catalogo') return perms.catalog?.view || perms.catalog?.view === undefined
         

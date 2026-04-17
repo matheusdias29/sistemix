@@ -501,11 +501,11 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               {printConfig.items.showSection && (
                 <div className="mb-2">
                   <div className="font-bold mb-1">PRODUTOS / SERVIÇOS</div>
-                  <table className="print-items-table text-base">
+                  <table className="print-items-table w-full table-fixed" style={{ width: '100%', tableLayout: 'fixed' }}>
                     <colgroup>
                       <col />
-                      {printConfig.items.showQty && <col className="print-items-col-qty" />}
-                      {printConfig.items.showTotal && <col className="print-items-col-total" />}
+                      {printConfig.items.showQty && <col className="print-items-col-qty" style={{ width: '4ch' }} />}
+                      {printConfig.items.showTotal && <col className="print-items-col-total" style={{ width: '11ch' }} />}
                     </colgroup>
                     <thead>
                       <tr className="border-b border-dashed border-gray-400">
@@ -515,24 +515,44 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                       </tr>
                     </thead>
                     <tbody>
-                      {printConfig.items.showProducts && (order.products || []).map((p, i) => (
-                        <tr key={`p-${i}`}>
-                          <td className="pr-1 py-1 print-items-cell-item">
-                            <div className="font-bold">{p.name}</div>
-                          </td>
-                          {printConfig.items.showQty && <td className="text-right py-1 align-top print-items-cell-qty">{p.quantity}</td>}
-                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold print-items-cell-total">{formatMoney(p.price * p.quantity)}</td>}
-                        </tr>
-                      ))}
-                      {printConfig.items.showServices && (order.services || []).map((s, i) => (
-                        <tr key={`s-${i}`}>
-                          <td className="pr-1 py-1 print-items-cell-item">
-                            <div className="font-bold">{s.name}</div>
-                          </td>
-                          {printConfig.items.showQty && <td className="text-right py-1 align-top print-items-cell-qty">{s.quantity || 1}</td>}
-                          {printConfig.items.showTotal && <td className="text-right py-1 align-top font-bold print-items-cell-total">{formatMoney(s.price * (s.quantity || 1))}</td>}
-                        </tr>
-                      ))}
+                      {(() => {
+                        const all = []
+                        if (printConfig.items.showProducts) {
+                          ;(order.products || []).forEach((p) => {
+                            const qty = Number(p.quantity || 0)
+                            const totalLine = Number(p.price || 0) * qty
+                            all.push({ name: p.name, quantity: qty, total: totalLine })
+                          })
+                        }
+                        if (printConfig.items.showServices) {
+                          ;(order.services || []).forEach((s) => {
+                            const qty = Number(s.quantity || 1)
+                            const totalLine = Number(s.price || 0) * qty
+                            all.push({ name: s.name, quantity: qty, total: totalLine })
+                          })
+                        }
+                        const colSpan = 1 + (printConfig.items.showQty ? 1 : 0) + (printConfig.items.showTotal ? 1 : 0)
+                        return all.map((it, i) => (
+                          <React.Fragment key={`${it.name || 'item'}_${i}`}>
+                            <tr>
+                              <td className="pr-1 pt-1 pb-0.5 print-items-cell-item" colSpan={colSpan}>
+                                <div className="whitespace-pre-wrap break-words leading-tight" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>
+                                  {it.name}
+                                </div>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="pr-1 pb-1 print-items-cell-item">{'\u00A0'}</td>
+                              {printConfig.items.showQty && (
+                                <td className="text-right pb-1 align-top print-items-cell-qty">{it.quantity}</td>
+                              )}
+                              {printConfig.items.showTotal && (
+                                <td className="text-right pb-1 align-top print-items-cell-total">{formatMoney(it.total)}</td>
+                              )}
+                            </tr>
+                          </React.Fragment>
+                        ))
+                      })()}
                     </tbody>
                   </table>
                 </div>
@@ -544,7 +564,7 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                 <>
                   <div className="mb-2">
                     <div className="font-bold mb-1">OBSERVAÇÕES</div>
-                    <div className="whitespace-pre-wrap">{order.receiptNotes}</div>
+                    <div className="whitespace-pre-wrap" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>{order.receiptNotes}</div>
                   </div>
                   <div className="border-t border-black my-2"></div>
                 </>

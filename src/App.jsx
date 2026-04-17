@@ -91,6 +91,7 @@ export default function App(){
   const [chatOpen, setChatOpen] = useState(false)
   const [chatUnreadCount, setChatUnreadCount] = useState(0)
   const isOwner = user && !user.memberId
+  const perms = user?.permissions || {}
 
   const isOverdue = !!(store && user && (billingStatus === 'em_atraso' || user.status === 'em_atraso'))
 
@@ -173,6 +174,14 @@ export default function App(){
     })
     return () => unsub()
   }, [user?.id, user?.memberId]) // Recria listener apenas se mudar a identidade do usuário
+
+  useEffect(() => {
+    if (!user) return
+    if (isOwner) return
+    if (view === 'inicio' && perms.home?.view === false) {
+      setView('vendas')
+    }
+  }, [user, isOwner, view, perms.home?.view])
 
   // Lembrete de fatura próxima ao vencimento (sempre ao entrar no app)
   useEffect(() => {
