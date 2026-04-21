@@ -543,8 +543,8 @@ export default function POSPage({ storeId, user }){
             client: resolveClientName(t.originalOrder),
             notes: t.notes || '',
             date: t.date,
-            method: t.methodCode || 'cash',
-            methodLabel: t.methodLabel || 'Dinheiro',
+            method: t.methodCode || t.method || 'cash',
+            methodLabel: (t.methodLabel !== undefined && t.methodLabel !== null) ? t.methodLabel : (t.method || 'Dinheiro'),
             value: t.value,
             type: t.value > 0 ? 'in' : 'out',
             isManual: true,
@@ -591,7 +591,13 @@ export default function POSPage({ storeId, user }){
             }
           }
           
-          methods['Dinheiro'] = (methods['Dinheiro'] || 0) + amount
+          let mLabel = String(t.methodLabel || t.method || '').trim()
+          if (!mLabel) mLabel = 'Dinheiro'
+          const mCode = String(t.methodCode || t.method || '').trim()
+          if (mCode === 'cash' || mLabel.toLowerCase() === 'dinheiro') {
+            mLabel = 'Dinheiro'
+          }
+          methods[mLabel] = (methods[mLabel] || 0) + amount
         })
       }
 

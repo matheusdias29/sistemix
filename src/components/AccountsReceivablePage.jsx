@@ -549,6 +549,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
       method: p.method,
       methodCode: p.methodCode,
       amount: Number(p.amount || 0),
+      subtractFromCash: p.subtractFromCash !== false,
       date: p.date || new Date()
     }))
 
@@ -603,6 +604,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
           value: totalValue,
           type: 'in',
           method: mainMethod ? mainMethod.methodCode : 'multiple',
+          methodCode: mainMethod ? mainMethod.methodCode : 'multiple',
           methodLabel: mainMethod ? mainMethod.method : 'Múltiplos métodos',
           date: new Date(),
           userId: user?.id,
