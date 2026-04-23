@@ -5,6 +5,7 @@ import { updateOrder, deleteOrder } from '../services/orders'
 import { updateProduct, getProductById } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
 import ShareSaleModal from './ShareSaleModal'
+import ServiceOrderPrintModal from './ServiceOrderPrintModal'
 
 export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, store, products = [], user }) {
   if (!open || !sale) return null
@@ -14,6 +15,18 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
   const [receiptModalOpen, setReceiptModalOpen] = useState(false)
 
   const isOS = sale.type === 'service_order' || (sale.status && (sale.status.includes('Os Finalizada') || sale.status.includes('Os Faturada')))
+  const canSeeSale = isOwner || perms.sales?.viewAll || (user?.name && sale.attendant && user.name.toLowerCase() === sale.attendant.toLowerCase())
+  const canPrintOsReceipt =
+    isOwner ||
+    perms.cash?.view ||
+    perms.cash?.open ||
+    perms.cash?.close ||
+    perms.serviceOrders?.view ||
+    perms.serviceOrders?.create ||
+    perms.serviceOrders?.edit ||
+    perms.serviceOrders?.delete ||
+    perms.serviceOrders?.changeStatus ||
+    !!user?.isTech
 
   const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   
@@ -69,12 +82,12 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
 
         {/* Actions Toolbar */}
         <div className="px-6 py-3 border-b dark:border-gray-700 flex flex-wrap gap-2 bg-gray-50 dark:bg-gray-700/50">
-          {!isOS && (isOwner || perms.sales?.viewAll || (user?.name && sale.attendant && user.name.toLowerCase() === sale.attendant.toLowerCase())) && (
-          <button onClick={() => setReceiptModalOpen(true)} className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
-            <span>📄</span> Recibo
-          </button>
+          {((!isOS && canSeeSale) || (isOS && canPrintOsReceipt)) && (
+            <button onClick={() => setReceiptModalOpen(true)} className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1">
+              <span>📄</span> Recibo
+            </button>
           )}
-          {(isOwner || perms.sales?.viewAll || (user?.name && sale.attendant && user.name.toLowerCase() === sale.attendant.toLowerCase())) && (
+          {canSeeSale && (
           <button 
             className="px-3 py-1.5 bg-white dark:bg-gray-700 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 flex items-center gap-1"
             onClick={() => setShareModalOpen(true)}
@@ -433,7 +446,11 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
         sale={sale}
         store={store}
       />
-      <SaleReceiptPrintModal open={receiptModalOpen} onClose={() => setReceiptModalOpen(false)} sale={sale} store={store} storeId={storeId} />
+      {isOS ? (
+        <ServiceOrderPrintModal open={receiptModalOpen} onClose={() => setReceiptModalOpen(false)} order={sale} store={store} />
+      ) : (
+        <SaleReceiptPrintModal open={receiptModalOpen} onClose={() => setReceiptModalOpen(false)} sale={sale} store={store} storeId={storeId} />
+      )}
     </div>
   )
 }

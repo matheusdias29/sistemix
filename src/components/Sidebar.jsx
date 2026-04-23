@@ -23,6 +23,7 @@ import {
 export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages, locked=false}){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
+  const canSell = isOwner || perms.sales?.finalize
   const [expandedKey, setExpandedKey] = useState(null)
 
   const items = useMemo(() => {
@@ -158,8 +159,13 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
 
     <div className={locked ? 'opacity-60 pointer-events-none' : ''}>
       <button 
-        onClick={onOpenNewSale} 
-        className="mt-4 md:mt-6 w-full bg-green-600 text-white py-2 rounded hover:opacity-95"
+        onClick={canSell ? onOpenNewSale : undefined} 
+        disabled={!canSell}
+        title={!canSell ? 'Sem permissão para vender' : undefined}
+        className={clsx(
+          'mt-4 md:mt-6 w-full bg-green-600 text-white py-2 rounded',
+          canSell ? 'hover:opacity-95' : 'opacity-50 cursor-not-allowed'
+        )}
       >
         Vender
       </button>
