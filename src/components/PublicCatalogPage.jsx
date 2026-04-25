@@ -17,6 +17,9 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   const [bannerIndex, setBannerIndex] = useState(0)
   const hoverRef = useRef(false)
   const categoryScrollRef = useRef(null)
+  const [productModalOpen, setProductModalOpen] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [copiedLink, setCopiedLink] = useState(false)
 
   const outOfStockSetting = storeData?.catalogOutOfStock || 'show'
   const banners = Array.isArray(storeData?.catalogBanners) ? storeData.catalogBanners.filter(b => !!b?.url) : []
@@ -75,6 +78,84 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
       return { ...p, categoryName: name }
     })
   }, [products, categoriesData])
+
+  const getProductCode = (p) => {
+    if (!p) return ''
+    const code = String(p.code || '').trim()
+    if (code) return code
+    const ref = String(p.reference || '').trim()
+    if (ref) return ref
+    const barcode = String(p.barcode || '').trim()
+    if (barcode) return barcode
+    return String(p.id || '').trim()
+  }
+
+  const buildProductLink = (productCode) => {
+    const url = new URL(window.location.href)
+    if (productCode) url.searchParams.set('p', productCode)
+    else url.searchParams.delete('p')
+    return url.toString()
+  }
+
+  const findProductByCode = (code) => {
+    const target = String(code || '').trim().toLowerCase()
+    if (!target) return null
+    return (
+      productsWithCategory.find(p => String(p.code || '').trim().toLowerCase() === target) ||
+      productsWithCategory.find(p => String(p.reference || '').trim().toLowerCase() === target) ||
+      productsWithCategory.find(p => String(p.barcode || '').trim().toLowerCase() === target) ||
+      productsWithCategory.find(p => String(p.id || '').trim().toLowerCase() === target) ||
+      null
+    )
+  }
+
+  const openProductModal = (p, opts = {}) => {
+    const { pushUrl = true } = opts
+    if (!p) return
+    setSelectedProduct(p)
+    setProductModalOpen(true)
+    setCopiedLink(false)
+    if (pushUrl) {
+      const code = getProductCode(p)
+      const url = new URL(window.location.href)
+      if (code) url.searchParams.set('p', code)
+      window.history.pushState({}, '', url.toString())
+    }
+  }
+
+  const closeProductModal = (opts = {}) => {
+    const { replaceUrl = true } = opts
+    setProductModalOpen(false)
+    setSelectedProduct(null)
+    setCopiedLink(false)
+    if (replaceUrl) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('p')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      const url = new URL(window.location.href)
+      const code = url.searchParams.get('p')
+      if (!code) {
+        setProductModalOpen(false)
+        setSelectedProduct(null)
+        return
+      }
+      const match = findProductByCode(code)
+      if (match) {
+        setSelectedProduct(match)
+        setProductModalOpen(true)
+        setCopiedLink(false)
+      }
+    }
+
+    syncFromUrl()
+    window.addEventListener('popstate', syncFromUrl)
+    return () => window.removeEventListener('popstate', syncFromUrl)
+  }, [productsWithCategory])
 
   const categories = useMemo(() => {
     const cats = new Set(
@@ -375,7 +456,19 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
               }
 
               return (
-                <div key={p.id} className={`group bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative ${p.featured ? 'border-2 border-yellow-400 ring-1 ring-yellow-400/20' : 'border border-gray-100'}`}>
+                <div
+                  key={p.id}
+                  className={`group bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden relative cursor-pointer ${p.featured ? 'border-2 border-yellow-400 ring-1 ring-yellow-400/20' : 'border border-gray-100'}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openProductModal(p)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openProductModal(p)
+                    }
+                  }}
+                >
                   {/* Image Area */}
                   <div className="aspect-square bg-gray-50 relative overflow-hidden">
                     {p.featured && (
@@ -449,6 +542,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                             : 'bg-green-600 hover:bg-green-700 text-white shadow-sm hover:shadow-md'
                         }`}
                         onClick={(e) => {
+                          e.stopPropagation()
                           if (isUnavailable) e.preventDefault()
                         }}
                       >
@@ -461,6 +555,37 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
               )
             })}
           </div>
+
+          {productModalOpen && selectedProduct && (
+            <ProductDetailsModal
+              product={selectedProduct}
+              storeData={storeData}
+              categoriesData={categoriesData}
+              outOfStockSetting={outOfStockSetting}
+              onClose={() => closeProductModal()}
+              onCopyLink={async () => {
+                const code = getProductCode(selectedProduct)
+                const link = buildProductLink(code)
+                try {
+                  await navigator.clipboard.writeText(link)
+                  setCopiedLink(true)
+                  setTimeout(() => setCopiedLink(false), 1200)
+                } catch (err) {
+                  try {
+                    const input = document.createElement('input')
+                    input.value = link
+                    document.body.appendChild(input)
+                    input.select()
+                    document.execCommand('copy')
+                    document.body.removeChild(input)
+                    setCopiedLink(true)
+                    setTimeout(() => setCopiedLink(false), 1200)
+                  } catch (e2) {}
+                }
+              }}
+              copiedLink={copiedLink}
+            />
+          )}
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
@@ -557,6 +682,178 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
            </div>
         </div>
       </footer>
+    </div>
+  )
+}
+
+function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSetting, onClose, onCopyLink, copiedLink }) {
+  if (!product) return null
+
+  const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+  const variations = Array.isArray(product.variationsData) ? product.variationsData : []
+  const selectedNames = Array.isArray(product.catalogVisibleVariationNames) ? product.catalogVisibleVariationNames : []
+  const labelsMap = (product.catalogCatalogLabels && typeof product.catalogCatalogLabels === 'object') ? product.catalogCatalogLabels : {}
+
+  const pricingItems = selectedNames
+    .map(name => {
+      const v = variations.find(v => v.name === name)
+      if (!v) return null
+      const price = Number(v.promoPrice ?? v.salePrice ?? 0)
+      if (!isFinite(price)) return null
+      const label = (labelsMap[name] && String(labelsMap[name]).trim()) ? String(labelsMap[name]).trim() : name
+      return { label, price }
+    })
+    .filter(Boolean)
+
+  const hasCustomPricing = pricingItems.length > 0
+  const defaultPrice = Number(product.priceMin ?? product.salePrice ?? 0)
+
+  const stockZero = Number(product.stock || 0) === 0
+  const isUnavailable = stockZero && outOfStockSetting === 'disabled'
+
+  const cat = (categoriesData || []).find(c => c.id === product.categoryId)
+  const msgTemplate = (cat && cat.catalogMessage) ? cat.catalogMessage : (storeData?.catalogMessage || 'Olá, tenho interesse no produto: {produto}')
+  let msg = msgTemplate
+  if (msg.includes('{produto}') || msg.includes('{nome}')) {
+    msg = msg.replace(/{produto}/g, product.name).replace(/{nome}/g, product.name)
+  } else {
+    msg = `${msg} ${product.name}`
+  }
+
+  const whatsappNumber = (storeData?.catalogWhatsapp || storeData?.phone || '').replace(/\D/g, '')
+  const whatsappHref = whatsappNumber ? `https://wa.me/55${whatsappNumber}?text=${encodeURIComponent(msg)}` : ''
+
+  return (
+    <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{product.categoryName || cat?.name || 'Produto'}</div>
+            <div className="text-lg sm:text-xl font-bold text-gray-900 truncate" title={product.name}>{product.name}</div>
+            {(product.code || product.reference) && (
+              <div className="text-xs text-gray-500 mt-1">
+                Código: <span className="font-mono">{String(product.code || product.reference)}</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onCopyLink}
+              className="px-3 py-2 rounded-lg text-sm border border-gray-200 text-gray-700 hover:bg-gray-50"
+              title="Copiar link do produto"
+            >
+              {copiedLink ? 'Link copiado' : 'Copiar link'}
+            </button>
+            <button type="button" onClick={onClose} className="px-3 py-2 rounded-lg text-sm border border-gray-200 text-gray-700 hover:bg-gray-50">
+              Fechar
+            </button>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-6 overflow-y-auto">
+          <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-5">
+            <div className="w-full">
+              <div className="aspect-square bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+                {product.imageUrl ? (
+                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                    <ShoppingBag size={56} opacity={0.25} />
+                  </div>
+                )}
+              </div>
+              <div className="mt-3 flex items-center justify-between text-xs">
+                <div className={`font-bold px-2 py-1 rounded-md border ${Number(product.stock || 0) > 0 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                  {Number(product.stock || 0) > 0 ? `Estoque: ${Number(product.stock || 0)}` : 'Indisponível'}
+                </div>
+                {isUnavailable && (
+                  <div className="font-bold text-red-600">Esgotado</div>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-5">
+              <div className="border border-gray-100 rounded-xl p-4">
+                <div className="text-sm font-bold text-gray-900 mb-3">Precificação</div>
+                {hasCustomPricing ? (
+                  <div className="space-y-2">
+                    {pricingItems.map((it, idx) => (
+                      <div key={idx} className="flex items-baseline justify-between gap-4">
+                        <div className="text-xs font-bold text-gray-600">{it.label}</div>
+                        <div className="text-base font-extrabold text-green-700 whitespace-nowrap">{money(it.price)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex items-end justify-between gap-4">
+                    <div className="text-xs text-gray-500 font-semibold uppercase">A partir de</div>
+                    <div className="text-2xl font-extrabold text-gray-900 whitespace-nowrap">{money(defaultPrice)}</div>
+                  </div>
+                )}
+              </div>
+
+              {(String(product.condition || '').trim() || String(product.phoneColor || '').trim() || String(product.phoneBrand || '').trim()) && (
+                <div className="border border-gray-100 rounded-xl p-4">
+                  <div className="text-sm font-bold text-gray-900 mb-3">Informações</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    {String(product.condition || '').trim() && (
+                      <div>
+                        <div className="text-xs text-gray-500 font-semibold uppercase">Condição</div>
+                        <div className="text-gray-900 font-medium">{String(product.condition)}</div>
+                      </div>
+                    )}
+                    {String(product.phoneColor || '').trim() && (
+                      <div>
+                        <div className="text-xs text-gray-500 font-semibold uppercase">Cor</div>
+                        <div className="text-gray-900 font-medium">{String(product.phoneColor)}</div>
+                      </div>
+                    )}
+                    {String(product.phoneBrand || '').trim() && (
+                      <div>
+                        <div className="text-xs text-gray-500 font-semibold uppercase">Marca do celular</div>
+                        <div className="text-gray-900 font-medium">{String(product.phoneBrand)}</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {(String(product.description || '').trim() || String(product.notes || '').trim()) && (
+                <div className="border border-gray-100 rounded-xl p-4">
+                  <div className="text-sm font-bold text-gray-900 mb-3">Dados adicionais</div>
+                  {String(product.description || '').trim() && (
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap">{String(product.description)}</div>
+                  )}
+                  {String(product.notes || '').trim() && (
+                    <div className={`text-sm text-gray-700 whitespace-pre-wrap ${String(product.description || '').trim() ? 'mt-3 pt-3 border-t border-gray-100' : ''}`}>{String(product.notes)}</div>
+                  )}
+                </div>
+              )}
+
+              {whatsappHref && (
+                <a
+                  href={isUnavailable ? '#' : whatsappHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold transition-all ${
+                    isUnavailable
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-green-600 hover:bg-green-700 text-white shadow-sm hover:shadow-md'
+                  }`}
+                  onClick={(e) => {
+                    if (isUnavailable) e.preventDefault()
+                  }}
+                >
+                  <MessageCircle size={18} />
+                  {isUnavailable ? 'Indisponível' : 'Atendimento via WhatsApp'}
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
