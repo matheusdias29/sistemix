@@ -498,33 +498,54 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                   </div>
 
                   {/* Content Area */}
-                  <div className="p-4 flex flex-col flex-1">
+                  <div className="p-3 sm:p-4 flex flex-col flex-1">
                     <div className="flex justify-between items-center mb-1">
                       <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold truncate">
                         {p.categoryName || 'Geral'}
                       </div>
-                      <div className={`text-[8px] font-bold px-1.5 py-0.5 rounded-md ${Number(p.stock || 0) > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'} whitespace-nowrap`}>
+                      <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${Number(p.stock || 0) > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'} whitespace-nowrap`}>
                         {Number(p.stock || 0) > 0 ? `DISPONÍVEL: ${Number(p.stock || 0)}` : 'INDISPONÍVEL'}
                       </div>
                     </div>
-                    <h3 className="font-medium text-gray-900 text-sm leading-snug line-clamp-2 mb-3 min-h-[2.5rem]" title={p.name}>
+                    <h3 className="font-medium text-gray-900 text-[13px] sm:text-sm leading-snug line-clamp-2 mb-2 min-h-[2.25rem]" title={p.name}>
                       {p.name}
                     </h3>
                     
                     <div className="mt-auto pt-3 border-t border-dashed border-gray-100">
                       {hasCustomPricing ? (
-                        <div className="space-y-1.5 mb-3">
-                          {items.map((it, i) => (
-                            <div key={i} className="flex justify-between items-baseline">
-                               <span className="text-[10px] font-bold text-gray-600">{it.label}</span>
-                               <span className="text-sm font-bold text-green-700">{it.price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
-                            </div>
-                          ))}
+                        <div className="mb-3">
+                          <div className="space-y-1.5 sm:hidden">
+                            {items.slice(0, 3).map((it, i) => (
+                              <div key={i} className="flex justify-between items-start gap-2">
+                                <span className="flex-1 min-w-0 text-[10px] font-bold text-gray-600 leading-tight line-clamp-2 pr-1">
+                                  {it.label}
+                                </span>
+                                <span className="shrink-0 text-[12px] font-extrabold text-green-700 whitespace-nowrap">
+                                  {it.price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                </span>
+                              </div>
+                            ))}
+                            {items.length > 3 && (
+                              <div className="text-[10px] text-gray-400 font-semibold">
+                                +{items.length - 3} preços
+                              </div>
+                            )}
+                          </div>
+                          <div className="hidden sm:block space-y-1.5">
+                            {items.map((it, i) => (
+                              <div key={i} className="flex justify-between items-baseline gap-2">
+                                <span className="text-[10px] font-bold text-gray-600 leading-tight line-clamp-1 pr-2">{it.label}</span>
+                                <span className="text-sm font-extrabold text-green-700 whitespace-nowrap">
+                                  {it.price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       ) : (
                         <div className="flex flex-col mb-3">
                           <span className="text-[10px] text-gray-400 font-medium uppercase">A partir de</span>
-                          <span className="text-lg font-bold text-gray-900">{defaultPrice.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
+                          <span className="text-[18px] sm:text-lg font-bold text-gray-900">{defaultPrice.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                         </div>
                       )}
                       
@@ -536,7 +557,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                         }
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold transition-all ${
+                        className={`w-full flex items-center justify-center gap-2 py-3 min-h-[44px] rounded-lg text-xs sm:text-sm font-bold transition-all ${
                           isUnavailable 
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
                             : 'bg-green-600 hover:bg-green-700 text-white shadow-sm hover:shadow-md'
@@ -547,7 +568,9 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                         }}
                       >
                         <MessageCircle size={16} />
-                        {isUnavailable ? 'Indisponível' : 'Atendimento via WhatsApp'}
+                        <span className="text-center leading-tight text-[13px] sm:text-sm">
+                          {isUnavailable ? 'Indisponível' : 'Atendimento via WhatsApp'}
+                        </span>
                       </a>
                     </div>
                   </div>
