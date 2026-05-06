@@ -400,12 +400,26 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
     })
   }, [orders, query, dateRange, filterClient, filterTechnician, filterAttendant, filterStatuses, techAreaMode, user?.name])
 
+  const osRealizadas = useMemo(() => {
+    const list = Array.isArray(filtered) ? filtered : []
+    return list.filter(o => {
+      const s = String(o.status || '').toLowerCase()
+      if (!s) return false
+      if (s.includes('cancelad')) return false
+      if (s.includes('faturad')) return true
+      if (s.includes('finaliz')) return true
+      if (s.trim() === 'cliente final') return true
+      if (s.trim() === 'cliente lojista') return true
+      return false
+    })
+  }, [filtered])
+
   const totalFinalizadas = useMemo(() => {
-    return orders.filter(o => (o.status||'').toLowerCase().includes('finalizada')).reduce((sum, o) => sum + (o.valor||0), 0)
-  }, [orders])
+    return osRealizadas.reduce((sum, o) => sum + Number(o.total ?? o.valor ?? 0), 0)
+  }, [osRealizadas])
   const qtdFinalizadas = useMemo(() => {
-    return orders.filter(o => (o.status||'').toLowerCase().includes('finalizada')).length
-  }, [orders])
+    return osRealizadas.length
+  }, [osRealizadas])
   const ticketMedio = useMemo(() => {
     return qtdFinalizadas > 0 ? (totalFinalizadas / qtdFinalizadas) : 0
   }, [qtdFinalizadas, totalFinalizadas])
@@ -2128,9 +2142,9 @@ const canEditService = isOwner || perms.services?.edit
             technicianName={filterTechnician}
             attendantName={filterAttendant}
             statuses={filterStatuses}
-            onChooseClient={()=>setFilterClientSelectOpen(true)}
-            onChooseTechnician={()=>setFilterTechSelectOpen(true)}
-            onChooseAttendant={()=>setFilterAttendantSelectOpen(true)}
+            onChooseClient={() => { setFiltersOpen(false); setFilterClientSelectOpen(true) }}
+            onChooseTechnician={() => { setFiltersOpen(false); setFilterTechSelectOpen(true) }}
+            onChooseAttendant={() => { setFiltersOpen(false); setFilterAttendantSelectOpen(true) }}
             onToggleStatus={(s)=>{
               setFilterStatuses(prev => prev.includes(s) ? prev.filter(x=>x!==s) : [...prev, s])
             }}
@@ -2142,25 +2156,31 @@ const canEditService = isOwner || perms.services?.edit
         {filterClientSelectOpen && (
           <SelectClientModal
             open={filterClientSelectOpen}
-            onClose={()=>setFilterClientSelectOpen(false)}
+            onClose={()=>{ setFilterClientSelectOpen(false); setFiltersOpen(true) }}
             clients={(cachedClients && cachedClients.length) ? cachedClients : clientsAll}
-            onChoose={(c)=>{ setFilterClient(c.name||''); setFilterClientSelectOpen(false) }}
+            onChoose={(c)=>{ setFilterClient(c.name||''); setFilterClientSelectOpen(false); setFiltersOpen(true) }}
           />
         )}
         {filterTechSelectOpen && (
           <SelectClientModal
             open={filterTechSelectOpen}
-            onClose={()=>setFilterTechSelectOpen(false)}
+            onClose={()=>{ setFilterTechSelectOpen(false); setFiltersOpen(true) }}
+            title="Selecionar técnico"
+            newItemLabel=""
+            emptyLabel="Nenhum técnico encontrado"
             clients={techniciansList}
-            onChoose={(u)=>{ setFilterTechnician(u.name||''); setFilterTechSelectOpen(false) }}
+            onChoose={(u)=>{ setFilterTechnician(u.name||''); setFilterTechSelectOpen(false); setFiltersOpen(true) }}
           />
         )}
         {filterAttendantSelectOpen && (
           <SelectClientModal
             open={filterAttendantSelectOpen}
-            onClose={()=>setFilterAttendantSelectOpen(false)}
+            onClose={()=>{ setFilterAttendantSelectOpen(false); setFiltersOpen(true) }}
+            title="Selecionar atendente"
+            newItemLabel=""
+            emptyLabel="Nenhum atendente encontrado"
             clients={attendantsList}
-            onChoose={(u)=>{ setFilterAttendant(u.name||''); setFilterAttendantSelectOpen(false) }}
+            onChoose={(u)=>{ setFilterAttendant(u.name||''); setFilterAttendantSelectOpen(false); setFiltersOpen(true) }}
           />
         )}
 

@@ -48,12 +48,7 @@ export default function CommissionsPage({ storeId, store, onNavigate }) {
         salesByAttendant[attName].total += total
         salesByAttendant[attName].count += 1
 
-        // Prioriza valor salvo no pedido, senão calcula
-        if (o.commissions?.salesAttendantValue !== undefined) {
-          salesByAttendant[attName].commission += Number(o.commissions.salesAttendantValue || 0)
-        } else {
-          salesByAttendant[attName].commission += (total * (salesPct / 100))
-        }
+        salesByAttendant[attName].commission += (total * (salesPct / 100))
       } 
       
       if (isOS) {
@@ -67,11 +62,7 @@ export default function CommissionsPage({ storeId, store, onNavigate }) {
           osByTechnician[techName].total += total
           osByTechnician[techName].count += 1
 
-          if (o.commissions?.osTechnicianValue !== undefined) {
-            osByTechnician[techName].commission += Number(o.commissions.osTechnicianValue || 0)
-          } else {
-            osByTechnician[techName].commission += (total * (osTechPct / 100))
-          }
+          osByTechnician[techName].commission += (total * (osTechPct / 100))
         }
 
         // OS - Comissão para Atendente
@@ -82,11 +73,7 @@ export default function CommissionsPage({ storeId, store, onNavigate }) {
           osByAttendant[attName].total += total
           osByAttendant[attName].count += 1
 
-          if (o.commissions?.osAttendantValue !== undefined) {
-            osByAttendant[attName].commission += Number(o.commissions.osAttendantValue || 0)
-          } else {
-            osByAttendant[attName].commission += (total * (osAttPct / 100))
-          }
+          osByAttendant[attName].commission += (total * (osAttPct / 100))
         }
       }
     })

@@ -244,7 +244,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const inactive = total - active
     const withStock = reportProducts.filter(p => Number(p?.stock || 0) > 0).length
     const noStock = total - withStock
-    return { total, active, inactive, withStock, noStock }
+    const stockCost = reportProducts.reduce((sum, p) => sum + (Number(p?.cost || 0) * Math.max(0, Number(p?.stock || 0))), 0)
+    const stockSaleValue = reportProducts.reduce((sum, p) => sum + (Number(p?.salePrice ?? p?.priceMin ?? 0) * Math.max(0, Number(p?.stock || 0))), 0)
+    return { total, active, inactive, withStock, noStock, stockCost, stockSaleValue }
   }, [reportProducts])
 
   const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -1640,7 +1642,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   Gerado em {new Date().toLocaleString('pt-BR')}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <div className={`mt-4 grid grid-cols-2 ${((isOwner || perms.products?.viewCost) ? 'sm:grid-cols-7' : 'sm:grid-cols-6')} gap-2`}>
                   <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                     <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Total</div>
                     <div className="text-lg font-bold text-gray-900 dark:text-white">{reportSummary.total}</div>
@@ -1660,6 +1662,16 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
                     <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Sem estoque</div>
                     <div className="text-lg font-bold text-gray-900 dark:text-white">{reportSummary.noStock}</div>
+                  </div>
+                  {(isOwner || perms.products?.viewCost) && (
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Custo estoque</div>
+                      <div className="text-lg font-bold text-gray-900 dark:text-white">{money(reportSummary.stockCost || 0)}</div>
+                    </div>
+                  )}
+                  <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                    <div className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase">Valor venda</div>
+                    <div className="text-lg font-bold text-gray-900 dark:text-white">{money(reportSummary.stockSaleValue || 0)}</div>
                   </div>
                 </div>
 
