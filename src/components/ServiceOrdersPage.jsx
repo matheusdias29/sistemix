@@ -1103,6 +1103,15 @@ const canEditService = isOwner || perms.services?.edit
           }
 
           const applyChange = async (type, byProduct, description) => {
+            const formattedNumber = (() => {
+              if (originalOrder.number) {
+                const digits = String(originalOrder.number).replace(/\D/g, '')
+                const n = parseInt(digits, 10)
+                return `O.S:${String(n).padStart(4, '0')}`
+              }
+              return `O.S:${String(editingOrderId).slice(-4)}`
+            })()
+
             for (const [productId, vmap] of byProduct.entries()) {
               const p = await resolveProduct(productId)
               if (!p) continue
@@ -1145,6 +1154,7 @@ const canEditService = isOwner || perms.services?.edit
                       quantity: row.qty,
                       reason: 'adjustment',
                       referenceId: editingOrderId,
+                      referenceNumber: formattedNumber,
                       description,
                       userId: ownerId
                     })
@@ -1165,6 +1175,7 @@ const canEditService = isOwner || perms.services?.edit
                   quantity: totalQty,
                   reason: 'adjustment',
                   referenceId: editingOrderId,
+                  referenceNumber: formattedNumber,
                   description,
                   userId: ownerId
                 })
@@ -1177,7 +1188,13 @@ const canEditService = isOwner || perms.services?.edit
         }
         await updateOrder(editingOrderId, basePayload)
       } else {
-        const newOsId = await addOrder({ ...basePayload }, storeId)
+        const { id: newOsId, number: newOsNumber } = await addOrder({ ...basePayload }, storeId)
+        const formattedNumber = (() => {
+          const digits = String(newOsNumber).replace(/\D/g, '')
+          const n = parseInt(digits, 10)
+          return `O.S:${String(n).padStart(4, '0')}`
+        })()
+
         if (pendingImageFiles.length > 0) {
           const list = []
           for (const f of pendingImageFiles) {
@@ -1243,6 +1260,7 @@ const canEditService = isOwner || perms.services?.edit
                 quantity: sumQty,
                 reason: 'service_order',
                 referenceId: newOsId,
+                referenceNumber: formattedNumber,
                 description: `OS para ${client}`,
                 userId: ownerId,
                 userName: attendant
@@ -1264,6 +1282,7 @@ const canEditService = isOwner || perms.services?.edit
               quantity: totalQty,
               reason: 'service_order',
               referenceId: newOsId,
+              referenceNumber: formattedNumber,
               description: `OS para ${client}`,
               userId: ownerId,
               userName: attendant
@@ -1585,6 +1604,15 @@ const canEditService = isOwner || perms.services?.edit
           receiptNotes={statusTargetOrder ? (statusTargetOrder.receiptNotes || '') : receiptNotes}
           onConfirm={async (v)=>{
             if (statusTargetOrder) {
+              const formattedNumber = (() => {
+                if (statusTargetOrder.number) {
+                  const digits = String(statusTargetOrder.number).replace(/\D/g, '')
+                  const n = parseInt(digits, 10)
+                  return `O.S:${String(n).padStart(4, '0')}`
+                }
+                return `O.S:${String(statusTargetOrder.id).slice(-4)}`
+              })()
+
               // Lógica de retorno de estoque ao cancelar
               const newStatus = String(v.status || '').toLowerCase()
               const oldStatus = String(statusTargetOrder.status || '').toLowerCase()
@@ -1646,6 +1674,7 @@ const canEditService = isOwner || perms.services?.edit
                           quantity: row.qty,
                           reason: 'cancel',
                           referenceId: statusTargetOrder.id,
+                          referenceNumber: formattedNumber,
                           description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
                           userId: ownerId
                         })
@@ -1665,6 +1694,7 @@ const canEditService = isOwner || perms.services?.edit
                     quantity: totalQty,
                     reason: 'cancel',
                     referenceId: statusTargetOrder.id,
+                    referenceNumber: formattedNumber,
                     description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
                     userId: ownerId
                   })
@@ -1739,6 +1769,7 @@ const canEditService = isOwner || perms.services?.edit
                           quantity: row.qty,
                           reason: 'service_order',
                           referenceId: statusTargetOrder.id,
+                          referenceNumber: formattedNumber,
                           description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
                           userId: ownerId
                         })
@@ -1758,6 +1789,7 @@ const canEditService = isOwner || perms.services?.edit
                     quantity: totalQty,
                     reason: 'service_order',
                     referenceId: statusTargetOrder.id,
+                    referenceNumber: formattedNumber,
                     description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
                     userId: ownerId
                   })

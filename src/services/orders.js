@@ -107,7 +107,7 @@ export async function addOrder(order, storeId){
     updatedBy: order.updatedBy || '',
   }
   const res = await addDoc(colRef, data)
-  return res.id
+  return { id: res.id, number }
 }
 
 export async function getOrderById(id){

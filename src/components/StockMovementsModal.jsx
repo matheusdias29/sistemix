@@ -25,7 +25,8 @@ export default function StockMovementsModal({ open, onClose, product }) {
     return d.toLocaleString('pt-BR')
   }
 
-  const getReasonLabel = (r) => {
+  const getReasonLabel = (mov) => {
+    const r = mov.reason
     const map = {
       'sale': 'Venda',
       'manual_adjust': 'Ajuste Manual',
@@ -34,6 +35,11 @@ export default function StockMovementsModal({ open, onClose, product }) {
       'service_order': 'Ordem de Serviço',
       'cancel': 'Cancelamento/Estorno'
     }
+    
+    if (r === 'service_order' && mov.referenceNumber) {
+      return mov.referenceNumber
+    }
+    
     return map[r] || r
   }
 
@@ -87,8 +93,8 @@ export default function StockMovementsModal({ open, onClose, product }) {
                     <td className="px-6 py-3 font-medium">
                       {mov.quantity}
                     </td>
-                    <td className="px-6 py-3 text-gray-700">
-                      {getReasonLabel(mov.reason)}
+                    <td className="px-6 py-3 text-gray-700 font-medium">
+                      {getReasonLabel(mov)}
                     </td>
                     <td className="px-6 py-3 text-gray-500">
                       {mov.variationName || '-'}

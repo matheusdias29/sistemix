@@ -224,6 +224,16 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                           await updateProduct(prod.id, { variationsData: itemsVar, stock: totalStock })
                           restoredCount++
                           
+                          const formattedNumber = (() => {
+                            if (sale.number) {
+                              const digits = String(sale.number).replace(/\D/g, '')
+                              const n = parseInt(digits, 10)
+                              const prefix = (sale.type === 'os' || sale.type === 'service_order') ? 'O.S' : 'PV'
+                              return `${prefix}:${String(n).padStart(4, '0')}`
+                            }
+                            return String(sale.id).slice(-4)
+                          })()
+
                           await recordStockMovement({
                             productId: prod.id,
                             productName: prod.name,
@@ -233,6 +243,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                             quantity: quantity,
                             reason: 'cancel',
                             referenceId: sale.id,
+                            referenceNumber: formattedNumber,
                             description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
                             userId: user?.id || null
                           })
@@ -246,6 +257,16 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                         await updateProduct(prod.id, { stock: next })
                         restoredCount++
                         
+                        const formattedNumber = (() => {
+                          if (sale.number) {
+                            const digits = String(sale.number).replace(/\D/g, '')
+                            const n = parseInt(digits, 10)
+                            const prefix = (sale.type === 'os' || sale.type === 'service_order') ? 'O.S' : 'PV'
+                            return `${prefix}:${String(n).padStart(4, '0')}`
+                          }
+                          return String(sale.id).slice(-4)
+                        })()
+
                         await recordStockMovement({
                           productId: prod.id,
                           productName: prod.name,
@@ -253,6 +274,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                           quantity: quantity,
                           reason: 'cancel',
                           referenceId: sale.id,
+                          referenceNumber: formattedNumber,
                           description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
                           userId: user?.id || null
                         })

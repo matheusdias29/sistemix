@@ -13,6 +13,7 @@ export async function recordStockMovement({
   quantity,
   reason, // 'sale', 'manual_adjust', 'purchase', 'correction', 'service_order', 'cancel'
   referenceId = null, // ID da venda, OS, etc.
+  referenceNumber = null, // Número legível da venda, OS, etc.
   description = '',
   userId = null,
   userName = null
@@ -28,6 +29,7 @@ export async function recordStockMovement({
       quantity: Number(quantity),
       reason,
       referenceId,
+      referenceNumber,
       description,
       userId,
       userName,
