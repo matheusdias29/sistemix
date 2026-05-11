@@ -12,8 +12,8 @@ function digits(val) {
 
 export function listenClients(callback, storeId){
   const q = storeId
-    ? query(colRef, where('storeId','==',storeId), orderBy('createdAt', 'desc'), limit(100))
-    : query(colRef, orderBy('createdAt', 'desc'), limit(100))
+    ? query(colRef, where('storeId','==',storeId), orderBy('createdAt', 'desc'), limit(5000))
+    : query(colRef, orderBy('createdAt', 'desc'), limit(5000))
   return onSnapshot(q, (snap) => {
     const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
     callback(items)
