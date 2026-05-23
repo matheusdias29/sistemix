@@ -701,8 +701,17 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       .border-b { border-bottom: 1px dashed #000; }
       .border-t { border-top: 1px dashed #000; }
       .my-2 { margin-top: 8px; margin-bottom: 8px; }
+      .mt-1 { margin-top: 4px; }
+      .mb-1 { margin-bottom: 4px; }
+      .mb-2 { margin-bottom: 8px; }
+      .mb-4 { margin-bottom: 16px; }
       .flex { display: flex; }
+      .flex-col { flex-direction: column; }
       .justify-between { justify-content: space-between; }
+      .gap-1 { gap: 4px; }
+      .whitespace-pre-wrap { white-space: pre-wrap; }
+      .break-words { overflow-wrap: break-word; word-wrap: break-word; }
+      .leading-tight { line-height: 1.25; }
       table { width: 100%; border-collapse: collapse; }
       th, td { text-align: left; padding: 2px 0; vertical-align: top; word-break: break-word; }
       img { max-width: 100%; height: auto; display: block; margin: 0 auto; }

@@ -235,14 +235,29 @@ export default function ProductLabelsPage({
   products = [], 
   categories = [], 
   suppliers = [], 
-  onBack 
+  onBack,
+  storeId
 }) {
+  const CACHE_KEY = useMemo(() => `product_labels_cache_${storeId || 'default'}`, [storeId])
+  const MODEL_KEY = useMemo(() => `product_labels_model_${storeId || 'default'}`, [storeId])
+
   const [query, setQuery] = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [filterOpen, setFilterOpen] = useState(false)
-  const [selectedItems, setSelectedItems] = useState([]) // { product, variation?, qty }
+  const [selectedItems, setSelectedItems] = useState(() => {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY)
+      return cached ? JSON.parse(cached) : []
+    } catch (e) {
+      return []
+    }
+  }) // { product, variation?, qty }
   const PAGE_SIZE = 30
   const [page, setPage] = useState(1)
+
+  useEffect(() => {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(selectedItems))
+  }, [selectedItems, CACHE_KEY])
   const PRESETS = useMemo(() => ([
     {
       id: 'pimaco_a4248',
@@ -439,7 +454,13 @@ export default function ProductLabelsPage({
       },
     },
   ]), [])
-  const [labelModel, setLabelModel] = useState('pimaco_a4248')
+  const [labelModel, setLabelModel] = useState(() => {
+    return localStorage.getItem(MODEL_KEY) || 'pimaco_a4248'
+  })
+
+  useEffect(() => {
+    localStorage.setItem(MODEL_KEY, labelModel)
+  }, [labelModel, MODEL_KEY])
   
   // Variation Modal
   const [varModalOpen, setVarModalOpen] = useState(false)

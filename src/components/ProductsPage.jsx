@@ -1583,6 +1583,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         categories={categories}
         suppliers={suppliers}
         onBack={() => setShowLabelsScreen(false)}
+        storeId={storeId}
       />
     )
   }

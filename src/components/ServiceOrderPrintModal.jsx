@@ -206,9 +206,13 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
       .mb-4 { margin-bottom: 16px; }
       .mb-8 { margin-bottom: 32px; }
       .mb-12 { margin-bottom: 48px; }
+      .mt-1 { margin-top: 4px; }
       .flex { display: flex; }
+      .flex-col { flex-direction: column; }
       .justify-between { justify-content: space-between; }
       .items-center { align-items: center; }
+      .gap-1 { gap: 4px; }
+      .whitespace-pre-wrap { white-space: pre-wrap; }
       .w-full { width: 100%; }
       img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
       table { width: 100%; border-collapse: collapse; }
