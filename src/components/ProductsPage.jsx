@@ -938,49 +938,31 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     if (!p) return setStockModalOpen(false)
     const q = Math.max(0, parseInt(String(stockQty), 10) || 0)
     const delta = stockType === 'entrada' ? q : -q
-    const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-    const varIndex = hasVars ? selectedVarIdx : -1
     try {
       setSavingAction(true)
-      let updateData = {}
-      if (hasVars && varIndex >= 0) {
-        const items = p.variationsData.map((v) => ({ ...v }))
-        const cur = Number(items[varIndex]?.stock ?? 0)
-        items[varIndex].stock = Math.max(0, cur + delta)
-        const total = items.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
-        updateData = { variationsData: items, stock: total }
-        const updateResult = await updateProduct(p.id, updateData)
-        
-        await recordStockMovement({
-          productId: p.id,
-          productName: p.name,
-          variationId: items[varIndex].id || null,
-          variationName: items[varIndex].name || items[varIndex].label || `Variação ${varIndex+1}`,
-          type: stockType === 'entrada' ? 'in' : 'out',
-          quantity: q,
-          reason: 'manual_adjust',
-          description: stockDesc,
-          userId: user?.uid,
-          userName: user?.name
-        })
-
-      } else {
-        const cur = Number(p.stock ?? 0)
-        const next = Math.max(0, cur + delta)
-        updateData = { stock: next }
-        const updateResult = await updateProduct(p.id, updateData)
-        
-        await recordStockMovement({
-          productId: p.id,
-          productName: p.name,
-          type: stockType === 'entrada' ? 'in' : 'out',
-          quantity: q,
-          reason: 'manual_adjust',
-          description: stockDesc,
-          userId: user?.uid,
-          userName: user?.name
-        })
+      
+      const cur = Number(p.stock ?? 0)
+      const next = Math.max(0, cur + delta)
+      
+      let updateData = { stock: next }
+      
+      // Se tiver variações, todas devem ter o mesmo estoque unificado
+      if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+        updateData.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
       }
+
+      await updateProduct(p.id, updateData)
+      
+      await recordStockMovement({
+        productId: p.id,
+        productName: p.name,
+        type: stockType === 'entrada' ? 'in' : 'out',
+        quantity: q,
+        reason: 'manual_adjust',
+        description: stockDesc,
+        userId: user?.uid,
+        userName: user?.name
+      })
 
       // Atualiza o cache e o estado local para refletir na UI imediatamente
       const updater = prev => prev.map(item => 
@@ -2715,7 +2697,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
               </div>
               <div className="text-sm text-gray-800 dark:text-gray-200">
-                {stockTargetProduct?.name} {Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length || 0) > 0 ? ` - ${(stockTargetProduct?.variationsData?.[0]?.name || stockTargetProduct?.variationsData?.[0]?.label || '')}` : ''}
+                {stockTargetProduct?.name}
               </div>
               <div>
                 <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Quantidade</div>
@@ -2723,8 +2705,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               </div>
               <div className="text-sm text-gray-700 dark:text-gray-300">
                 {(() => {
-                  const hasVars = Array.isArray(stockTargetProduct?.variationsData) && (stockTargetProduct?.variationsData?.length||0) > 0
-                  const base = hasVars ? Number(stockTargetProduct?.variationsData?.[0]?.stock ?? 0) : Number(stockTargetProduct?.stock ?? 0)
+                  const base = Number(stockTargetProduct?.stock ?? 0)
                   const qty = Math.max(0, parseInt(String(stockQty), 10) || 0)
                   const sign = stockType==='entrada' ? '+' : '-'
                   const total = Math.max(0, base + (stockType==='entrada' ? qty : -qty))

@@ -250,35 +250,39 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                         }
                       }
 
-                      // Simple product or variation not matched
-                      if (!isVariationUpdated) {
-                        const cur = Number(prod.stock ?? 0)
-                        const next = Math.max(0, cur + quantity)
-                        await updateProduct(prod.id, { stock: next })
-                        restoredCount++
-                        
-                        const formattedNumber = (() => {
-                          if (sale.number) {
-                            const digits = String(sale.number).replace(/\D/g, '')
-                            const n = parseInt(digits, 10)
-                            const prefix = (sale.type === 'os' || sale.type === 'service_order') ? 'O.S' : 'PV'
-                            return `${prefix}:${String(n).padStart(4, '0')}`
-                          }
-                          return String(sale.id).slice(-4)
-                        })()
-
-                        await recordStockMovement({
-                          productId: prod.id,
-                          productName: prod.name,
-                          type: 'in',
-                          quantity: quantity,
-                          reason: 'cancel',
-                          referenceId: sale.id,
-                          referenceNumber: formattedNumber,
-                          description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
-                          userId: user?.id || null
-                        })
+                      // Sempre restaura no estoque principal do produto e sincroniza variações
+                      const cur = Number(prod.stock ?? 0)
+                      const next = cur + quantity
+                      
+                      let updateData = { stock: next }
+                      if (Array.isArray(prod.variationsData) && prod.variationsData.length > 0) {
+                        updateData.variationsData = prod.variationsData.map(v => ({ ...v, stock: next }))
                       }
+
+                      await updateProduct(prod.id, updateData)
+                      restoredCount++
+                      
+                      const formattedNumber = (() => {
+                        if (sale.number) {
+                          const digits = String(sale.number).replace(/\D/g, '')
+                          const n = parseInt(digits, 10)
+                          const prefix = (sale.type === 'os' || sale.type === 'service_order') ? 'O.S' : 'PV'
+                          return `${prefix}:${String(n).padStart(4, '0')}`
+                        }
+                        return String(sale.id).slice(-4)
+                      })()
+
+                      await recordStockMovement({
+                        productId: prod.id,
+                        productName: prod.name,
+                        type: 'in',
+                        quantity: quantity,
+                        reason: 'cancel',
+                        referenceId: sale.id,
+                        referenceNumber: formattedNumber,
+                        description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
+                        userId: user?.id || null
+                      })
                     } else {
                         console.warn('Product not found for restocking:', originalName, productId)
                     }

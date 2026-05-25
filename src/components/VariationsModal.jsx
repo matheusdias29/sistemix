@@ -140,12 +140,6 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
   }
   const confirm = () => {
     const normalized = items.map((it, idx) => {
-      const baseStockInitial = parseInt(it.stockInitial, 10) || 0
-      const baseStockMin = parseInt(it.stockMin, 10) || 0
-      const baseStock = parseInt(it.stock, 10) || 0
-      const stockInitial = idx === 4 ? 0 : baseStockInitial
-      const stockMin = idx === 4 ? 0 : baseStockMin
-      const stock = idx === 4 ? 0 : baseStock
       return {
         name: (it.name || '').trim(),
         cost: parseFloat(it.cost) || 0,
@@ -154,9 +148,10 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
         priceMin: it.promoPrice ? (parseFloat(it.promoPrice) || 0) : (parseFloat(it.salePrice) || 0),
         priceMax: parseFloat(it.salePrice) || 0,
         validityDate: it.validityDate || null,
-        stockInitial,
-        stockMin,
-        stock,
+        // O estoque agora é unificado e gerenciado pelo NewProductModal ou ProductsPage
+        stockInitial: 0,
+        stockMin: 0,
+        stock: 0,
         active: it.active !== false,
       }
     })
@@ -281,22 +276,6 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                             </div>
                           </div>
                             <div className="mt-3 grid grid-cols-1 gap-3">
-                            {idx === 0 && (
-                              <>
-                                <div>
-                                  <label className="text-xs text-gray-600">Estoque atual</label>
-                                  <input type="number" value={it.stock} onChange={e=>updateItem(idx,'stock', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-gray-600">Estoque inicial</label>
-                                  <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                                </div>
-                                <div>
-                                  <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
-                                  <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                                </div>
-                              </>
-                            )}
                             <div className="flex items-end">
                               <div className="flex items-center gap-2 text-sm">
                                 <span>Ativa</span>
@@ -389,22 +368,6 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                       </div>
                     </div>
                           <div className="mt-3 grid grid-cols-3 gap-4">
-                      {idx === 0 && (
-                        <>
-                          <div>
-                            <label className="text-xs text-gray-600">Estoque atual</label>
-                            <input type="number" value={it.stock} onChange={e=>updateItem(idx,'stock', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-600">Estoque inicial</label>
-                            <input type="number" value={it.stockInitial} onChange={e=>updateItem(idx,'stockInitial', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-gray-600">Estoque mínimo (alerta)</label>
-                            <input type="number" value={it.stockMin} onChange={e=>updateItem(idx,'stockMin', e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-                          </div>
-                        </>
-                      )}
                       <div className="flex items-end">
                         <div className="flex items-center gap-2 text-sm">
                           <span>Ativa</span>

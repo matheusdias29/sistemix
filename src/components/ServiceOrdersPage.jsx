@@ -1116,58 +1116,17 @@ const canEditService = isOwner || perms.services?.edit
               const p = await resolveProduct(productId)
               if (!p) continue
 
-              const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-              if (hasVars) {
-                const itemsVar = p.variationsData.map(vr => ({ ...vr }))
-                const totalsByTarget = new Map()
-                const movementRows = []
-
-                for (const [vname, qty] of vmap.entries()) {
-                  const name = String(vname || '').trim()
-                  if (!name) continue
-                  const idx = itemsVar.findIndex(vr => String(vr?.name || vr?.label || '').trim() === name)
-                  if (idx < 0) continue
-                  let targetIdx = idx
-                  if (idx > 0 && idx < 4 && itemsVar[0]) targetIdx = 0
-                  totalsByTarget.set(String(targetIdx), (totalsByTarget.get(String(targetIdx)) || 0) + qty)
-                  movementRows.push({ idx, qty, vname: name })
-                }
-
-                if (totalsByTarget.size > 0) {
-                  for (const [k, qty] of totalsByTarget.entries()) {
-                    const tIdx = parseInt(k, 10)
-                    const cur = Number(itemsVar[tIdx]?.stock ?? itemsVar[tIdx]?.stockInitial ?? 0)
-                    const next = type === 'in' ? (cur + qty) : Math.max(0, cur - qty)
-                    itemsVar[tIdx].stock = next
-                  }
-                  const total = itemsVar.reduce((s, vr) => s + Number(vr.stock ?? vr.stockInitial ?? 0), 0)
-                  await updateProduct(p.id, { variationsData: itemsVar, stock: total })
-
-                  for (const row of movementRows) {
-                    const idx = row.idx
-                    await recordStockMovement({
-                      productId: p.id,
-                      productName: p.name,
-                      variationId: itemsVar[idx]?.id || null,
-                      variationName: itemsVar[idx]?.name || itemsVar[idx]?.label || row.vname,
-                      type,
-                      quantity: row.qty,
-                      reason: 'adjustment',
-                      referenceId: editingOrderId,
-                      referenceNumber: formattedNumber,
-                      description,
-                      userId: ownerId
-                    })
-                  }
-                  continue
-                }
-              }
-
               const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
               if (totalQty > 0) {
                 const cur = Number(p.stock ?? p.stockInitial ?? 0)
                 const next = type === 'in' ? (cur + totalQty) : Math.max(0, cur - totalQty)
-                await updateProduct(p.id, { stock: next })
+                
+                let updateData = { stock: next }
+                if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+                  updateData.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
+                }
+
+                await updateProduct(p.id, updateData)
                 await recordStockMovement({
                   productId: p.id,
                   productName: p.name,
@@ -1225,56 +1184,17 @@ const canEditService = isOwner || perms.services?.edit
           const p = await resolveProduct(productId)
           if (!p) continue
 
-          const hasVars = Array.isArray(p.variationsData) && p.variationsData.length > 0
-
-          if (hasVars) {
-            const itemsVar = p.variationsData.map(v => ({ ...v }))
-            const totalsByTarget = new Map()
-
-            for (const { vname, qty } of entries) {
-              const name = String(vname || '').trim()
-              if (!name) continue
-              const idx = itemsVar.findIndex(v => String(v?.name || v?.label || '').trim() === name)
-              if (idx < 0) continue
-              let targetIdx = idx
-              if (idx > 0 && idx < 4 && itemsVar[0]) targetIdx = 0
-              const keyT = String(targetIdx)
-              totalsByTarget.set(keyT, (totalsByTarget.get(keyT) || 0) + qty)
-            }
-
-            if (totalsByTarget.size > 0) {
-              for (const [k, totalQty] of totalsByTarget.entries()) {
-                const tIdx = parseInt(k, 10)
-                const cur = Number(itemsVar[tIdx]?.stock ?? 0)
-                itemsVar[tIdx].stock = Math.max(0, cur - totalQty)
-              }
-              const total = itemsVar.reduce((s, v) => s + (Number(v.stock ?? 0)), 0)
-              await updateProduct(p.id, { variationsData: itemsVar, stock: total })
-              
-              // Registrar movimentação agregada por produto
-              const sumQty = Array.from(totalsByTarget.values()).reduce((s, q) => s + q, 0)
-              await recordStockMovement({
-                productId: p.id,
-                productName: p.name,
-                type: 'out',
-                quantity: sumQty,
-                reason: 'service_order',
-                referenceId: newOsId,
-                referenceNumber: formattedNumber,
-                description: `OS para ${client}`,
-                userId: ownerId,
-                userName: attendant
-              })
-              continue
-            }
-          }
-
-          // Produto simples (sem variações) ou variação não encontrada: desconta soma total
           const totalQty = entries.reduce((s, e) => s + e.qty, 0)
           if (totalQty > 0) {
             const cur = Number(p.stock ?? 0)
             const next = Math.max(0, cur - totalQty)
-            await updateProduct(p.id, { stock: next })
+            
+            let updateData = { stock: next }
+            if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+              updateData.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
+            }
+
+            await updateProduct(p.id, updateData)
             await recordStockMovement({
               productId: p.id,
               productName: p.name,

@@ -464,15 +464,19 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         : [sale]
       const priceMinAgg = Math.min(...priceCandidates)
       const priceMaxAgg = Math.max(...salePrices)
-      const stockAgg = hasVars
-        ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + (parseInt(v.stock, 10) || 0), 0)
-        : (parseInt(stock, 10) || 0)
-      const stockInitialAgg = hasVars
-        ? variationsData.reduce((s, v, idx)=> idx === 4 ? s : s + (parseInt(v.stockInitial, 10) || 0), 0)
-        : (parseInt(stock, 10) || 0)
+
+      // Estoque agora é único para o produto, independente de variações.
+      const finalStock = parseInt(stock, 10) || 0
+      const finalStockMin = parseInt(stockMin, 10) || 0
+
       const variationsCount = hasVars ? variationsData.length : (parseInt(variations) || 0)
 
-      const allVarNames = hasVars ? variationsData.map((v, idx) => (v.name || `Precificação ${idx+1}`)) : []
+      // Sincroniza o estoque em todas as variações para consistência interna
+      const syncedVariationsData = hasVars 
+        ? variationsData.map(v => ({ ...v, stock: finalStock, stockMin: finalStockMin }))
+        : []
+
+      const allVarNames = hasVars ? syncedVariationsData.map((v, idx) => (v.name || `Precificação ${idx+1}`)) : []
       let finalCatalogNames = catalogVisibleVariationNames
       let finalCatalogLabels = { ...(catalogCatalogLabels || {}) }
       if (showInCatalog) {
@@ -506,13 +510,13 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         reference: finalReference,
         validityDate: validityDate || null,
         controlStock: !!controlStock,
-        stockInitial: stockInitialAgg,
-        stockMin: parseInt(stockMin, 10) || 0,
-        stock: stockAgg,
+        stockInitial: finalStock,
+        stockMin: finalStockMin,
+        stock: finalStock,
         showInCatalog: !!showInCatalog,
         featured: !!featured,
         variations: variationsCount,
-        variationsData,
+        variationsData: syncedVariationsData,
         catalogVisibleVariationNames: finalCatalogNames,
         catalogCatalogLabels: finalCatalogLabels,
         description: description.trim(),
@@ -1154,11 +1158,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3">
                 <div className="min-w-0">
                   <div className="text-sm font-medium leading-tight truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
-                  {idx === 0 && (
-                    <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                      <span>Estoque: {v.stock ?? 0}</span>
-                    </div>
-                  )}
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                    <span>Estoque: {v.stock ?? 0}</span>
+                  </div>
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 pt-[1px] max-w-[6rem] truncate">{(reference || '').trim() ? reference : ''}</div>
                 <div className="text-right">
@@ -1190,8 +1192,8 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
               <div className="truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
               {canViewCost && <div className="text-right dark:text-gray-300">{(v.cost ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>}
               <div className="text-right dark:text-gray-300">{(v.salePrice ?? 0).toLocaleString('pt-BR', {style:'currency', currency:'BRL'})}</div>
-              <div className="text-right dark:text-gray-300">{idx === 0 ? (v.stockMin ?? 0) : ''}</div>
-              <div className={`text-right ${(v.stock ?? 0) > 0 ? 'dark:text-gray-300' : 'text-red-600 dark:text-red-400'}`}>{idx === 0 ? (v.stock ?? 0) : ''}</div>
+              <div className="text-right dark:text-gray-300">{v.stockMin ?? 0}</div>
+              <div className={`text-right ${(v.stock ?? 0) > 0 ? 'dark:text-gray-300' : 'text-red-600 dark:text-red-400'}`}>{v.stock ?? 0}</div>
             </div>
           ))}
           {variationsData.length === 0 && (
