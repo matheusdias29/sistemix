@@ -160,7 +160,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   const categories = useMemo(() => {
     const cats = new Set(
       productsWithCategory
-        .filter(p => (p.active ?? true) && p.showInCatalog === true)
+        .filter(p => (p.active !== false) && p.showInCatalog === true)
         .map(p => p.categoryName)
         .filter(Boolean)
     )
@@ -169,7 +169,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    let list = productsWithCategory.filter(p => (p.active ?? true) && p.showInCatalog === true)
+    let list = productsWithCategory.filter(p => (p.active !== false) && p.showInCatalog === true)
     
     if (selectedCategory !== 'Todos') {
       list = list.filter(p => p.categoryName === selectedCategory)

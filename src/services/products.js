@@ -18,10 +18,17 @@ export function listenProducts(callback, storeId){
 
 export function listenCatalogProducts(callback, storeId){
   if (!storeId) return () => {}
-  // Aumentado o limite para 2000 para garantir que todas as categorias carreguem seus produtos
-  const q = query(colRef, where('storeId','==',storeId), where('showInCatalog','==', true), limit(2000))
+  // Removido o filtro where('showInCatalog','==', true) e o limite
+  // para garantir que TODOS os produtos da loja sejam carregados e filtrados no cliente.
+  // Isso resolve problemas onde produtos novos ou específicos ficavam fora do limite inicial.
+  const q = query(
+    colRef, 
+    where('storeId', '==', storeId)
+  )
   return onSnapshot(q, (snap) => {
-    const items = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    const items = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(p => p.showInCatalog === true) // Filtro no cliente para garantir exibição
     callback(items)
   }, (err) => {
     console.error('listenCatalogProducts error', err)
