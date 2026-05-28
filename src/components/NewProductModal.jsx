@@ -1009,32 +1009,36 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       </div>
     </div>
 
-    <div className={`${variationsData.length >= 2 ? 'hidden' : ''}`}>
-      <div className="font-semibold mb-2">Preço e estoque</div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
+    <div className="space-y-4">
+      <div className={`${variationsData.length >= 2 ? 'hidden' : ''}`}>
+        <div className="font-semibold mb-2">Preço</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            {canViewCost && (
+              <>
+                <label className="text-xs text-gray-600">Custo</label>
+                <input type="number" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+              </>
+            )}
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Preço de venda</label>
+            <input type="number" step="0.01" value={salePrice} onChange={e=>setSalePrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600">Preço promocional</label>
+            <input type="number" step="0.01" value={promoPrice} onChange={e=>setPromoPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
+          </div>
+        </div>
+        <div className="mt-2">
           {canViewCost && (
-            <>
-              <label className="text-xs text-gray-600">Custo</label>
-              <input type="number" step="0.01" value={cost} onChange={e=>setCost(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-            </>
+            <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
           )}
         </div>
-        <div>
-          <label className="text-xs text-gray-600">Preço de venda</label>
-          <input type="number" step="0.01" value={salePrice} onChange={e=>setSalePrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-        </div>
-        <div>
-          <label className="text-xs text-gray-600">Preço promocional</label>
-          <input type="number" step="0.01" value={promoPrice} onChange={e=>setPromoPrice(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
-        </div>
       </div>
-      <div className="mt-2">
-        {canViewCost && (
-          <button type="button" onClick={()=>{ const c=parseFloat(cost)||0; const com=parseFloat(commissionPercent)||0; const r=c*(1+(com/100)); setSalePrice(String(r.toFixed(2))); }} className="text-xs text-green-700">Calcular preço de venda</button>
-        )}
-      </div>
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+      <div className="font-semibold mb-2">Código e estoque</div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <label className="text-xs text-gray-600">Código do produto</label>
           <input value={reference} onChange={e=>setReference(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" placeholder="Automático se vazio" />
@@ -1044,7 +1048,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           <input type="date" value={validityDate} onChange={e=>setValidityDate(e.target.value)} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm dark:bg-gray-700 dark:text-white" />
         </div>
       </div>
-      <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label className="text-xs text-gray-600">Estoque inicial</label>
           <input type="number" value={stock} onChange={e=>setStock(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm" />
@@ -1055,7 +1059,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         </div>
         <div className="flex items-end">
           <label className="flex items-center gap-2 text-sm mt-1">
-            {/* Switch: Cadastro Ativo */}
             <span>Cadastro Ativo</span>
             <button type="button" onClick={()=>setActive(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${active ? 'bg-green-500' : 'bg-gray-300'}`}>
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${active ? 'translate-x-4' : 'translate-x-1'}`}></span>
@@ -1063,7 +1066,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           </label>
         </div>
       </div>
-      <div className="mt-3 flex flex-col md:flex-row gap-4 md:gap-8 text-sm">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-8 text-sm pb-4">
         <div className="flex items-center gap-2">
           <span>Controlar estoque</span>
           <button type="button" onClick={()=>setControlStock(v=>!v)} className={`relative inline-flex h-5 w-9 items-center rounded-full ${controlStock ? 'bg-green-500' : 'bg-gray-300'}`}>
@@ -1104,7 +1107,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           </button>
         </div>
       </div>
-
     </div>
 
     <div>
@@ -1536,10 +1538,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                   setSalePrice(String(v1.salePrice ?? 0))
                   setPromoPrice(v1.promoPrice != null ? String(v1.promoPrice) : '')
                   setBarcode(v1.barcode ?? '')
-                  setValidityDate(v1.validityDate ?? null)
-                  const s = v1.stock ?? v1.stockInitial ?? 0
-                  setStock(String(s))
-                  setStockMin(String(v1.stockMin ?? 0))
+                  // O estoque e validade agora são unificados e não devem ser sobrescritos pelas variações
                   setActive(!!v1.active)
                 }
                 setVarModalOpen(false)

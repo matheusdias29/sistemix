@@ -2754,10 +2754,10 @@ const canEditService = isOwner || perms.services?.edit
                 <textarea
                   rows={3}
                   disabled={!canEdit}
-                  value={receiptNotes}
-                  onChange={e => setReceiptNotes(e.target.value)}
+                  value={internalNotes}
+                  onChange={e => setInternalNotes(e.target.value)}
                   className="mt-3 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-                  placeholder="Observações do serviço"
+                  placeholder="Observações internas"
                 />
                 <div className="mt-6">
                   <div className="text-sm text-gray-600 dark:text-gray-400">Informações de garantia</div>
