@@ -476,6 +476,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [problem, setProblem] = useState('')
   const [receiptNotes, setReceiptNotes] = useState('')
   const [internalNotes, setInternalNotes] = useState('')
+  const [observations, setObservations] = useState('')
   const [warrantyInfo, setWarrantyInfo] = useState(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
   const [saving, setSaving] = useState(false)
   const [unlockType, setUnlockType] = useState(null)
@@ -864,7 +865,7 @@ const canEditService = isOwner || perms.services?.edit
     setTechnician(isTech ? (user?.name || '') : ''); 
     setAttendant(isSeller ? (user?.name || '') : ''); 
 
-    setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setWarrantyInfo(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
+    setDateIn(''); setExpectedDate(''); setBrand(''); setModel(''); setSerialNumber(''); setImei1(''); setImei2(''); setEquipment(''); setProblem(''); setReceiptNotes(''); setInternalNotes(''); setObservations(''); setWarrantyInfo(activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts([])
     setOriginalOsProducts([])
     setOsServices([])
@@ -914,6 +915,7 @@ const canEditService = isOwner || perms.services?.edit
     setProblem(o.problem || '')
     setReceiptNotes(o.receiptNotes || '')
     setInternalNotes(o.internalNotes || '')
+    setObservations(o.observations || '')
     setWarrantyInfo(o.warrantyInfo || activeStore?.serviceOrderSettings?.warrantyText || DEFAULT_WARRANTY)
     setOsProducts(Array.isArray(o.products) ? o.products : [])
     setOriginalOsProducts(Array.isArray(o.products) ? o.products : [])
@@ -1010,6 +1012,7 @@ const canEditService = isOwner || perms.services?.edit
         problem,
         receiptNotes,
         internalNotes,
+        observations,
         warrantyInfo,
         services: osServices,
         products: osProducts,
@@ -2754,10 +2757,10 @@ const canEditService = isOwner || perms.services?.edit
                 <textarea
                   rows={3}
                   disabled={!canEdit}
-                  value={internalNotes}
-                  onChange={e => setInternalNotes(e.target.value)}
+                  value={observations}
+                  onChange={e => setObservations(e.target.value)}
                   className="mt-3 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-                  placeholder="Observações internas"
+                  placeholder="Observações do serviço"
                 />
                 <div className="mt-6">
                   <div className="text-sm text-gray-600 dark:text-gray-400">Informações de garantia</div>

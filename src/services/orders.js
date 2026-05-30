@@ -76,6 +76,7 @@ export async function addOrder(order, storeId){
     // Observações
     receiptNotes: order.receiptNotes || '',
     internalNotes: order.internalNotes || '',
+    observations: order.observations || '',
     warrantyInfo: order.warrantyInfo || '',
     // Outros
     password: order.password || '',

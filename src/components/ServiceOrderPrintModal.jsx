@@ -564,11 +564,11 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
 
               <div className="border-t border-black my-2"></div>
 
-              {printConfig.observations.showSection && order.receiptNotes && (
+              {printConfig.observations.showSection && (order.observations || order.receiptNotes) && (
                 <>
                   <div className="mb-2">
                     <div className="font-bold mb-1">OBSERVAÇÕES</div>
-                    <div className="whitespace-pre-wrap" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>{order.receiptNotes}</div>
+                    <div className="whitespace-pre-wrap" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>{order.observations || order.receiptNotes}</div>
                   </div>
                   <div className="border-t border-black my-2"></div>
                 </>
