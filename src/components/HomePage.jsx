@@ -104,15 +104,28 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
     a.getDate() === b.getDate()
   )
 
-  const todayOrders = useMemo(() => orders.filter(o => {
-    const d = toDate(o.createdAt)
-    return d ? isSameDay(d, today) : false
-  }), [orders])
+  const orderPaymentsOnDay = (o, day) => {
+    const pays = Array.isArray(o?.payments) ? o.payments : []
+    if (!pays.length) return 0
+    return pays.reduce((acc, p) => {
+      const amount = Number(p?.amount || 0)
+      const date = toDate(p?.date) || toDate(o?.updatedAt) || toDate(o?.createdAt)
+      if (!date) return acc
+      if (!isSameDay(date, day)) return acc
+      if (p?.subtractFromCash === false) return acc
+      if (p?.methodCode === 'valor_negativo') return acc - Math.abs(amount)
+      return acc + amount
+    }, 0)
+  }
 
-  const vendasHoje = useMemo(() => todayOrders.filter(o => {
+  const orderHasPaymentOnDay = (o, day) => orderPaymentsOnDay(o, day) !== 0
+
+  const vendasHoje = useMemo(() => orders.filter(o => {
     const s = (o.status || '').toLowerCase()
-    return s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
-  }), [todayOrders])
+    const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
+    if (!isVenda) return false
+    return orderHasPaymentOnDay(o, today)
+  }), [orders, today])
   function isOsFinalizadaFaturada(status){
     const s = (status || '').toLowerCase()
     // Aceita status que indicam finalização ou faturamento
@@ -129,12 +142,15 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
     if (exacts.includes(s)) return true
     return false
   }
-  const osFinalizadasHoje = useMemo(() => todayOrders.filter(o => isOsFinalizadaFaturada(o.status)), [todayOrders])
+  const osFinalizadasHoje = useMemo(() => orders.filter(o => {
+    if (!isOsFinalizadaFaturada(o.status)) return false
+    return orderHasPaymentOnDay(o, today)
+  }), [orders, today])
 
-  const totalVendasHoje = useMemo(() => vendasHoje.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0), [vendasHoje])
+  const totalVendasHoje = useMemo(() => vendasHoje.reduce((acc, o) => acc + orderPaymentsOnDay(o, today), 0), [vendasHoje, today])
   const ticketMedioVendasHoje = useMemo(() => vendasHoje.length ? totalVendasHoje / vendasHoje.length : 0, [vendasHoje, totalVendasHoje])
 
-  const totalOsHoje = useMemo(() => osFinalizadasHoje.reduce((acc, o) => acc + Number(o.total || o.valor || 0), 0), [osFinalizadasHoje])
+  const totalOsHoje = useMemo(() => osFinalizadasHoje.reduce((acc, o) => acc + orderPaymentsOnDay(o, today), 0), [osFinalizadasHoje, today])
   const ticketMedioOsHoje = useMemo(() => osFinalizadasHoje.length ? totalOsHoje / osFinalizadasHoje.length : 0, [osFinalizadasHoje, totalOsHoje])
 
   const formatCurrency = (n) => Number(n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -148,17 +164,17 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
       const d = new Date(today)
       d.setDate(today.getDate() - i)
       const vendasNoDia = orders.filter(o => {
-        const created = toDate(o.createdAt)
         const s = (o.status || '').toLowerCase()
         const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
         const isOs = isOsFinalizadaFaturada(o.status)
-        return !!created && (isVenda || isOs) && isSameDay(created, d)
+        if (!(isVenda || isOs)) return false
+        return orderHasPaymentOnDay(o, d)
       })
-      const totalNoDia = vendasNoDia.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0)
+      const totalNoDia = vendasNoDia.reduce((acc, o) => acc + orderPaymentsOnDay(o, d), 0)
       days.push({ date: d, total: totalNoDia })
     }
     return days
-  }, [orders])
+  }, [orders, today])
 
   function handleOpenDay(day){
     if (typeof onOpenSalesDay === 'function') {
