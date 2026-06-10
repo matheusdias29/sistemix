@@ -85,8 +85,8 @@ const calculateVariations = (cost, price, baseData) => {
       name: '2 - PREÇO CARTÃO CREDITO 7X ATÉ 12X',
       salePrice: 0,
       cost: 0,
-      stock: 0,
-      stockMin: 0,
+      stock: baseData.stock,
+      stockMin: baseData.stockMin,
       active: true,
       reference: '',
       barcode: ''
@@ -95,8 +95,8 @@ const calculateVariations = (cost, price, baseData) => {
       name: '3 - PREÇO CARTÃO CREDITO 13X ATÉ 18X',
       salePrice: 0,
       cost: 0,
-      stock: 0,
-      stockMin: 0,
+      stock: baseData.stock,
+      stockMin: baseData.stockMin,
       active: true,
       reference: '',
       barcode: ''
@@ -105,8 +105,8 @@ const calculateVariations = (cost, price, baseData) => {
       name: '4 - PREÇO P/LOJISTA LEVAR Á VISTA',
       salePrice: 0,
       cost: 0,
-      stock: 0,
-      stockMin: 0,
+      stock: baseData.stock,
+      stockMin: baseData.stockMin,
       active: true,
       reference: '',
       barcode: ''

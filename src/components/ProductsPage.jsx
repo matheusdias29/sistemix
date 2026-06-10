@@ -1172,20 +1172,14 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         dataToSync.reference = targetProduct.reference
                     }
                     
-                    // Variações: tentar preservar o estoque de cada variação existente lá
+                    // Estoque unificado: todas as precificações compartilham o mesmo saldo do produto destino
                     if (dataToSync.variationsData && dataToSync.variationsData.length > 0) {
-                         dataToSync.variationsData = dataToSync.variationsData.map(v => {
-                           // Tenta achar a variação correspondente no produto destino antigo
-                           const oldVar = (targetProduct.variationsData || []).find(ov => ov.name === v.name)
-                           if (oldVar) {
-                             // Mantém estoque da variação antiga
-                             return { ...v, stock: oldVar.stock, stockInitial: oldVar.stockInitial }
-                           }
-                           // Variação nova = estoque 0
-                           return { ...v, stock: 0, stockInitial: 0 }
-                         })
-                         // Recalcula total
-                         dataToSync.stock = dataToSync.variationsData.reduce((acc, curr) => acc + (Number(curr.stock)||0), 0)
+                         dataToSync.variationsData = dataToSync.variationsData.map(v => ({
+                           ...v,
+                           stock: Number(targetProduct.stock ?? 0),
+                           stockInitial: Number(targetProduct.stockInitial ?? 0),
+                           stockMin: Number(targetProduct.stockMin ?? 0)
+                         }))
                     } else {
                          // Se não tem variações, garante que stock é o do destino
                          dataToSync.stock = targetProduct.stock

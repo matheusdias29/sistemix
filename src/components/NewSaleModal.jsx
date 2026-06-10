@@ -497,7 +497,10 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     return acc + Number(p.amount || 0)
   }, 0)
   const remainingToPay = Math.max(0, total - totalPaid)
-  const plannedPaidTotal = plannedPayments.reduce((acc, p) => acc + Number(p.amount || 0), 0)
+  const plannedPaidTotal = plannedPayments.reduce((acc, p) => {
+    if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+    return acc + Number(p.amount || 0)
+  }, 0)
   const remainingToPlan = Math.max(0, total - plannedPaidTotal)
 
   // Open Cash Handler
@@ -549,7 +552,10 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
 
     if (status === 'Pedido') {
       const plannedToUse = plannedPaymentsOverride !== undefined ? plannedPaymentsOverride : plannedPayments
-      const plannedPaid = (plannedToUse || []).reduce((s, p) => s + Number(p.amount || 0), 0)
+      const plannedPaid = (plannedToUse || []).reduce((acc, p) => {
+        if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+        return acc + Number(p.amount || 0)
+      }, 0)
       const plannedRemaining = Math.max(0, total - plannedPaid)
       if (!plannedToUse || plannedToUse.length === 0 || plannedRemaining > 0.01) {
         setPendingSaveStatus(status)

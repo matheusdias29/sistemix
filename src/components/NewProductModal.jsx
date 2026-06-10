@@ -681,22 +681,14 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                         updatePayload.reference = targetProduct.reference
                       }
 
-                      // Ajuste fino para variações: Tentar preservar estoque de variações existentes
+                      // Estoque unificado: todas as precificações compartilham o mesmo saldo do produto destino
                       if (updatePayload.variationsData && updatePayload.variationsData.length > 0) {
-                         updatePayload.variationsData = updatePayload.variationsData.map(v => {
-                           // Tenta achar essa variação no produto destino antigo
-                           // Match por nome
-                           const oldVar = (targetProduct.variationsData || []).find(ov => ov.name === v.name)
-                           if (oldVar) {
-                             return { ...v, stock: oldVar.stock, stockInitial: oldVar.stockInitial }
-                           }
-                           // Se é variação nova na estrutura, começa com 0
-                           return { ...v, stock: 0, stockInitial: 0 }
-                         })
-                         
-                         // Recalcular stock total baseado nas variações preservadas
-                         const newStockTotal = updatePayload.variationsData.reduce((acc, curr) => acc + (Number(curr.stock)||0), 0)
-                         updatePayload.stock = newStockTotal
+                         updatePayload.variationsData = updatePayload.variationsData.map(v => ({
+                           ...v,
+                           stock: Number(targetProduct.stock ?? 0),
+                           stockInitial: Number(targetProduct.stockInitial ?? 0),
+                           stockMin: Number(targetProduct.stockMin ?? 0),
+                         }))
                       }
 
                       await updateProduct(targetProduct.id, updatePayload)

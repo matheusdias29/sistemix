@@ -119,8 +119,10 @@ async function main() {
               ...v,
               salePrice: 0,
               cost: 0,
-              stock: 0, // Garantir estoque zero nas variações secundárias
-              stockMin: 0
+              // Mantém estoque unificado do produto
+              stock: Number(data.stock || 0),
+              stockInitial: Number(data.stockInitial || 0),
+              stockMin: Number(data.stockMin || 0)
             };
           }
           return v;
