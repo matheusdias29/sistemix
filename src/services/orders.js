@@ -3,6 +3,14 @@ import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'orders')
 
+function normalizeClientText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toLowerCase()
+}
+
 // Gera número sequencial de 6 dígitos no formato #000001
 async function getNextOrderNumber(storeId, type){
   try {
@@ -117,6 +125,57 @@ export async function getOrderById(id){
   const snap = await getDoc(ref)
   if (!snap.exists()) return null
   return { id: snap.id, ...snap.data() }
+}
+
+export async function getClientOrderHistory(storeId, client){
+  if (!storeId || !client) return []
+
+  const clientId = String(client.id || '').trim()
+  const clientName = normalizeClientText(client.name)
+
+  if (!clientId && !clientName) return []
+
+  const q = query(colRef, where('storeId','==',storeId))
+  const snap = await getDocs(q)
+
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() }))
+    .filter(order => {
+      const type = order.type || 'service_order'
+      if (type !== 'sale' && type !== 'service_order') return false
+
+      const matchesClientId = clientId && String(order.clientId || '').trim() === clientId
+      const matchesClientName = clientName && normalizeClientText(order.client) === clientName
+
+      return matchesClientId || matchesClientName
+    })
+    .map(order => ({
+      id: order.id,
+      type: order.type || 'service_order',
+      number: order.number || '',
+      client: order.client || '',
+      status: order.status || '',
+      total: Number(order.total ?? order.valor ?? 0),
+      attendant: order.attendant || '',
+      technician: order.technician || '',
+      productsCount: Array.isArray(order.products) ? order.products.length : 0,
+      servicesCount: Array.isArray(order.services) ? order.services.length : 0,
+      createdAt: order.createdAt || null,
+      updatedAt: order.updatedAt || null,
+      dateIn: order.dateIn || null,
+    }))
+    .sort((a, b) => {
+      const getTime = (item) =>
+        item.createdAt?.toMillis?.() ||
+        item.updatedAt?.toMillis?.() ||
+        item.dateIn?.toMillis?.() ||
+        (item.createdAt ? new Date(item.createdAt).getTime() : 0) ||
+        (item.updatedAt ? new Date(item.updatedAt).getTime() : 0) ||
+        (item.dateIn ? new Date(item.dateIn).getTime() : 0) ||
+        0
+
+      return getTime(b) - getTime(a)
+    })
 }
 
 export async function updateOrder(id, partial){

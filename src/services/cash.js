@@ -89,14 +89,14 @@ export async function getClosedCashRegisters(storeId) {
   if (!storeId) return []
   
   try {
-    // Tenta ordenar por data de abertura (decrescente)
-    // Nota: Pode exigir índice composto no Firestore (storeId + status + openedAt)
+    // Ordena por data de fechamento, que é o critério esperado em "Caixas anteriores".
+    // Evita que caixas recém-fechados fiquem "sumidos" por causa da ordenação por abertura.
     const q = query(
       collection(db, 'cash_registers'),
       where('storeId', '==', storeId),
       where('status', '==', 'closed'),
-      orderBy('openedAt', 'desc'),
-      limit(20)
+      orderBy('closedAt', 'desc'),
+      limit(200)
     )
     
     const snapshot = await getDocs(q)
@@ -110,16 +110,20 @@ export async function getClosedCashRegisters(storeId) {
       collection(db, 'cash_registers'),
       where('storeId', '==', storeId),
       where('status', '==', 'closed'),
-      limit(50) 
+      limit(500) 
     )
     
     const snapshot = await getDocs(qFallback)
     const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
     
-    // Ordena em memória por openedAt decrescente
+    // Ordena em memória priorizando fechamento e, se necessário, abertura.
     return list.sort((a, b) => {
-      const ta = a.openedAt?.toDate ? a.openedAt.toDate().getTime() : 0
-      const tb = b.openedAt?.toDate ? b.openedAt.toDate().getTime() : 0
+      const ta = a.closedAt?.toDate
+        ? a.closedAt.toDate().getTime()
+        : (a.openedAt?.toDate ? a.openedAt.toDate().getTime() : 0)
+      const tb = b.closedAt?.toDate
+        ? b.closedAt.toDate().getTime()
+        : (b.openedAt?.toDate ? b.openedAt.toDate().getTime() : 0)
       return tb - ta
     })
   }

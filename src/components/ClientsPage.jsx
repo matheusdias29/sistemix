@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { getClientsByPage, searchClientsByPage, getTotalClientsCount, removeClient, getAllClients } from '../services/clients'
+import { getClientOrderHistory } from '../services/orders'
 import NewClientModal from './NewClientModal'
 import ClientsFilterModal from './ClientsFilterModal'
 
@@ -40,6 +41,10 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const [confirmRemoveOpen, setConfirmRemoveOpen] = useState(false)
   const [confirmRemoveClient, setConfirmRemoveClient] = useState(null)
   const [savingAction, setSavingAction] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyClient, setHistoryClient] = useState(null)
+  const [historyItems, setHistoryItems] = useState([])
   
   // Filtros
   const [filterOpen, setFilterOpen] = useState(false)
@@ -225,6 +230,31 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
     setOpenMenuId(null)
   }
 
+  const openHistory = async (client) => {
+    setHistoryClient(client)
+    setHistoryItems([])
+    setHistoryLoading(true)
+    setHistoryOpen(true)
+    setOpenMenuId(null)
+    try {
+      const items = await getClientOrderHistory(storeId, client)
+      setHistoryItems(items)
+    } catch (e) {
+      console.error(e)
+      alert('Erro ao carregar histórico do cliente.')
+      setHistoryOpen(false)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const closeHistory = () => {
+    setHistoryOpen(false)
+    setHistoryLoading(false)
+    setHistoryClient(null)
+    setHistoryItems([])
+  }
+
   const confirmRemove = async () => {
     if(!confirmRemoveClient) return
     setSavingAction(true)
@@ -274,6 +304,19 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
       getTotalClientsCount(storeId).then(setTotalResults)
       getClientsByPage(storeId, page, PAGE_SIZE).then(setClients)
     }
+  }
+
+  const formatDateTime = (value) => {
+    if (!value) return '—'
+    const date = value?.seconds ? new Date(value.seconds * 1000) : new Date(value)
+    if (Number.isNaN(date.getTime())) return '—'
+    return date.toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   // Componente de Paginação Numérica
@@ -471,6 +514,10 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                    </button>
                    {openMenuId === c.id && (
                      <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white dark:bg-gray-800 rounded shadow-xl border dark:border-gray-700 z-30 py-1`}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> openHistory(c)}>
+                        <span>🕘</span>
+                        <span>Historico</span>
+                      </button>
                       {(isOwner || perms.clients?.edit) && (
                       <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
@@ -554,6 +601,10 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                    </button>
                    {openMenuId === c.id && (
                      <div className={`absolute right-0 ${isLast ? 'bottom-full mb-1' : 'top-full mt-1'} w-48 bg-white dark:bg-gray-800 rounded shadow-xl border dark:border-gray-700 z-30 py-1 text-left`}>
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> openHistory(c)}>
+                        <span>🕘</span>
+                        <span>Historico</span>
+                      </button>
                       {(isOwner || perms.clients?.edit) && (
                       <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
@@ -646,6 +697,81 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
         initialFilters={filters}
         onApply={setFilters}
       />
+
+      {historyOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-4xl shadow-xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="px-5 py-4 border-b dark:border-gray-700 flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Historico do cliente</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {historyClient?.name || 'Cliente'} - compras em vendas e O.S
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeHistory}
+                className="px-3 py-1.5 rounded border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Fechar
+              </button>
+            </div>
+
+            <div className="p-5 overflow-auto">
+              {historyLoading ? (
+                <div className="py-12 text-center text-gray-500 dark:text-gray-400">Carregando historico...</div>
+              ) : historyItems.length === 0 ? (
+                <div className="py-12 text-center text-gray-500 dark:text-gray-400">
+                  Nenhuma compra encontrada para este cliente.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {historyItems.map(item => {
+                    const isSale = item.type === 'sale'
+                    const primaryDate = item.createdAt || item.updatedAt || item.dateIn
+                    return (
+                      <div key={item.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/20">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${isSale ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
+                                {isSale ? 'Venda' : 'O.S'}
+                              </span>
+                              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {item.number || 'Sem numero'}
+                              </span>
+                              {item.status ? (
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  Status: {item.status}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-300">
+                              Data: {formatDateTime(primaryDate)}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-300">
+                              {isSale ? `Vendedor: ${item.attendant || '—'}` : `Atendente: ${item.attendant || '—'} | Tecnico: ${item.technician || '—'}`}
+                            </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-300">
+                              {isSale ? `Itens: ${item.productsCount}` : `Produtos: ${item.productsCount} | Servicos: ${item.servicesCount}`}
+                            </div>
+                          </div>
+                          <div className="text-left md:text-right">
+                            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Total</div>
+                            <div className="text-lg font-bold text-gray-900 dark:text-white">
+                              {Number(item.total || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Confirmação Remoção */}
       {confirmRemoveOpen && (
