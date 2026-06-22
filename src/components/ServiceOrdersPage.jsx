@@ -644,6 +644,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [osServices, setOsServices] = useState([])
   const [serviceSelectOpen, setServiceSelectOpen] = useState(false)
   const [addProdOpen, setAddProdOpen] = useState(false)
+  const [editingProductIndex, setEditingProductIndex] = useState(null)
   const [prodSelectOpen, setProdSelectOpen] = useState(false)
   const [newProductOpen, setNewProductOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
@@ -672,10 +673,15 @@ const canChangeStatus = isOwner || perms.serviceOrders?.changeStatus
 const [osFiles, setOsFiles] = useState([])
 const fileInputRef = useRef(null)
 const [pendingImageFiles, setPendingImageFiles] = useState([])
+const skipNextProductPriceAutofillRef = useRef(false)
 const canChangeValues = isOwner || perms.serviceOrders?.changeValues
 const canCreateService = isOwner || perms.services?.create
 const canEditService = isOwner || perms.services?.edit
   useEffect(()=>{
+    if (skipNextProductPriceAutofillRef.current) {
+      skipNextProductPriceAutofillRef.current = false
+      return
+    }
     if(selectedProduct){
       let base = selectedProduct.salePrice ?? selectedProduct.priceMin ?? 0
       if(selectedVariation){
@@ -875,6 +881,12 @@ const canEditService = isOwner || perms.services?.edit
     setAppliedFees([])
     setEditingOrderId(null)
     setEditingOrderNumber('')
+    setEditingProductIndex(null)
+    setAddProdOpen(false)
+    setSelectedProduct(null)
+    setSelectedVariation(null)
+    setQtyInput(1)
+    setPriceInput('0')
     setStatus('Iniciado')
     setUnlockType(null); setUnlockPattern([]); setUnlockPin(''); setUnlockPassword('')
     setSelectedChecklist(null); setChecklistAnswers({})
@@ -1224,10 +1236,40 @@ const canEditService = isOwner || perms.services?.edit
   }
 
   const openAddProduct = () => {
+    setEditingProductIndex(null)
     setSelectedProduct(null)
+    setSelectedVariation(null)
     setQtyInput(1)
     setPriceInput('0')
     setAddProdOpen(true)
+  }
+  const openEditProduct = (idx) => {
+    const item = osProducts[idx]
+    if (!item) return
+    const sourceList = cachedProducts || productsAll
+    const matchedProduct = sourceList.find(p => p.id === item.productId)
+    const matchedVariation = matchedProduct?.variationsData?.find(v => (v.name || v.label) === item.variationName) || null
+
+    setEditingProductIndex(idx)
+    skipNextProductPriceAutofillRef.current = true
+    setSelectedProduct(matchedProduct || {
+      id: item.productId,
+      name: item.name,
+      variations: item.variationName ? 1 : 0,
+      variationsData: matchedVariation ? [matchedVariation] : []
+    })
+    setSelectedVariation(matchedVariation)
+    setQtyInput(String(item.quantity ?? 1))
+    setPriceInput(String(item.price ?? 0))
+    setAddProdOpen(true)
+  }
+  const closeAddProductModal = () => {
+    setAddProdOpen(false)
+    setEditingProductIndex(null)
+    setSelectedProduct(null)
+    setSelectedVariation(null)
+    setQtyInput(1)
+    setPriceInput('0')
   }
   const removeProduct = (idx) => {
     setOsProducts(prev => prev.filter((_, i) => i !== idx))
@@ -2550,7 +2592,7 @@ const canEditService = isOwner || perms.services?.edit
                 ) : (
                   <div className="mt-3">
                     {osProducts.map((p, idx) => (
-                      <div key={idx} className="grid grid-cols-[1fr_6rem_8rem_2rem] items-center gap-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm text-gray-900 dark:text-gray-100">
+                      <div key={idx} className="grid grid-cols-[1fr_6rem_8rem_auto] items-center gap-3 py-2 border-b dark:border-gray-700 last:border-0 text-sm text-gray-900 dark:text-gray-100">
                         <div>
                           <div className="font-medium">{p.name}</div>
                           {p.variationName && <div className="text-xs text-gray-600 dark:text-gray-400">• {p.variationName}</div>}
@@ -2558,7 +2600,10 @@ const canEditService = isOwner || perms.services?.edit
                         <div className="text-right">{p.quantity}</div>
                         <div className="text-right">{(p.price * p.quantity).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
                         {!isOrderLocked && canEdit && (
-                          <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+                          <div className="flex items-center justify-end gap-3">
+                            <button type="button" onClick={()=>openEditProduct(idx)} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Editar</button>
+                            <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+                          </div>
                         )}
                       </div>
                     ))}
@@ -2704,12 +2749,17 @@ const canEditService = isOwner || perms.services?.edit
           {addProdOpen && (
             <AddProductModal
               open={addProdOpen}
-              onClose={()=>setAddProdOpen(false)}
+              onClose={closeAddProductModal}
               product={selectedProduct}
               variation={selectedVariation}
+              isEditing={editingProductIndex !== null}
               canChangeValues={canChangeValues}
-              onOpenSelect={()=>setProdSelectOpen(true)}
+              onOpenSelect={()=>{
+                if (editingProductIndex !== null) return
+                setProdSelectOpen(true)
+              }}
               onOpenVariation={()=>{
+                if (editingProductIndex !== null) return
                 if(selectedProduct && selectedProduct.variations > 0 && selectedProduct.variationsData && selectedProduct.variationsData.length > 0){
                   setVarSelectOpen(true)
                 }
@@ -2722,16 +2772,18 @@ const canEditService = isOwner || perms.services?.edit
                 if(!selectedProduct) return;
 
                 const q = parseFloat(qtyInput)||1
+                const isEditingProduct = editingProductIndex !== null
+                const currentVariationName = selectedVariation ? (selectedVariation.name || selectedVariation.label) : null
                 
                 // Calcular quanto desse produto (e variação) já está na lista atual da OS
                 const currentInList = osProducts
-                  .filter(p => p.productId === selectedProduct.id && p.variationName === (selectedVariation ? (selectedVariation.name || selectedVariation.label) : null))
+                  .filter((p, index) => index !== editingProductIndex && p.productId === selectedProduct.id && p.variationName === currentVariationName)
                   .reduce((acc, p) => acc + (parseFloat(p.quantity) || 0), 0)
                 
                 // Em edição: o estoque do banco já foi descontado pelos itens originais da OS.
                 // Então a reserva para validar deve considerar apenas o que foi ADICIONADO além do original.
                 const originalInList = originalOsProducts
-                  .filter(p => p.productId === selectedProduct.id && p.variationName === (selectedVariation ? (selectedVariation.name || selectedVariation.label) : null))
+                  .filter((p, index) => index !== editingProductIndex && p.productId === selectedProduct.id && p.variationName === currentVariationName)
                   .reduce((acc, p) => acc + (parseFloat(p.quantity) || 0), 0)
                 
                 const pendingInList = Math.max(0, Number(currentInList) - Number(originalInList))
@@ -2766,12 +2818,16 @@ const canEditService = isOwner || perms.services?.edit
                 const item = {
                   productId: selectedProduct.id,
                   name: selectedProduct.name,
-                  variationName: selectedVariation ? (selectedVariation.name || selectedVariation.label || null) : null,
+                  variationName: currentVariationName,
                   price: parseFloat(priceInput)||0,
                   quantity: q,
                 }
-                setOsProducts(prev=>[...prev, item])
-                setAddProdOpen(false)
+                if (isEditingProduct) {
+                  setOsProducts(prev => prev.map((existing, index) => index === editingProductIndex ? item : existing))
+                } else {
+                  setOsProducts(prev=>[...prev, item])
+                }
+                closeAddProductModal()
               }}
             />
           )}
@@ -3705,7 +3761,7 @@ function SelectServiceModal({ open, onClose, services, onChoose }){
   )
 }
 
-function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOpenVariation, qty, setQty, price, setPrice, onConfirm, canChangeValues }){
+function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOpenVariation, qty, setQty, price, setPrice, onConfirm, canChangeValues, isEditing = false }){
   if(!open) return null
   
   const hasVariations = product && product.variations > 0 && product.variationsData && product.variationsData.length > 0
@@ -3714,15 +3770,15 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[640px] max-w-[95vw]">
         <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
-          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Adicionar Produto</h3>
+          <h3 className="font-semibold text-lg text-gray-900 dark:text-white">{isEditing ? 'Editar Produto' : 'Adicionar Produto'}</h3>
           <button onClick={onClose} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">✕</button>
         </div>
         <div className="p-4 space-y-4">
           <div>
             <label className="text-xs text-gray-600 dark:text-gray-400">Produto</label>
-            <button type="button" onClick={onOpenSelect} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100">
+            <button type="button" onClick={onOpenSelect} disabled={isEditing} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">
               <span>{product ? product.name : 'Selecionar produto'}</span>
-              <span>›</span>
+              <span>{isEditing ? '' : '›'}</span>
             </button>
           </div>
           {hasVariations && (
@@ -3731,10 +3787,11 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
               <button 
                 type="button" 
                 onClick={onOpenVariation} 
-                className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                disabled={isEditing}
+                className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span>{variation ? variation.name : 'Selecionar variação'}</span>
-                <span>›</span>
+                <span>{isEditing ? '' : '›'}</span>
               </button>
             </div>
           )}
@@ -3751,7 +3808,7 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
         </div>
         <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end gap-2">
           <button type="button" onClick={onClose} className="px-3 py-2 border dark:border-gray-600 rounded text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">Cancelar</button>
-          <button type="button" onClick={onConfirm} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">Confirmar</button>
+          <button type="button" onClick={onConfirm} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700">{isEditing ? 'Salvar' : 'Confirmar'}</button>
         </div>
       </div>
     </div>
