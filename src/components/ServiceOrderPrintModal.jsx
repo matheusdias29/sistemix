@@ -82,7 +82,6 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
     },
     signatures: {
       showClient: true,
-      showTechnician: true,
     },
     warranty: {
       showSection: true,
@@ -567,8 +566,18 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               {printConfig.observations.showSection && (order.observations || order.receiptNotes) && (
                 <>
                   <div className="mb-2">
-                    <div className="font-bold mb-1">OBSERVAÇÕES</div>
-                    <div className="whitespace-pre-wrap" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>{order.observations || order.receiptNotes}</div>
+                    {order.receiptNotes && (
+                      <div className="mb-1">
+                        <div className="font-bold">OBS ENTRADA</div>
+                        <div className="whitespace-pre-wrap" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>{order.receiptNotes}</div>
+                      </div>
+                    )}
+                    {order.observations && (
+                      <div className="mb-1">
+                        <div className="font-bold">OBS SAIDA</div>
+                        <div className="whitespace-pre-wrap" style={{ fontWeight: 'inherit', fontSize: 'inherit' }}>{order.observations}</div>
+                      </div>
+                    )}
                   </div>
                   <div className="border-t border-black my-2"></div>
                 </>
@@ -619,13 +628,6 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
                   <div className="mb-4 pt-4">
                     <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
                     <div className="text-xs">Assinatura do Cliente</div>
-                  </div>
-                )}
-
-                {printConfig.signatures.showTechnician && (
-                  <div className="mb-4 pt-4">
-                    <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
-                    <div className="text-xs">Assinatura do Técnico</div>
                   </div>
                 )}
                 

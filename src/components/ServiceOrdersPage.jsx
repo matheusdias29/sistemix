@@ -256,7 +256,6 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
     },
     signatures: {
       showClient: true,
-      showTechnician: true,
     },
     warranty: {
       showSection: true,
@@ -2414,7 +2413,7 @@ const canEditService = isOwner || perms.services?.edit
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-xs text-gray-600 dark:text-gray-400">Observações de recebimento</label>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Obs entrada</label>
                     <textarea disabled={!canEdit} value={receiptNotes} onChange={e=>setReceiptNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
@@ -2720,14 +2719,14 @@ const canEditService = isOwner || perms.services?.edit
               </div>
 
               <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
-                <div className="font-semibold text-lg text-gray-900 dark:text-white">Observações</div>
+                <div className="font-semibold text-lg text-gray-900 dark:text-white">Obs saida</div>
                 <textarea
                   rows={3}
                   disabled={!canEdit}
                   value={observations}
                   onChange={e => setObservations(e.target.value)}
                   className="mt-3 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
-                  placeholder="Observações do serviço"
+                  placeholder="Obs saida"
                 />
                 <div className="mt-6">
                   <div className="text-sm text-gray-600 dark:text-gray-400">Informações de garantia</div>
@@ -3289,7 +3288,6 @@ const canEditService = isOwner || perms.services?.edit
                   <div className="text-sm font-semibold text-gray-900 dark:text-white">Assinaturas</div>
                   <div className="mt-3 space-y-3">
                     <Toggle label="Mostrar assinatura do cliente" checked={!!osPrintConfig.signatures.showClient} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, signatures: { ...prev.signatures, showClient: v } }))} />
-                    <Toggle label="Mostrar assinatura do técnico" checked={!!osPrintConfig.signatures.showTechnician} onChange={(v) => setOsPrintConfig(prev => ({ ...prev, signatures: { ...prev.signatures, showTechnician: v } }))} />
                   </div>
                 </div>
 

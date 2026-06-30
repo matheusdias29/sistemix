@@ -220,10 +220,10 @@ export default function OrderTrackingPage({ orderId, isSale = false }) {
           </div>
         )}
 
-        {/* Observações de recebimento - Only for OS */}
+        {/* Obs entrada - Only for OS */}
         {!isSaleOrder && order.receiptNotes && (
           <div className="mb-8">
-            <h3 className="font-bold text-gray-800 mb-2 text-sm">Observações de recebimento</h3>
+            <h3 className="font-bold text-gray-800 mb-2 text-sm">Obs entrada</h3>
             <p className="text-xs text-gray-600 uppercase whitespace-pre-wrap leading-relaxed">
               {order.receiptNotes}
             </p>
