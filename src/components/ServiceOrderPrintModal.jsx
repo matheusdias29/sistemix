@@ -624,16 +624,16 @@ export default function ServiceOrderPrintModal({ open, onClose, order, store }) 
               )}
 
               <div className="mt-8 border-t border-black pt-2 text-center">
-                {printConfig.signatures.showClient && (
-                  <div className="mb-4 pt-4">
-                    <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
-                    <div className="text-xs">Assinatura do Cliente</div>
-                  </div>
-                )}
-                
                 {printConfig.warranty.showSection && (store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText) && (
                   <div className="text-[8px] text-justify leading-tight mt-8 pt-4 border-t border-black">
                     <strong>TERMO DE GARANTIA:</strong> {store?.serviceOrderSettings?.warrantyText || order.warrantyInfo || order.warrantyText || 'Garantia de 90 dias para serviços e peças.'}
+                  </div>
+                )}
+
+                {printConfig.signatures.showClient && (
+                  <div className="mb-4 pt-4 mt-8">
+                    <div className="border-t border-black w-3/4 mx-auto mb-1"></div>
+                    <div className="text-xs">Assinatura do Cliente</div>
                   </div>
                 )}
               </div>
