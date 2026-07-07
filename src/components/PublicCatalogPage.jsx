@@ -501,7 +501,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                   <div className="p-3 sm:p-4 flex flex-col flex-1">
                     <div className="flex justify-between items-center mb-1">
                       <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold truncate">
-                        {p.categoryName || 'Geral'}
+                        {getProductCode(p) || 'Sem código'}
                       </div>
                       <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${Number(p.stock || 0) > 0 ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-red-50 text-red-600 border border-red-100'} whitespace-nowrap`}>
                         {Number(p.stock || 0) > 0 ? `DISPONÍVEL: ${Number(p.stock || 0)}` : 'INDISPONÍVEL'}

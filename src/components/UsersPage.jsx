@@ -4,11 +4,13 @@ import { listenSubUsers, addSubUser, updateSubUser, removeSubUser } from '../ser
 import UserModal from './UserModal'
 
 export default function UsersPage({ owner }){
+  const MAX_ACTIVE_USERS = 10
   const [members, setMembers] = useState([])
   const [showActive, setShowActive] = useState(true)
   const [showInactive, setShowInactive] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
+  const [limitModalOpen, setLimitModalOpen] = useState(false)
   
   // Menu e ações
   const [menuOpenId, setMenuOpenId] = useState(null)
@@ -30,6 +32,10 @@ export default function UsersPage({ owner }){
 
   async function handleSave(user){
     if (!owner?.id) return
+    if (!editingUser && activeCount >= MAX_ACTIVE_USERS) {
+      setLimitModalOpen(true)
+      return
+    }
     try {
       if (editingUser) {
         await updateSubUser(owner.id, editingUser.id, user)
@@ -62,6 +68,15 @@ export default function UsersPage({ owner }){
 
   const activeCount = members.filter(u => (u.active ?? true)).length
 
+  const handleOpenNewUser = () => {
+    if (activeCount >= MAX_ACTIVE_USERS) {
+      setLimitModalOpen(true)
+      return
+    }
+    setEditingUser(null)
+    setModalOpen(true)
+  }
+
   // Helpers para detecção de badges quando não há flags setadas
   const isSeller = (u) => (u.isSeller ?? false) || (String(u.role || '').toLowerCase() === 'manager') || /vendedor/i.test(String(u.name||''))
   const isTech = (u) => (u.isTech ?? false) || /t[eé]cnico/i.test(String(u.name||''))
@@ -83,7 +98,7 @@ export default function UsersPage({ owner }){
             onClick={() => setShowInactive(v => !v)}
           >Inativo</button>
         </div>
-        <button className="px-3 py-2 rounded bg-green-600 text-white text-sm" onClick={() => setModalOpen(true)}>+ Novo</button>
+        <button className="px-3 py-2 rounded bg-green-600 text-white text-sm" onClick={handleOpenNewUser}>+ Novo</button>
       </div>
 
       {/* Lista estilo do print */}
@@ -162,6 +177,25 @@ export default function UsersPage({ owner }){
           onClose={() => { setModalOpen(false); setEditingUser(null); }}
           onSave={handleSave}
         />
+      )}
+
+      {limitModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+            <h3 className="text-lg font-bold mb-2">Limite de usuários atingido</h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Não é possível adicionar mais usuários porque sua conta já atingiu o limite máximo de {MAX_ACTIVE_USERS} usuários.
+            </p>
+            <div className="flex justify-end">
+              <button
+                className="px-4 py-2 text-sm bg-green-600 text-white hover:bg-green-700 rounded"
+                onClick={() => setLimitModalOpen(false)}
+              >
+                Entendi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       
       {/* Backdrop para fechar menu */}
