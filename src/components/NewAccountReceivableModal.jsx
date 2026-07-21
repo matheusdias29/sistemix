@@ -3,7 +3,7 @@ import SelectClientModal from './SelectClientModal'
 import NewClientModal from './NewClientModal'
 import { listenClients } from '../services/clients'
 
-export default function NewAccountReceivableModal({ onClose, onSave, onDelete, isLoading, storeId, initialData, defaultType = 'receivable', user }) {
+export default function NewAccountReceivableModal({ onClose, onSave, onDelete, isLoading, storeId, initialData, prefillData, mode = 'create', titleOverride = '', defaultType = 'receivable', user }) {
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const [client, setClient] = useState(null)
@@ -24,7 +24,7 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
   const [clients, setClients] = useState([])
 
   useEffect(() => {
-    if (initialData) {
+    if (mode === 'edit' && initialData) {
       setClient({ id: initialData.clientId, name: initialData.clientName })
       setDescription(initialData.description || '')
       setDetails(initialData.details || '')
@@ -36,6 +36,22 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
       if (initialData.dueDate) {
         const diff = Math.ceil((new Date(initialData.dueDate) - new Date()) / (1000 * 60 * 60 * 24))
         setDaysToDue(diff > 0 ? diff : 0)
+      }
+    } else if (prefillData) {
+      setClient(prefillData.clientId || prefillData.clientName ? { id: prefillData.clientId || null, name: prefillData.clientName || '' } : null)
+      setDescription(prefillData.description || '')
+      setDetails(prefillData.details || '')
+      setValue(prefillData.value?.toString() || '')
+      setDueDate(prefillData.dueDate || new Date().toISOString().split('T')[0])
+      setType(prefillData.type || defaultType)
+      setPaymentMode('single')
+      setInstallmentCount('')
+
+      if (prefillData.dueDate) {
+        const diff = Math.ceil((new Date(prefillData.dueDate) - new Date()) / (1000 * 60 * 60 * 24))
+        setDaysToDue(diff)
+      } else {
+        setDaysToDue(0)
       }
     } else {
       setClient(null)
@@ -50,7 +66,9 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
       const today = new Date().toISOString().split('T')[0]
       setDueDate(today)
     }
-  }, [initialData, defaultType])
+    setPaymentMode('single')
+    setInstallmentCount('')
+  }, [initialData, prefillData, defaultType, mode])
 
   useEffect(() => {
     if (!storeId) return
@@ -130,7 +148,7 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
     } else {
         // Single
         onSave({
-          id: initialData?.id,
+          id: mode === 'edit' ? initialData?.id : undefined,
           clientId: client.id,
           clientName: client.name,
           description: description || (type === 'credit' ? 'Crédito ao Cliente' : 'Conta a Receber'),
@@ -143,9 +161,9 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
   }
 
   const isCredit = type === 'credit'
-  const title = initialData 
+  const title = titleOverride || (mode === 'edit' && initialData 
     ? (isCredit ? 'Editar Crédito' : 'Editar Conta a Receber')
-    : (isCredit ? 'Adicionar Crédito ao Cliente' : 'Nova Conta a Receber')
+    : (isCredit ? 'Adicionar Crédito ao Cliente' : 'Nova Conta a Receber'))
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 font-sans">

@@ -59,7 +59,7 @@ const PLANS = [
     graceDays: 7,
     details: [
       'Tudo do plano Profissional',
-      'Até 10 usuários',
+      'Até 15 usuários',
       'Controle de metas de vendas',
       'Avaliação de atendimento no recibo',
       'Relatório DRE',

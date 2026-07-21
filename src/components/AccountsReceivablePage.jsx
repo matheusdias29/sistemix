@@ -4,6 +4,7 @@ import NewAccountReceivableModal from './NewAccountReceivableModal'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import { PaymentMethodsModal, PaymentAmountModal } from './PaymentModals'
 import { listenCurrentCash, addCashTransaction } from '../services/cash'
+import { listenClients } from '../services/clients'
 
 const money = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 const dateStr = (d) => {
@@ -28,6 +29,10 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [editingAccount, setEditingAccount] = useState(null)
+  const [modalPrefillData, setModalPrefillData] = useState(null)
+  const [modalMode, setModalMode] = useState('create')
+  const [modalTitleOverride, setModalTitleOverride] = useState('')
+  const [clients, setClients] = useState([])
   
   // Dropdown e Modal Type
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -60,6 +65,14 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
     const unsub = listenCurrentCash(storeId, (cash) => {
       setCurrentCash(cash)
     })
+    return () => unsub && unsub()
+  }, [storeId])
+
+  useEffect(() => {
+    if (!storeId) return
+    const unsub = listenClients((items) => {
+      setClients(items)
+    }, storeId)
     return () => unsub && unsub()
   }, [storeId])
 
@@ -98,6 +111,66 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
       .replace(/'/g, '&#039;')
   }
 
+  const clientsById = useMemo(() => {
+    const map = new Map()
+    ;(clients || []).forEach(client => {
+      const id = String(client?.id || '').trim()
+      if (!id) return
+      map.set(id, client)
+    })
+    return map
+  }, [clients])
+
+  const getResolvedClientName = (item) => {
+    const clientId = String(item?.clientId || '').trim()
+    if (clientId) {
+      const client = clientsById.get(clientId)
+      if (client?.name) return client.name
+    }
+    return String(item?.clientName || '').trim() || 'Cliente Sem Nome'
+  }
+
+  const getClientGroupKey = (item) => {
+    const clientId = String(item?.clientId || '').trim()
+    if (clientId) return `id:${clientId}`
+    return `name:${String(item?.clientName || '').trim() || 'Cliente Sem Nome'}`
+  }
+
+  const openCreateModal = (type) => {
+    setModalType(type)
+    setModalMode('create')
+    setModalTitleOverride('')
+    setModalPrefillData(null)
+    setEditingAccount(null)
+    setIsModalOpen(true)
+  }
+
+  const openEditModal = (acc) => {
+    setModalType(acc.type || 'receivable')
+    setModalMode('edit')
+    setModalTitleOverride('')
+    setModalPrefillData(null)
+    setEditingAccount(acc)
+    setIsModalOpen(true)
+  }
+
+  const openAddInstallmentModal = (acc) => {
+    if (!acc) return
+    setModalType(acc.type || 'receivable')
+    setModalMode('create')
+    setModalTitleOverride('Adicionar Parcela')
+    setEditingAccount(null)
+    setModalPrefillData({
+      clientId: acc.clientId || null,
+      clientName: getResolvedClientName(acc),
+      description: acc.description || 'Conta a Receber',
+      details: acc.details || '',
+      dueDate: acc.dueDate || '',
+      value: acc.remainingValue ?? acc.value ?? ''
+    })
+    setIsModalOpen(true)
+  }
+
   const handlePrintReceivables = () => {
     if (!detailGroup) return
 
@@ -109,7 +182,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
     document.body.appendChild(iframe)
 
     const doc = iframe.contentWindow.document
-    const clientName = detailGroup.clientName || 'Cliente Sem Nome'
+    const clientName = getResolvedClientName(detailGroup)
     
     // Sort items by due date
     const sortedItems = [...detailItems].sort((a, b) => {
@@ -266,7 +339,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
     document.body.appendChild(iframe)
 
     const doc = iframe.contentWindow.document
-    const clientName = acc.clientName || 'Cliente Sem Nome'
+    const clientName = getResolvedClientName(acc)
     const value = Number(acc.remainingValue ?? acc.value ?? 0)
     const dueDate = dateStr(acc.dueDate)
     const storeName = store?.name || 'SistemiX'
@@ -375,8 +448,9 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
 
       // Busca
       const s = search.toLowerCase()
+      const resolvedClientName = getResolvedClientName(acc)
       const match = (
-        (acc.clientName && acc.clientName.toLowerCase().includes(s)) ||
+        (resolvedClientName && resolvedClientName.toLowerCase().includes(s)) ||
         (acc.description && acc.description.toLowerCase().includes(s)) ||
         (acc.receivedBy && acc.receivedBy.toLowerCase().includes(s))
       )
@@ -398,10 +472,12 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
       }
 
       // Agrupamento por cliente
-      const key = acc.clientName || 'Cliente Sem Nome'
+      const key = getClientGroupKey(acc)
       if (!groups[key]) {
         groups[key] = {
-          clientName: acc.clientName || 'Cliente Sem Nome',
+          clientId: acc.clientId || null,
+          clientName: resolvedClientName,
+          groupKey: key,
           items: [],
           totalDebit: 0,
           totalOverdue: 0,
@@ -449,13 +525,17 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
       totalOverdue: tOverdue,
       totalCredits: tCredits
     }
-  }, [accounts, search, filterType, dateRange])
+  }, [accounts, search, filterType, dateRange, clientsById])
 
   const detailItems = useMemo(() => {
     if (!detailGroup) return []
+    const detailClientId = String(detailGroup.clientId || '').trim()
+    if (detailClientId) {
+      return accounts.filter(acc => String(acc.clientId || '').trim() === detailClientId)
+    }
     const key = detailGroup.clientName || 'Cliente Sem Nome'
-    return accounts.filter(acc => (acc.clientName || 'Cliente Sem Nome') === key)
-  }, [accounts, detailGroup])
+    return accounts.filter(acc => getResolvedClientName(acc) === key)
+  }, [accounts, detailGroup, clientsById])
   const detailToday = new Date().toISOString().split('T')[0]
 
   let detailTotalReceivable = 0
@@ -592,7 +672,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
         const description = 'Recebimento de contas'
         const notes = receiveTargetAccounts
           .map(acc => {
-            const name = acc.clientName || 'Cliente'
+            const name = getResolvedClientName(acc) || 'Cliente'
             const desc = acc.description || ''
             return `${name} - ${desc}`
           })
@@ -650,15 +730,34 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
         // Single item (create or edit)
         if (data.id) {
           // Edit
+          const previousAccount =
+            editingAccount && editingAccount.id === data.id ? editingAccount : null
+          const paidValue = Number(previousAccount?.paidValue ?? 0)
+          const nextValue = Number(data.value ?? 0)
+          const nextRemainingValue = Math.max(0, nextValue - paidValue)
+          const nextStatus =
+            nextRemainingValue <= 0
+              ? 'paid'
+              : previousAccount?.status === 'cancelled'
+                ? 'cancelled'
+                : 'pending'
+
           const updateData = {
               clientId: data.clientId,
               clientName: data.clientName,
               description: data.description,
               details: data.details,
-              value: data.value, 
+              value: nextValue,
+              remainingValue: nextRemainingValue,
+              status: nextStatus,
               dueDate: data.dueDate || null,
               type: data.type
           }
+
+          if (nextStatus !== 'paid') {
+            updateData.paymentDate = null
+          }
+
           await updateAccountReceivable(data.id, updateData)
         } else {
           // Create
@@ -748,9 +847,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-100 dark:border-gray-700 z-20 overflow-hidden animate-in fade-in zoom-in duration-200">
                    <button 
                      onClick={() => {
-                       setModalType('receivable')
-                       setEditingAccount(null)
-                       setIsModalOpen(true)
+                       openCreateModal('receivable')
                        setIsDropdownOpen(false)
                      }}
                      className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-3 border-b border-gray-50 dark:border-gray-700 transition-colors"
@@ -760,9 +857,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                    </button>
                    <button 
                      onClick={() => {
-                       setModalType('credit')
-                       setEditingAccount(null)
-                       setIsModalOpen(true)
+                       openCreateModal('credit')
                        setIsDropdownOpen(false)
                      }}
                      className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-3 transition-colors"
@@ -831,7 +926,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                  </tr>
                ) : (
                  grouped.map((group, idx) => {
-                   const groupKey = group.clientName || idx
+                   const groupKey = group.groupKey || idx
 
                    return (
                      <tr
@@ -954,6 +1049,18 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                         Imprimir Contas
                       </button>
+                      {(isOwner || perms.receivables?.create) && (
+                        <button
+                          onClick={() => {
+                            setPrintMenuOpen(false)
+                            const baseAcc = detailItems.find(acc => acc.type === 'receivable') || detailItems[0] || detailGroup
+                            if (baseAcc) openAddInstallmentModal(baseAcc)
+                          }}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/50"
+                        >
+                          Adicionar parcela
+                        </button>
+                      )}
                     </div>
                   </>
                 )}
@@ -1072,9 +1179,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                             onClick={() => {
                               if (acc.status !== 'pending') return
                               if (!isOwner && !perms.receivables?.edit) return
-                              setModalType(acc.type || 'receivable')
-                              setEditingAccount(acc)
-                              setIsModalOpen(true)
+                              openEditModal(acc)
                             }}
                           >
                             {detailTab === 'receivable' && (
@@ -1098,7 +1203,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                             )}
                             <td className="px-4 py-2 text-sm text-gray-700">
                               <div className="font-medium">
-                                {acc.clientName || 'Cliente sem nome'}
+                                {getResolvedClientName(acc)}
                               </div>
                               <div className="text-xs text-gray-500">
                                 {acc.description}
@@ -1287,7 +1392,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                           <tr key={acc.id}>
                             <td className="px-4 py-2 text-sm text-gray-700">
                               <div className="font-medium">
-                                {acc.clientName || 'Cliente sem nome'}
+                                {getResolvedClientName(acc)}
                               </div>
                               <div className="text-xs text-gray-500">
                                 {acc.description}
@@ -1361,11 +1466,17 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
           onClose={() => {
             setIsModalOpen(false)
             setEditingAccount(null)
+            setModalPrefillData(null)
+            setModalMode('create')
+            setModalTitleOverride('')
           }}
           onSave={handleSave}
           onDelete={handleDelete}
           isLoading={isLoading}
           initialData={editingAccount}
+          prefillData={modalPrefillData}
+          mode={modalMode}
+          titleOverride={modalTitleOverride}
           defaultType={modalType}
         />
       )}

@@ -4,7 +4,7 @@ import { listenSubUsers, addSubUser, updateSubUser, removeSubUser } from '../ser
 import UserModal from './UserModal'
 
 export default function UsersPage({ owner }){
-  const MAX_ACTIVE_USERS = 10
+  const MAX_ACTIVE_USERS = 15
   const [members, setMembers] = useState([])
   const [showActive, setShowActive] = useState(true)
   const [showInactive, setShowInactive] = useState(false)
@@ -164,9 +164,9 @@ export default function UsersPage({ owner }){
 
       {/* Aviso de limite de usuários ativos */}
       <div className="mt-3 text-xs text-gray-600">
-        {activeCount >= 10 && (
+        {activeCount >= MAX_ACTIVE_USERS && (
           <div>
-            Você atingiu o limite de usuários ativos permitidos pelo seu plano (10 usuários), para adicionar mais usuários, entre em contato o suporte.
+            Você atingiu o limite de usuários ativos permitidos pelo seu plano ({MAX_ACTIVE_USERS} usuários), para adicionar mais usuários, entre em contato o suporte.
           </div>
         )}
       </div>
