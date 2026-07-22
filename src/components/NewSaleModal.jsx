@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { getAllProducts, updateProduct, listenProducts } from '../services/products'
+import { getAllProducts, updateProduct, listenProducts, syncUnifiedStockAcrossStores } from '../services/products'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
 import { listenClients, getAllClients } from '../services/clients'
@@ -680,15 +680,19 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                   })
                 }
                 const currentTotal = Number(realProduct.stock || 0)
-                await updateProduct(pId, { 
+                const stockUpdate = {
                   variationsData: newVars,
-                  stock: currentTotal - qty 
-                })
+                  stock: currentTotal - qty
+                }
+                await updateProduct(pId, stockUpdate)
+                await syncUnifiedStockAcrossStores(realProduct, storeId, stockUpdate)
               }
             } else {
               // Simple Product
               const currentStock = Number(realProduct.stock || 0)
-              await updateProduct(pId, { stock: currentStock - qty })
+              const stockUpdate = { stock: currentStock - qty }
+              await updateProduct(pId, stockUpdate)
+              await syncUnifiedStockAcrossStores(realProduct, storeId, stockUpdate)
             }
 
             // Log Movement

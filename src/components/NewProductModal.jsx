@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { addProduct, updateProduct, getNextProductReference } from '../services/products'
+import { addProduct, updateProduct, getNextProductReference, getAvailableProductReference, syncUnifiedStockAcrossStores } from '../services/products'
 import { getStoreById, listStoresByOwner } from '../services/stores'
 import { addCategory } from '../services/categories'
 import { addSupplier, updateSupplier, removeSupplier } from '../services/suppliers'
@@ -56,7 +56,7 @@ export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   }
 }
 
-export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false, canCreateCategory=true, canCreateSupplier=true, onSuccess }){
+export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false, syncStockTogether=false, canCreateCategory=true, canCreateSupplier=true, onSuccess }){
   const [name, setName] = useState('')
   const [priceMin, setPriceMin] = useState('0')
   const [priceMax, setPriceMax] = useState('0')
@@ -112,6 +112,16 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [serialNumber, setSerialNumber] = useState('')
   const [condition, setCondition] = useState('')
   const [warrantyMonths, setWarrantyMonths] = useState(null)
+
+  const buildSyncedVariations = (incomingVariations, stockData) => {
+    if (!Array.isArray(incomingVariations) || incomingVariations.length === 0) return incomingVariations
+    return incomingVariations.map(variation => ({
+      ...variation,
+      stock: Number(stockData.stock ?? 0),
+      stockInitial: Number(stockData.stockInitial ?? 0),
+      stockMin: Number(stockData.stockMin ?? 0),
+    }))
+  }
   
   // Novos tipos
   const [isParts, setIsParts] = useState(false)
@@ -545,6 +555,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       }
       if(isEdit && product?.id){
         const updatedProduct = await updateProduct(product.id, data)
+        await syncUnifiedStockAcrossStores({ ...product, ...data, id: product.id }, storeId, {
+          stock: data.stock,
+          stockInitial: data.stockInitial,
+          stockMin: data.stockMin,
+          variationsData: data.variationsData
+        })
         if (onSuccess) onSuccess({ ...data, ...updatedProduct, id: product.id })
 
         // Sincronização na edição
@@ -585,6 +601,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                   if (!sourceSupplierFull) {
                      sourceSupplierFull = { name: cleanSupplier }
                   }
+                }
+
+                const sourceStockData = {
+                  stock: Number(data.stock ?? 0),
+                  stockInitial: Number(data.stockInitial ?? 0),
+                  stockMin: Number(data.stockMin ?? 0)
                 }
 
                 for (const store of otherStores) {
@@ -671,8 +693,6 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                         createdBy: targetProduct.createdBy || data.createdBy || user?.name || 'Sistema',
                         storeId: store.id,
                         categoryId: targetCategoryId,
-                        stock: targetProduct.stock, // Preserva estoque total
-                        stockInitial: targetProduct.stockInitial, // Preserva inicial
                         createdAt: targetProduct.createdAt // Preserva data criação
                       }
                       
@@ -681,20 +701,51 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                         updatePayload.reference = targetProduct.reference
                       }
 
-                      // Estoque unificado: todas as precificações compartilham o mesmo saldo do produto destino
-                      if (updatePayload.variationsData && updatePayload.variationsData.length > 0) {
-                         updatePayload.variationsData = updatePayload.variationsData.map(v => ({
-                           ...v,
-                           stock: Number(targetProduct.stock ?? 0),
-                           stockInitial: Number(targetProduct.stockInitial ?? 0),
-                           stockMin: Number(targetProduct.stockMin ?? 0),
-                         }))
+                      if (syncStockTogether) {
+                        updatePayload.stock = sourceStockData.stock
+                        updatePayload.stockInitial = sourceStockData.stockInitial
+                        updatePayload.stockMin = sourceStockData.stockMin
+                        updatePayload.variationsData = buildSyncedVariations(updatePayload.variationsData, sourceStockData)
+                      } else {
+                        updatePayload.stock = Number(targetProduct.stock ?? 0)
+                        updatePayload.stockInitial = Number(targetProduct.stockInitial ?? 0)
+                        updatePayload.stockMin = Number(targetProduct.stockMin ?? 0)
+                        updatePayload.variationsData = buildSyncedVariations(updatePayload.variationsData, targetProduct)
                       }
 
                       await updateProduct(targetProduct.id, updatePayload)
                       console.log(`[Sync] Produto atualizado na loja ${store.id}`)
                     } else {
-                      console.log(`[Sync] Produto correspondente não encontrado na loja ${store.id} para atualização.`)
+                      console.log(`[Sync] Produto correspondente não encontrado na loja ${store.id}. Criando...`)
+
+                      const createPayload = {
+                        ...data,
+                        createdBy: user?.name || 'Sistema',
+                        storeId: store.id,
+                        categoryId: targetCategoryId
+                      }
+
+                      if (createPayload.reference) {
+                        createPayload.reference = await getAvailableProductReference(store.id, createPayload.reference)
+                      }
+
+                      if (syncStockTogether) {
+                        createPayload.stock = sourceStockData.stock
+                        createPayload.stockInitial = sourceStockData.stockInitial
+                        createPayload.stockMin = sourceStockData.stockMin
+                        createPayload.variationsData = buildSyncedVariations(createPayload.variationsData, sourceStockData)
+                      } else {
+                        createPayload.stock = 0
+                        createPayload.stockInitial = 0
+                        createPayload.variationsData = buildSyncedVariations(createPayload.variationsData, {
+                          stock: 0,
+                          stockInitial: 0,
+                          stockMin: Number(createPayload.stockMin ?? 0)
+                        })
+                      }
+
+                      await addProduct(createPayload, store.id)
+                      console.log(`[Sync] Produto criado na loja ${store.id}`)
                     }
 
                   } catch (errLoop) {
@@ -759,12 +810,18 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                   }
                 }
 
+                const sourceStockData = {
+                  stock: Number(data.stock ?? 0),
+                  stockInitial: Number(data.stockInitial ?? 0),
+                  stockMin: Number(data.stockMin ?? 0)
+                }
+
                 const syncData = {
                   ...data,
                   // Campos específicos para sincronização simplificada
                   storeId: null, // Será setado no loop
-                  stock: 0,
-                  stockInitial: 0,
+                  stock: syncStockTogether ? sourceStockData.stock : 0,
+                  stockInitial: syncStockTogether ? sourceStockData.stockInitial : 0,
                   // Mantemos stockMin, preços, variações e outros dados "idênticos"
                   // Apenas zeramos o estoque físico atual
                   
@@ -772,14 +829,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                   categoryId: null, 
                 }
 
-                // Ajuste para variações: zerar estoque nas variações também, mas manter preços e estrutura
-                if (syncData.variationsData && syncData.variationsData.length > 0) {
-                  syncData.variationsData = syncData.variationsData.map(v => ({
-                    ...v,
-                    stock: 0,
-                    stockInitial: 0
-                  }))
-                }
+                syncData.variationsData = buildSyncedVariations(syncData.variationsData, syncStockTogether
+                  ? sourceStockData
+                  : { stock: 0, stockInitial: 0, stockMin: Number(syncData.stockMin ?? 0) })
 
                 for (const store of otherStores) {
                   let targetCategoryId = null
@@ -814,6 +866,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                     ...syncData, 
                     storeId: store.id,
                     categoryId: targetCategoryId
+                  }
+                  if (payload.reference) {
+                    payload.reference = await getAvailableProductReference(store.id, payload.reference)
                   }
                   await addProduct(payload, store.id)
                 }

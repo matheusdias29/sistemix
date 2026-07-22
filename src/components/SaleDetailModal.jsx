@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { updateOrder, deleteOrder } from '../services/orders'
-import { updateProduct, getProductById } from '../services/products'
+import { updateProduct, getProductById, syncUnifiedStockAcrossStores } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
 import ShareSaleModal from './ShareSaleModal'
 import ServiceOrderPrintModal from './ServiceOrderPrintModal'
@@ -196,6 +196,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                       }
 
                       await updateProduct(prod.id, updateData)
+                      await syncUnifiedStockAcrossStores(prod, storeId, updateData)
                       restoredCount++
                       
                       const formattedNumber = (() => {

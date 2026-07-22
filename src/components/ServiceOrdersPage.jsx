@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder, deleteOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
-import { listenProducts, updateProduct, getAllProducts, getProductById } from '../services/products'
+import { listenProducts, updateProduct, getAllProducts, getProductById, syncUnifiedStockAcrossStores } from '../services/products'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
@@ -1145,6 +1145,7 @@ const canEditService = isOwner || perms.services?.edit
             }
 
             await updateProduct(p.id, updateData)
+            await syncUnifiedStockAcrossStores(p, storeId, updateData)
             await recordStockMovement({
               productId: p.id,
               productName: p.name,
@@ -1210,6 +1211,7 @@ const canEditService = isOwner || perms.services?.edit
             }
 
             await updateProduct(p.id, updateData)
+            await syncUnifiedStockAcrossStores(p, storeId, updateData)
             await recordStockMovement({
               productId: p.id,
               productName: p.name,
@@ -1613,6 +1615,7 @@ const canEditService = isOwner || perms.services?.edit
                     }))
                   }
                   await updateProduct(p.id, updateData)
+                  await syncUnifiedStockAcrossStores(p, storeId, updateData)
                   await recordStockMovement({
                     productId: p.id,
                     productName: p.name,
@@ -1669,6 +1672,7 @@ const canEditService = isOwner || perms.services?.edit
                     }))
                   }
                   await updateProduct(p.id, updateData)
+                  await syncUnifiedStockAcrossStores(p, storeId, updateData)
                   await recordStockMovement({
                     productId: p.id,
                     productName: p.name,

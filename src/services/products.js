@@ -1,5 +1,6 @@
 import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { getStoreById, listStoresByOwner } from './stores'
 
 const colRef = collection(db, 'products')
 
@@ -242,6 +243,183 @@ export async function updateProduct(id, partial){
 export async function removeProduct(id){
   const ref = doc(db, 'products', id)
   await deleteDoc(ref)
+}
+
+function buildUnifiedVariationsForTarget(targetProduct, sourceProduct, partial = {}) {
+  const targetVariations = Array.isArray(targetProduct?.variationsData) ? targetProduct.variationsData : []
+  const sourceVariations = Array.isArray(sourceProduct?.variationsData) ? sourceProduct.variationsData : []
+  const baseVariations = targetVariations.length > 0 ? targetVariations : sourceVariations
+
+  if (baseVariations.length === 0) {
+    return partial.variationsData
+  }
+
+  const fallbackStock = partial.stock !== undefined
+    ? Number(partial.stock ?? 0)
+    : Number(sourceProduct?.stock ?? targetProduct?.stock ?? 0)
+
+  const fallbackStockInitial = partial.stockInitial !== undefined
+    ? Number(partial.stockInitial ?? 0)
+    : undefined
+
+  const fallbackStockMin = partial.stockMin !== undefined
+    ? Number(partial.stockMin ?? 0)
+    : undefined
+
+  return baseVariations.map((variation, index) => {
+    const sourceVariation = sourceVariations[index] || sourceVariations.find(v => v?.name === variation?.name) || {}
+    const nextVariation = { ...variation }
+
+    nextVariation.stock = Number(sourceVariation?.stock ?? fallbackStock ?? 0)
+
+    if (fallbackStockInitial !== undefined || sourceVariation?.stockInitial !== undefined) {
+      nextVariation.stockInitial = Number(sourceVariation?.stockInitial ?? fallbackStockInitial ?? 0)
+    }
+
+    if (fallbackStockMin !== undefined || sourceVariation?.stockMin !== undefined) {
+      nextVariation.stockMin = Number(sourceVariation?.stockMin ?? fallbackStockMin ?? 0)
+    }
+
+    return nextVariation
+  })
+}
+
+export function findEquivalentProductInList(sourceProduct, candidateProducts = [], excludedProductId = null) {
+  const candidates = Array.isArray(candidateProducts) ? candidateProducts : []
+  const activeRootId = String(sourceProduct?.rootId || '').trim()
+  if (activeRootId) {
+    const matchByRoot = candidates.find(product => product?.id !== excludedProductId && String(product?.rootId || '').trim() === activeRootId)
+    if (matchByRoot) return matchByRoot
+  }
+
+  const reference = String(sourceProduct?.reference || '').trim()
+  if (reference) {
+    const matchByReference = candidates.find(product => product?.id !== excludedProductId && String(product?.reference || '').trim() === reference)
+    if (matchByReference) return matchByReference
+  }
+
+  const name = String(sourceProduct?.name || '').trim()
+  if (name) {
+    const matchByName = candidates.find(product => product?.id !== excludedProductId && String(product?.name || '').trim() === name)
+    if (matchByName) return matchByName
+  }
+
+  return null
+}
+
+async function findMatchingProductInStore(storeId, { rootId, reference, name }, excludedProductId = null) {
+  if (!storeId) return null
+
+  if (rootId) {
+    const qRoot = query(colRef, where('storeId', '==', storeId), where('rootId', '==', rootId))
+    const snapRoot = await getDocs(qRoot)
+    const match = snapRoot.docs.find(d => d.id !== excludedProductId)
+    if (match) return { id: match.id, ...match.data() }
+  }
+
+  const trimmedReference = String(reference || '').trim()
+  if (trimmedReference) {
+    const qRef = query(colRef, where('storeId', '==', storeId), where('reference', '==', trimmedReference))
+    const snapRef = await getDocs(qRef)
+    const match = snapRef.docs.find(d => d.id !== excludedProductId)
+    if (match) return { id: match.id, ...match.data() }
+  }
+
+  const trimmedName = String(name || '').trim()
+  if (trimmedName) {
+    const qName = query(colRef, where('storeId', '==', storeId), where('name', '==', trimmedName))
+    const snapName = await getDocs(qName)
+    const match = snapName.docs.find(d => d.id !== excludedProductId)
+    if (match) return { id: match.id, ...match.data() }
+  }
+
+  return null
+}
+
+export async function syncUnifiedStockAcrossStores(sourceProduct, storeId, partial = {}) {
+  if (!sourceProduct?.id || !storeId) return { synced: false, updatedStores: 0 }
+
+  const currentStore = await getStoreById(storeId)
+  if (!currentStore?.ownerId || !currentStore?.syncStockTogether) {
+    return { synced: false, updatedStores: 0 }
+  }
+
+  let activeRootId = sourceProduct.rootId
+  if (!activeRootId) {
+    activeRootId = crypto.randomUUID()
+    await updateProduct(sourceProduct.id, { rootId: activeRootId })
+  }
+
+  const allStores = await listStoresByOwner(currentStore.ownerId)
+  const otherStores = allStores.filter(store => store.id !== storeId)
+  if (otherStores.length === 0) {
+    return { synced: false, updatedStores: 0 }
+  }
+
+  const sourceWithRootId = { ...sourceProduct, ...partial, rootId: activeRootId }
+  let updatedStores = 0
+
+  for (const store of otherStores) {
+    const targetProduct = await findMatchingProductInStore(store.id, {
+      rootId: activeRootId,
+      reference: sourceProduct.reference,
+      name: sourceProduct.name
+    }, sourceProduct.id)
+
+    if (!targetProduct) continue
+
+    const syncPayload = { rootId: activeRootId }
+
+    if (partial.stock !== undefined) {
+      syncPayload.stock = Number(partial.stock ?? 0)
+    }
+    if (partial.stockInitial !== undefined) {
+      syncPayload.stockInitial = Number(partial.stockInitial ?? 0)
+    }
+    if (partial.stockMin !== undefined) {
+      syncPayload.stockMin = Number(partial.stockMin ?? 0)
+    }
+
+    if (partial.variationsData !== undefined || Array.isArray(targetProduct?.variationsData)) {
+      syncPayload.variationsData = buildUnifiedVariationsForTarget(targetProduct, sourceWithRootId, partial)
+    }
+
+    await updateProduct(targetProduct.id, syncPayload)
+    updatedStores += 1
+  }
+
+  return { synced: updatedStores > 0, updatedStores }
+}
+
+export async function getAvailableProductReference(storeId, desiredReference, excludedProductId = null) {
+  const baseReference = String(desiredReference || '').trim()
+  if (!storeId || !baseReference) return baseReference
+
+  const allProducts = await getAllProducts(storeId)
+  const existingReferences = new Set(
+    allProducts
+      .filter(product => product.id !== excludedProductId)
+      .map(product => String(product.reference || '').trim())
+      .filter(Boolean)
+  )
+
+  if (!existingReferences.has(baseReference)) {
+    return baseReference
+  }
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+
+  for (let round = 0; round < 100; round += 1) {
+    for (const letter of alphabet) {
+      const prefix = round === 0 ? letter : `${letter}${round}`
+      const candidate = `${prefix}${baseReference}`
+      if (!existingReferences.has(candidate)) {
+        return candidate
+      }
+    }
+  }
+
+  return `${Date.now()}${baseReference}`
 }
 
 export async function getNextProductReference(storeId) {

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { getProductsByPage, searchProductsByPage, getTotalProductsCount, updateProduct, addProduct, removeProduct, getAllProducts } from '../services/products'
+import { getProductsByPage, searchProductsByPage, getTotalProductsCount, updateProduct, addProduct, removeProduct, getAllProducts, getAvailableProductReference, syncUnifiedStockAcrossStores, findEquivalentProductInList } from '../services/products'
 import NewProductModal, { ensureSupplierInStore } from './NewProductModal'
 import { listenCategories, updateCategory, addCategory, removeCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
@@ -63,6 +63,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [syncingProduct, setSyncingProduct] = useState(null)
+  const BULK_SYNC_KEY = '__bulk_sync__'
   // Mobile: controle de sanfona por linha (produtos abertos)
   const [mobileOpenRows, setMobileOpenRows] = useState(() => new Set())
   const [openMenuId, setOpenMenuId] = useState(null)
@@ -86,7 +87,11 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     loading: false, 
     logs: [], 
     finished: false,
-    successCount: 0 
+    successCount: 0,
+    errorCount: 0,
+    processedCount: 0,
+    totalCount: 0,
+    mode: 'single'
   })
 
   // Modal de Confirmação de Match
@@ -117,6 +122,235 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       syncConfirm.resolver(result)
     }
     setSyncConfirm(prev => ({ ...prev, open: false, resolver: null }))
+  }
+
+  const buildSyncedVariations = (variationsData, stockData) => {
+    if (!Array.isArray(variationsData) || variationsData.length === 0) return variationsData
+    return variationsData.map(variation => ({
+      ...variation,
+      stock: Number(stockData.stock ?? 0),
+      stockInitial: Number(stockData.stockInitial ?? 0),
+      stockMin: Number(stockData.stockMin ?? 0)
+    }))
+  }
+
+  const appendSyncLog = (message) => {
+    setSyncFeedback(prev => ({
+      ...prev,
+      logs: [...prev.logs, message]
+    }))
+  }
+
+  const resolveSourceSupplierFull = async (supplierName, addLog = null) => {
+    const cleanSupplier = String(supplierName || '').trim()
+    if (!cleanSupplier) return null
+
+    let sourceSupplierFull = suppliers.find(s => s.name === cleanSupplier)
+    if (!sourceSupplierFull) {
+      sourceSupplierFull = suppliers.find(s => String(s?.name || '').toLowerCase() === cleanSupplier.toLowerCase())
+    }
+
+    if (!sourceSupplierFull) {
+      try {
+        const supCol = collection(db, 'suppliers')
+        const sourceSupQuery = firestoreQuery(supCol, where('storeId', '==', storeId), where('name', '==', cleanSupplier))
+        const sourceSupSnap = await getDocs(sourceSupQuery)
+        if (!sourceSupSnap.empty) {
+          sourceSupplierFull = sourceSupSnap.docs[0].data()
+        }
+      } catch (error) {
+        if (addLog) {
+          addLog(`Aviso ao buscar fornecedor da origem: ${error.message}`)
+        }
+      }
+    }
+
+    return sourceSupplierFull || { name: cleanSupplier }
+  }
+
+  const resolveTargetCategoryId = async (sourceCategory, targetStoreId, addLog = null) => {
+    if (!sourceCategory) return null
+
+    const catCol = collection(db, 'categories')
+    const catQuery = firestoreQuery(catCol, where('storeId', '==', targetStoreId), where('name', '==', sourceCategory.name))
+    const catSnap = await getDocs(catQuery)
+
+    if (!catSnap.empty) {
+      return catSnap.docs[0].id
+    }
+
+    const targetCategoryId = await addCategory({ name: sourceCategory.name, active: true }, targetStoreId)
+    if (addLog) {
+      addLog(`Categoria "${sourceCategory.name}" criada.`)
+    }
+    return targetCategoryId
+  }
+
+  const findTargetProductInStore = async (product, activeRootId, targetStoreId, addLog = null) => {
+    const prodCol = collection(db, 'products')
+    let targetProduct = null
+
+    if (activeRootId) {
+      if (addLog) addLog('Buscando por ID global...')
+      const qRoot = firestoreQuery(prodCol, where('storeId', '==', targetStoreId), where('rootId', '==', activeRootId))
+      const snapRoot = await getDocs(qRoot)
+      if (!snapRoot.empty) {
+        targetProduct = { id: snapRoot.docs[0].id, ...snapRoot.docs[0].data() }
+        if (addLog) addLog('Produto encontrado pelo ID global.')
+      }
+    }
+
+    if (!targetProduct && product.reference && String(product.reference).trim()) {
+      const refToSearch = String(product.reference).trim()
+      if (addLog) addLog(`Buscando por código (fallback): "${refToSearch}"`)
+      const qRef = firestoreQuery(prodCol, where('storeId', '==', targetStoreId), where('reference', '==', refToSearch))
+      const snapRef = await getDocs(qRef)
+      if (!snapRef.empty) {
+        targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
+        if (addLog) addLog('Produto encontrado pelo código.')
+      }
+    }
+
+    if (!targetProduct && product.name) {
+      if (addLog) addLog(`Buscando por nome (fallback): "${product.name}"`)
+      const qName = firestoreQuery(prodCol, where('storeId', '==', targetStoreId), where('name', '==', product.name))
+      const snapName = await getDocs(qName)
+      if (!snapName.empty) {
+        targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
+        if (addLog) addLog('Produto encontrado pelo nome.')
+      }
+    }
+
+    return targetProduct
+  }
+
+  const getCategoryNameById = async (categoryId) => {
+    if (!categoryId) return 'Sem Categoria'
+    try {
+      const catDocRef = doc(db, 'categories', categoryId)
+      const catDocSnap = await getDoc(catDocRef)
+      if (catDocSnap.exists()) {
+        return catDocSnap.data().name || 'Sem Categoria'
+      }
+    } catch (error) {
+      console.error('Erro ao carregar categoria da loja destino:', error)
+    }
+    return 'Sem Categoria'
+  }
+
+  const syncProductToPartnerStores = async ({ product, otherStores, addLog, askConfirmation = true }) => {
+    let activeRootId = product.rootId
+    if (!activeRootId) {
+      activeRootId = crypto.randomUUID()
+      await updateProduct(product.id, { rootId: activeRootId })
+      addLog('Gerado ID único de sincronização.')
+    }
+
+    const sourceCategory = categories.find(c => c.id === product.categoryId)
+    const sourceSupplierFull = await resolveSourceSupplierFull(product.supplier || '', addLog)
+    const sourceStockData = {
+      stock: Number(product.stock ?? 0),
+      stockInitial: Number(product.stockInitial ?? 0),
+      stockMin: Number(product.stockMin ?? 0)
+    }
+
+    let syncedStores = 0
+    let failedStores = 0
+
+    for (const store of otherStores) {
+      try {
+        addLog('--------------------------------')
+        addLog(`Processando loja: ${store.name || store.id}...`)
+
+        const targetCategoryId = await resolveTargetCategoryId(sourceCategory, store.id, addLog)
+
+        if (sourceSupplierFull) {
+          await ensureSupplierInStore(sourceSupplierFull, store.id)
+        }
+
+        let targetProduct = await findTargetProductInStore(product, activeRootId, store.id, addLog)
+
+        if (targetProduct && askConfirmation) {
+          const targetCategoryName = await getCategoryNameById(targetProduct.categoryId)
+          const confirmed = await requestSyncConfirmation(product, targetProduct, targetCategoryName, store.name)
+          if (!confirmed) {
+            addLog('Conflito confirmado pelo usuário. Vou criar uma cópia com outro código.')
+            targetProduct = null
+          }
+        }
+
+        const dataToSync = { ...product, rootId: activeRootId }
+        delete dataToSync.id
+        delete dataToSync.storeId
+        delete dataToSync.createdAt
+        delete dataToSync.updatedAt
+        delete dataToSync.lastEditedBy
+
+        dataToSync.storeId = store.id
+        dataToSync.categoryId = targetCategoryId
+        dataToSync.lastEditedBy = user?.name || 'Sincronização Manual'
+
+        if (targetProduct) {
+          dataToSync.createdBy = targetProduct.createdBy
+
+          if (targetProduct.reference) {
+            dataToSync.reference = targetProduct.reference
+          }
+
+          if (syncStockTogether) {
+            dataToSync.stock = sourceStockData.stock
+            dataToSync.stockInitial = sourceStockData.stockInitial
+            dataToSync.stockMin = sourceStockData.stockMin
+            dataToSync.variationsData = buildSyncedVariations(dataToSync.variationsData, sourceStockData)
+          } else {
+            dataToSync.stock = Number(targetProduct.stock ?? 0)
+            dataToSync.stockInitial = Number(targetProduct.stockInitial ?? 0)
+            dataToSync.stockMin = Number(targetProduct.stockMin ?? 0)
+            dataToSync.variationsData = buildSyncedVariations(dataToSync.variationsData, targetProduct)
+          }
+
+          await updateProduct(targetProduct.id, dataToSync)
+          addLog(`Produto ATUALIZADO com sucesso${syncStockTogether ? ' e com estoque sincronizado' : ''}.`)
+        } else {
+          dataToSync.createdBy = user?.name || 'Sincronização Manual'
+
+          if (dataToSync.reference) {
+            const desiredReference = dataToSync.reference
+            const availableReference = await getAvailableProductReference(store.id, desiredReference)
+            if (availableReference !== desiredReference) {
+              dataToSync.reference = availableReference
+              addLog(`Conflito de código resolvido. Novo código na loja destino: "${availableReference}".`)
+            }
+          }
+
+          if (syncStockTogether) {
+            dataToSync.stock = sourceStockData.stock
+            dataToSync.stockInitial = sourceStockData.stockInitial
+            dataToSync.stockMin = sourceStockData.stockMin
+            dataToSync.variationsData = buildSyncedVariations(dataToSync.variationsData, sourceStockData)
+          } else {
+            dataToSync.stock = 0
+            dataToSync.stockInitial = 0
+            dataToSync.variationsData = buildSyncedVariations(dataToSync.variationsData, {
+              stock: 0,
+              stockInitial: 0,
+              stockMin: Number(dataToSync.stockMin ?? 0)
+            })
+          }
+
+          await addProduct(dataToSync, store.id)
+          addLog(`Produto CRIADO com sucesso${syncStockTogether ? ' e com estoque sincronizado' : ''}.`)
+        }
+
+        syncedStores += 1
+      } catch (errStore) {
+        failedStores += 1
+        console.error(`Erro na loja ${store.id}:`, errStore)
+        addLog(`ERRO na loja ${store.name}: ${errStore.message}`)
+      }
+    }
+
+    return { syncedStores, failedStores, activeRootId }
   }
 
   const [gridCols, setGridCols] = useState(null)
@@ -178,12 +412,61 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     }
     return false
   })
+  const [syncStockTogether, setSyncStockTogether] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sistemix_sync_stock_together') === 'true'
+    }
+    return false
+  })
+  const [stockSyncModal, setStockSyncModal] = useState({
+    open: false,
+    loading: false,
+    phase: 'idle',
+    logs: [],
+    missingItems: [],
+    processedCount: 0,
+    totalCount: 0,
+    successCount: 0,
+    errorCount: 0,
+    sourceStoreName: '',
+    partnerStoreNames: []
+  })
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('sistemix_sync_products', String(syncProducts))
     }
   }, [syncProducts])
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sistemix_sync_stock_together', String(syncStockTogether))
+    }
+  }, [syncStockTogether])
+
+  const appendStockSyncLog = (message) => {
+    setStockSyncModal(prev => ({
+      ...prev,
+      logs: [...prev.logs, message]
+    }))
+  }
+
+  const closeStockSyncModal = () => {
+    if (stockSyncModal.loading) return
+    setStockSyncModal({
+      open: false,
+      loading: false,
+      phase: 'idle',
+      logs: [],
+      missingItems: [],
+      processedCount: 0,
+      totalCount: 0,
+      successCount: 0,
+      errorCount: 0,
+      sourceStoreName: '',
+      partnerStoreNames: []
+    })
+  }
 
   // Opções menu
   const [optionsOpen, setOptionsOpen] = useState(false)
@@ -336,10 +619,199 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       } else {
         setPricingConfig({ groups: [] })
       }
+      if (typeof store?.syncStockTogether === 'boolean') {
+        setSyncStockTogether(store.syncStockTogether)
+      }
       setActivePricingGroupIdx(0)
     })
     return () => { unsub && unsub() }
   }, [storeId])
+
+  const handleToggleSyncStockTogether = async () => {
+    const nextValue = !syncStockTogether
+    setSyncStockTogether(nextValue)
+    setOptionsOpen(false)
+
+    try {
+      const currentStore = await getStoreById(storeId)
+      if (!currentStore?.ownerId) {
+        throw new Error('Loja atual sem proprietário vinculado.')
+      }
+
+      const stores = await listStoresByOwner(currentStore.ownerId)
+      await Promise.all(stores.map(store => updateStore(store.id, { syncStockTogether: nextValue })))
+    } catch (error) {
+      console.error('Erro ao salvar configuração de sincronização de estoque:', error)
+      setSyncStockTogether(!nextValue)
+      alert(`Não foi possível salvar a sincronização de estoque: ${error.message}`)
+    }
+  }
+
+  const handleRunStockSync = async () => {
+    if (!syncStockTogether || stockSyncModal.loading) return
+
+    setOptionsOpen(false)
+    setStockSyncModal({
+      open: true,
+      loading: true,
+      phase: 'validating',
+      logs: ['Iniciando validação completa dos itens de estoque entre as lojas...'],
+      missingItems: [],
+      processedCount: 0,
+      totalCount: 0,
+      successCount: 0,
+      errorCount: 0,
+      sourceStoreName: '',
+      partnerStoreNames: []
+    })
+
+    try {
+      const currentStore = await getStoreById(storeId)
+      if (!currentStore?.ownerId) {
+        throw new Error('Loja atual sem proprietário vinculado.')
+      }
+
+      const allStores = await listStoresByOwner(currentStore.ownerId)
+      const otherStores = allStores.filter(store => store.id !== storeId)
+
+      if (otherStores.length === 0) {
+        setStockSyncModal(prev => ({
+          ...prev,
+          loading: false,
+          phase: 'error',
+          logs: [...prev.logs, 'Nenhuma loja parceira encontrada para sincronização de estoque.'],
+          errorCount: 1,
+          sourceStoreName: currentStore.name || 'Loja atual',
+          partnerStoreNames: []
+        }))
+        return
+      }
+
+      setStockSyncModal(prev => ({
+        ...prev,
+        sourceStoreName: currentStore.name || 'Loja atual',
+        partnerStoreNames: otherStores.map(store => store.name || store.id)
+      }))
+
+      appendStockSyncLog(`Loja de origem: ${currentStore.name || 'Loja atual'}.`)
+      appendStockSyncLog(`Lojas parceiras encontradas: ${otherStores.map(store => store.name || store.id).join(', ')}.`)
+
+      const sourceProducts = await getAllProducts(storeId)
+      const partnerInventories = await Promise.all(
+        otherStores.map(async store => ({
+          store,
+          products: await getAllProducts(store.id)
+        }))
+      )
+
+      const missingItems = []
+      const sourceName = currentStore.name || 'Loja atual'
+
+      for (const { store, products: targetProducts } of partnerInventories) {
+        const targetName = store.name || store.id
+
+        sourceProducts.forEach(product => {
+          const found = findEquivalentProductInList(product, targetProducts)
+          if (!found) {
+            missingItems.push({
+              storeName: targetName,
+              direction: 'missing_in_partner',
+              productName: product.name || 'Produto sem nome',
+              reference: String(product.reference || '').trim() || '-'
+            })
+          }
+        })
+
+        targetProducts.forEach(product => {
+          const found = findEquivalentProductInList(product, sourceProducts)
+          if (!found) {
+            missingItems.push({
+              storeName: sourceName,
+              direction: 'missing_in_source',
+              productName: product.name || 'Produto sem nome',
+              reference: String(product.reference || '').trim() || '-',
+              extraStoreName: targetName
+            })
+          }
+        })
+      }
+
+      if (missingItems.length > 0) {
+        appendStockSyncLog('Validação interrompida: existem itens ausentes entre as lojas.')
+        setStockSyncModal(prev => ({
+          ...prev,
+          loading: false,
+          phase: 'validation_failed',
+          missingItems,
+          errorCount: missingItems.length
+        }))
+        return
+      }
+
+      appendStockSyncLog('Validação concluída com sucesso. Todos os itens existem nas lojas envolvidas.')
+      appendStockSyncLog('Iniciando sincronização automática dos níveis de estoque...')
+
+      let processedCount = 0
+      let successCount = 0
+      let errorCount = 0
+      const totalCount = sourceProducts.length
+
+      setStockSyncModal(prev => ({
+        ...prev,
+        phase: 'syncing',
+        totalCount
+      }))
+
+      await Promise.allSettled(
+        sourceProducts.map(async (product, index) => {
+          const label = `[${index + 1}/${totalCount}] ${product.name || 'Produto sem nome'}`
+          try {
+            appendStockSyncLog(`${label}: sincronizando saldo...`)
+            await syncUnifiedStockAcrossStores(product, storeId, {
+              stock: Number(product.stock ?? 0),
+              stockInitial: Number(product.stockInitial ?? 0),
+              stockMin: Number(product.stockMin ?? 0),
+              variationsData: Array.isArray(product.variationsData) ? product.variationsData : []
+            })
+            successCount += 1
+            appendStockSyncLog(`${label}: sincronizado com sucesso.`)
+          } catch (error) {
+            errorCount += 1
+            appendStockSyncLog(`${label}: falha ao sincronizar. ${error.message}`)
+          } finally {
+            processedCount += 1
+            setStockSyncModal(prev => ({
+              ...prev,
+              processedCount,
+              successCount,
+              errorCount
+            }))
+          }
+        })
+      )
+
+      setStockSyncModal(prev => ({
+        ...prev,
+        loading: false,
+        phase: errorCount > 0 ? 'done_with_errors' : 'done',
+        logs: [
+          ...prev.logs,
+          errorCount > 0
+            ? `Sincronização concluída com falhas. ${successCount} item(ns) sincronizado(s) e ${errorCount} com erro.`
+            : `Sincronização concluída com sucesso. ${successCount} item(ns) com estoque alinhado entre as lojas.`
+        ]
+      }))
+    } catch (error) {
+      console.error('Erro ao sincronizar estoque:', error)
+      setStockSyncModal(prev => ({
+        ...prev,
+        loading: false,
+        phase: 'error',
+        errorCount: Math.max(prev.errorCount, 1),
+        logs: [...prev.logs, `Erro fatal: ${error.message}`]
+      }))
+    }
+  }
   // Products Pagination Logic
   // Efeito para Smart Cache (igual ao de clientes)
   // (Sem cache global; carregamento ocorre somente dentro da página)
@@ -952,6 +1424,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       }
 
       await updateProduct(p.id, updateData)
+      await syncUnifiedStockAcrossStores(p, storeId, updateData)
       
       await recordStockMovement({
         productId: p.id,
@@ -988,29 +1461,27 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     setSyncFeedback({
       open: true,
       loading: true,
-      logs: [`Iniciando sincronização para: ${product.name}...`],
+      logs: [
+        `Iniciando sincronização para: ${product.name}...`,
+        syncStockTogether
+          ? 'Modo de estoque: sincronizar o saldo entre as lojas.'
+          : 'Modo de estoque: manter saldo separado em cada loja.'
+      ],
       finished: false,
-      successCount: 0
+      successCount: 0,
+      errorCount: 0,
+      processedCount: 0,
+      totalCount: 1,
+      mode: 'single'
     })
     setSyncingProduct(product.id)
-
-    const addLog = (msg) => {
-        setSyncFeedback(prev => ({ ...prev, logs: [...prev.logs, msg] }))
-    }
+    const addLog = appendSyncLog
 
     try {
-        // Garantir que o produto tenha um rootId para sincronização robusta
-        let activeRootId = product.rootId
-        if (!activeRootId) {
-             activeRootId = crypto.randomUUID()
-             await updateProduct(product.id, { rootId: activeRootId })
-             addLog("Gerado ID único de sincronização.")
-        }
-
         const currentStore = await getStoreById(storeId)
         if (!currentStore || !currentStore.ownerId) {
             addLog('Erro: Loja atual ou proprietário não identificados.')
-            setSyncFeedback(prev => ({ ...prev, loading: false, finished: true }))
+            setSyncFeedback(prev => ({ ...prev, loading: false, finished: true, errorCount: 1, processedCount: 1 }))
             return
         }
 
@@ -1020,206 +1491,150 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         
         if (otherStores.length === 0) {
             addLog('Nenhuma outra loja encontrada para sincronizar.')
-            setSyncFeedback(prev => ({ ...prev, loading: false, finished: true }))
+            setSyncFeedback(prev => ({ ...prev, loading: false, finished: true, errorCount: 1, processedCount: 1 }))
             return
         }
 
         addLog(`Encontradas ${otherStores.length} outras lojas.`)
+        const result = await syncProductToPartnerStores({
+          product,
+          otherStores,
+          addLog,
+          askConfirmation: true
+        })
 
-        // Dados de Categoria e Fornecedor da origem
-        const sourceCategory = categories.find(c => c.id === product.categoryId)
-        
-        // Preparar Fornecedor
-        const supplierName = product.supplier || ''
-        let sourceSupplierFull = null
-        if (supplierName) {
-             const cleanSupplier = supplierName.trim()
-             sourceSupplierFull = suppliers.find(s => s.name === cleanSupplier)
-             if (!sourceSupplierFull) {
-                 sourceSupplierFull = suppliers.find(s => s.name.toLowerCase() === cleanSupplier.toLowerCase())
-             }
-             // Busca no banco se não achar no state
-             if (!sourceSupplierFull) {
-                try {
-                  const supCol = collection(db, 'suppliers')
-                  const sourceSupQuery = firestoreQuery(supCol, where('storeId', '==', storeId), where('name', '==', cleanSupplier))
-                  const sourceSupSnap = await getDocs(sourceSupQuery)
-                  if (!sourceSupSnap.empty) {
-                     sourceSupplierFull = sourceSupSnap.docs[0].data()
-                  }
-                } catch (e) {
-                  addLog(`Aviso: Erro ao buscar dados completos do fornecedor: ${e.message}`)
-                }
-             }
-             if (!sourceSupplierFull) {
-                 sourceSupplierFull = { name: cleanSupplier }
-             }
-        }
-
-        let syncCount = 0
-
-        for (const store of otherStores) {
-            try {
-                addLog(`--------------------------------`)
-                addLog(`Processando loja: ${store.name || store.id}...`)
-
-                // 1. Sincronizar Categoria
-                let targetCategoryId = null
-                if (sourceCategory) {
-                    const catCol = collection(db, 'categories')
-                    const catQuery = firestoreQuery(catCol, where('storeId', '==', store.id), where('name', '==', sourceCategory.name))
-                    const catSnap = await getDocs(catQuery)
-                    if (!catSnap.empty) {
-                        targetCategoryId = catSnap.docs[0].id
-                        // addLog(`Categoria "${sourceCategory.name}" já existe.`)
-                    } else {
-                        targetCategoryId = await addCategory({ name: sourceCategory.name, active: true }, store.id)
-                        addLog(`Categoria "${sourceCategory.name}" criada.`)
-                    }
-                }
-
-                // 2. Sincronizar Fornecedor
-                if (sourceSupplierFull) {
-                    await ensureSupplierInStore(sourceSupplierFull, store.id)
-                    // addLog(`Fornecedor verificado/criado.`)
-                }
-
-                // 3. Sincronizar Produto
-                const prodCol = collection(db, 'products')
-                let targetProduct = null
-
-                // 1. Tentar buscar por rootId (Identificador único global)
-                if (activeRootId) {
-                    addLog(`Buscando por ID global...`)
-                    const qRoot = firestoreQuery(prodCol, where('storeId', '==', store.id), where('rootId', '==', activeRootId))
-                    const snapRoot = await getDocs(qRoot)
-                    if (!snapRoot.empty) {
-                        targetProduct = { id: snapRoot.docs[0].id, ...snapRoot.docs[0].data() }
-                        addLog(`Produto encontrado pelo ID global.`)
-                    }
-                }
-
-                // 2. Fallback: Se não achou por rootId, tenta por Código ou Nome
-                if (!targetProduct) {
-                    // Por Código
-                    if (product.reference && product.reference.trim()) {
-                        const refToSearch = product.reference.trim()
-                        addLog(`Buscando por código (fallback): "${refToSearch}"`)
-                        const qRef = firestoreQuery(prodCol, where('storeId', '==', store.id), where('reference', '==', refToSearch))
-                        const snapRef = await getDocs(qRef)
-                        if (!snapRef.empty) {
-                            targetProduct = { id: snapRef.docs[0].id, ...snapRef.docs[0].data() }
-                            addLog(`Produto encontrado pelo código.`)
-                        }
-                    }
-
-                    // Por Nome
-                    if (!targetProduct && product.name) {
-                         addLog(`Buscando por nome (fallback): "${product.name}"`)
-                         const qName = firestoreQuery(prodCol, where('storeId', '==', store.id), where('name', '==', product.name))
-                         const snapName = await getDocs(qName)
-                         if (!snapName.empty) {
-                             targetProduct = { id: snapName.docs[0].id, ...snapName.docs[0].data() }
-                             addLog(`Produto encontrado pelo nome.`)
-                         }
-                    }
-                }
-
-                // Prepara dados para salvar
-                const dataToSync = { ...product, rootId: activeRootId }
-                // Remove campos de sistema/origem
-                delete dataToSync.id
-                delete dataToSync.storeId
-                delete dataToSync.createdAt
-                delete dataToSync.updatedAt
-                delete dataToSync.lastEditedBy // Será sobrescrito
-                
-                dataToSync.storeId = store.id
-                dataToSync.categoryId = targetCategoryId
-                dataToSync.lastEditedBy = user?.name || 'Sincronização Manual'
-
-                if (targetProduct) {
-                    // Busca nome da categoria do destino para exibir
-                    let targetCatName = 'Sem Categoria'
-                    if (targetProduct.categoryId) {
-                         try {
-                             const catDocRef = doc(db, 'categories', targetProduct.categoryId)
-                             const catDocSnap = await getDoc(catDocRef)
-                             if (catDocSnap.exists()) {
-                                 targetCatName = catDocSnap.data().name
-                             }
-                         } catch (e) {
-                             // Ignora erro
-                         }
-                    }
-
-                    // Solicita confirmação
-                    const confirmed = await requestSyncConfirmation(product, targetProduct, targetCatName, store.name)
-                    if (!confirmed) {
-                        addLog(`Item ignorado pelo usuário.`)
-                        continue
-                    }
-
-                    // UPDATE - O produto JÁ EXISTE na outra loja
-                    // IMPORTANTE: Preservar o estoque que está LÁ na outra loja
-                    dataToSync.stock = targetProduct.stock
-                    dataToSync.stockInitial = targetProduct.stockInitial
-                    dataToSync.createdBy = targetProduct.createdBy // Mantém quem criou lá
-                    
-                    // IMPORTANTE: Preservar o CÓDIGO (Reference) que está LÁ na outra loja
-                    // O usuário solicitou que o código não seja alterado na sincronização
-                    if (targetProduct.reference) {
-                        dataToSync.reference = targetProduct.reference
-                    }
-                    
-                    // Estoque unificado: todas as precificações compartilham o mesmo saldo do produto destino
-                    if (dataToSync.variationsData && dataToSync.variationsData.length > 0) {
-                         dataToSync.variationsData = dataToSync.variationsData.map(v => ({
-                           ...v,
-                           stock: Number(targetProduct.stock ?? 0),
-                           stockInitial: Number(targetProduct.stockInitial ?? 0),
-                           stockMin: Number(targetProduct.stockMin ?? 0)
-                         }))
-                    } else {
-                         // Se não tem variações, garante que stock é o do destino
-                         dataToSync.stock = targetProduct.stock
-                    }
-
-                    await updateProduct(targetProduct.id, dataToSync)
-                    addLog(`Produto ATUALIZADO com sucesso.`)
-                } else {
-                    // CREATE - Produto NÃO EXISTE na outra loja
-                    // Nasce com estoque ZERO
-                    dataToSync.stock = 0
-                    dataToSync.stockInitial = 0
-                    dataToSync.createdBy = user?.name || 'Sincronização Manual'
-                    
-                    if (dataToSync.variationsData && dataToSync.variationsData.length > 0) {
-                        dataToSync.variationsData = dataToSync.variationsData.map(v => ({
-                            ...v, stock: 0, stockInitial: 0
-                        }))
-                    }
-                    
-                    await addProduct(dataToSync, store.id)
-                    addLog(`Produto CRIADO com sucesso.`)
-                }
-                syncCount++
-
-            } catch (errStore) {
-                console.error(`Erro na loja ${store.id}:`, errStore)
-                addLog(`ERRO na loja ${store.name}: ${errStore.message}`)
-            }
-        }
-        
-        setSyncFeedback(prev => ({ ...prev, successCount: syncCount, finished: true, loading: false }))
+        setSyncFeedback(prev => ({
+          ...prev,
+          processedCount: 1,
+          successCount: result.failedStores === 0 ? 1 : 0,
+          errorCount: result.failedStores > 0 ? 1 : 0,
+          finished: true,
+          loading: false
+        }))
 
     } catch (err) {
         console.error('Erro na sincronização manual:', err)
         addLog(`Erro fatal: ${err.message}`)
-        setSyncFeedback(prev => ({ ...prev, finished: true, loading: false }))
+        setSyncFeedback(prev => ({ ...prev, finished: true, loading: false, errorCount: 1, processedCount: 1 }))
     } finally {
         setSyncingProduct(null)
         setOpenMenuId(null)
+    }
+  }
+
+  const handleSyncAllProducts = async () => {
+    if (!isOwner && !perms.products?.create) return
+    if (!storeId || syncingProduct || syncFeedback.loading) return
+
+    setOptionsOpen(false)
+    setSyncingProduct(BULK_SYNC_KEY)
+    setSyncFeedback({
+      open: true,
+      loading: true,
+      logs: [
+        'Preparando sincronização em massa de todos os produtos existentes...',
+        syncStockTogether
+          ? 'Modo de estoque: sincronizar o saldo entre as lojas.'
+          : 'Modo de estoque: manter saldo separado em cada loja.'
+      ],
+      finished: false,
+      successCount: 0,
+      errorCount: 0,
+      processedCount: 0,
+      totalCount: 0,
+      mode: 'bulk'
+    })
+
+    let processedCount = 0
+    let successCount = 0
+    let errorCount = 0
+    const addLog = appendSyncLog
+
+    try {
+      const currentStore = await getStoreById(storeId)
+      if (!currentStore || !currentStore.ownerId) {
+        addLog('Falha: loja atual ou proprietário não identificados.')
+        setSyncFeedback(prev => ({ ...prev, loading: false, finished: true, errorCount: 1 }))
+        return
+      }
+
+      addLog('Buscando lojas parceiras do mesmo proprietário...')
+      const allStores = await listStoresByOwner(currentStore.ownerId)
+      const otherStores = allStores.filter(store => store.id !== storeId)
+
+      if (otherStores.length === 0) {
+        addLog('Falha: nenhuma loja parceira encontrada para sincronizar os registros.')
+        setSyncFeedback(prev => ({ ...prev, loading: false, finished: true, errorCount: 1 }))
+        return
+      }
+
+      const allProducts = await getAllProducts(storeId)
+      setSyncFeedback(prev => ({ ...prev, totalCount: allProducts.length }))
+      addLog(`Total de produtos encontrados para envio: ${allProducts.length}.`)
+
+      if (allProducts.length === 0) {
+        addLog('Nenhum produto encontrado para sincronizar.')
+        setSyncFeedback(prev => ({ ...prev, loading: false, finished: true }))
+        return
+      }
+
+      await Promise.allSettled(
+        allProducts.map(async (product, index) => {
+          const prefix = `[${index + 1}/${allProducts.length}] ${product.name || 'Produto sem nome'}: `
+          try {
+            addLog(`${prefix}iniciando envio...`)
+            const result = await syncProductToPartnerStores({
+              product,
+              otherStores,
+              addLog: (message) => addLog(`${prefix}${message}`),
+              askConfirmation: false
+            })
+
+            processedCount += 1
+            if (result.failedStores > 0) {
+              errorCount += 1
+              addLog(`${prefix}concluído com falhas.`)
+            } else {
+              successCount += 1
+              addLog(`${prefix}concluído com sucesso.`)
+            }
+          } catch (error) {
+            processedCount += 1
+            errorCount += 1
+            addLog(`${prefix}falha fatal: ${error.message}`)
+          } finally {
+            setSyncFeedback(prev => ({
+              ...prev,
+              processedCount,
+              successCount,
+              errorCount
+            }))
+          }
+        })
+      )
+
+      addLog(
+        errorCount > 0
+          ? `Sincronização finalizada com falhas. ${successCount} registro(s) concluído(s) e ${errorCount} com erro.`
+          : `Sincronização finalizada com sucesso. ${successCount} registro(s) enviado(s) integralmente.`
+      )
+
+      setSyncFeedback(prev => ({
+        ...prev,
+        loading: false,
+        finished: true
+      }))
+    } catch (error) {
+      console.error('Erro na sincronização em massa:', error)
+      addLog(`Falha geral na sincronização em massa: ${error.message}`)
+      setSyncFeedback(prev => ({
+        ...prev,
+        loading: false,
+        finished: true,
+        errorCount: Math.max(prev.errorCount, 1)
+      }))
+    } finally {
+      setSyncingProduct(null)
     }
   }
 
@@ -1880,12 +2295,41 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   {isOwner && (
                   <>
                   <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                  <button
+                    type="button"
+                    className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleSyncAllProducts}
+                    disabled={syncingProduct === BULK_SYNC_KEY || syncFeedback.loading}
+                  >
+                    <span>{syncingProduct === BULK_SYNC_KEY ? '⏳' : '🚀'}</span>
+                    <span>{syncingProduct === BULK_SYNC_KEY ? 'Sincronizando todos os registros...' : 'Sincronizar todos os registros'}</span>
+                  </button>
                   <div className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={() => setSyncProducts(!syncProducts)}>
                     <span className="text-sm text-gray-700 dark:text-gray-200">Sincronizar produtos</span>
                     <div className={`w-8 h-4 flex items-center rounded-full p-1 duration-300 ease-in-out ${syncProducts ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
                       <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${syncProducts ? 'translate-x-3' : ''}`}></div>
                     </div>
                   </div>
+                  <div className="px-4 py-2 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer" onClick={handleToggleSyncStockTogether}>
+                    <span className="text-sm text-gray-700 dark:text-gray-200">Sincronizar estoque</span>
+                    <div className={`w-8 h-4 flex items-center rounded-full p-1 duration-300 ease-in-out ${syncStockTogether ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                      <div className={`bg-white w-3 h-3 rounded-full shadow-md transform duration-300 ease-in-out ${syncStockTogether ? 'translate-x-3' : ''}`}></div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm ${
+                      syncStockTogether
+                        ? 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
+                        : 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    } disabled:opacity-60 disabled:cursor-not-allowed`}
+                    onClick={handleRunStockSync}
+                    disabled={!syncStockTogether || stockSyncModal.loading}
+                    title={!syncStockTogether ? 'Ative a opção "Sincronizar estoque" para liberar esta ação.' : 'Sincronizar estoque agora'}
+                  >
+                    <span>{stockSyncModal.loading ? '⏳' : '📦'}</span>
+                    <span>{stockSyncModal.loading ? 'Validando e sincronizando estoque...' : 'Sincronizar estoque agora'}</span>
+                  </button>
                   </>
                   )}
               </div>
@@ -2436,9 +2880,32 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 relative flex flex-col max-h-[90vh]">
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
-              {syncFeedback.loading ? <span className="animate-spin">⏳</span> : (syncFeedback.successCount > 0 ? '✅' : 'ℹ️')}
-              {syncFeedback.loading ? 'Sincronizando...' : 'Sincronização Concluída'}
+              {syncFeedback.loading ? <span className="animate-spin">⏳</span> : (syncFeedback.errorCount > 0 ? '⚠️' : '✅')}
+              {syncFeedback.loading ? 'Sincronizando registros...' : (syncFeedback.errorCount > 0 ? 'Concluído com falhas' : 'Concluído')}
             </h3>
+
+            <div className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900/40">
+              <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-200">
+                <span>
+                  {syncFeedback.mode === 'bulk' ? 'Sincronização em massa' : 'Sincronização individual'}
+                </span>
+                <span>
+                  {syncFeedback.processedCount}/{syncFeedback.totalCount || 0}
+                </span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  className={`h-full rounded-full transition-all ${syncFeedback.errorCount > 0 && !syncFeedback.loading ? 'bg-amber-500' : 'bg-blue-600'}`}
+                  style={{
+                    width: `${syncFeedback.totalCount > 0 ? Math.min(100, (syncFeedback.processedCount / syncFeedback.totalCount) * 100) : 0}%`
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>Concluídos: {syncFeedback.successCount}</span>
+                <span>Falhas: {syncFeedback.errorCount}</span>
+              </div>
+            </div>
             
             <div className="bg-gray-100 dark:bg-gray-900 p-3 rounded flex-1 overflow-y-auto mb-4 text-xs font-mono border dark:border-gray-700 min-h-[200px] text-gray-800 dark:text-gray-200">
               {syncFeedback.logs.map((log, idx) => (
@@ -2447,7 +2914,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                 </div>
               ))}
               {syncFeedback.loading && (
-                 <div className="animate-pulse text-blue-600 dark:text-blue-400 font-bold mt-2">Processando...</div>
+                 <div className="animate-pulse text-blue-600 dark:text-blue-400 font-bold mt-2">Processando e enviando registros em tempo real...</div>
               )}
             </div>
 
@@ -2457,9 +2924,95 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                     onClick={() => setSyncFeedback(prev => ({ ...prev, open: false }))}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
                   >
-                    Fechar
+                    Pronto
                   </button>
                )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {stockSyncModal.open && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black bg-opacity-55 backdrop-blur-sm">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl p-6 relative flex flex-col max-h-[90vh]">
+            <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+              {stockSyncModal.loading ? <span className="animate-spin">⏳</span> : (stockSyncModal.phase === 'done' ? '✅' : '⚠️')}
+              {stockSyncModal.loading
+                ? stockSyncModal.phase === 'validating'
+                  ? 'Validando estoque entre as lojas...'
+                  : 'Sincronizando estoque...'
+                : stockSyncModal.phase === 'done'
+                  ? 'Concluído'
+                  : stockSyncModal.phase === 'validation_failed'
+                    ? 'Validação bloqueou a sincronização'
+                    : 'Sincronização com pendências'}
+            </h3>
+
+            <div className="mb-4 rounded-lg border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900/40">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-700 dark:text-gray-200">
+                <span>Origem: {stockSyncModal.sourceStoreName || 'Loja atual'}</span>
+                <span>Parceiras: {stockSyncModal.partnerStoreNames.join(', ') || '-'}</span>
+              </div>
+              <div className="mt-2 h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    stockSyncModal.phase === 'validation_failed' || stockSyncModal.phase === 'done_with_errors' || stockSyncModal.phase === 'error'
+                      ? 'bg-amber-500'
+                      : 'bg-blue-600'
+                  }`}
+                  style={{
+                    width: `${stockSyncModal.totalCount > 0 ? Math.min(100, (stockSyncModal.processedCount / stockSyncModal.totalCount) * 100) : 0}%`
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                <span>Processados: {stockSyncModal.processedCount}/{stockSyncModal.totalCount || 0}</span>
+                <span>Sucesso: {stockSyncModal.successCount}</span>
+                <span>Falhas: {stockSyncModal.errorCount}</span>
+              </div>
+            </div>
+
+            {stockSyncModal.missingItems.length > 0 && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-900/20 p-3">
+                <div className="text-sm font-semibold text-amber-800 dark:text-amber-300 mb-2">
+                  Itens ausentes encontrados na validação
+                </div>
+                <div className="max-h-44 overflow-y-auto space-y-2 text-xs text-amber-900 dark:text-amber-200">
+                  {stockSyncModal.missingItems.map((item, idx) => (
+                    <div key={`${item.storeName}-${item.productName}-${idx}`} className="border-b border-amber-200 dark:border-amber-800 pb-2 last:border-0 last:pb-0">
+                      {item.direction === 'missing_in_partner'
+                        ? `Falta na loja ${item.storeName}: ${item.productName} (código ${item.reference}).`
+                        : `Falta na loja ${item.storeName}: ${item.productName} (código ${item.reference}), existente apenas em ${item.extraStoreName}.`}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="bg-gray-100 dark:bg-gray-900 p-3 rounded flex-1 overflow-y-auto mb-4 text-xs font-mono border dark:border-gray-700 min-h-[220px] text-gray-800 dark:text-gray-200">
+              {stockSyncModal.logs.map((log, idx) => (
+                <div key={idx} className="mb-1 border-b border-gray-200 dark:border-gray-700 last:border-0 pb-1 break-words">
+                  {log}
+                </div>
+              ))}
+              {stockSyncModal.loading && (
+                <div className="animate-pulse text-blue-600 dark:text-blue-400 font-bold mt-2">
+                  {stockSyncModal.phase === 'validating'
+                    ? 'Verificando a existência dos itens nas duas lojas...'
+                    : 'Alinhando os saldos de estoque entre as lojas...'}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              {!stockSyncModal.loading && (
+                <button
+                  onClick={closeStockSyncModal}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  Pronto
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -2525,6 +3078,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         storeId={storeId} 
         user={user} 
         syncProducts={syncProducts}
+        syncStockTogether={syncStockTogether}
         canCreateCategory={isOwner || perms.categories?.create}
         canCreateSupplier={isOwner || perms.suppliers?.create}
         onSuccess={handleProductSave}
@@ -2539,6 +3093,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         storeId={storeId} 
         user={user}
         syncProducts={syncProducts}
+        syncStockTogether={syncStockTogether}
         canCreateCategory={isOwner || perms.categories?.create}
         canCreateSupplier={isOwner || perms.suppliers?.create}
         onSuccess={handleProductSave}
