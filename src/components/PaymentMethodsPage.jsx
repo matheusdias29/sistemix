@@ -189,6 +189,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
               <option value="cheque">Cheque</option>
               <option value="transferencia_bancaria">Transferência Bancária</option>
               <option value="valor_negativo">VALOR NEGATIVO (Subtrai do caixa)</option>
+              <option value="vale">Vale (Subtrai do caixa)</option>
             </select>
             <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
               <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -197,7 +198,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
             </div>
           </div>
 
-          {type === 'valor_negativo' && (
+          {(type === 'valor_negativo' || type === 'vale') && (
             <div className="flex items-center gap-3 py-2">
               <button
                 type="button"
@@ -352,7 +353,7 @@ function PaymentMethodModal({ open, onClose, onConfirm, initialData }) {
               type, 
               tax, 
               active,
-              subtractFromCash: type === 'valor_negativo' ? subtractFromCash : undefined,
+              subtractFromCash: (type === 'valor_negativo' || type === 'vale') ? subtractFromCash : undefined,
               // Add new fields to the result
               cnpjCredenciadora: type === 'cartao_credito' ? cnpjCredenciadora : undefined,
               paymentMode: type === 'cartao_credito' ? paymentMode : undefined,

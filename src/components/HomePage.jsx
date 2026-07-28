@@ -113,7 +113,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
       if (!date) return acc
       if (!isSameDay(date, day)) return acc
       if (p?.subtractFromCash === false) return acc
-      if (p?.methodCode === 'valor_negativo') return acc - Math.abs(amount)
+      if (p?.methodCode === 'valor_negativo' || p?.methodCode === 'vale') return acc - Math.abs(amount)
       return acc + amount
     }, 0)
   }

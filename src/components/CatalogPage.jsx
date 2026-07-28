@@ -10,6 +10,8 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const [openingDays, setOpeningDays] = useState(store?.catalogOpeningDays || '')
   const [catalogWhatsapp, setCatalogWhatsapp] = useState(store?.catalogWhatsapp || '')
   const [catalogMessage, setCatalogMessage] = useState(store?.catalogMessage || '')
+  const [showWarranty, setShowWarranty] = useState(!!(store?.catalogShowWarranty))
+  const [showCondition, setShowCondition] = useState(!!(store?.catalogShowCondition))
 
   useEffect(() => {
     setCatalogEnabled(!!(store?.catalogEnabled))
@@ -20,6 +22,8 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
     setOpeningDays(store?.catalogOpeningDays || '')
     setCatalogWhatsapp(store?.catalogWhatsapp || '')
     setCatalogMessage(store?.catalogMessage || '')
+    setShowWarranty(!!(store?.catalogShowWarranty))
+    setShowCondition(!!(store?.catalogShowCondition))
   }, [store?.id])
 
   const displaySlug = useMemo(() => {
@@ -94,6 +98,18 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
   const onChangeCatalogMessage = async (v) => {
     setCatalogMessage(v)
     await save({ catalogMessage: v })
+  }
+
+  const onChangeShowWarranty = async () => {
+    const next = !showWarranty
+    setShowWarranty(next)
+    await save({ catalogShowWarranty: next })
+  }
+
+  const onChangeShowCondition = async () => {
+    const next = !showCondition
+    setShowCondition(next)
+    await save({ catalogShowCondition: next })
   }
 
   const onAddBanner = async (file) => {
@@ -215,6 +231,39 @@ export default function CatalogPage({ storeId, store, onNavigate }) {
             placeholder="Ex: Olá, tenho interesse no produto: {produto}"
             className="w-full border rounded px-3 py-2 text-sm h-20 resize-none"
           />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-4">
+        <div className="text-sm font-semibold">Informações exibidas no catálogo</div>
+        <div className="text-xs text-gray-600 mt-1">Marque quais informações do produto você quer que apareçam no card do catálogo</div>
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <label className="flex items-center justify-between gap-3 p-3 border rounded-md">
+            <div>
+              <div className="text-sm font-medium text-gray-800">Tempo de garantia</div>
+              <div className="text-xs text-gray-500 mt-0.5">Mostra a quantidade de meses de garantia do produto</div>
+            </div>
+            <button
+              type="button"
+              onClick={onChangeShowWarranty}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showWarranty ? 'bg-green-500' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${showWarranty ? 'translate-x-5' : 'translate-x-0.5'}`}></span>
+            </button>
+          </label>
+          <label className="flex items-center justify-between gap-3 p-3 border rounded-md">
+            <div>
+              <div className="text-sm font-medium text-gray-800">Condição do produto</div>
+              <div className="text-xs text-gray-500 mt-0.5">Mostra se o produto é novo, seminovo, usado, etc.</div>
+            </div>
+            <button
+              type="button"
+              onClick={onChangeShowCondition}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${showCondition ? 'bg-green-500' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${showCondition ? 'translate-x-5' : 'translate-x-0.5'}`}></span>
+            </button>
+          </label>
         </div>
       </div>
 

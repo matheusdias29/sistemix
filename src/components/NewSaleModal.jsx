@@ -492,13 +492,13 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   })()
   const total = round2(subtotal + feesTotal - discountAmount)
   const totalPaid = payments.reduce((acc, p) => {
-    // Se for valor negativo, somamos o valor absoluto para abater da dívida (subtrair do total a pagar)
-    if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+    // Se for valor negativo ou vale, somamos o valor absoluto para abater da dívida (subtrair do total a pagar)
+    if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return acc + Math.abs(Number(p.amount || 0))
     return acc + Number(p.amount || 0)
   }, 0)
   const remainingToPay = Math.max(0, total - totalPaid)
   const plannedPaidTotal = plannedPayments.reduce((acc, p) => {
-    if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+    if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return acc + Math.abs(Number(p.amount || 0))
     return acc + Number(p.amount || 0)
   }, 0)
   const remainingToPlan = Math.max(0, total - plannedPaidTotal)
@@ -541,7 +541,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     const isFinalSale = (status === 'Venda' || status === 'Finalizado' || status === 'Cliente Final' || status === 'Cliente Lojista')
     const paymentsToUse = Array.isArray(paymentsOverride) ? paymentsOverride : payments
     const totalPaidLocal = paymentsToUse.reduce((acc, p) => {
-      if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+      if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return acc + Math.abs(Number(p.amount || 0))
       return acc + Number(p.amount || 0)
     }, 0)
     const remainingLocal = Math.max(0, total - totalPaidLocal)
@@ -553,7 +553,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     if (status === 'Pedido') {
       const plannedToUse = plannedPaymentsOverride !== undefined ? plannedPaymentsOverride : plannedPayments
       const plannedPaid = (plannedToUse || []).reduce((acc, p) => {
-        if (p.methodCode === 'valor_negativo') return acc + Math.abs(Number(p.amount || 0))
+        if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return acc + Math.abs(Number(p.amount || 0))
         return acc + Number(p.amount || 0)
       }, 0)
       const plannedRemaining = Math.max(0, total - plannedPaid)
@@ -1482,12 +1482,9 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               setRemainingSnapshot(newRemaining)
               if(newRemaining > 0){ setRemainingInfoOpen(true) }
               else { setChooseClientTypeOpen(true) }
-            } else if (selectedPayMethod.code === 'valor_negativo') {
-              // Valor negativo AGORA abate do total da venda (subtrai da dívida)
-              // e entra como movimentação negativa no caixa (SE configurado)
+            } else if (selectedPayMethod.code === 'valor_negativo' || selectedPayMethod.code === 'vale') {
               const applied = amt
               const newRemaining = Math.max(remainingToPay - applied, 0)
-              // Salvamos como negativo para subtrair do saldo do caixa (POS)
               setPayments(prev=>[...prev, { 
                 method: selectedPayMethod.label, 
                 methodCode: selectedPayMethod.code, 
@@ -1615,7 +1612,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               const next = [...plannedPayments, { method: planningSelectedPayMethod.label, methodCode: planningSelectedPayMethod.code, amount: applied }]
               setPlannedPayments(next)
               setPlanningPayAmountOpen(false)
-            } else if (planningSelectedPayMethod.code === 'valor_negativo') {
+            } else if (planningSelectedPayMethod.code === 'valor_negativo' || planningSelectedPayMethod.code === 'vale') {
               const applied = amt
               const next = [...plannedPayments, { method: planningSelectedPayMethod.label, methodCode: planningSelectedPayMethod.code, amount: -applied, subtractFromCash: planningSelectedPayMethod.subtractFromCash !== false }]
               setPlannedPayments(next)

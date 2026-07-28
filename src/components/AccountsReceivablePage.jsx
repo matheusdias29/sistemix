@@ -580,8 +580,8 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
 
   const receiveRemaining = Math.max(
     receiveTotal - receivePayments.reduce((sum, p) => {
-      // Se for valor negativo, somamos o valor absoluto para abater da dívida
-      if (p.methodCode === 'valor_negativo') return sum + Math.abs(Number(p.amount || 0))
+      // Se for valor negativo ou vale, somamos o valor absoluto para abater da dívida
+      if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return sum + Math.abs(Number(p.amount || 0))
       return sum + Number(p.amount || 0)
     }, 0),
     0
@@ -1537,8 +1537,8 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
               return
             }
             
-            // Se for valor negativo, salvamos como negativo para subtrair do caixa
-            const finalAmount = receiveSelectedMethod.code === 'valor_negativo' ? -applied : applied
+            // Se for valor negativo ou vale, salvamos como negativo para subtrair do caixa
+            const finalAmount = (receiveSelectedMethod.code === 'valor_negativo' || receiveSelectedMethod.code === 'vale') ? -applied : applied
             
             const newPayment = {
               method: receiveSelectedMethod.label,

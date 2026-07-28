@@ -548,6 +548,25 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                           <span className="text-[18px] sm:text-lg font-bold text-gray-900">{defaultPrice.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
                         </div>
                       )}
+
+                      {((!!storeData?.catalogShowWarranty && Number(p.warrantyMonths || 0) > 0) || (!!storeData?.catalogShowCondition && String(p.condition || '').trim())) && (
+                        <div className="mb-3 border-t border-dashed border-gray-100 pt-3 space-y-2">
+                          {!!storeData?.catalogShowWarranty && Number(p.warrantyMonths || 0) > 0 && (
+                            <div className="flex items-center gap-2 text-[11px] text-gray-700">
+                              <span className="font-bold text-gray-500 uppercase">Garantia:</span>
+                              <span className="font-medium">
+                                {Number(p.warrantyMonths) === 1 ? '1 mês' : `${Number(p.warrantyMonths)} meses`}
+                              </span>
+                            </div>
+                          )}
+                          {!!storeData?.catalogShowCondition && String(p.condition || '').trim() && (
+                            <div className="flex items-center gap-2 text-[11px] text-gray-700">
+                              <span className="font-bold text-gray-500 uppercase">Condição:</span>
+                              <span className="font-medium">{String(p.condition)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       <a 
                         href={
@@ -749,13 +768,13 @@ function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSet
 
   return (
     <div className="fixed inset-0 z-[2000] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-        <div className="p-4 sm:p-6 border-b border-gray-100 flex items-start justify-between gap-3">
+      <div className="bg-white dark:bg-slate-800 w-full max-w-3xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-xs text-gray-500 font-semibold uppercase tracking-wider">{product.categoryName || cat?.name || 'Produto'}</div>
-            <div className="text-lg sm:text-xl font-bold text-gray-900 truncate" title={product.name}>{product.name}</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">{product.categoryName || cat?.name || 'Produto'}</div>
+            <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-50 truncate" title={product.name}>{product.name}</div>
             {(product.code || product.reference) && (
-              <div className="text-xs text-gray-500 mt-1">
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Código: <span className="font-mono">{String(product.code || product.reference)}</span>
               </div>
             )}
@@ -764,79 +783,79 @@ function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSet
             <button
               type="button"
               onClick={onCopyLink}
-              className="px-3 py-2 rounded-lg text-sm border border-gray-200 text-gray-700 hover:bg-gray-50"
+              className="px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
               title="Copiar link do produto"
             >
               {copiedLink ? 'Link copiado' : 'Copiar link'}
             </button>
-            <button type="button" onClick={onClose} className="px-3 py-2 rounded-lg text-sm border border-gray-200 text-gray-700 hover:bg-gray-50">
+            <button type="button" onClick={onClose} className="px-3 py-2 rounded-lg text-sm border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700">
               Fechar
             </button>
           </div>
         </div>
 
-        <div className="p-4 sm:p-6 overflow-y-auto">
+        <div className="p-4 sm:p-6 overflow-y-auto bg-white dark:bg-slate-800">
           <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-5">
             <div className="w-full">
-              <div className="aspect-square bg-gray-50 rounded-xl overflow-hidden border border-gray-100">
+              <div className="aspect-square bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-700">
                 {product.imageUrl ? (
                   <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-gray-300">
+                  <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-slate-600">
                     <ShoppingBag size={56} opacity={0.25} />
                   </div>
                 )}
               </div>
               <div className="mt-3 flex items-center justify-between text-xs">
-                <div className={`font-bold px-2 py-1 rounded-md border ${Number(product.stock || 0) > 0 ? 'bg-green-50 text-green-700 border-green-100' : 'bg-red-50 text-red-700 border-red-100'}`}>
+                <div className={`font-bold px-2 py-1 rounded-md border ${Number(product.stock || 0) > 0 ? 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-green-100 dark:border-green-500/20' : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-100 dark:border-red-500/20'}`}>
                   {Number(product.stock || 0) > 0 ? `Estoque: ${Number(product.stock || 0)}` : 'Indisponível'}
                 </div>
                 {isUnavailable && (
-                  <div className="font-bold text-red-600">Esgotado</div>
+                  <div className="font-bold text-red-600 dark:text-red-400">Esgotado</div>
                 )}
               </div>
             </div>
 
             <div className="space-y-5">
-              <div className="border border-gray-100 rounded-xl p-4">
-                <div className="text-sm font-bold text-gray-900 mb-3">Precificação</div>
+              <div className="border border-gray-100 dark:border-gray-700/80 rounded-xl p-4 bg-white dark:bg-slate-900">
+                <div className="text-sm font-bold text-gray-900 dark:text-gray-50 mb-3">Precificação</div>
                 {hasCustomPricing ? (
                   <div className="space-y-2">
                     {pricingItems.map((it, idx) => (
                       <div key={idx} className="flex items-baseline justify-between gap-4">
-                        <div className="text-xs font-bold text-gray-600">{it.label}</div>
-                        <div className="text-base font-extrabold text-green-700 whitespace-nowrap">{money(it.price)}</div>
+                        <div className="text-xs font-bold text-gray-600 dark:text-gray-400">{it.label}</div>
+                        <div className="text-base font-extrabold text-green-700 dark:text-green-400 whitespace-nowrap">{money(it.price)}</div>
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="flex items-end justify-between gap-4">
-                    <div className="text-xs text-gray-500 font-semibold uppercase">A partir de</div>
-                    <div className="text-2xl font-extrabold text-gray-900 whitespace-nowrap">{money(defaultPrice)}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">A partir de</div>
+                    <div className="text-2xl font-extrabold text-gray-900 dark:text-gray-50 whitespace-nowrap">{money(defaultPrice)}</div>
                   </div>
                 )}
               </div>
 
               {(String(product.condition || '').trim() || String(product.phoneColor || '').trim() || String(product.phoneBrand || '').trim()) && (
-                <div className="border border-gray-100 rounded-xl p-4">
-                  <div className="text-sm font-bold text-gray-900 mb-3">Informações</div>
+                <div className="border border-gray-100 dark:border-gray-700/80 rounded-xl p-4 bg-white dark:bg-slate-900">
+                  <div className="text-sm font-bold text-gray-900 dark:text-gray-50 mb-3">Informações</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     {String(product.condition || '').trim() && (
                       <div>
-                        <div className="text-xs text-gray-500 font-semibold uppercase">Condição</div>
-                        <div className="text-gray-900 font-medium">{String(product.condition)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Condição</div>
+                        <div className="text-gray-900 dark:text-gray-100 font-medium">{String(product.condition)}</div>
                       </div>
                     )}
                     {String(product.phoneColor || '').trim() && (
                       <div>
-                        <div className="text-xs text-gray-500 font-semibold uppercase">Cor</div>
-                        <div className="text-gray-900 font-medium">{String(product.phoneColor)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Cor</div>
+                        <div className="text-gray-900 dark:text-gray-100 font-medium">{String(product.phoneColor)}</div>
                       </div>
                     )}
                     {String(product.phoneBrand || '').trim() && (
                       <div>
-                        <div className="text-xs text-gray-500 font-semibold uppercase">Marca do celular</div>
-                        <div className="text-gray-900 font-medium">{String(product.phoneBrand)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-semibold uppercase">Marca do celular</div>
+                        <div className="text-gray-900 dark:text-gray-100 font-medium">{String(product.phoneBrand)}</div>
                       </div>
                     )}
                   </div>
@@ -844,14 +863,36 @@ function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSet
               )}
 
               {(String(product.description || '').trim() || String(product.notes || '').trim()) && (
-                <div className="border border-gray-100 rounded-xl p-4">
-                  <div className="text-sm font-bold text-gray-900 mb-3">Dados adicionais</div>
+                <div className="border border-gray-100 dark:border-gray-700/80 rounded-xl p-4 bg-white dark:bg-slate-900">
+                  <div className="text-sm font-bold text-gray-900 dark:text-gray-50 mb-3">Dados adicionais</div>
                   {String(product.description || '').trim() && (
-                    <div className="text-sm text-gray-700 whitespace-pre-wrap">{String(product.description)}</div>
+                    <div className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap">{String(product.description)}</div>
                   )}
                   {String(product.notes || '').trim() && (
-                    <div className={`text-sm text-gray-700 whitespace-pre-wrap ${String(product.description || '').trim() ? 'mt-3 pt-3 border-t border-gray-100' : ''}`}>{String(product.notes)}</div>
+                    <div className={`text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap ${String(product.description || '').trim() ? 'mt-3 pt-3 border-t border-gray-100 dark:border-gray-700' : ''}`}>{String(product.notes)}</div>
                   )}
+                </div>
+              )}
+
+              {((!!storeData?.catalogShowWarranty && Number(product.warrantyMonths || 0) > 0) || (!!storeData?.catalogShowCondition && String(product.condition || '').trim())) && (
+                <div className="border border-gray-100 dark:border-gray-700/80 rounded-xl p-4 bg-gray-50/60 dark:bg-slate-700/40">
+                  <div className="text-sm font-bold text-gray-900 dark:text-gray-50 mb-3">Destaques</div>
+                  <div className="space-y-2 text-sm">
+                    {!!storeData?.catalogShowWarranty && Number(product.warrantyMonths || 0) > 0 && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Garantia</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">
+                          {Number(product.warrantyMonths) === 1 ? '1 mês' : `${Number(product.warrantyMonths)} meses`}
+                        </div>
+                      </div>
+                    )}
+                    {!!storeData?.catalogShowCondition && String(product.condition || '').trim() && (
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Condição</div>
+                        <div className="font-medium text-gray-900 dark:text-gray-100">{String(product.condition)}</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 

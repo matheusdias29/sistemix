@@ -322,6 +322,8 @@ export default function POSPage({ storeId, user }){
     let title = ''
     if (transactionType === 'add') title = 'Reforço de caixa'
     else if (transactionType === 'expense') title = 'Despesa'
+    else if (transactionType === 'refund') title = 'Estorno'
+    else if (transactionType === 'return') title = 'Devolução'
     else title = 'Sangria'
 
     let userNotes = transDescription.trim()
@@ -329,7 +331,7 @@ export default function POSPage({ storeId, user }){
     try {
       setTransSaving(true)
       
-      const isNegative = transactionType !== 'add'
+      const isNegative = !(transactionType === 'add')
       const finalValue = isNegative ? -val : val
 
       if (editingId) {
@@ -582,7 +584,7 @@ export default function POSPage({ storeId, user }){
           }
           else {
             totalOut += Math.abs(amount)
-            if (t.type === 'remove' || t.type === 'expense' || t.type === 'account_payable') {
+            if (t.type === 'remove' || t.type === 'expense' || t.type === 'account_payable' || t.type === 'refund' || t.type === 'return') {
                const absAmt = Math.abs(amount)
                moneyRemoved += absAmt
                if (t.type === 'expense') expensesTotal += absAmt
@@ -836,6 +838,36 @@ export default function POSPage({ storeId, user }){
                              </div>
                              Pagar despesas
                            </button>
+                           <button 
+                             onClick={() => {
+                               setTransactionType('refund')
+                               setTransDescription('')
+                               setTransValue('')
+                               setShowNewTransactionMenu(false)
+                               setTransactionModalOpen(true)
+                             }}
+                             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+                           >
+                             <div className="w-6 h-6 rounded-full border-2 border-orange-500 flex items-center justify-center text-orange-500 font-bold text-xs">
+                               ↩
+                             </div>
+                             Estorno
+                           </button>
+                           <button 
+                             onClick={() => {
+                               setTransactionType('return')
+                               setTransDescription('')
+                               setTransValue('')
+                               setShowNewTransactionMenu(false)
+                               setTransactionModalOpen(true)
+                             }}
+                             className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-sm text-gray-700 transition-colors"
+                           >
+                             <div className="w-6 h-6 rounded-full border-2 border-purple-500 flex items-center justify-center text-purple-500 font-bold text-xs">
+                               ↺
+                             </div>
+                             Devoluções
+                           </button>
                          </div>
                        </div>
                      )}
@@ -920,7 +952,7 @@ export default function POSPage({ storeId, user }){
                 
                 <div className="space-y-4 text-sm">
                   <div className="text-xs text-gray-500 mb-2 font-medium bg-gray-50 p-2 rounded text-center border border-gray-100">
-                    Caixa #{currentCash.id.slice(0,6)} • {dateStr(currentCash.openedAt)}
+                    Caixa #{currentCash.number || currentCash.id.slice(0,6)} • {dateStr(currentCash.openedAt)}
                   </div>
                   
                   <div className="flex items-center justify-between py-2 border-b border-gray-100">
@@ -1145,7 +1177,15 @@ export default function POSPage({ storeId, user }){
               <div className="bg-white rounded-lg shadow-xl w-full max-w-md animate-in fade-in zoom-in duration-200 overflow-hidden">
                 <div className="flex items-center justify-between p-4 border-b">
                   <h3 className="text-lg font-bold text-gray-800">
-                    {transactionType === 'add' ? 'Adicionar dinheiro' : (transactionType === 'expense' ? 'Pagar despesas' : 'Remover valores')}
+                    {transactionType === 'add'
+                      ? 'Adicionar dinheiro'
+                      : transactionType === 'expense'
+                        ? 'Pagar despesas'
+                        : transactionType === 'refund'
+                          ? 'Estorno'
+                          : transactionType === 'return'
+                            ? 'Devolução'
+                            : 'Remover valores'}
                   </h3>
                   <button onClick={() => { setTransactionModalOpen(false); setEditingId(null) }} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
                 </div>

@@ -835,8 +835,8 @@ const canEditService = isOwner || perms.services?.edit
 
   const totalPaidAgg = useMemo(() => {
     return osPayments.reduce((s, p) => {
-      // Se for valor negativo, somamos o valor absoluto para abater da dívida
-      if (p.methodCode === 'valor_negativo') return s + Math.abs(parseFloat(p.amount) || 0)
+      // Se for valor negativo ou vale, somamos o valor absoluto para abater da dívida
+      if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return s + Math.abs(parseFloat(p.amount) || 0)
       return s + (parseFloat(p.amount)||0)
     }, 0)
   }, [osPayments])
@@ -855,8 +855,8 @@ const canEditService = isOwner || perms.services?.edit
         : 0)
     ) || 0
     const paid = osPayments.reduce((s,p)=> {
-      // Se for valor negativo, somamos o valor absoluto para abater da dívida (subtrair do total a pagar)
-      if (p.methodCode === 'valor_negativo') return s + Math.abs(parseFloat(p.amount) || 0)
+      // Se for valor negativo ou vale, somamos o valor absoluto para abater da dívida (subtrair do total a pagar)
+      if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return s + Math.abs(parseFloat(p.amount) || 0)
       return s + (parseFloat(p.amount)||0)
     }, 0)
     return Math.max(0, total - paid)
@@ -1780,12 +1780,9 @@ const canEditService = isOwner || perms.services?.edit
                 }
                 setCashTargetOrder(null) 
               }
-            } else if (selectedPayMethod.code === 'valor_negativo') {
-              // Valor negativo AGORA abate do total da venda (subtrai da dívida)
-              // e entra como movimentação negativa no caixa (SE configurado)
+            } else if (selectedPayMethod.code === 'valor_negativo' || selectedPayMethod.code === 'vale') {
               const applied = amt
               const newRemaining = Math.max(remaining - applied, 0)
-              // Salvamos como negativo para subtrair do saldo do caixa (POS)
               const newPayment = { 
                 method: selectedPayMethod.label, 
                 methodCode: selectedPayMethod.code, 

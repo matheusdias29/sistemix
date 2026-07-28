@@ -30,7 +30,7 @@ const STATUS_COLORS = [
   { label: 'Verde', value: '#22c55e', bg: 'bg-green-500' },
   { label: 'Vermelho', value: '#ef4444', bg: 'bg-red-500' },
   { label: 'Azul', value: '#3b82f6', bg: 'bg-blue-500' },
-  { label: 'Laranja', value: '#f97316', bg: 'bg-orange-500' },
+  { label: 'Roxo', value: '#a855f7', bg: 'bg-purple-500' },
   { label: 'Cinza', value: '#6b7280', bg: 'bg-gray-500' },
   { label: 'Preto', value: '#000000', bg: 'bg-black' }
 ]
@@ -101,7 +101,7 @@ Volte sempre!`
       setStatuses(saved.statuses)
     } else {
       const init = DEFAULT_STATUSES_LIST.map((name, i) => {
-        let color = '#f97316' // Orange default
+        let color = '#a855f7' // Roxo default
         if (name === 'Iniciado') color = '#000000'
         if (name.includes('Finalizado') || name.includes('Faturada')) color = '#22c55e'
         if (name === 'Cancelado') color = '#ef4444'
@@ -195,7 +195,7 @@ Volte sempre!`
     setCurrentStatus({
       id: `st-${Date.now()}`,
       name: '',
-      color: '#f97316',
+      color: '#a855f7',
       locked: false,
       active: true,
       countInGoal: false

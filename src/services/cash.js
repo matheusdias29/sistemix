@@ -177,8 +177,8 @@ export async function addCashTransaction(cashId, transaction) {
     date: transaction.date || new Date() // Garante Data
   }
 
-  // Se for o tipo "VALOR NEGATIVO", inverte o valor para subtrair do caixa
-  if (newTrans.methodCode === 'valor_negativo') {
+  // Se for o tipo "VALOR NEGATIVO" ou "Vale", inverte o valor para subtrair do caixa
+  if (newTrans.methodCode === 'valor_negativo' || newTrans.methodCode === 'vale') {
     newTrans.value = -Math.abs(newTrans.value)
   }
 
