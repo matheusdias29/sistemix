@@ -492,6 +492,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [bulkConfig, setBulkConfig] = useState(null)
   const [bulkReviewQuery, setBulkReviewQuery] = useState('')
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkFeaturedOpen, setBulkFeaturedOpen] = useState(false)
+  const [bulkFeaturedAction, setBulkFeaturedAction] = useState('on') // 'on' | 'off' | 'off-all'
+  const [bulkFeaturedLoading, setBulkFeaturedLoading] = useState(false)
 
   const openReport = async () => {
     setOptionsOpen(false)
@@ -1283,6 +1286,89 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       setOpenMenuId(null)
     } finally {
       setSavingAction(false)
+    }
+  }
+
+  const handleToggleFeatured = async (product) => {
+    if(!isOwner && !perms.products?.edit) return
+    try {
+      setSavingAction(true)
+      const next = !(product.featured === true)
+      const updateResult = await updateProduct(product.id, { featured: next })
+
+      const updater = prev => prev.map(p =>
+        p.id === product.id ? { ...p, featured: next, updatedAt: updateResult.updatedAt } : p
+      )
+
+      if (cachedProducts) {
+        setCachedProducts(updater)
+      }
+      setProducts(updater)
+
+      setOpenMenuId(null)
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const openBulkFeatured = (action) => {
+    if (!isOwner && !perms.products?.edit) return
+    if (action !== 'off-all' && (!selected || selected.size === 0)) {
+      alert('Selecione pelo menos um produto.')
+      setOptionsOpen(false)
+      return
+    }
+    setOptionsOpen(false)
+    setBulkFeaturedAction(action)
+    setBulkFeaturedOpen(true)
+  }
+
+  const confirmBulkFeatured = async () => {
+    if (!isOwner && !perms.products?.edit) {
+      setBulkFeaturedOpen(false)
+      return
+    }
+    try {
+      setBulkFeaturedLoading(true)
+      const action = bulkFeaturedAction
+      const source = (cachedProducts && cachedProducts.length) ? cachedProducts : products
+
+      const targetIds = action === 'off-all'
+        ? source.filter(p => p.storeId === storeId).map(p => p.id)
+        : Array.from(selected || [])
+
+      if (targetIds.length === 0) {
+        setBulkFeaturedOpen(false)
+        return
+      }
+
+      const nextValue = action === 'on'
+
+      let done = 0
+      const CHUNK = 100
+      for (let i = 0; i < targetIds.length; i += CHUNK) {
+        const chunk = targetIds.slice(i, i + CHUNK)
+        await Promise.all(chunk.map(id => updateProduct(id, { featured: nextValue })))
+        done += chunk.length
+      }
+
+      const valueMap = {}
+      for (const id of targetIds) valueMap[id] = nextValue
+
+      const updater = prev => prev.map(p => valueMap[p.id] !== undefined ? { ...p, featured: valueMap[p.id], updatedAt: new Date() } : p)
+
+      if (cachedProducts) {
+        setCachedProducts(updater)
+      }
+      setProducts(updater)
+
+      if (action !== 'off-all') {
+        setSelected(new Set())
+      }
+
+      setBulkFeaturedOpen(false)
+    } finally {
+      setBulkFeaturedLoading(false)
     }
   }
 
@@ -2264,6 +2350,36 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                    Relatório
                  </button>
                  )}
+                 {(isOwner || perms.products?.edit) && (
+                 <button
+                   className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                   onClick={() => openBulkFeatured('on')}
+                   disabled={!selected || selected.size === 0 || savingAction}
+                 >
+                   <span>⭐</span>
+                   Destacar selecionados
+                 </button>
+                 )}
+                 {(isOwner || perms.products?.edit) && (
+                 <button
+                   className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                   onClick={() => openBulkFeatured('off')}
+                   disabled={!selected || selected.size === 0 || savingAction}
+                 >
+                   <span>⭕</span>
+                   Remover destaque dos selecionados
+                 </button>
+                 )}
+                 {(isOwner || perms.products?.edit) && (
+                 <button
+                   className="w-full text-left px-4 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                   onClick={() => openBulkFeatured('off-all')}
+                   disabled={savingAction}
+                 >
+                   <span>✨</span>
+                   Remover destaque de TODOS os produtos
+                 </button>
+                 )}
                  {(isOwner || perms.products?.delete) && (
                  <button 
                    className="w-full text-left px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/40 flex items-center gap-2 text-sm text-red-600 dark:text-red-400 disabled:opacity-40 disabled:cursor-not-allowed"
@@ -2614,9 +2730,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         </button>
                         )}
                         {(isOwner || perms.products?.edit) && (
-                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={()=>{ console.log('destacar', p.id) }}>
-                          <span>⭐</span>
-                          <span>Destacar</span>
+                        <button type="button" className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 text-gray-700 dark:text-gray-200" onClick={()=> handleToggleFeatured(p)}>
+                          <span>{(p.featured === true) ? '⭕' : '⭐'}</span>
+                          <span>{(p.featured === true) ? 'Remover destaque' : 'Destacar'}</span>
                         </button>
                         )}
                         {(isOwner || perms.products?.delete) && (
@@ -3161,6 +3277,74 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           </div>
         </div>
       )}
+
+      {bulkFeaturedOpen && (() => {
+        const action = bulkFeaturedAction
+        let title = 'Destaque em massa'
+        let desc = ''
+        let count = 0
+        let confirmLabel = 'Confirmar'
+        const source = (cachedProducts && cachedProducts.length) ? cachedProducts : products
+        if (action === 'on') {
+          title = 'Destacar produtos selecionados'
+          count = selected ? selected.size : 0
+          desc = `Marcar como destaque ${count} produto(s) selecionado(s).`
+          confirmLabel = 'Destacar'
+        } else if (action === 'off') {
+          title = 'Remover destaque dos selecionados'
+          count = selected ? selected.size : 0
+          desc = `Remover o destaque de ${count} produto(s) selecionado(s).`
+          confirmLabel = 'Remover destaque'
+        } else {
+          title = 'Remover destaque de TODOS os produtos'
+          count = source.filter(p => p.storeId === storeId).length
+          desc = `Esta ação irá remover o destaque de todos os ${count} produto(s) da loja atual.`
+          confirmLabel = 'Remover todos'
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => !bulkFeaturedLoading && setBulkFeaturedOpen(false)} />
+            <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-[95vw] max-w-[520px]">
+              <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center justify-between">
+                <h3 className="text-base font-medium text-gray-900 dark:text-white">{title}</h3>
+              </div>
+              <div className="p-4 space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                <div className="flex items-center gap-2">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 text-lg">
+                    ⭐
+                  </div>
+                  <div>
+                    <div className="font-semibold text-gray-900 dark:text-white">
+                      Ação em massa de destaque
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {desc}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="px-4 py-3 border-t dark:border-gray-700 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="px-3 py-2 text-sm rounded border dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  onClick={() => setBulkFeaturedOpen(false)}
+                  disabled={bulkFeaturedLoading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  className={`px-3 py-2 text-sm rounded text-white hover:brightness-110 disabled:opacity-60 ${action === 'on' ? 'bg-yellow-500' : 'bg-purple-600'}`}
+                  onClick={confirmBulkFeatured}
+                  disabled={bulkFeaturedLoading || count === 0}
+                >
+                  {bulkFeaturedLoading ? 'Processando...' : confirmLabel}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {confirmRemoveOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

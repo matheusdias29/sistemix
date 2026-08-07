@@ -2113,24 +2113,29 @@ const canEditService = isOwner || perms.services?.edit
         )}
 
         {/* Cards de resumo */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
-            <div className="text-xs text-gray-500 dark:text-gray-400">Total</div>
-            <div className="text-green-700 dark:text-green-500 font-semibold">{totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
+            <div className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400">Total</div>
+            <div className="text-green-700 dark:text-green-500 font-semibold text-sm sm:text-base break-words">
+              {totalFinalizadas.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+            </div>
           </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
-            <div className="text-xs text-gray-500 dark:text-gray-400">OS's realizadas</div>
-            <div className="font-semibold text-gray-900 dark:text-gray-100">{qtdFinalizadas}</div>
+          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
+            <div className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400">OS's realizadas</div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base">{qtdFinalizadas}</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 p-4 rounded shadow dark:shadow-none border dark:border-gray-700">
-            <div className="text-xs text-gray-500 dark:text-gray-400">Ticket Médio</div>
-            <div className="font-semibold text-gray-900 dark:text-gray-100">{ticketMedio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+          <div className="bg-white dark:bg-gray-800 p-3 sm:p-4 rounded shadow dark:shadow-none border dark:border-gray-700 col-span-2 md:col-span-1">
+            <div className="text-[11px] sm:text-xs text-gray-500 dark:text-gray-400">Ticket Médio</div>
+            <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm sm:text-base break-words">
+              {ticketMedio.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+            </div>
           </div>
         </div>
 
         {/* Tabela de OS */}
         <div className="mt-4 bg-white dark:bg-gray-800 rounded-lg shadow dark:shadow-none border dark:border-gray-700 overflow-visible">
-          <div className="overflow-x-auto">
+          {/* Versão desktop (tabela horizontal) */}
+          <div className="hidden md:block overflow-x-auto">
           <div
             className="min-w-full grid items-center px-2 py-2 text-xs text-gray-600 dark:text-gray-300 font-bold bg-gray-50 dark:bg-gray-900/50 border-b dark:border-gray-700 gap-1"
             style={{ gridTemplateColumns: `${osColumns.filter(c=>c.visible).map(c=>c.width).join(' ')} 3rem` }}
@@ -2313,10 +2318,125 @@ const canEditService = isOwner || perms.services?.edit
               ))}
             </div>
             
-            {/* Paginação */}
+            {/* Paginação (desktop) */}
             <Pagination />
             </div>
           </div>
+
+          {/* Versão mobile (cards empilhados) */}
+          <div className="md:hidden divide-y divide-gray-100 dark:divide-gray-700">
+            {paginatedOrders.length === 0 && (
+              <div className="py-8 text-center text-xs text-gray-500 dark:text-gray-400">
+                Nenhuma O.S. encontrada no período/filtros.
+              </div>
+            )}
+            {paginatedOrders.map(o => {
+              const dateField = o.updatedAt ? new Date(o.updatedAt.seconds ? o.updatedAt.seconds*1000 : o.updatedAt) : (o.dateIn ? new Date(o.dateIn.seconds ? o.dateIn.seconds*1000 : o.dateIn) : null)
+              const statusS = String(o.status||'').trim()
+              const color = statusColorMap[statusS]
+              let statusEl = null
+              if (color) {
+                const textColor = isDark ? lightenColor(color, 60) : darkenColor(color, 40)
+                statusEl = <span className="px-2 py-1 rounded text-[10px] font-medium" style={{ backgroundColor: hexToRgba(color, 0.15), color: textColor }}>{statusS || '-'}</span>
+              } else {
+                const l = statusS.toLowerCase()
+                let cls = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                statusEl = <span className={`px-2 py-1 rounded text-[10px] ${cls}`}>{statusS || '-'}</span>
+              }
+              const osTotal = (o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))
+              return (
+                <div key={o.id}>
+                  <div
+                    onClick={()=>openEdit(o)}
+                    className="px-3 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-900 dark:text-gray-100 text-xs space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-bold text-[11px] text-green-700 dark:text-green-500 shrink-0">{formatOSNumber(o)}</span>
+                        <span className="font-semibold text-[11px] text-gray-800 dark:text-gray-100 break-all">{o.client || '-'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="font-bold text-[11px] text-green-700 dark:text-green-500 whitespace-nowrap">
+                          {osTotal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                        </span>
+                        <button
+                          onClick={(e)=>{ e.stopPropagation(); setRowMenuOpenId(r => r === o.id ? null : o.id); }}
+                          className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          aria-label="Ações"
+                        >
+                          <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                      <div>
+                        <div className="text-[9px] uppercase text-gray-500 dark:text-gray-400">Atendente</div>
+                        <div className="text-[11px] break-all">{o.attendant || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase text-gray-500 dark:text-gray-400">Técnico</div>
+                        <div className="text-[11px] break-all">{o.technician || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase text-gray-500 dark:text-gray-400">Modelo</div>
+                        <div className="text-[11px] break-all">{o.model || '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] uppercase text-gray-500 dark:text-gray-400">Atualizado</div>
+                        <div className="text-[11px] whitespace-nowrap">
+                          {dateField ? `${dateField.toLocaleDateString('pt-BR')} ${dateField.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}` : '-'}
+                        </div>
+                      </div>
+                      <div className="col-span-2 pt-1 flex items-center justify-between gap-2">
+                        <div className="min-w-0">{statusEl}</div>
+                        <div className="text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap truncate">
+                          <span className="font-medium">Por:</span> {o.updatedBy || o.attendant || '-'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {rowMenuOpenId === o.id && (
+                    <div onClick={(e)=>e.stopPropagation()} className="relative z-50 px-3 pb-3">
+                      <div className="border dark:border-gray-700 rounded-md shadow bg-white dark:bg-gray-800 py-1 text-xs">
+                        {(isOwner || perms.serviceOrders?.edit) && (
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ openEdit(o); setRowMenuOpenId(null)}}>Editar</button>
+                        )}
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ setShareTargetOrder(o); setShareModalOpen(true); setRowMenuOpenId(null) }}>Compartilhar</button>
+                        {(isOwner || perms.serviceOrders?.view) && (
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ setPrintTargetOrder(o); setPrintModalOpen(true); setRowMenuOpenId(null) }}>Imprimir</button>
+                        )}
+                        {(isOwner || perms.serviceOrders?.changeStatus) && (
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ if (o.status && o.status.toLowerCase().includes('faturada')) { showAlert('Não é possível mudar o status de uma O.S. já faturada. Realize o cancelamento do movimento para alterar o status novamente.'); setRowMenuOpenId(null); return; } setStatusTargetOrder(o); setStatusModalOpen(true); setRowMenuOpenId(null) }}>Alterar Status</button>
+                        )}
+                        {(isOwner || perms.serviceOrders?.delete) && (
+                        <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-red-600 dark:text-red-400" onClick={()=>{ handleDeleteOrder(o) }}>Excluir O.S.</button>
+                        )}
+                        {o.cashLaunched ? (
+                          (isOwner || perms.serviceOrders?.invoice) && (
+                          <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ if(!currentCash){ alert('Nenhum caixa aberto.'); return; } removeCashTransactionsByOrder(currentCash.id, o.id).then(()=>updateOrder(o.id, { cashLaunched: false, cashLaunchCashId: null, status: 'Iniciado', payments: [] })).finally(()=>setRowMenuOpenId(null)) }}>Cancelar mov. caixa</button>
+                          )
+                        ) : (
+                          (isOwner || perms.serviceOrders?.invoice) && (
+                          <button className="w-full text-left px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200" onClick={()=>{ if(!currentCash){ alert('Nenhum caixa aberto. Abra o caixa para lançar.'); return; } setCashTargetOrder(o); setOsPayments([]); setRowMenuOpenId(null); setPayMethodsOpen(true) }}>Faturar no caixa</button>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+            {/* Paginação (mobile) */}
+            <div className="py-3">
+              <Pagination />
+            </div>
+          </div>
+
           </>)}
         </>
       ) : (

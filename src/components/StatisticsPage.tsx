@@ -139,7 +139,8 @@ function isSale(order: Order, includeCancelled = false): boolean {
   if (t === 'service_order') return false
 
   // Fallback baseado no status (para dados legados ou sem type)
-  return s === 'venda' || s === 'cliente final' || s === 'cliente lojista' || s === 'pedido'
+  // Pedido NÃO é venda efetivada — é orçamento em aberto, não entra no total de vendas
+  return s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
 }
 
 function getOrderDate(order: Order): Date | null {
@@ -1373,6 +1374,12 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                     </div>
                   </div>
                   <div>
+                    <div className="text-xs text-gray-500">Total dos Custos</div>
+                    <div className="text-orange-600 dark:text-orange-400 font-semibold text-base">
+                      {formatCurrency(totalCost)}
+                    </div>
+                  </div>
+                  <div>
                     <div className="text-xs text-gray-500">Lucro (R$)</div>
                     <div className="text-emerald-700 font-semibold text-base">
                       {formatCurrency(profit)}
@@ -1583,6 +1590,18 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                       {formatCurrency(osTotalValue)}
                     </div>
                   </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Total dos Custos</div>
+                    <div className="text-orange-600 dark:text-orange-400 font-semibold text-base">
+                      {formatCurrency(osCostTotal)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500">Lucro (R$)</div>
+                    <div className="text-emerald-700 font-semibold text-base">
+                      {formatCurrency(osProfit)}
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   <div>
@@ -1595,12 +1614,6 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                     <div className="text-xs text-gray-500">Ticket Médio</div>
                     <div className="text-green-700 font-semibold text-base">
                       {formatCurrency(osAvgTicket)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-gray-500">Lucro (R$)</div>
-                    <div className="text-emerald-700 font-semibold text-base">
-                      {formatCurrency(osProfit)}
                     </div>
                   </div>
                   <div>

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app'
-import { initializeFirestore, collection, getDocs, query, where, limit, startAfter, writeBatch, serverTimestamp } from 'firebase/firestore'
+import { initializeFirestore, collection, getDocs, query, where, limit, startAfter, writeBatch } from 'firebase/firestore'
 import { getAuth, signInAnonymously } from 'firebase/auth'
 import readline from 'readline'
 
@@ -21,15 +21,8 @@ const auth = getAuth(app)
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
 const question = (q) => new Promise((resolve) => rl.question(q, resolve))
 
-function isFeaturedTruthy(value) {
-  if (value === true) return true
-  if (value === 'true' || value === 'TRUE' || value === '1' || value === 1) return true
-  return false
-}
-
 async function main() {
-  console.log('=== Remover Destaque de Produtos (CLI) ===')
-  console.log(`Banco Firestore em uso: ${dbId}`)
+  console.log('=== Remover Favorito de Produtos (CLI) ===')
   try {
     await signInAnonymously(auth)
     console.log('✔ Autenticado.')
@@ -46,7 +39,7 @@ async function main() {
   }
 
   console.log('\nLojas disponíveis:')
-  stores.forEach((s, i) => console.log(`${i + 1}. ${s.name} (ID: ${s.id})`))
+  stores.forEach((s, i) => console.log(`${i + 1}. ${s.name}`))
   const idx = await question('\nSelecione a loja (número): ')
   const store = stores[parseInt(idx) - 1]
   if (!store) {
@@ -55,7 +48,7 @@ async function main() {
   }
   console.log(`✔ Loja: ${store.name}`)
 
-  const confirm = await question(`\nIsso irá desmarcar o destaque de TODOS os produtos da loja ${store.name}. Continuar? (s/n): `)
+  const confirm = await question(`\nIsso irá desmarcar o favorito de todos os produtos da loja ${store.name}. Continuar? (s/n): `)
   if (confirm.toLowerCase() !== 's') {
     console.log('Cancelado.')
     process.exit(0)
@@ -65,7 +58,6 @@ async function main() {
   const BATCH_SIZE = 400
   let totalChecked = 0
   let totalUpdated = 0
-  let totalSkipped = 0
   let lastDoc = null
 
   while (true) {
@@ -92,14 +84,11 @@ async function main() {
     for (const d of snap.docs) {
       const data = d.data()
       totalChecked++
-      if (!data) {
-        totalSkipped++
-        continue
-      }
-      // Detecta destaque de várias formas para garantir a limpeza
-      const hasFeaturedTrue = Object.prototype.hasOwnProperty.call(data, 'featured') && isFeaturedTruthy(data.featured)
-      if (hasFeaturedTrue) {
-        batch.update(d.ref, { featured: false, updatedAt: serverTimestamp() })
+      if (data && (data.favorite === true || data.isFavorite === true)) {
+        const patch = { updatedAt: new Date() }
+        if (data.favorite === true) patch.favorite = false
+        if (data.isFavorite === true) patch.isFavorite = false
+        batch.update(d.ref, patch)
         batchOps++
         totalUpdated++
       }
@@ -109,16 +98,13 @@ async function main() {
       await batch.commit()
     }
 
-    process.stdout.write(`\rVerificados: ${totalChecked} | Atualizados (destaque removido): ${totalUpdated}`)
+    process.stdout.write(`\rVerificados: ${totalChecked} | Atualizados: ${totalUpdated}`)
     lastDoc = snap.docs[snap.docs.length - 1]
   }
 
   console.log(`\n\n✅ Concluído.`)
-  console.log(`Banco Firestore: ${dbId}`)
-  console.log(`Loja: ${store.name} (${store.id})`)
-  console.log(`Total de registros verificados: ${totalChecked}`)
-  console.log(`Total com destaque e que foram atualizados: ${totalUpdated}`)
-  if (totalSkipped > 0) console.log(`Total ignorados (sem dados): ${totalSkipped}`)
+  console.log(`Total verificados: ${totalChecked}`)
+  console.log(`Total atualizados (favorito removido): ${totalUpdated}`)
 
   rl.close()
   setTimeout(() => process.exit(0), 500)
