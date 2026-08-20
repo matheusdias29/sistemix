@@ -17,6 +17,48 @@ const tabs = [
   { key: 'cancelada', label: 'Canceladas' },
 ]
 
+// ------------------------------------------------------------------
+// Status de VENDA/PEDIDO FATURADOS (entram nos somatórios: TOTAL,
+// VENDAS REALIZADAS e TICKET MÉDIO).
+// Mesma whitelist usada no StatisticsPage.tsx + NewSaleModal.jsx
+// + SaleDetailModal.jsx (cancelamento). Inclui normalização NFD
+// para tratar variantes como "logista" (s/ acento), "cliente final", etc.
+// ------------------------------------------------------------------
+const FATURADOS_WHITELIST_RAW = [
+  'venda',
+  'pedido',
+  'cliente final',
+  'cliente lojista',
+  'cliente logista',
+  'finalizado',
+  'pago',
+]
+const normalizeStr = (s) => String(s || '')
+  .toLowerCase()
+  .trim()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+const FATURADOS_SET = new Set(FATURADOS_WHITELIST_RAW.map(normalizeStr))
+// status "faturado oficial" = Cliente Final / Cliente Lojista (contam como "Vendas Realizadas")
+const VENDAS_OFICIAIS_SET = new Set(
+  ['cliente final', 'cliente lojista', 'cliente logista'].map(normalizeStr)
+)
+
+const isStatusFaturado = (status) => {
+  if (!status) return false
+  const norm = normalizeStr(status)
+  if (FATURADOS_SET.has(norm)) return true
+  // Variantes: "Cliente Final" = "Venda", "Finalizado", "Pago"
+  // Para cobrir qualquer outro sinônimo raro, usa "includes" com tokens
+  return FATURADOS_WHITELIST_RAW.some(tok => norm.includes(normalizeStr(tok)))
+}
+const isStatusVendaOficial = (status) => {
+  if (!status) return false
+  const norm = normalizeStr(status)
+  if (VENDAS_OFICIAIS_SET.has(norm)) return true
+  return ['cliente final', 'cliente lojista', 'cliente logista'].some(t => norm.includes(normalizeStr(t)))
+}
+
 const defaultColumns = [
   { id: 'number', label: 'Venda', width: '4.5rem', visible: true, align: 'left' },
   { id: 'client', label: 'Cliente', width: 'minmax(0, 1.5fr)', visible: true, align: 'left' },
@@ -403,16 +445,30 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       })
   }, [orders, query, tab, dateRange, advFilters, products])
 
+  // ================================================================
+  // MÉTRICAS (TOTAL, VENDAS REALIZADAS, TICKET MÉDIO)
+  // Alinhadas com o mesmo padrão de StatisticsPage / NewSaleModal:
+  //   - Total: soma VALORES de todo status faturado (Venda, Pedido,
+  //     Cliente Final, Cliente Lojista, Finalizado, Pago)
+  //   - Vendas Realizadas: contagem só de Cliente Final / Lojista
+  //     (status "oficialmente faturado" da tela Escolher Tipo Cliente)
+  //   - Ticket Médio = Total / Vendas Realizadas.
+  // ================================================================
   const totalValor = useMemo(() => {
     return filtered
-      .filter(o => {
-        const s = (o.status || '').toLowerCase()
-        return s === 'venda' || s === 'pedido'
-      })
+      .filter(o => isStatusFaturado(o.status))
       .reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0)
   }, [filtered])
-  const vendasRealizadas = useMemo(() => filtered.filter(o => (o.status||'').toLowerCase() === 'venda').length, [filtered])
-  const ticketMedio = useMemo(() => filtered.length ? totalValor / filtered.length : 0, [filtered, totalValor])
+
+  const vendasRealizadas = useMemo(
+    () => filtered.filter(o => isStatusFaturado(o.status)).length,
+    [filtered]
+  )
+
+  const ticketMedio = useMemo(
+    () => vendasRealizadas ? totalValor / vendasRealizadas : 0,
+    [vendasRealizadas, totalValor]
+  )
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1
 

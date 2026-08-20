@@ -5,6 +5,8 @@ import { updateOrder, deleteOrder } from '../services/orders'
 import { updateProduct, getProductById, syncUnifiedStockAcrossStores, adjustProductStockTransactionally } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
 import { applyProductsPatchesToDiskCache } from '../lib/datacache'
+import ShareSaleModal from './ShareSaleModal'
+import ServiceOrderPrintModal from './ServiceOrderPrintModal'
 
 export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, store, products = [], user }) {
   if (!open || !sale) return null
