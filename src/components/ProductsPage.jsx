@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { getProductsByPage, searchProductsByPage, getTotalProductsCount, getTotalActiveProductsCount, updateProduct, addProduct, removeProduct, getAllProducts, getActiveProducts, getAvailableProductReference, syncUnifiedStockAcrossStores, findEquivalentProductInList } from '../services/products'
+import { getProductsByPage, searchProductsByPage, getTotalProductsCount, getTotalActiveProductsCount, updateProduct, addProduct, removeProduct, getAllProducts, getActiveProducts, getAvailableProductReference, syncUnifiedStockAcrossStores, findEquivalentProductInList, adjustProductStockTransactionally } from '../services/products'
 import NewProductModal, { ensureSupplierInStore } from './NewProductModal'
 import { listenCategories, updateCategory, addCategory, removeCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
@@ -13,6 +13,7 @@ import StockMovementsModal from './StockMovementsModal'
 import { getStoreById, listStoresByOwner, updateStore, listenStore } from '../services/stores'
 import { collection, query as firestoreQuery, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { applyProductsPatchesToDiskCache } from '../lib/datacache'
 
 // ===========================================================================
 // CONFIGURAÇÃO CENTRAL DE CACHE PERSISTENTE (PRODUTOS)
@@ -1976,20 +1977,39 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const delta = stockType === 'entrada' ? q : -q
     try {
       setSavingAction(true)
-      
-      const cur = Number(p.stock ?? 0)
-      const next = Math.max(0, cur + delta)
-      
-      let updateData = { stock: next }
-      
-      // Se tiver variações, todas devem ter o mesmo estoque unificado
-      if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-        updateData.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
+
+      // ==================================================================
+      // DELTA TRANSACIONAL (igual Venda/OS).
+      // - No servidor: lê estoque REAL (não cache local)
+      // - Aplica delta (PC1 +3, PC2 +5 = 8 correto, somam)
+      // - Atomic: nenhum write concorrente perdido.
+      // ==================================================================
+      let txResult = null
+      try {
+        txResult = await adjustProductStockTransactionally(p.id, delta, {
+          allowNegative: stockType === 'entrada' ? true : false, // baixa nunca deixa negativo
+        })
+      } catch (txErr) {
+        console.warn('[ProductsPage] confirmStockAdjust transação falhou, fallback:', txErr)
       }
 
-      await updateProduct(p.id, updateData)
-      await syncUnifiedStockAcrossStores(p, storeId, updateData)
-      
+      // Dados finais: se transaction deu certo → patch final dela.
+      // Se falhou → fallback antigo (cur + delta em memória) — não deixa o usuário na mão.
+      let finalUpdate = null
+      if (txResult && txResult.patch) {
+        finalUpdate = { ...txResult.patch }
+      } else {
+        const cur = Number(p.stock ?? 0)
+        const next = Math.max(0, cur + delta)
+        finalUpdate = { stock: next }
+        if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
+          finalUpdate.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
+        }
+        await updateProduct(p.id, finalUpdate)
+      }
+
+      await syncUnifiedStockAcrossStores(p, storeId, finalUpdate)
+
       await recordStockMovement({
         productId: p.id,
         productName: p.name,
@@ -2001,11 +2021,22 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         userName: user?.name
       })
 
+      // ==================================================================
+      // Cache em memória + cache em DISCO atualizados NA HORA (ProductsPage
+      // não precisa esperar 10min/1h para mostrar valor novo — inclusive
+      // para outros PCs via storage event cross-tabs)
+      // ==================================================================
+      const userIdForCache = user?.id || user?.uid || user?.memberId || user?.sub || null
+      if (txResult && txResult.patch && userIdForCache) {
+        applyProductsPatchesToDiskCache(storeId, userIdForCache, [{ productId: p.id, patch: txResult.patch }])
+          .catch(e => console.warn(e))
+      }
+
       // Atualiza o cache e o estado local para refletir na UI imediatamente
       const newCached = cachedProducts
-        ? cachedProducts.map(item => item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item)
+        ? cachedProducts.map(item => item.id === p.id ? { ...item, ...finalUpdate, updatedAt: new Date() } : item)
         : null
-      const newProducts = products.map(item => item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item)
+      const newProducts = products.map(item => item.id === p.id ? { ...item, ...finalUpdate, updatedAt: new Date() } : item)
       if (newCached) {
         setCachedProducts(newCached)
         persistCacheToDisk(newCached, cacheIncludesInactive)

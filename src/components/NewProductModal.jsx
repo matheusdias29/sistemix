@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { addProduct, updateProduct, getNextProductReference, getAvailableProductReference, syncUnifiedStockAcrossStores } from '../services/products'
+import React, { useState, useEffect, useRef } from 'react'
+import { addProduct, updateProduct, getNextProductReference, getAvailableProductReference, syncUnifiedStockAcrossStores, editProductManualStockDeltaTransactionally } from '../services/products'
 import { getStoreById, listStoresByOwner } from '../services/stores'
 import { addCategory } from '../services/categories'
 import { addSupplier, updateSupplier, removeSupplier } from '../services/suppliers'
@@ -11,6 +11,7 @@ import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
 import SelectCategoryModal from './SelectCategoryModal'
 import SelectSupplierModal from './SelectSupplierModal'
+import { applyProductsPatchesToDiskCache } from '../lib/datacache'
 
 export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   if (!supplierData || !supplierData.name) return
@@ -57,6 +58,17 @@ export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
 }
 
 export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false, syncStockTogether=false, canCreateCategory=true, canCreateSupplier=true, onSuccess }){
+  // ==================================================================
+  // REFs de snapshot ORIGINAL (exatamente o que apareceu para o usuário
+  // no momento em que ele ABRIU o modal em modo edição). Usado para
+  // calcular DELTA transacional no servidor: delta = novo - original
+  // Nunca mais "último que salvar vence" = PC1 0→3 + PC2 0→5 = 8 soma.
+  // ==================================================================
+  const originalStockRef = useRef(null)       // Number ou null
+  const originalStockInitialRef = useRef(null) // Number ou null
+  const originalStockMinRef = useRef(null)   // Number ou null
+  const originalVariationsRef = useRef(null) // Array cópia profunda ou null
+
   const [name, setName] = useState('')
   const [priceMin, setPriceMin] = useState('0')
   const [priceMax, setPriceMax] = useState('0')
@@ -275,6 +287,26 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   useEffect(() => {
     if(open){
       if(isEdit && product){
+        // ------------------------------------------------------------
+        // GUARDAR SNAPSHOT ORIGINAL do estoque no momento em que o
+        // usuário ABRIU o modal. Isso é O QUE ELE VIU na tela antes de
+        // começar a editar — será usado pro cálculo de DELTA
+        // transacional: delta = (valor novo digitado) - (valor original)
+        // ------------------------------------------------------------
+        const initStock         = Number(product.stock ?? 0)
+        const initStockInitial  = Number(product.stockInitial ?? product.stock ?? 0)
+        const initStockMin      = Number(product.stockMin ?? 0)
+        const initVars          = (Array.isArray(product.variationsData) ? product.variationsData : [])
+                                   .map(v => ({ ...v,
+                                     stock: Number(v.stock ?? initStock),
+                                     stockInitial: Number(v.stockInitial ?? initStockInitial),
+                                     stockMin: Number(v.stockMin ?? initStockMin),
+                                   }))
+        originalStockRef.current          = initStock
+        originalStockInitialRef.current   = initStockInitial
+        originalStockMinRef.current       = initStockMin
+        originalVariationsRef.current     = initVars
+
         setTab('cadastro')
         setName(product.name || '')
         setCategoryId(product.categoryId || '')
@@ -336,7 +368,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         const currentCatalogLabels = (product.catalogCatalogLabels && typeof product.catalogCatalogLabels === 'object') ? product.catalogCatalogLabels : {}
         setCatalogCatalogLabels(currentCatalogLabels)
       } else {
-        // Modo Novo Produto
+        // Modo Novo Produto — resetar refs (não temos nada para calcular delta anterior)
+        originalStockRef.current          = null
+        originalStockInitialRef.current   = null
+        originalStockMinRef.current       = null
+        originalVariationsRef.current     = null
+
         if (pricingConfig.groups && pricingConfig.groups.length > 0) {
           const labels = pricingConfig.groups[activePricingGroupIdx]?.labels || []
           setVariationsData(generateFromLabels(labels, []))
@@ -520,13 +557,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         reference: finalReference,
         validityDate: validityDate || null,
         controlStock: !!controlStock,
-        stockInitial: finalStock,
-        stockMin: finalStockMin,
-        stock: finalStock,
         showInCatalog: !!showInCatalog,
         featured: !!featured,
         variations: variationsCount,
-        variationsData: syncedVariationsData,
         catalogVisibleVariationNames: finalCatalogNames,
         catalogCatalogLabels: finalCatalogLabels,
         description: description.trim(),
@@ -553,15 +586,113 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         rootId: product?.rootId || crypto.randomUUID(),
         pricingGroupKey: (pricingConfig.groups && pricingConfig.groups[activePricingGroupIdx]?.key) || null,
       }
-      if(isEdit && product?.id){
-        const updatedProduct = await updateProduct(product.id, data)
-        await syncUnifiedStockAcrossStores({ ...product, ...data, id: product.id }, storeId, {
-          stock: data.stock,
-          stockInitial: data.stockInitial,
-          stockMin: data.stockMin,
-          variationsData: data.variationsData
+
+      // ==================================================================
+      // CALCULAR DELTAS de estoque (edição manual)
+      // ==================================================================
+      // Estratégia: nunca gravar stock/stockMin/stockInitial como valor
+      // absoluto em edição. Calcular delta = (novo digitado) - (o que o
+      // usuário VIU quando abriu o modal). Aplicar DELTA em runTransaction
+      // no servidor. Assim PC1 0→3 + PC2 0→5 somam 8 corretamente.
+      // ==================================================================
+      const originalSnapStock        = originalStockRef.current
+      const originalSnapStockInitial = originalStockInitialRef.current
+      const originalSnapStockMin     = originalStockMinRef.current
+      const originalSnapVariations   = Array.isArray(originalVariationsRef.current) ? originalVariationsRef.current : []
+
+      const deltaStock         = (originalSnapStock        !== null) ? (finalStock - Number(originalSnapStock)) : 0
+      const deltaStockInitial  = (originalSnapStockInitial !== null) ? (finalStock - Number(originalSnapStockInitial)) : 0
+      const deltaStockMin      = (originalSnapStockMin     !== null) ? (finalStockMin - Number(originalSnapStockMin)) : 0
+
+      // Deltas por variação (por idx e por nome para fallback)
+      const variationsDeltas = []
+      if (originalSnapVariations.length > 0 && hasVars) {
+        const syncedVarsForOrigMatch = hasVars ? variationsData : []
+        originalSnapVariations.forEach((origV, idx) => {
+          // Buscar correspondente pelo mesmo idx, depois por nome.
+          let match = syncedVarsForOrigMatch[idx]
+          if (!match && origV.name) {
+            match = syncedVarsForOrigMatch.find(v => (v.name || '') === (origV.name || ''))
+          }
+          if (!match) return
+          const nStock        = finalStock      // estoque unificado
+          const nStockInit    = finalStock      // stockInit = stock unificado
+          const nStockMin     = finalStockMin
+          const oStock        = Number(origV.stock ?? originalSnapStock ?? 0)
+          const oStockInit    = Number(origV.stockInitial ?? originalSnapStockInitial ?? 0)
+          const oStockMin     = Number(origV.stockMin ?? originalSnapStockMin ?? 0)
+          variationsDeltas.push({
+            idx,
+            name: origV.name || null,
+            stock:         nStock    - oStock,
+            stockInitial:  nStockInit- oStockInit,
+            stockMin:      nStockMin - oStockMin,
+          })
         })
-        if (onSuccess) onSuccess({ ...data, ...updatedProduct, id: product.id })
+      }
+
+      const userIdForCache = user?.id || user?.uid || user?.memberId || user?.sub || null
+      const patchesForCacheDisk = []
+
+      if(isEdit && product?.id){
+        // ================================================================
+        // [1] EDIÇÃO: estoque = DELTA transacional. Outros campos = absoluto.
+        // ================================================================
+        let finalPatchFromTx = null
+        if (originalSnapStock !== null) { // refs foram preenchidos = edição real
+          try {
+            const txResult = await editProductManualStockDeltaTransactionally(product.id, {
+              stock: deltaStock,
+              stockInitial: deltaStockInitial,
+              stockMin: deltaStockMin,
+              variations: variationsDeltas,
+            })
+            if (txResult && txResult.patch) finalPatchFromTx = txResult.patch
+            if (txResult && txResult.patch) {
+              patchesForCacheDisk.push({ productId: product.id, patch: txResult.patch })
+            }
+          } catch (txErr) {
+            console.warn('[NewProductModal] Transação delta falhou. Fallback update normal:', txErr)
+          }
+        }
+
+        // Campos NÃO relacionados a estoque continuam absolutos.
+        // Não gravamos stock/stockMin/stockInitial/variationsData via
+        // updateProduct: a transaction cuidou deles e já salvou com valores
+        // finais corretos (soma de delta concorrente).
+        const dataWithoutStock = { ...data }
+        delete dataWithoutStock.stock
+        delete dataWithoutStock.stockInitial
+        delete dataWithoutStock.stockMin
+        delete dataWithoutStock.variationsData
+
+        // Unimos: dados básicos do produto + patch FINAL da transaction.
+        // Assim, `updatedProduct` final retorna ao caller com os valores
+        // finais de estoque reais do servidor.
+        const stockFinalPatch = finalPatchFromTx || {
+          stock: finalStock,
+          stockInitial: finalStock,
+          stockMin: finalStockMin,
+          variationsData: syncedVariationsData,
+        }
+        const updatedProduct = await updateProduct(product.id, { ...dataWithoutStock, ...stockFinalPatch })
+        const mergedFinal = { ...dataWithoutStock, ...stockFinalPatch, ...updatedProduct, id: product.id }
+
+        // syncUnifiedStockAcrossStores: recebe os valores FINAIS (do patch da
+        // transaction, não o que o usuário digitou localmente).
+        await syncUnifiedStockAcrossStores(mergedFinal, storeId, {
+          stock: stockFinalPatch.stock,
+          stockInitial: stockFinalPatch.stockInitial,
+          stockMin: stockFinalPatch.stockMin,
+          variationsData: stockFinalPatch.variationsData,
+        })
+
+        // Atualiza cache em disco NA HORA.
+        if (patchesForCacheDisk.length > 0 && userIdForCache) {
+          applyProductsPatchesToDiskCache(storeId, userIdForCache, patchesForCacheDisk).catch(e => console.warn(e))
+        }
+
+        if (onSuccess) onSuccess(mergedFinal)
 
         // Sincronização na edição
         if (syncProducts) {
@@ -604,9 +735,9 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 }
 
                 const sourceStockData = {
-                  stock: Number(data.stock ?? 0),
-                  stockInitial: Number(data.stockInitial ?? 0),
-                  stockMin: Number(data.stockMin ?? 0)
+                  stock: Number(stockFinalPatch.stock ?? finalStock),
+                  stockInitial: Number(stockFinalPatch.stockInitial ?? finalStock),
+                  stockMin: Number(stockFinalPatch.stockMin ?? finalStockMin),
                 }
 
                 for (const store of otherStores) {
@@ -701,16 +832,68 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                         updatePayload.reference = targetProduct.reference
                       }
 
+                      // NÃO escrevemos stock/stockMin/stockInit/variationsData via updateProduct.
+                      // 2 casos:
+                      //   syncStockTogether = true: aplicar DELTA transacional (mesmo delta que
+                      //     usuário aplicou no produto ORIGINAL).
+                      //   syncStockTogether = false: manter estoque DESTA loja (não alterar).
+                      delete updatePayload.stock
+                      delete updatePayload.stockInitial
+                      delete updatePayload.stockMin
+                      delete updatePayload.variationsData
+
                       if (syncStockTogether) {
-                        updatePayload.stock = sourceStockData.stock
-                        updatePayload.stockInitial = sourceStockData.stockInitial
-                        updatePayload.stockMin = sourceStockData.stockMin
-                        updatePayload.variationsData = buildSyncedVariations(updatePayload.variationsData, sourceStockData)
+                        // Aplicar DELTA na loja destino também (mesmos deltas do produto fonte).
+                        // Se houver concorrência aqui (2 pessoas sync ao mesmo tempo),
+                        // a transaction soma corretamente.
+                        try {
+                          const txRes = await editProductManualStockDeltaTransactionally(targetProduct.id, {
+                            stock: deltaStock,
+                            stockInitial: deltaStockInitial,
+                            stockMin: deltaStockMin,
+                            variations: variationsDeltas,
+                          })
+                          if (txRes && txRes.patch) {
+                            Object.assign(updatePayload, {
+                              stock: txRes.patch.stock,
+                              stockInitial: txRes.patch.stockInitial,
+                              stockMin: txRes.patch.stockMin,
+                              variationsData: txRes.patch.variationsData,
+                            })
+                            patchesForCacheDisk.push({ productId: targetProduct.id, patch: txRes.patch })
+                          } else {
+                            Object.assign(updatePayload, {
+                              stock: sourceStockData.stock,
+                              stockInitial: sourceStockData.stockInitial,
+                              stockMin: sourceStockData.stockMin,
+                              variationsData: buildSyncedVariations([], sourceStockData),
+                            })
+                          }
+                        } catch (txErr2) {
+                          console.warn('[Sync] Transação destino falhou, fallback absoluto:', txErr2)
+                          Object.assign(updatePayload, {
+                            stock: sourceStockData.stock,
+                            stockInitial: sourceStockData.stockInitial,
+                            stockMin: sourceStockData.stockMin,
+                            variationsData: buildSyncedVariations([], sourceStockData),
+                          })
+                        }
                       } else {
-                        updatePayload.stock = Number(targetProduct.stock ?? 0)
-                        updatePayload.stockInitial = Number(targetProduct.stockInitial ?? 0)
-                        updatePayload.stockMin = Number(targetProduct.stockMin ?? 0)
-                        updatePayload.variationsData = buildSyncedVariations(updatePayload.variationsData, targetProduct)
+                        // Não sync estoque: manter como ESTAVA na outra loja (ler do targetProduct).
+                        const fallbackVars = Array.isArray(targetProduct.variationsData) ? targetProduct.variationsData : []
+                        Object.assign(updatePayload, {
+                          stock: Number(targetProduct.stock ?? 0),
+                          stockInitial: Number(targetProduct.stockInitial ?? 0),
+                          stockMin: Number(targetProduct.stockMin ?? 0),
+                          variationsData: fallbackVars.length > 0
+                            ? fallbackVars.map(v => ({
+                                ...v,
+                                stock: Number(v.stock ?? targetProduct.stock ?? 0),
+                                stockInitial: Number(v.stockInitial ?? targetProduct.stockInitial ?? 0),
+                                stockMin: Number(v.stockMin ?? targetProduct.stockMin ?? 0),
+                              }))
+                            : []
+                        })
                       }
 
                       await updateProduct(targetProduct.id, updatePayload)
@@ -761,7 +944,28 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
       } else {
         data.createdBy = user?.name || 'Sistema'
+        // Produto NOVO = nenhuma concorrência anterior ainda. Valor absoluto normal.
+        data.stock         = finalStock
+        data.stockInitial  = finalStock
+        data.stockMin      = finalStockMin
+        data.variationsData = syncedVariationsData
         const result = await addProduct(data, storeId)
+
+        // Atualizar cache em disco: produto novo
+        if (userIdForCache) {
+          patchesForCacheDisk.push({
+            productId: result?.id || null,
+            patch: {
+              stock: data.stock,
+              stockInitial: data.stockInitial,
+              stockMin: data.stockMin,
+              variationsData: data.variationsData,
+            }
+          })
+          if (patchesForCacheDisk.some(p => p.productId)) {
+            applyProductsPatchesToDiskCache(storeId, userIdForCache, patchesForCacheDisk.filter(p => p.productId)).catch(e => console.warn(e))
+          }
+        }
         if (onSuccess) onSuccess(result)
 
         // Sincronização entre lojas (somente na criação)

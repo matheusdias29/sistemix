@@ -634,3 +634,147 @@ export async function adjustProductStockTransactionally(productId, delta, opts =
 
   return result
 }
+
+// ====================================================================
+// editProductManualStockDeltaTransactionally
+// ====================================================================
+// Usado SOMENTE quando o usuário EDITA um produto EXISTENTE na tela
+// de cadastro (NewProductModal modo edição).
+//
+// A diferença entre ela e adjustProductStockTransactionally é que aqui
+// nós aplicamos DELTAS baseados no que o USUÁRIO VIU QUANDO ABRIU O
+// MODAL, gravados em refs. Se 2 pessoas abrem o mesmo produto com
+// estoque 0, e uma digita 3 (delta +3) e outra digita 5 (delta +5),
+// no servidor fica 0 + 3 + 5 = 8. Nunca mais "último que salvar vence".
+//
+// Entrada:
+//   productId  : string
+//   deltas     : {
+//     stock          : number (delta = novo digitado - original que apareceu)
+//     stockInitial   : number delta
+//     stockMin       : number delta
+//     variations     : Array<{ idx?: number, name?: string, stock, stockInitial, stockMin }>
+//                      (idx preferencial, usa name como fallback de match)
+//   }
+//   opts       : { allowNegative?: boolean = false }
+//
+// Retorna: Promise<{ ok, finalStock, finalStockInitial, finalStockMin,
+//                    finalVariationsData, patch }>
+// ====================================================================
+export async function editProductManualStockDeltaTransactionally(productId, deltas = {}, opts = {}) {
+  if (!productId) throw new Error('productId obrigatório (editProductManualStockDeltaTransactionally)')
+  const allowNegative = !!opts?.allowNegative
+
+  const dStock         = Number(deltas?.stock ?? 0)
+  const dStockInitial  = Number(deltas?.stockInitial ?? 0)
+  const dStockMin      = Number(deltas?.stockMin ?? 0)
+  const varDeltas      = Array.isArray(deltas?.variations) ? deltas.variations : []
+
+  // Se não tem absolutamente nenhum delta para aplicar, sair rápido
+  if (
+    dStock === 0 && dStockInitial === 0 && dStockMin === 0 &&
+    varDeltas.every(v => (Number(v?.stock||0) === 0 && Number(v?.stockInitial||0) === 0 && Number(v?.stockMin||0) === 0))
+  ) {
+    return { ok: true, skipped: true, patch: {} }
+  }
+
+  const ref = doc(db, 'products', productId)
+
+  const result = await runTransaction(db, async (txn) => {
+    const snap = await txn.get(ref)
+    if (!snap.exists()) throw new Error(`Produto ${productId} não existe no servidor`)
+    const data = snap.data() || {}
+
+    // ----------------------------------------------------------------
+    // 1) Lê valores REAIS do servidor (não de cache!)
+    // ----------------------------------------------------------------
+    const hasVars = Array.isArray(data.variationsData) && data.variationsData.length > 0
+    let curStock        = Number(data.stock ?? 0)
+    let curStockInitial = Number(data.stockInitial ?? 0)
+    let curStockMin     = Number(data.stockMin ?? 0)
+    let variationsData  = hasVars ? data.variationsData.map(v => ({ ...v })) : []
+
+    // ----------------------------------------------------------------
+    // 2) Aplica deltas no estoque principal
+    // ----------------------------------------------------------------
+    let newStock        = curStock + dStock
+    let newStockInitial = curStockInitial + dStockInitial
+    let newStockMin     = curStockMin + dStockMin
+    if (!allowNegative) {
+      newStock        = Math.max(0, newStock)
+      newStockInitial = Math.max(0, newStockInitial)
+      newStockMin     = Math.max(0, newStockMin)
+    }
+
+    // ----------------------------------------------------------------
+    // 3) Aplica deltas nas variações (se existirem)
+    // ----------------------------------------------------------------
+    let newVars = null
+    if (hasVars && varDeltas.length > 0) {
+      newVars = variationsData
+      varDeltas.forEach(vd => {
+        // Prioridade de match: idx exato > nome exato
+        let matchIdx = -1
+        if (typeof vd.idx === 'number' && vd.idx >= 0 && vd.idx < newVars.length) {
+          matchIdx = vd.idx
+        } else if (vd.name) {
+          matchIdx = newVars.findIndex(vv => vv.name === vd.name)
+        }
+        if (matchIdx < 0) return
+        const target = newVars[matchIdx]
+        const nVs = Number(target.stock ?? 0) + Number(vd.stock ?? 0)
+        const nVi = Number(target.stockInitial ?? 0) + Number(vd.stockInitial ?? 0)
+        const nVm = Number(target.stockMin ?? 0) + Number(vd.stockMin ?? 0)
+        target.stock = allowNegative ? nVs : Math.max(0, nVs)
+        target.stockInitial = allowNegative ? nVi : Math.max(0, nVi)
+        target.stockMin = allowNegative ? nVm : Math.max(0, nVm)
+      })
+    }
+
+    // ----------------------------------------------------------------
+    // 4) Estratégia: ESTOQUE UNIFICADO (nunca separado). Após deltas,
+    //    propagar stock principal para TODAS as variações, e vice-
+    //    versa (maior valor = referência).
+    // ----------------------------------------------------------------
+    if (hasVars && newVars) {
+      const varMaxStock = Math.max(...newVars.map(v => Number(v?.stock ?? 0)), newStock)
+      const varMaxInit  = Math.max(...newVars.map(v => Number(v?.stockInitial ?? 0)), newStockInitial)
+      const varMaxMin   = Math.max(...newVars.map(v => Number(v?.stockMin ?? 0)), newStockMin)
+      newStock        = varMaxStock
+      newStockInitial = varMaxInit
+      newStockMin     = varMaxMin
+      newVars = newVars.map(vv => ({
+        ...vv,
+        stock: newStock,
+        stockInitial: newStockInitial,
+        stockMin: newStockMin,
+      }))
+    }
+
+    // ----------------------------------------------------------------
+    // 5) Monta patch final + grava atomicamente na transaction
+    // ----------------------------------------------------------------
+    const patch = {
+      stock: newStock,
+      stockInitial: newStockInitial,
+      stockMin: newStockMin,
+      updatedAt: serverTimestamp(),
+    }
+    if (newVars) patch.variationsData = newVars
+    if ('active' in data) patch.active = data.active === false ? false : true
+
+    txn.update(ref, patch)
+
+    return {
+      ok: true,
+      productId,
+      finalStock: newStock,
+      finalStockInitial: newStockInitial,
+      finalStockMin: newStockMin,
+      finalVariationsData: newVars,
+      patch,
+    }
+  })
+
+  return result
+}
