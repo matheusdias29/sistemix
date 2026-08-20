@@ -1,8 +1,155 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { getClientsByPage, searchClientsByPage, getTotalClientsCount, removeClient, getAllClients } from '../services/clients'
+import { getClientsByPage, searchClientsByPage, getTotalClientsCount, getTotalActiveClientsCount, removeClient, getAllClients, getActiveClients } from '../services/clients'
 import { getClientOrderHistory } from '../services/orders'
 import NewClientModal from './NewClientModal'
 import ClientsFilterModal from './ClientsFilterModal'
+
+// ===========================================================================
+// CONFIGURAÇÃO CENTRAL DE CACHE PERSISTENTE
+// ===========================================================================
+// --- CONFIG CENTRAL DO SMART CACHE PERSISTENTE ---
+// Para VOLTAR ao comportamento original (cache só em memória, sem disco):
+// 1. Mude a linha abaixo para: false
+// 2. Salve o arquivo. Fim! Nenhuma outra alteração é necessária.
+const PERSISTENT_CACHE_ENABLED = true
+
+// Versão de schema do cache: altere este número para 3, 4, etc. SEMPRE que mudar
+// a estrutura de dados dos clientes (ex: novo campo, mudança no tipo). Todo cache
+// com VERSÃO DIFERENTE é APAGADO imediatamente, sem validação.
+// Atual p/ 2: corrige bug "82/22k clientes" (orderBy __name__, requer totalCount salvo)
+// Atual p/ 3: Estratégia "só ativos no cache inicial". Novo campo includesInactive.
+const CACHE_SCHEMA_VERSION = 3
+
+// Tempo que o cache salvo no disco é considerado "fresco" antes de recarregar
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hora
+
+// Tamanho máximo para usar localStorage; acima disso, tenta IndexedDB
+const LOCALSTORAGE_MAX_BYTES = 4 * 1024 * 1024 // 4 MB
+
+// Prefixo único da chave por (USUÁRIO + loja) — evita cache compartilhado entre contas
+// Importante: usuário A NÃO PODE ver o cache do usuário B, mesmo na mesma loja (permissões diferentes, segurança).
+const cacheKey = (storeId, userId) => `sistemix:clients:u${String(userId || 'anon')}:s${String(storeId || 'default')}`
+
+// Helper GLOBAL para limpar TODO o cache de clientes de um usuário (usado no logout / troca de conta)
+// Basta importar { clearAllClientsCacheForUser } de './ClientsPage.jsx' onde tiver o botão Sair
+const CLIENT_CACHE_KEY_REGEX = /^sistemix:clients:u([^:]+):s(.+)$/
+export const clearAllClientsCacheForUser = async (userId) => {
+  const uid = String(userId || 'anon')
+  // 1. Limpa localStorage
+  try {
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k) continue
+      if (k.startsWith(`sistemix:clients:u${uid}:`)) keysToRemove.push(k)
+      // Chaves antigas (sem userId) — limpeza migração: remove tudo
+      if (k.startsWith('sistemix:clients:') && !k.includes(':u')) keysToRemove.push(k)
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+  } catch {}
+  // 2. Limpa IndexedDB (pode haver entradas grandes lá)
+  try {
+    if (typeof indexedDB !== 'undefined') {
+      const req = indexedDB.open('sistemix_cache', 1)
+      req.onupgradeneeded = () => { try { req.result.createObjectStore('kv') } catch {} }
+      req.onsuccess = () => {
+        const db = req.result
+        try {
+          const tx = db.transaction('kv', 'readwrite')
+          const store = tx.objectStore('kv')
+          const cursorReq = store.openCursor()
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result
+            if (!cursor) return
+            const k = String(cursor.key || '')
+            const matchOld = k.startsWith('sistemix:clients:') && !k.includes(':u')
+            const matchUid = k.startsWith(`sistemix:clients:u${uid}:`)
+            if (matchOld || matchUid) cursor.delete()
+            cursor.continue()
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  console.log(`[Clientes] Cache de clientes limpo para usuário ${uid} (logout / troca de conta).`)
+  return true
+}
+
+// Helper: remove 1 única chave de cache (storeId + userId) — usado ao trocar de loja
+const clearOneClientsCache = async (storeId, userId) => {
+  const k = cacheKey(storeId, userId)
+  try { localStorage.removeItem(k) } catch {}
+  try {
+    if (typeof indexedDB !== 'undefined') {
+      const db = await openIDB()
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction('kv', 'readwrite')
+          const req = tx.objectStore('kv').delete(k)
+          tx.oncomplete = () => resolve(true)
+          req.onerror = () => resolve(false)
+        } catch { resolve(false) }
+      })
+    }
+  } catch { return false }
+}
+
+// ---- Wrapper de Storage (localStorage → IndexedDB fallback, auto) ----
+// IndexedDB super-simples inline (NÃO PRECISA INSTALAR NENHUMA LIB)
+let __idbPromise = null
+const openIDB = () => {
+  if (__idbPromise) return __idbPromise
+  __idbPromise = new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open('sistemix_cache', 1)
+      req.onupgradeneeded = () => {
+        try { req.result.createObjectStore('kv') } catch {}
+      }
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    } catch (e) { reject(e) }
+  })
+  return __idbPromise
+}
+const idbGet = async (key) => {
+  try {
+    const db = await openIDB()
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction('kv', 'readonly')
+      const req = tx.objectStore('kv').get(key)
+      req.onsuccess = () => resolve(req.result ?? null)
+      req.onerror = () => reject(req.error)
+    })
+  } catch { return null }
+}
+const idbSet = async (key, value) => {
+  try {
+    const db = await openIDB()
+    return new Promise((resolve) => {
+      const tx = db.transaction('kv', 'readwrite')
+      tx.objectStore('kv').put(value, key)
+      tx.oncomplete = () => resolve(true)
+      tx.onerror = () => resolve(false)
+    })
+  } catch { return false }
+}
+const storageSet = async (k, value) => {
+  try {
+    const json = JSON.stringify(value)
+    if (json.length < LOCALSTORAGE_MAX_BYTES / 2) {
+      localStorage.setItem(k, json)
+      return true
+    }
+  } catch {}
+  return idbSet(k, value)
+}
+const storageGet = async (k) => {
+  try {
+    const raw = localStorage.getItem(k)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return idbGet(k)
+}
 
 export default function ClientsPage({ storeId, addNewSignal, user }){
   const isOwner = !user?.memberId
@@ -28,6 +175,13 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const [cachedClients, setCachedClients] = useState(null)
   const [isCaching, setIsCaching] = useState(false)
 
+  // Cache Persistente UI state
+  const [cacheLoadedFromDisk, setCacheLoadedFromDisk] = useState(false)
+  const [cacheSyncing, setCacheSyncing] = useState(false)
+  const [cacheLastUpdate, setCacheLastUpdate] = useState(null) // Date | null
+  const [cacheForceMissNonce, setCacheForceMissNonce] = useState(0) // +1 = invalida tudo
+  const [cacheIncludesInactive, setCacheIncludesInactive] = useState(false) // true = cache tem inativos (todos baixados); false = SÓ ATIVOS (estratégia padrão, economia)
+
   // (Sem cache global; carregamento ocorre somente dentro da página)
   
   // Paginação
@@ -51,33 +205,434 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const [filters, setFilters] = useState({}) // { status: 'active'|'inactive', credit: 'allowed'|'denied', birthday: boolean }
 
   const initialAddSignal = useRef(addNewSignal)
+  const uid = user?.id || user?.uid || user?.memberId || 'anon'
+  const prevContextRef = useRef(null) // { storeId, uid } — contexto anterior para invalidar cache
+
+  // Refs para evitar que useEffect de on-demand (baixar inativos) dispare
+  // PREMATURAMENTE (antes de ler o disco / terminar boot).
+  // Bug que estava acontecendo:
+  //   - filters.status inicial = 'active' (padrao) OU ja vem 'inactive'/'' do
+  //     estado salvo de sessao anterior.
+  //   - cacheIncludesInactive inicial = false (padrao) / cachedClients = null
+  //   - useEffect on-demand RODA ANTES do boot ler o disco e setar os valores.
+  //   - Resultado: baixava TUDO (incluindo inativos) VOLTANDO DE OUTRA PAGINA,
+  //     mostrava chip "Sincronizando" sem usuario ter clicado em NADA.
+  const prevFilterStatusRef = useRef(null) // null = ainda nao temos valor valido apos boot
+  const bootFinishedRef = useRef(false) // true = boot principal (B) terminou (hit ou miss)
+
+  // ============================================================
+  // HELPER: SALVA CACHE ATUALIZADO NO DISCO (IMEDIATAMENTE APÓS CRUD)
+  // Responde a pergunta do usuário: "ao fazer alteração envia automaticamente p/ banco? SIM,
+  // Firestore SIM sempre. E AGORA o cache persistente no DISCO também é atualizado na hora,
+  // para não perder a alteração ao recarregar a página antes do background sync (1h/10min)."
+  // ============================================================
+  const persistCacheToDisk = (newData, includesInactiveNow) => {
+    if (!PERSISTENT_CACHE_ENABLED) return
+    if (!Array.isArray(newData)) return
+    try {
+      const k = cacheKey(storeId, uid)
+      const entry = {
+        schemaVersion: CACHE_SCHEMA_VERSION,
+        data: newData,
+        savedAt: Date.now(),
+        totalCount: newData.length,
+        includesInactive: includesInactiveNow === true,
+      }
+      // Fire and forget: não await (não bloqueia a UI). Disco salva em ~1ms.
+      storageSet(k, entry).then(() => {
+        setCacheLastUpdate(new Date())
+      })
+    } catch {}
+  }
+
+  // ============================================================
+  // INVALIDAÇÃO AUTOMÁTICA DE CACHE AO TROCAR CONTA / LOJA
+  // ============================================================
+  // Observa quando user.id OU storeId mudar (ex: saiu da conta e entrou em outra,
+  // ou trocou de loja no seletor) e:
+  //  - reseta TODOS os estados de cache na tela (cachedClients, totalResults...)
+  //  - apaga do localStorage/indexedDB o cache do CONTEXTO ANTERIOR
+  //  - o próximo useEffect de boot() vai carregar tudo NOVAMENTE do zero
+  useEffect(() => {
+    if (!PERSISTENT_CACHE_ENABLED) return
+    const currentCtx = { storeId: String(storeId || ''), uid: String(uid || '') }
+    const prev = prevContextRef.current
+    prevContextRef.current = currentCtx
+
+    // Primeira renderização — não limpa nada
+    if (!prev) return
+
+    // Troca de usuário OU troca de loja → limpa estado + cache do contexto anterior
+    if (prev.uid !== currentCtx.uid || prev.storeId !== currentCtx.storeId) {
+      console.log(`[Clientes] Contexto alterado ${prev.uid}@${prev.storeId} → ${currentCtx.uid}@${currentCtx.storeId}. Invalidando cache.`)
+      // Reseta estado em memória imediatamente (evita mostrar dados antigos na tela)
+      setCachedClients(null)
+      setClients([])
+      setTotalResults(0)
+      setCacheLoadedFromDisk(false)
+      setCacheSyncing(false)
+      setCacheLastUpdate(null)
+      setCacheIncludesInactive(false) // Ao trocar contexto, SÓ ATIVOS no primeiro boot
+      setPage(1)
+      setLoading(false)
+      // Reseta refs de proteção on-demand para o NOVO contexto (nova loja/usuario)
+      bootFinishedRef.current = false
+      prevFilterStatusRef.current = null
+      // Limpa armazenamento em disco do contexto ANTERIOR (async, não trava UI)
+      clearOneClientsCache(prev.storeId, prev.uid).catch(() => {})
+    }
+  }, [storeId, uid])
+
+  const handleClearAllPersistentCache = async () => {
+    try {
+      await clearOneClientsCache(storeId, uid)
+      console.log('[Clientes] Botão: cache apagado manualmente.')
+      // Reseta estado em memória
+      setCachedClients(null)
+      setClients([])
+      setTotalResults(0)
+      setCacheLoadedFromDisk(false)
+      setCacheLastUpdate(null)
+      setPage(1)
+    } catch (e) {
+      console.error('[Clientes] Erro ao apagar cache manualmente:', e)
+    }
+    // Incrementa nonce: força o useEffect boot a rodar MESMO que storeId/uid sejam iguais
+    setCacheForceMissNonce(n => n + 1)
+  }
+
+  const handleForceRefresh = () => {
+    const includeInactive = cacheIncludesInactive === true
+    refreshCacheFromServer(false, null, includeInactive).catch(() => {})
+  }
+
+  // includeInactive:
+  //   false (padrão) => baixa SÓ CLIENTES ATIVOS via getActiveClients() — economia de leitura.
+  //   true => baixa TODOS os clientes (incluindo inativos) via getAllClients() — só se o usuário
+  //           explicitamente clicar em Filtros e pedir status=inactive/todos.
+  const refreshCacheFromServer = async (silent = true, knownTotal = null, includeInactive = false) => {
+    try {
+      if (!silent) setCacheSyncing(true)
+      setIsCaching(true)
+      setCacheIncludesInactive(!!includeInactive)
+      // Se ainda não sabemos o total real, busca 1 vez ANTES de baixar tudo
+      // (usado para validação de integridade do cache depois)
+      let totalCountServer = knownTotal
+      if (typeof totalCountServer !== 'number') {
+        try {
+          totalCountServer = includeInactive
+            ? await getTotalClientsCount(storeId)
+            : await getTotalActiveClientsCount(storeId)
+        } catch { totalCountServer = null }
+      }
+
+      const all = includeInactive
+        ? await getAllClients(storeId)
+        : await getActiveClients(storeId)
+
+      const savedAt = Date.now()
+      const downloaded = all.length
+
+      // 1) Validação de INTEGRIDADE: se sabemos o total real do servidor
+      //    e veio MENOS que o esperado → NÃO SALVAMOS cache incompleto (evita bug 81 vs 22k!)
+      if (typeof totalCountServer === 'number' && downloaded < totalCountServer * 0.995) {
+        const pct = Math.round((downloaded / totalCountServer) * 100)
+        console.warn(`[Clientes] Cache incompleto! includeInactive=${includeInactive} Downloaded=${downloaded} vs ServerTotal=${totalCountServer} (${pct}%). Tentando 2x...`)
+        const all2 = includeInactive ? await getAllClients(storeId) : await getActiveClients(storeId)
+        if (all2.length >= downloaded && all2.length >= totalCountServer * 0.995) {
+          const cacheEntry = { schemaVersion: CACHE_SCHEMA_VERSION, includesInactive: !!includeInactive, data: all2, savedAt, totalCount: totalCountServer }
+          await storageSet(cacheKey(storeId, uid), cacheEntry)
+          setCachedClients(all2)
+          setTotalResults(all2.length)
+          setCacheLastUpdate(new Date(savedAt))
+          console.log(`[Clientes] 2ª tentativa OK: ${all2.length} (includesInactive=${includeInactive}). Salvando cache schema=${CACHE_SCHEMA_VERSION}.`)
+        } else {
+          setCachedClients(all2.length > downloaded ? all2 : all)
+          setTotalResults((all2.length > downloaded ? all2.length : downloaded))
+          setCacheLastUpdate(new Date(savedAt))
+          console.warn(`[Clientes] Mesmo na 2ª tentativa ficou incompleto (${all2.length > downloaded ? all2.length : downloaded}). Mostrando em memória, SEM salvar em disco.`)
+        }
+        return
+      }
+
+      // 2) Cache íntegro → salva normalmente
+      const cacheEntry = {
+        schemaVersion: CACHE_SCHEMA_VERSION,
+        includesInactive: !!includeInactive,
+        data: all,
+        savedAt,
+        totalCount: typeof totalCountServer === 'number' ? totalCountServer : downloaded
+      }
+      await storageSet(cacheKey(storeId, uid), cacheEntry)
+      setCachedClients(all)
+      setTotalResults(all.length)
+      setCacheLastUpdate(new Date(savedAt))
+      if (typeof totalCountServer === 'number') {
+        console.log(`[Clientes] Cache salvo OK: ${downloaded}/${totalCountServer} (schema=${CACHE_SCHEMA_VERSION}, includesInactive=${includeInactive}).`)
+      } else {
+        console.log(`[Clientes] Cache salvo OK: ${downloaded} (schema=${CACHE_SCHEMA_VERSION}, includesInactive=${includeInactive}).`)
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar cache do servidor:', err)
+    } finally {
+      setIsCaching(false)
+      setCacheSyncing(false)
+    }
+  }
 
   // Carrega contagem total inicial e inicia Cache Inteligente
+  // ESTRATÉGIA (NOVO, schema 3):
+  //  - BOOT INICIAL: baixa SÓ CLIENTES ATIVOS (getActiveClients, includeInactive=false)
+  //     economia TOTAL de reads em clientes inativos (que quase ninguém usa)
+  //  - SÓ BAIXA INATIVOS: se o usuário EXPLICITAMENTE abrir Filtros e selecionar
+  //     status="inactive" ou status="" (todos). (controlado por OUTRO useEffect)
+  // BOOT PRINCIPAL do Smart Cache: LER DISCO PRIMEIRO (0ms), servidor PARALELO (background)
+  //
+  // CORREÇÃO CRÍTICA: ClientsPage é DESMONTADO ao navegar p/ outra página (Produtos/Vendas)
+  // e REMONTADO ao voltar. cachedClients = null no remontar.
+  // ANTES: Ordem = 1) AWAIT getTotalActiveClientsCount (servidor 200-500ms)
+  //                  2) storageGet (disco 0ms)
+  //        Resultado: ao voltar da página, usuário via "Carregando..." por ~300ms
+  //                   até ler o disco.
+  // AGORA: Ordem = 1) storageGet (disco 0ms) → EXIBE NA TELA IMEDIATAMENTE
+  //                2) Servidor consulta em PARALELO → atualiza no background se precisar.
+  //        Resultado: UI INSTANTÂNEA ao voltar (não carrega de novo, lê do disco!).
   useEffect(() => {
     if (!storeId) return
-    
-    // 1. Carrega contagem inicial do servidor (para mostrar algo rápido)
-    getTotalClientsCount(storeId).then(count => {
-      if (!query.trim() && !cachedClients) {
-        setTotalResults(count)
-      }
-    }).catch(console.error)
+    let cancelled = false
 
-    // 2. Inicia o "Smart Cache" em background
-    if (!cachedClients && !isCaching) {
+    if (!PERSISTENT_CACHE_ENABLED) {
+      // --- COMPORTAMENTO ORIGINAL (cache só em memória) ---
+      // Default: só ativos (economia). Se filtro pedir inativo/todos, o outro useEffect baixa.
+      getTotalActiveClientsCount(storeId).then(count => {
+        if (cancelled) return
+        if (!query.trim() && !cachedClients) setTotalResults(count)
+      }).catch(console.error)
+
+      if (!cachedClients && !isCaching) {
         setIsCaching(true)
-        console.log('Iniciando Smart Cache de clientes...')
-        getAllClients(storeId).then(all => {
-            console.log(`Smart Cache concluído: ${all.length} clientes baixados.`)
-            setCachedClients(all)
-            setTotalResults(all.length)
-            setIsCaching(false)
+        setCacheIncludesInactive(false)
+        console.log('[Clientes] Smart Cache (memória) iniciando SÓ ATIVOS...')
+        getActiveClients(storeId).then(all => {
+          if (cancelled) return
+          console.log(`[Clientes] Smart Cache memória OK (SÓ ATIVOS): ${all.length} clientes.`)
+          setCachedClients(all)
+          setTotalResults(all.length)
+          setIsCaching(false)
+          setCacheLastUpdate(new Date())
         }).catch(err => {
-            console.error('Erro no Smart Cache:', err)
-            setIsCaching(false)
+          console.error('Erro no Smart Cache clientes ativos:', err)
+          if (!cancelled) setIsCaching(false)
         })
+      }
+      return
     }
-  }, [storeId])
+
+    // --- NOVO COMPORTAMENTO (CACHE PERSISTENTE) ---
+    const boot = async () => {
+      if (cachedClients || isCaching) return
+
+      // ============================================================
+      // 0) LER DISCO PRIMEIRO (0ms!) — ANTES DE TUDO, ATÉ ANTES DO
+      //    isCaching=true!
+      //
+      //    ESTRATÉGIA ECONOMIA TOTAL (solicitação do usuário):
+      //    SE cache VÁLIDO (schema certo + array dados), EXIBE NA TELA
+      //    AGORA E NÃO FAZ NENHUMA CHAMADA AO FIRESTORE NESSE BOOT.
+      //
+      //    SÓ CHAMAMOS O SERVIDOR EM 4 CASOS EXPLÍCITOS:
+      //      a) Cache vazio / schema diferente (MISS do zero)
+      //      b) Cache tem MAIS DE 1 HORA (TTL) → baixa tudo
+      //      c) Cache tem ENTRE 10min e 1h → 1 getCountFromServer leve
+      //         (0 reads cobrados, só 1 req HTTP) só para VER se mudou
+      //         contagem > 1%; se não mudou, 0 downloads.
+      //      d) Usuário clicou no botão 🔄 Atualizar (force miss).
+      // ============================================================
+      const key = cacheKey(storeId, uid)
+      let hit = null
+      try { hit = await storageGet(key) } catch (e) { hit = null; console.warn('[Clientes] storageGet falhou:', e) }
+
+      const now = Date.now()
+      const ageMs = hit ? (now - Number(hit?.savedAt || 0)) : Infinity
+      const dataLen = Array.isArray(hit?.data) ? hit.data.length : 0
+      const hasSchemaVersion = typeof hit?.schemaVersion === 'number'
+      const schemaValid = hasSchemaVersion && hit.schemaVersion === CACHE_SCHEMA_VERSION
+      const hitIncludesInactive = hit?.includesInactive === true
+      const discoTemDadosValidos = (hit && Array.isArray(hit.data) && schemaValid)
+
+      // ====================================================================
+      // CASO 1: DISCO VÁLIDO (schema bate). Exibe NA HORA e decide servidor.
+      // ====================================================================
+      if (discoTemDadosValidos) {
+        const ageMin = Math.round(ageMs / 60000)
+        const fresh10m = ageMs < 10 * 60 * 1000   // <10min: ZERO chamadas!
+        const expired1h = ageMs >= CACHE_TTL_MS    // >=1h: TTL → baixa tudo
+
+        // ✅ EXIBE NA TELA AGORA (0ms). NÃO SETA isCaching=true →
+        //    "Carregando..." NUNCA APARECE nesse fluxo!
+        console.log(`[Clientes] ✅ DISCO VÁLIDO: ${dataLen} clientes, salvo há ${ageMin}min (schema=${hit.schemaVersion}, includesInactive=${hitIncludesInactive}). Exibindo NA HORA.`)
+        if (!cancelled) {
+          setCachedClients(hit.data)
+          setTotalResults(dataLen)
+          setCacheLastUpdate(new Date(Number(hit.savedAt)))
+          setCacheLoadedFromDisk(true)
+          setCacheIncludesInactive(!!hitIncludesInactive)
+          setIsCaching(false)
+        }
+        // Boot (B) CASO 1 concluído: marca como finalizado + memoriza status atual do filtro.
+        bootFinishedRef.current = true
+        prevFilterStatusRef.current = (filters && 'status' in filters) ? String(filters.status) : '__unset__'
+
+        // Força miss = botão 🔄 Atualizar clicado. SEMPRE baixa do zero.
+        if (cacheForceMissNonce > 0) {
+          console.log(`[Clientes] Forçando refresh via botão (nonce=${cacheForceMissNonce}). Apagando cache...`)
+          try { await clearOneClientsCache(storeId, uid) } catch {}
+          setCachedClients(null)
+          setIsCaching(true)
+          setCacheSyncing(true)
+          setCacheLoadedFromDisk(false)
+          setCacheIncludesInactive(false)
+          const totalServer = await getTotalActiveClientsCount(storeId).catch(() => null)
+          await refreshCacheFromServer(true, totalServer, false)
+          return
+        }
+
+        // ECONOMIA TOTAL: < 10 min → NENHUMA chamada ao Firestore!
+        if (fresh10m) {
+          console.log(`[Clientes] ⏱️ Cache tem ${ageMin}min (<10min). NENHUMA CHAMADA AO FIRESTORE (economia total!)`)
+          return
+        }
+
+        // ============================================================
+        // Chegamos aqui: >= 10 min (entre 10 e 60, ou >= 60)
+        // ============================================================
+        if (expired1h) {
+          console.log(`[Clientes] ⏰ Cache TEM MAIS DE 1 HORA (TTL expirado). Baixando do servidor para garantir integridade...`)
+          setCacheSyncing(true)
+          setIsCaching(true)
+          let totalServer = null
+          try {
+            totalServer = hitIncludesInactive
+              ? await getTotalClientsCount(storeId)
+              : await getTotalActiveClientsCount(storeId)
+          } catch {}
+          await refreshCacheFromServer(true, totalServer, hitIncludesInactive)
+          return
+        }
+
+        // Entre 10 e 60 minutos: 1 chamada leve getCount (verifica mudou >1%)
+        setCacheSyncing(true)
+        let totalServer = null
+        try {
+          totalServer = hitIncludesInactive
+            ? await getTotalClientsCount(storeId)
+            : await getTotalActiveClientsCount(storeId)
+          console.log(`[Clientes] Checagem 10min: servidor=${totalServer}, disco=${dataLen}.`)
+        } catch (e) {
+          console.warn('[Clientes] Erro pegando contagem do servidor 10min:', e)
+          setCacheSyncing(false)
+          return
+        }
+
+        const serverChanged = typeof totalServer === 'number' && Math.abs(totalServer - dataLen) > Math.max(3, dataLen * 0.01)
+        if (serverChanged) {
+          console.log(`[Clientes] ⚠️ Contagem mudou > 1%. Atualizando cache em background...`)
+          setIsCaching(true)
+          await refreshCacheFromServer(true, totalServer, hitIncludesInactive)
+        } else {
+          console.log(`[Clientes] ✔️ Contagem igual no servidor. Tudo atualizado, sem download!`)
+          setCacheSyncing(false)
+        }
+        return
+      }
+
+      // CASO 2: MISS (sem cache / corrompido / schema diferente)
+      //         AQUI SIM setamos isCaching=true e baixamos do servidor.
+      // ====================================================================
+      setIsCaching(true)
+      setCacheLoadedFromDisk(false)
+      setCacheIncludesInactive(false)
+      const reasonMiss = !hit ? 'cache vazio / nunca carregou antes' :
+                         (!Array.isArray(hit.data)) ? 'data não é array (corrompido)' :
+                         `schema INVALIDO (esperado=${CACHE_SCHEMA_VERSION}, atual=${hasSchemaVersion ? hit.schemaVersion : 'ausente'})`
+      console.log(`[Clientes] MISS: ${reasonMiss}. Baixando SÓ ATIVOS do servidor (economia default)...`)
+      if (hit) { try { await clearOneClientsCache(storeId, uid) } catch {} }
+      setCacheSyncing(true)
+      let totalServer = null
+      try { totalServer = await getTotalActiveClientsCount(storeId) } catch {}
+      await refreshCacheFromServer(true, totalServer, false)
+      // Boot (B) CASO 2 concluído: marca como finalizado + memoriza status do filtro.
+      bootFinishedRef.current = true
+      prevFilterStatusRef.current = (filters && 'status' in filters) ? String(filters.status) : '__unset__'
+    }
+    boot().catch(err => console.error('[Clientes] BOOT falhou:', err)).finally(() => {
+      if (!cancelled) { setIsCaching(false); setCacheSyncing(false) }
+    })
+
+    return () => { cancelled = true }
+  }, [storeId, uid, cacheForceMissNonce])
+
+  // ==========================================================================
+  // ESTRATÉGIA SMART DE DOWNLOAD DE INATIVOS (ON-DEMAND):
+  // Monitora filters.status. POR PADRÃO, o cache baixa SÓ ATIVOS (includesInactive=false).
+  //
+  // REGRAS ESTRITAS (para NÃO baixar inativos sem o usuário realmente pedir):
+  //   1) BOOT PRINCIPAL (B) deve ter TERMINADO (bootFinishedRef.current === true).
+  //      → NÃO roda antes de ler o disco / antes da tela aparecer. (BUG FIX!)
+  //   2) O status do filtro DEVE ter MUDADO de (ativo) → (inativo/todos) APÓS O BOOT.
+  //      → Não dispara se filters.status já veio "inativo"/"" de sessão anterior/salvo.
+  //   3) E cacheIncludesInactive ainda é false (ainda não baixamos tudo).
+  //
+  // SÓ QUANDO TODAS AS 3 CONDIÇÕES ACONTECEM, dispara download COMPLETO
+  // (getAllClients) agora, salva no cache com includesInactive=true.
+  // Isso evita baixar milhares de inativos que o usuário quase nunca consulta.
+  // ==========================================================================
+  useEffect(() => {
+    if (!storeId) return
+
+    // 1) ESPERA O BOOT PRINCIPAL TERMINAR (ler disco OU miss com download concluído)
+    if (!bootFinishedRef.current) return
+
+    const statusFilter = filters?.status
+    const normalizedStatus = ('status' in (filters || {})) ? String(statusFilter ?? '') : '__unset__'
+    const prevStatus = prevFilterStatusRef.current
+
+    // 2) SÓ DISPARA SE STATUS MUDOU DEPOIS DO BOOT (nao usa o valor inicial default!)
+    if (prevStatus === null || prevStatus === normalizedStatus) {
+      prevFilterStatusRef.current = normalizedStatus
+      return
+    }
+    prevFilterStatusRef.current = normalizedStatus
+
+    const wantsAll = statusFilter === '' || statusFilter == null
+    const wantsInactive = statusFilter === 'inactive'
+    const needsInactiveData = wantsAll || wantsInactive
+    if (!needsInactiveData) return
+
+    if (cacheIncludesInactive === true) {
+      // Cache JÁ tem inativos (tudo baixado). Nada a fazer, filtro local cuida do resto.
+      return
+    }
+
+    if (isCaching || cacheSyncing) return // não roda duplo
+
+    // Usuário MUDOU o filtro DEPOIS do boot para status que pede inativos.
+    console.log(`[Clientes] ⚙️ Usuário MUDOU filtro status='${statusFilter}'. Cache SÓ tem ativos (${cachedClients?.length ?? 0}). Baixando TODOS (incluindo inativos)...`)
+    // Setamos flag includesInactive=true ANTES para não disparar 2x
+    setCacheIncludesInactive(true)
+    const run = async () => {
+      setCacheSyncing(true)
+      setIsCaching(true)
+      let totalCountServer = null
+      try { totalCountServer = await getTotalClientsCount(storeId) } catch {}
+      await refreshCacheFromServer(true, totalCountServer, true)
+      console.log(`[Clientes] Concluído on-demand: agora cache tem todos os clientes (includesInactive=true).`)
+      setCacheSyncing(false)
+      setIsCaching(false)
+    }
+    run().catch(err => { console.error('Erro ao baixar inativos on-demand:', err); setCacheSyncing(false); setIsCaching(false) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters?.status, isCaching, cacheSyncing])
 
   // Lógica principal de exibição (Híbrida: Servidor ou Cache Local)
   useEffect(() => {
@@ -268,7 +823,8 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
           const newCache = cachedClients.filter(c => c.id !== confirmRemoveClient.id)
           setCachedClients(newCache)
           setTotalResults(prev => Math.max(0, prev - 1))
-          // O useEffect vai rodar automaticamente e atualizar a lista
+          // ✅ NOVO: Persiste imediatamente no DISCO (não espera background sync)
+          persistCacheToDisk(newCache, cacheIncludesInactive)
       } else {
           // Recarrega do servidor
           const newClients = await getClientsByPage(storeId, page, PAGE_SIZE)
@@ -286,19 +842,20 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   // Helper para atualizar cache após Edição/Criação
   const handleClientSave = (clientData) => {
     if (cachedClients) {
-      setCachedClients(prev => {
-        const index = prev.findIndex(c => c.id === clientData.id)
-        if (index !== -1) {
-          // Update
-          const newCache = [...prev]
-          newCache[index] = { ...newCache[index], ...clientData }
-          return newCache
-        } else {
-          // New
-          setTotalResults(prevTotal => prevTotal + 1)
-          return [clientData, ...prev]
-        }
-      })
+      const index = cachedClients.findIndex(c => c.id === clientData.id)
+      let newCache
+      if (index !== -1) {
+        // Update
+        newCache = [...cachedClients]
+        newCache[index] = { ...newCache[index], ...clientData }
+      } else {
+        // New
+        newCache = [clientData, ...cachedClients]
+        setTotalResults(prevTotal => prevTotal + 1)
+      }
+      setCachedClients(newCache)
+      // ✅ NOVO: Persiste imediatamente no DISCO (não espera background sync 1h/10min)
+      persistCacheToDisk(newCache, cacheIncludesInactive)
     } else {
       // Se não tem cache, recarrega a página atual
       getTotalClientsCount(storeId).then(setTotalResults)
@@ -457,7 +1014,56 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
            </div>
 
            {/* Direita: Opções + Novo */}
-           <div className="flex items-center gap-3">
+           <div className="flex items-center gap-3 flex-wrap justify-end">
+              {PERSISTENT_CACHE_ENABLED && (
+                <div className="flex items-center gap-2 flex-wrap justify-end">
+                  {cacheSyncing || isCaching ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] font-medium">
+                      <span className="inline-block h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+                      {cacheLoadedFromDisk ? 'Sincronizando…' : 'Baixando clientes…'}
+                    </span>
+                  ) : cacheLoadedFromDisk ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[11px] font-medium">
+                      <span>●</span>
+                      Cache local
+                      {cacheLastUpdate && (
+                        <span className="opacity-80 ml-0.5">
+                          · Atualizado {cacheLastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                    </span>
+                  ) : cachedClients ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-medium">
+                      <span>●</span>
+                      Carregado
+                    </span>
+                  ) : null}
+
+                  {PERSISTENT_CACHE_ENABLED && (
+                    <button
+                      onClick={handleClearAllPersistentCache}
+                      disabled={cacheSyncing || isCaching}
+                      title="Apaga todo o cache salvo no dispositivo e baixa tudo do zero (Limpar Cache)"
+                      className="inline-flex items-center justify-center gap-1.5 px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-md border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-300 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-[11px] font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      <span className="hidden sm:inline">Limpar Cache</span>
+                    </button>
+                  )}
+                  {PERSISTENT_CACHE_ENABLED && (
+                    <button
+                      onClick={handleForceRefresh}
+                      disabled={cacheSyncing || isCaching}
+                      title="Forçar atualização do servidor (Atualizar)"
+                      className="inline-flex items-center justify-center gap-1.5 px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-[11px] font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+                      <span className="hidden sm:inline">Atualizar</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
               {loading && (
                 <div className="flex items-center gap-2 text-gray-500 dark:text-gray-300 text-sm">
                   <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>

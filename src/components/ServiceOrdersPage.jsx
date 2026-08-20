@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder, deleteOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
-import { listenProducts, updateProduct, getAllProducts, getProductById, syncUnifiedStockAcrossStores } from '../services/products'
+import { listenProducts, updateProduct, getAllProducts, getProductById, syncUnifiedStockAcrossStores, adjustProductStockTransactionally } from '../services/products'
+import { applyProductsPatchesToDiskCache } from '../lib/datacache'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
@@ -132,6 +133,7 @@ const DEFAULT_STATUSES = [
 ]
 
 export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNewSignal, viewParams, setViewParams, techAreaMode = false }){
+  const uid = user?.id || user?.uid || user?.memberId || 'anon'
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const isDark = useDarkMode()
@@ -1134,18 +1136,39 @@ const canEditService = isOwner || perms.services?.edit
             const p = await resolveProduct(productId)
             if (!p) continue
 
-            const cur = Number(p.stock ?? p.stockInitial ?? 0)
-            const type = delta > 0 ? 'out' : 'in'
-            const movedQty = Math.abs(delta)
-            const next = type === 'in' ? (cur + movedQty) : Math.max(0, cur - movedQty)
-
-            let updateData = { stock: next }
-            if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-              updateData.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
+            let adjustResult = null
+            try {
+              // delta > 0 = usuário ADICIONOU quantidade na OS (tirar mais estoque)
+              // delta < 0 = usuário REMOVEU quantidade na OS (devolver ao estoque)
+              // Ambos sem race condition: sempre via runTransaction no servidor REAL.
+              const txDelta = -delta
+              adjustResult = await adjustProductStockTransactionally(p.id, txDelta)
+            } catch (txErr) {
+              console.error('Erro transação OS edição estoque produto', p.id, txErr)
+              try {
+                // Fallback compat (getDoc + update fora transaction):
+                const fb = (await getProductById(p.id).catch(() => null)) || p
+                const cur = Number(fb.stock ?? fb.stockInitial ?? 0)
+                const type = -delta > 0 ? 'out' : 'in'
+                const movedQty = Math.abs(delta)
+                const next = type === 'in' ? (cur + movedQty) : Math.max(0, cur - movedQty)
+                let updateData = { stock: next }
+                if (Array.isArray(fb.variationsData) && fb.variationsData.length > 0) {
+                  updateData.variationsData = fb.variationsData.map(v => ({ ...v, stock: next }))
+                }
+                await updateProduct(fb.id, updateData)
+                await syncUnifiedStockAcrossStores(fb, storeId, updateData)
+              } catch (fallbackErr) { console.error('Fallback edição OS falhou:', fallbackErr) }
             }
 
-            await updateProduct(p.id, updateData)
-            await syncUnifiedStockAcrossStores(p, storeId, updateData)
+            const type = delta > 0 ? 'out' : 'in'
+            const movedQty = Math.abs(delta)
+            const patch = adjustResult?.patch
+            if (patch) {
+              try { await syncUnifiedStockAcrossStores(p, storeId, patch) } catch (e) { console.warn('syncUnified OS edit falhou (nao-fatal):', e) }
+              applyProductsPatchesToDiskCache(storeId, uid, [{ productId: p.id, patch }]).catch(() => {})
+            }
+
             await recordStockMovement({
               productId: p.id,
               productName: p.name,
@@ -1202,16 +1225,30 @@ const canEditService = isOwner || perms.services?.edit
 
           const totalQty = entries.reduce((s, e) => s + e.qty, 0)
           if (totalQty > 0) {
-            const cur = Number(p.stock ?? 0)
-            const next = Math.max(0, cur - totalQty)
-            
-            let updateData = { stock: next }
-            if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-              updateData.variationsData = p.variationsData.map(v => ({ ...v, stock: next }))
+            let adjustResult = null
+            try {
+              adjustResult = await adjustProductStockTransactionally(p.id, -totalQty)
+            } catch (txErr) {
+              console.error('Erro transação OS nova baixa estoque produto', p.id, txErr)
+              try {
+                const fb = (await getProductById(p.id).catch(() => null)) || p
+                const cur = Number(fb.stock ?? 0)
+                const next = Math.max(0, cur - totalQty)
+                let updateData = { stock: next }
+                if (Array.isArray(fb.variationsData) && fb.variationsData.length > 0) {
+                  updateData.variationsData = fb.variationsData.map(v => ({ ...v, stock: next }))
+                }
+                await updateProduct(fb.id, updateData)
+                await syncUnifiedStockAcrossStores(fb, storeId, updateData)
+              } catch (fallbackErr) { console.error('Fallback OS nova falhou:', fallbackErr) }
             }
 
-            await updateProduct(p.id, updateData)
-            await syncUnifiedStockAcrossStores(p, storeId, updateData)
+            const patch = adjustResult?.patch
+            if (patch) {
+              try { await syncUnifiedStockAcrossStores(p, storeId, patch) } catch (e) { console.warn('syncUnified OS nova falhou (nao-fatal):', e) }
+              applyProductsPatchesToDiskCache(storeId, uid, [{ productId: p.id, patch }]).catch(() => {})
+            }
+
             await recordStockMovement({
               productId: p.id,
               productName: p.name,
@@ -1598,6 +1635,7 @@ const canEditService = isOwner || perms.services?.edit
                   m.set(vname, (m.get(vname) || 0) + qty)
                 }
 
+                const patchesForCache = []
                 for (const [productId, vmap] of byProduct.entries()) {
                   const p =
                     (await getProductById(productId).catch(() => null)) ||
@@ -1605,17 +1643,32 @@ const canEditService = isOwner || perms.services?.edit
                   if (!p) continue
 
                   const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
-                  const cur = Number(p.stock ?? 0)
-                  const next = cur + totalQty
-                  const updateData = { stock: next }
-                  if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-                    updateData.variationsData = p.variationsData.map(v => ({
-                      ...v,
-                      stock: next,
-                    }))
+
+                  let adjustResult = null
+                  try {
+                    adjustResult = await adjustProductStockTransactionally(p.id, +totalQty)
+                  } catch (txErr) {
+                    console.error('Erro transação cancelamento OS produto', p.id, txErr)
+                    try {
+                      const fb = (await getProductById(p.id).catch(() => null)) || p
+                      const cur = Number(fb.stock ?? 0)
+                      const next = cur + totalQty
+                      const updateData = { stock: next }
+                      if (Array.isArray(fb.variationsData) && fb.variationsData.length > 0) {
+                        updateData.variationsData = fb.variationsData.map(v => ({ ...v, stock: next }))
+                      }
+                      await updateProduct(fb.id, updateData)
+                      await syncUnifiedStockAcrossStores(fb, storeId, updateData)
+                      patchesForCache.push({ productId: p.id, patch: updateData })
+                    } catch (fallbackErr) { console.error('Fallback cancelamento OS falhou:', fallbackErr) }
                   }
-                  await updateProduct(p.id, updateData)
-                  await syncUnifiedStockAcrossStores(p, storeId, updateData)
+
+                  const patch = adjustResult?.patch
+                  if (patch) {
+                    try { await syncUnifiedStockAcrossStores(p, storeId, patch) } catch (e) { console.warn('syncUnified cancel OS falhou (nao-fatal):', e) }
+                    patchesForCache.push({ productId: p.id, patch })
+                  }
+
                   await recordStockMovement({
                     productId: p.id,
                     productName: p.name,
@@ -1627,6 +1680,9 @@ const canEditService = isOwner || perms.services?.edit
                     description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
                     userId: ownerId
                   })
+                }
+                if (patchesForCache.length > 0) {
+                  applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
                 }
 
                 if (currentCash) {
@@ -1654,6 +1710,7 @@ const canEditService = isOwner || perms.services?.edit
                   m.set(vname, (m.get(vname) || 0) + qty)
                 }
 
+                const patchesForCache = []
                 for (const [productId, vmap] of byProduct.entries()) {
                   const p =
                     (await getProductById(productId).catch(() => null)) ||
@@ -1662,17 +1719,32 @@ const canEditService = isOwner || perms.services?.edit
                   if (!p) continue
 
                   const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
-                  const cur = Number(p.stock ?? 0)
-                  const next = Math.max(0, cur - totalQty)
-                  const updateData = { stock: next }
-                  if (Array.isArray(p.variationsData) && p.variationsData.length > 0) {
-                    updateData.variationsData = p.variationsData.map(v => ({
-                      ...v,
-                      stock: next,
-                    }))
+
+                  let adjustResult = null
+                  try {
+                    adjustResult = await adjustProductStockTransactionally(p.id, -totalQty)
+                  } catch (txErr) {
+                    console.error('Erro transação reabertura OS produto', p.id, txErr)
+                    try {
+                      const fb = (await getProductById(p.id).catch(() => null)) || p
+                      const cur = Number(fb.stock ?? 0)
+                      const next = Math.max(0, cur - totalQty)
+                      const updateData = { stock: next }
+                      if (Array.isArray(fb.variationsData) && fb.variationsData.length > 0) {
+                        updateData.variationsData = fb.variationsData.map(v => ({ ...v, stock: next }))
+                      }
+                      await updateProduct(fb.id, updateData)
+                      await syncUnifiedStockAcrossStores(fb, storeId, updateData)
+                      patchesForCache.push({ productId: p.id, patch: updateData })
+                    } catch (fallbackErr) { console.error('Fallback reabertura OS falhou:', fallbackErr) }
                   }
-                  await updateProduct(p.id, updateData)
-                  await syncUnifiedStockAcrossStores(p, storeId, updateData)
+
+                  const patch = adjustResult?.patch
+                  if (patch) {
+                    try { await syncUnifiedStockAcrossStores(p, storeId, patch) } catch (e) { console.warn('syncUnified reabrir OS falhou (nao-fatal):', e) }
+                    patchesForCache.push({ productId: p.id, patch })
+                  }
+
                   await recordStockMovement({
                     productId: p.id,
                     productName: p.name,
@@ -1684,6 +1756,9 @@ const canEditService = isOwner || perms.services?.edit
                     description: `Reabertura OS ${statusTargetOrder.number || statusTargetOrder.id}`,
                     userId: ownerId
                   })
+                }
+                if (patchesForCache.length > 0) {
+                  applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
                 }
               }
 
@@ -2884,11 +2959,9 @@ const canEditService = isOwner || perms.services?.edit
               isEditing={editingProductIndex !== null}
               canChangeValues={canChangeValues}
               onOpenSelect={()=>{
-                if (editingProductIndex !== null) return
                 setProdSelectOpen(true)
               }}
               onOpenVariation={()=>{
-                if (editingProductIndex !== null) return
                 if(selectedProduct && selectedProduct.variations > 0 && selectedProduct.variationsData && selectedProduct.variationsData.length > 0){
                   setVarSelectOpen(true)
                 }
@@ -2925,12 +2998,15 @@ const canEditService = isOwner || perms.services?.edit
                    return
                 }
 
+                const unitCost = parseFloat(selectedVariation?.cost ?? selectedVariation?.purchasePrice ?? selectedProduct?.cost ?? selectedProduct?.purchasePrice ?? 0) || 0
                 const item = {
                   productId: selectedProduct.id,
                   name: selectedProduct.name,
                   variationName: currentVariationName,
                   price: parseFloat(priceInput)||0,
                   quantity: q,
+                  cost: unitCost,
+                  costTotal: unitCost * q,
                 }
                 if (isEditingProduct) {
                   setOsProducts(prev => prev.map((existing, index) => index === editingProductIndex ? item : existing))
@@ -2955,6 +3031,14 @@ const canEditService = isOwner || perms.services?.edit
                   .filter(it => it.productId === p.id)
                   .reduce((s, it) => s + (parseFloat(it.quantity) || 0), 0)
                 
+                // Sempre que o usuário escolhe um produto NOVO (mesmo no modo edição),
+                // desliga o flag de "skip autofill" para preço ser atualizado corretamente
+                // e reseta quantidade para 1 (comportamento padrão igual ao adicionar)
+                skipNextProductPriceAutofillRef.current = false
+                if (editingProductIndex !== null) {
+                  setQtyInput(1)
+                }
+
                 // Tentativa de auto-seleção baseada na configuração
                 if (defIdx > 0 && p.variationsData && p.variationsData[defIdx]) {
                   const variation = p.variationsData[defIdx]
@@ -3001,6 +3085,8 @@ const canEditService = isOwner || perms.services?.edit
               product={selectedProduct}
               reservedList={pendingReservedProducts}
               onChoose={(variation)=>{
+                // Reseta flag de skip autofill quando escolhe nova variação (mesmo no modo edição)
+                skipNextProductPriceAutofillRef.current = false
                 let effectiveStock = getUnifiedProductStock(selectedProduct)
                 const reservedQty = pendingReservedProducts
                   .filter(it => it.productId === selectedProduct?.id)
@@ -3097,7 +3183,21 @@ const canEditService = isOwner || perms.services?.edit
               onClose={()=>setServiceSelectOpen(false)}
               services={servicesAll.filter(sv => sv.active)}
               onChoose={(sv)=>{
-                setOsServices(prev => [...prev, { serviceId: sv.id, name: sv.name, price: Number(sv.price||0), quantity: 1 }])
+                const unitCost = Number(sv.cost || 0)
+                const qty = 1
+                setOsServices(prev => [...prev, {
+                  serviceId: sv.id,
+                  name: sv.name,
+                  price: Number(sv.price||0),
+                  quantity: qty,
+                  cost: unitCost,
+                  unitCost: unitCost,
+                  purchasePrice: unitCost,
+                  costPrice: unitCost,
+                  precoCusto: unitCost,
+                  custo: unitCost,
+                  costTotal: unitCost * qty,
+                }])
                 setServiceSelectOpen(false)
               }}
             />
@@ -3868,9 +3968,9 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
         <div className="p-4 space-y-4">
           <div>
             <label className="text-xs text-gray-600 dark:text-gray-400">Produto</label>
-            <button type="button" onClick={onOpenSelect} disabled={isEditing} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed">
-              <span>{product ? product.name : 'Selecionar produto'}</span>
-              <span>{isEditing ? '' : '›'}</span>
+            <button type="button" onClick={onOpenSelect} className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600/50 transition-colors">
+              <span className="truncate pr-2">{product ? product.name : 'Selecionar produto'}</span>
+              <span className="text-gray-400 dark:text-gray-300 shrink-0">›</span>
             </button>
           </div>
           {hasVariations && (
@@ -3879,11 +3979,10 @@ function AddProductModal({ open, onClose, product, variation, onOpenSelect, onOp
               <button 
                 type="button" 
                 onClick={onOpenVariation} 
-                disabled={isEditing}
-                className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm text-left flex items-center justify-between bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-600/50 transition-colors"
               >
-                <span>{variation ? variation.name : 'Selecionar variação'}</span>
-                <span>{isEditing ? '' : '›'}</span>
+                <span className="truncate pr-2">{variation ? (variation.name || variation.label) : 'Selecionar variação'}</span>
+                <span className="text-gray-400 dark:text-gray-300 shrink-0">›</span>
               </button>
             </div>
           )}

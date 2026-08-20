@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
-import { getProductsByPage, searchProductsByPage, getTotalProductsCount, updateProduct, addProduct, removeProduct, getAllProducts, getAvailableProductReference, syncUnifiedStockAcrossStores, findEquivalentProductInList } from '../services/products'
+import { getProductsByPage, searchProductsByPage, getTotalProductsCount, getTotalActiveProductsCount, updateProduct, addProduct, removeProduct, getAllProducts, getActiveProducts, getAvailableProductReference, syncUnifiedStockAcrossStores, findEquivalentProductInList } from '../services/products'
 import NewProductModal, { ensureSupplierInStore } from './NewProductModal'
 import { listenCategories, updateCategory, addCategory, removeCategory } from '../services/categories'
 import NewCategoryModal from './NewCategoryModal'
@@ -13,6 +13,145 @@ import StockMovementsModal from './StockMovementsModal'
 import { getStoreById, listStoresByOwner, updateStore, listenStore } from '../services/stores'
 import { collection, query as firestoreQuery, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+
+// ===========================================================================
+// CONFIGURAÇÃO CENTRAL DE CACHE PERSISTENTE (PRODUTOS)
+// ===========================================================================
+// Para VOLTAR ao comportamento original (cache só em memória, sem disco):
+// 1. Mude a linha abaixo para: false
+// 2. Salve o arquivo. Fim! Nenhuma outra alteração é necessária.
+const PERSISTENT_CACHE_ENABLED = true
+
+// Versão de schema do cache: altere este número SEMPRE que mudar a estrutura.
+// Qualquer cache com VERSÃO DIFERENTE é APAGADO automaticamente no boot.
+// Atual p/ 4: Simplificação — SEMPRE baixa TUDO (ativos + inativos) no primeiro boot
+// (usuário pediu: nao queria ficar sincronizando toda hora por causa do on-demand).
+const CACHE_SCHEMA_VERSION = 4
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hora
+const LOCALSTORAGE_MAX_BYTES = 4 * 1024 * 1024 // 4 MB
+
+// Chave única por (USUÁRIO + loja) — evita cache compartilhado entre contas/lojas
+const cacheKey = (storeId, userId) => `sistemix:products:u${String(userId || 'anon')}:s${String(storeId || 'default')}`
+
+// Helper GLOBAL para limpar TODO o cache de produtos de um usuário (usado no logout / troca de conta)
+const PRODUCT_CACHE_KEY_REGEX = /^sistemix:products:u([^:]+):s(.+)$/
+export const clearAllProductsCacheForUser = async (userId) => {
+  const uid = String(userId || 'anon')
+  try {
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k) continue
+      if (k.startsWith(`sistemix:products:u${uid}:`)) keysToRemove.push(k)
+      if (k.startsWith('sistemix:products:') && !k.includes(':u')) keysToRemove.push(k)
+    }
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+  } catch {}
+  try {
+    if (typeof indexedDB !== 'undefined') {
+      const req = indexedDB.open('sistemix_cache', 1)
+      req.onupgradeneeded = () => { try { req.result.createObjectStore('kv') } catch {} }
+      req.onsuccess = () => {
+        const db = req.result
+        try {
+          const tx = db.transaction('kv', 'readwrite')
+          const store = tx.objectStore('kv')
+          const cursorReq = store.openCursor()
+          cursorReq.onsuccess = () => {
+            const cursor = cursorReq.result
+            if (!cursor) return
+            const k = String(cursor.key || '')
+            const matchOld = k.startsWith('sistemix:products:') && !k.includes(':u')
+            const matchUid = k.startsWith(`sistemix:products:u${uid}:`)
+            if (matchOld || matchUid) cursor.delete()
+            cursor.continue()
+          }
+        } catch {}
+      }
+    }
+  } catch {}
+  console.log(`[Produtos] Cache de produtos limpo para usuário ${uid} (logout / troca de conta).`)
+  return true
+}
+
+const clearOneProductsCache = async (storeId, userId) => {
+  const k = cacheKey(storeId, userId)
+  try { localStorage.removeItem(k) } catch {}
+  try {
+    if (typeof indexedDB !== 'undefined') {
+      const db = await openIDB()
+      return new Promise((resolve) => {
+        try {
+          const tx = db.transaction('kv', 'readwrite')
+          const req = tx.objectStore('kv').delete(k)
+          tx.oncomplete = () => resolve(true)
+          req.onerror = () => resolve(false)
+        } catch { resolve(false) }
+      })
+    }
+  } catch { return false }
+}
+
+// Wrapper de Storage: localStorage < 4MB → IndexedDB fallback (inline, SEM lib)
+let __idbPromise = null
+const openIDB = () => {
+  if (__idbPromise) return __idbPromise
+  __idbPromise = new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open('sistemix_cache', 1)
+      req.onupgradeneeded = () => { try { req.result.createObjectStore('kv') } catch {} }
+      req.onsuccess = () => resolve(req.result)
+      req.onerror = () => reject(req.error)
+    } catch (e) { reject(e) }
+  })
+  return __idbPromise
+}
+const idbGet = async (key) => {
+  try {
+    const db = await openIDB()
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('kv', 'readonly')
+        const req = tx.objectStore('kv').get(key)
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      } catch (e) { reject(e) }
+    })
+  } catch { return null }
+}
+const idbSet = async (key, value) => {
+  try {
+    const db = await openIDB()
+    return new Promise((resolve, reject) => {
+      try {
+        const tx = db.transaction('kv', 'readwrite')
+        tx.objectStore('kv').put(value, key)
+        tx.oncomplete = () => resolve(true)
+        tx.onerror = () => reject(tx.error)
+      } catch (e) { reject(e) }
+    })
+  } catch { return false }
+}
+const storageGet = async (key) => {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(key)
+    if (raw != null) {
+      try { return JSON.parse(raw) } catch {}
+    }
+  } catch {}
+  try { return await idbGet(key) } catch { return null }
+}
+const storageSet = async (key, value) => {
+  if (typeof window === 'undefined') return false
+  try {
+    const serialized = JSON.stringify(value)
+    if (serialized.length <= LOCALSTORAGE_MAX_BYTES * 2) {
+      try { localStorage.setItem(key, serialized); return true } catch {}
+    }
+  } catch {}
+  return await idbSet(key, value)
+}
 
 export default function ProductsPage({ storeId, addNewSignal, user }){
   const isOwner = !user?.memberId
@@ -56,6 +195,157 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [totalResults, setTotalResults] = useState(0)
   const [cachedProducts, setCachedProducts] = useState(null)
   const [isCaching, setIsCaching] = useState(false)
+
+  // --- NOVO: Smart Cache Persistente (igual clientes) ---
+  const uid = user?.id || user?.uid || user?.memberId || 'anon'
+  const prevContextRef = useRef(null) // {storeId, uid} — para invalidar ao trocar
+  const [cacheForceMissNonce, setCacheForceMissNonce] = useState(0)
+  const [cacheLoadedFromDisk, setCacheLoadedFromDisk] = useState(false)
+  const [cacheSyncing, setCacheSyncing] = useState(false)
+  const [cacheLastUpdate, setCacheLastUpdate] = useState(null)
+  const [cacheIncludesInactive, setCacheIncludesInactive] = useState(true) // true = SEMPRE baixa todos (ativos + inativos). Simplificação pedido usuário: parar de sincronizar toda hora.
+
+  // Refs para evitar que o useEffect de on-demand (baixar inativos) dispare
+  // no PRIMEIRO CARREGAMENTO / REMONTAGEM DO COMPONENTE:
+  //   - cacheIncludesInactive inicial = false (padrao)
+  //   - activeFilters.filterInactive pode já vir TRUE (se usuário marcou antes
+  //     e salvou o filtro como padrão, ou defaults do modal setados cedo demais)
+  // Sem esses refs, ele baixaria TUDO (incluindo inativos) ANTES de ler o disco!
+  const prevFilterInactiveRef = useRef(false) // ultimo valor valido apos boot
+  const bootFinishedRef = useRef(false) // seta true apos boot (B) terminar (HIT ou MISS)
+
+  // ============================================================
+  // HELPER: SALVA CACHE ATUALIZADO NO DISCO (IMEDIATAMENTE APÓS CRUD)
+  // ============================================================
+  const persistCacheToDisk = (newData, includesInactiveNow) => {
+    if (!PERSISTENT_CACHE_ENABLED) return
+    if (!Array.isArray(newData)) return
+    try {
+      const k = cacheKey(storeId, uid)
+      const entry = {
+        schemaVersion: CACHE_SCHEMA_VERSION,
+        data: newData,
+        savedAt: Date.now(),
+        totalCount: newData.length,
+        includesInactive: includesInactiveNow === true,
+      }
+      // Fire and forget: não await (não bloqueia a UI). Disco salva em ~1ms.
+      storageSet(k, entry).then(() => {
+        setCacheLastUpdate(new Date())
+      })
+    } catch {}
+  }
+
+  // Handler: forçar atualização
+  const handleForceRefresh = () => {
+    setCacheForceMissNonce(n => n + 1)
+    setCachedProducts(null)
+    setIsCaching(false)
+    setCacheLoadedFromDisk(false)
+    // Boot sempre baixa TODOS (ativos + inativos).
+    setCacheIncludesInactive(true)
+  }
+
+  // Handler: limpar TUDO do disco + reset
+  const handleClearAllPersistentCache = async () => {
+    try { await clearOneProductsCache(storeId, uid) } catch {}
+    setCacheForceMissNonce(n => n + 1)
+    setCachedProducts(null)
+    setIsCaching(false)
+    setCacheLoadedFromDisk(false)
+    setCacheLastUpdate(null)
+    setCacheIncludesInactive(true)
+    console.log(`[Produtos] Cache persistente apagado manualmente (loja=${storeId}, uid=${uid}).`)
+  }
+
+  // Função de refresh: baixa (SÓ ATIVOS por padrão OU TODOS se includeInactive=true),
+  // valida integridade, salva no disco.
+  //
+  // ESTRATÉGIA SMART CACHE (igual Clientes):
+  //   - includeInactive=false (DEFAULT, BOOT e refresh comum): baixa SOMENTE ativos
+  //     (getActiveProducts — baixa tudo cursor 1k + filtra local active!==false).
+  //     Usuário quase nunca consulta inativos → economia de leitura.
+  //   - includeInactive=true (on-demand): usuário EXPLICITAMENTE marcou filterInactive=true
+  //     nos filtros → baixa TUDO e salva includesInactive=true. Nas próximas, o filtro
+  //     inativo já vem do disco, instantâneo.
+  const refreshCacheFromServer = async (silent, knownTotal, includeInactive) => {
+    const includeAll = includeInactive === true
+    if (!storeId) return
+    try {
+      if (!silent) setIsCaching(true)
+      setCacheSyncing(true)
+
+      // 0) Escolhe a contagem CERTA e a função de download CERTA
+      let totalCountServer = typeof knownTotal === 'number' ? knownTotal : null
+      if (totalCountServer === null) {
+        try {
+          totalCountServer = includeAll
+            ? await getTotalProductsCount(storeId)
+            : await getTotalActiveProductsCount(storeId)
+        } catch { totalCountServer = null }
+      }
+
+      const all = includeAll
+        ? await getAllProducts(storeId)           // TODOS (incluindo inativos explicitamente marcados)
+        : await getActiveProducts(storeId)        // SÓ ATIVOS (active === undefined / true)
+      const savedAt = Date.now()
+      const downloaded = all.length
+
+      // 1) Validação de INTEGRIDADE: se sabemos o total real do servidor
+      if (typeof totalCountServer === 'number' && downloaded < totalCountServer * 0.995) {
+        const pct = Math.round((downloaded / totalCountServer) * 100)
+        console.warn(`[Produtos] Cache incompleto! Downloaded=${downloaded} vs ServerTotal=${totalCountServer} (${pct}%). includeAll=${includeAll}. Tentando 2x...`)
+        const all2 = includeAll ? await getAllProducts(storeId) : await getActiveProducts(storeId)
+        if (all2.length >= downloaded && all2.length >= totalCountServer * 0.995) {
+          const cacheEntry = {
+            schemaVersion: CACHE_SCHEMA_VERSION,
+            data: all2,
+            savedAt,
+            totalCount: totalCountServer,
+            includesInactive: includeAll,
+          }
+          await storageSet(cacheKey(storeId, uid), cacheEntry)
+          setCachedProducts(all2)
+          setTotalResults(all2.length)
+          setCacheLastUpdate(new Date(savedAt))
+          setCacheIncludesInactive(includeAll)
+          console.log(`[Produtos] 2ª tentativa OK: ${all2.length} produtos (includeAll=${includeAll}). Salvando cache (schema=${CACHE_SCHEMA_VERSION}, includesInactive=${includeAll}).`)
+        } else {
+          const best = all2.length > downloaded ? all2 : all
+          setCachedProducts(best)
+          setTotalResults(best.length)
+          setCacheLastUpdate(new Date(savedAt))
+          setCacheIncludesInactive(includeAll)
+          console.warn(`[Produtos] Ainda incompleto. Mostrando ${best.length} em memória, SEM salvar.`)
+        }
+        return
+      }
+
+      // 2) Cache íntegro → salva normalmente
+      const cacheEntry = {
+        schemaVersion: CACHE_SCHEMA_VERSION,
+        data: all,
+        savedAt,
+        totalCount: typeof totalCountServer === 'number' ? totalCountServer : downloaded,
+        includesInactive: includeAll,
+      }
+      await storageSet(cacheKey(storeId, uid), cacheEntry)
+      setCachedProducts(all)
+      setTotalResults(all.length)
+      setCacheLastUpdate(new Date(savedAt))
+      setCacheIncludesInactive(includeAll)
+      if (typeof totalCountServer === 'number') {
+        console.log(`[Produtos] Cache salvo: ${downloaded}/${totalCountServer} (schema=${CACHE_SCHEMA_VERSION}, includesInactive=${includeAll}).`)
+      } else {
+        console.log(`[Produtos] Cache salvo: ${downloaded} (schema=${CACHE_SCHEMA_VERSION}, includesInactive=${includeAll}).`)
+      }
+    } catch (err) {
+      console.error('Erro ao recarregar cache de produtos:', err)
+    } finally {
+      setIsCaching(false)
+      setCacheSyncing(false)
+    }
+  }
 
   const [showFilters, setShowFilters] = useState(false)
   const [activeFilters, setActiveFilters] = useState({})
@@ -815,49 +1105,231 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       }))
     }
   }
-  // Products Pagination Logic
-  // Efeito para Smart Cache (igual ao de clientes)
-  // (Sem cache global; carregamento ocorre somente dentro da página)
+  // ==========================================================================
+  // NOVA LÓGICA DE CACHE (igual ClientesPage)
+  // ==========================================================================
 
+  // (A) Invalidação por troca de loja / troca de usuário (sempre apaga cache do contexto anterior)
   useEffect(() => {
-    if (!storeId) return
-    
-    // Reset cache on store change
-    setCachedProducts(null)
-    setIsCaching(false)
-
-    // Atualiza o total inicial baseado no que o servidor diz
-    getTotalProductsCount(storeId).then(count => {
-      if (!query.trim()) {
-        setTotalResults(count)
-      }
-    }).catch(console.error)
-  }, [storeId])
-
-  useEffect(() => {
-    if (!storeId) return
-
-    // Se não tiver cache, inicia o download em segundo plano
-    if (!cachedProducts && !isCaching) {
-        setIsCaching(true)
-        console.log('Iniciando Smart Cache de produtos...')
-        getAllProducts(storeId).then(all => {
-            console.log(`Smart Cache concluído: ${all.length} produtos baixados.`)
-            setCachedProducts(all)
-            // Se não estiver pesquisando, o total é o tamanho do cache
-            if (!query.trim()) {
-                setTotalResults(all.length)
-            } else {
-                // Se já estiver pesquisando, o useMemo 'filtered' vai cuidar do total via useEffect de sincronização
-            }
-            setIsCaching(false)
-        }).catch(err => {
-            console.error('Erro no Smart Cache:', err)
-            // Se falhar o cache, garante que o isCaching volte a false para tentar novamente se necessário
-            setIsCaching(false)
-        })
+    const prev = prevContextRef.current
+    const cur = { storeId: String(storeId || ''), uid: String(uid || '') }
+    if (prev && (prev.storeId !== cur.storeId || prev.uid !== cur.uid)) {
+      console.log(`[Produtos] Contexto mudou (${prev.storeId}/${prev.uid} → ${cur.storeId}/${cur.uid}). Resetando TUDO + apagando cache anterior.`)
+      // Apaga cache da LOJA/USUÁRIO ANTERIORES (evita mistura de dados!)
+      try { clearOneProductsCache(prev.storeId, prev.uid).catch(() => {}) } catch {}
+      setCachedProducts(null)
+      setProducts([])
+      setIsCaching(false)
+      setCacheLoadedFromDisk(false)
+      setCacheSyncing(false)
+      setCacheLastUpdate(null)
+      setCacheIncludesInactive(true) // Troca contexto: sempre baixa tudo primeiro.
+      setPage(1)
+      setQuery('')
+      // Reseta refs de proteção on-demand para o NOVO contexto (nova loja/usuario)
+      bootFinishedRef.current = false
+      prevFilterInactiveRef.current = false
     }
-  }, [storeId, cachedProducts, isCaching, query])
+    prevContextRef.current = cur
+  }, [storeId, uid])
+
+  // (B) BOOT PRINCIPAL: LER DISCO PRIMEIRO (0ms), depois servidor (background)
+  //
+  // CORREÇÃO CRÍTICA: ProductsPage é DESMONTADO quando usuário navega para outra
+  // página (Clientes/Vendas/Início/etc) e REMONTADO ao voltar.
+  // ANTES: Ordem era: 1) AWAIT getTotalActiveProductsCount (servidor ~200-500ms)
+  //                        → 2) storageGet (disco 0ms).
+  //                   Resultado: ao voltar da outra página, usuário via "Carregando..."
+  //                   durante ~300ms até o cache ser lido do disco.
+  // AGORA:  Ordem é: 1) LER DISCO PRIMEIRO e EXIBIR NA TELA (0ms → UI instantânea)
+  //                   2) EM PARALELO: consultar servidor para contagem e background sync
+  //                   (em segundo plano, sem bloquear a UI).
+  useEffect(() => {
+    if (!storeId) return
+    let cancelled = false
+
+    if (!PERSISTENT_CACHE_ENABLED) {
+      // --- COMPORTAMENTO ORIGINAL (só em memória) ---
+      getTotalProductsCount(storeId).then(count => {
+        if (cancelled) return
+        if (!query.trim() && !cachedProducts) setTotalResults(count)
+      }).catch(console.error)
+      if (!cachedProducts && !isCaching) {
+        setIsCaching(true)
+        console.log('[Produtos] Smart Cache (memória) iniciando...')
+        getAllProducts(storeId).then(all => {
+          if (cancelled) return
+          console.log(`[Produtos] Smart Cache memória OK: ${all.length} produtos.`)
+          setCachedProducts(all)
+          setTotalResults(all.length)
+          setIsCaching(false)
+          setCacheLastUpdate(new Date())
+        }).catch(err => {
+          console.error('Erro Smart Cache produtos:', err)
+          if (!cancelled) setIsCaching(false)
+        })
+      }
+      return
+    }
+
+    // --- CACHE PERSISTENTE ---
+    const boot = async () => {
+      if (cachedProducts || isCaching) return
+
+      // ============================================================
+      // 0) LER DISCO PRIMEIRO (0ms!) — FAZEMOS ISSO ANTES DE TUDO,
+      //    ATÉ ANTES DE DEFINIR isCaching=true!
+      //
+      //    ESTRATÉGIA DE ECONOMIA TOTAL (solicitação do usuário):
+      //    SE existe um cache VÁLIDO (schema certo + array de dados),
+      //    NÓS EXIBIMOS NA TELA IMEDIATAMENTE E NÃO FAZEMOS NENHUMA
+      //    CHAMADA AO FIRESTORE (nem getCountFromServer, nem getDocs).
+      //
+      //    SÓ CHAMAMOS O SERVIDOR SE (condições EXPLÍCITAS):
+      //      a) Cache não existe / vazio / schema antigo (MISS)
+      //      b) Cache tem MAIS DE 1 HORA (TTL total expirado) → baixa tudo
+      //      c) Cache tem ENTRE 10 MIN E 1 HORA → chama getCountFromServer
+      //         (0 reads cobrados, mas gasta 1 requisição) para CHECAR se
+      //         contagem mudou > 1%. Só baixa tudo se mudou muito.
+      //      d) Usuário clicou no botão 🔄 Atualizar (cacheForceMissNonce > 0)
+      // ============================================================
+      const key = cacheKey(storeId, uid)
+      let hit = null
+      try { hit = await storageGet(key) } catch (e) { hit = null; console.warn('[Produtos] storageGet falhou:', e) }
+
+      const now = Date.now()
+      const ageMs = hit ? (now - Number(hit?.savedAt || 0)) : Infinity
+      const dataLen = Array.isArray(hit?.data) ? hit.data.length : 0
+      const hasSchemaVersion = typeof hit?.schemaVersion === 'number'
+      const schemaValid = hasSchemaVersion && hit.schemaVersion === CACHE_SCHEMA_VERSION
+      // Pedido usuário: SEMPRE baixa TUDO (incluindo inativos) para parar de sincronizar toda hora
+      const hitIncludesInactive = true
+      const discoTemDadosValidos = (hit && Array.isArray(hit.data) && schemaValid)
+
+      // ====================================================================
+      // CASO 1: DISCO VÁLIDO (schema bate).
+      // → Mostramos NA TELA AGORA.
+      // → SÓ consulta servidor SE tiver >= 10 minutos OU force miss.
+      // ====================================================================
+      if (discoTemDadosValidos) {
+        const ageMin = Math.round(ageMs / 60000)
+        const fresh10m = ageMs < 10 * 60 * 1000  // <10min: NÃO FAZ NENHUMA CHAMADA!
+        const expired1h = ageMs >= CACHE_TTL_MS // >=1h: expirado → baixa tudo
+
+        // ✅ EXIBE NA TELA AGORA (0ms). NÃO setamos isCaching=true em
+        //    nenhum momento desse fluxo → "Carregando..." NUNCA APARECE!
+        console.log(`[Produtos] ✅ DISCO VÁLIDO: ${dataLen} produtos, salvo há ${ageMin}min (schema=${hit.schemaVersion}, includesInactive=${hitIncludesInactive}). Exibindo NA HORA.`)
+        if (!cancelled) {
+          setCachedProducts(hit.data)
+          setTotalResults(dataLen)
+          setCacheLastUpdate(new Date(Number(hit.savedAt)))
+          setCacheLoadedFromDisk(true)
+          setCacheIncludesInactive(true)
+          setIsCaching(false)
+        }
+        // Boot (B) CASO 1 concluído: marca como finalizado.
+        bootFinishedRef.current = true
+        prevFilterInactiveRef.current = !!(activeFilters?.filterInactive === true)
+
+        // Force miss = botão 🔄 Atualizar. SEMPRE baixa do servidor (TODOS).
+        if (cacheForceMissNonce > 0) {
+          console.log(`[Produtos] Forçando refresh via botão (nonce=${cacheForceMissNonce}). Apagando cache + baixando TODOS (incluindo inativos)...`)
+          try { await clearOneProductsCache(storeId, uid) } catch {}
+          setCachedProducts(null)
+          setIsCaching(true)
+          setCacheSyncing(true)
+          setCacheLoadedFromDisk(false)
+          setCacheIncludesInactive(true)
+          const totalServer = await getTotalProductsCount(storeId).catch(() => null)
+          await refreshCacheFromServer(true, totalServer, true)
+          return
+        }
+
+        // Regra ECONÔMICA: < 10 min → ZERO requisições ao servidor!
+        if (fresh10m) {
+          console.log(`[Produtos] ⏱️ Cache tem ${ageMin}min (<10min). NENHUMA CHAMADA AO FIRESTORE (economia total!)`)
+          return
+        }
+
+        // ============================================================
+        // Chegamos aqui: cache tem ENTRE 10 min e 1h OU >=1h.
+        // Nesse caso SIM, fazemos 1 requisição leve (getCountFromServer)
+        // para checar se contagem mudou, e só baixa tudo se realmente precisa.
+        // ============================================================
+        if (expired1h) {
+          console.log(`[Produtos] ⏰ Cache TEM MAIS DE 1 HORA (TTL expirado). Baixando TODOS do servidor...`)
+          setCacheSyncing(true)
+          setIsCaching(true)
+          let totalServer = null
+          try { totalServer = await getTotalProductsCount(storeId) } catch {}
+          await refreshCacheFromServer(true, totalServer, true)
+          return
+        }
+
+        // Entre 10 e 60 minutos: chama getCount TOTAL (leve) para ver se mudou >1%
+        setCacheSyncing(true)
+        let totalServer = null
+        try {
+          totalServer = await getTotalProductsCount(storeId)
+          console.log(`[Produtos] Checagem 10min: servidor=${totalServer}, disco=${dataLen}.`)
+        } catch (e) {
+          console.warn('[Produtos] Erro pegando contagem do servidor 10min:', e)
+          setCacheSyncing(false)
+          return
+        }
+
+        const serverChanged = typeof totalServer === 'number' && Math.abs(totalServer - dataLen) > Math.max(3, dataLen * 0.01)
+        if (serverChanged) {
+          console.log(`[Produtos] ⚠️ Contagem mudou > 1%. Atualizando cache em background (TODOS os produtos)...`)
+          setIsCaching(true)
+          await refreshCacheFromServer(true, totalServer, true)
+        } else {
+          console.log(`[Produtos] ✔️ Contagem igual no servidor. Tudo atualizado, sem download!`)
+          setCacheSyncing(false)
+        }
+        return
+      }
+
+      // ====================================================================
+      // CASO 2: MISS (sem cache / cache inválido / schema diferente)
+      // → Baixamos TUDO do servidor (ativos + inativos) de primeira
+      //    (pedido do usuário: "deixe baixar os inativos mesmo, pelo menos funciona")
+      // ====================================================================
+      setIsCaching(true)
+      setCacheLoadedFromDisk(false)
+      setCacheIncludesInactive(true)
+      const reasonMiss = !hit ? 'cache vazio / nunca carregou antes' :
+                         (!Array.isArray(hit.data)) ? 'data não é array (corrompido)' :
+                         `schema INVALIDO (esperado=${CACHE_SCHEMA_VERSION}, atual=${hasSchemaVersion ? hit.schemaVersion : 'ausente'})`
+      console.log(`[Produtos] MISS: ${reasonMiss}. Baixando TODOS (ativos + inativos) do servidor...`)
+      if (hit) { try { await clearOneProductsCache(storeId, uid) } catch {} }
+      setCacheSyncing(true)
+      let totalServer = null
+      try { totalServer = await getTotalProductsCount(storeId) } catch {}
+      await refreshCacheFromServer(true, totalServer, true)
+      // Boot (B) CASO 2 concluído: marca como finalizado.
+      bootFinishedRef.current = true
+      prevFilterInactiveRef.current = !!(activeFilters?.filterInactive === true)
+    }
+    boot().catch(err => console.error('[Produtos] BOOT falhou:', err)).finally(() => {
+      if (!cancelled) { setIsCaching(false); setCacheSyncing(false) }
+    })
+    return () => { cancelled = true }
+  }, [storeId, uid, cacheForceMissNonce])
+
+  // ==========================================================================
+  // (C) DOWNLOAD ON-DEMAND INATIVOS — DESATIVADO (sempre baixa tudo no boot).
+  // Pedido do usuário: "deixe baixar os inativos mesmo, pelo menos funciona".
+  // Evita ficar "sincronizando toda hora" ao mudar de página.
+  // ==========================================================================
+  useEffect(() => {
+    // DESATIVADO. Todos os produtos (incluindo inativos) são baixados no
+    // boot principal (B). Nenhum download on-demand é necessário.
+  }, [])
+
+  // ==========================================================================
+  // FIM NOVA LÓGICA
+  // ==========================================================================
 
   useEffect(() => {
     let isMounted = true
@@ -1274,14 +1746,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       const updateResult = await updateProduct(product.id, { active: next })
       
       // Atualiza o cache e o estado local para refletir na UI imediatamente
-      const updater = prev => prev.map(p => 
-        p.id === product.id ? { ...p, active: next, updatedAt: updateResult.updatedAt } : p
-      )
-
-      if (cachedProducts) {
-        setCachedProducts(updater)
+      const newCached = cachedProducts
+        ? cachedProducts.map(p => p.id === product.id ? { ...p, active: next, updatedAt: updateResult.updatedAt } : p)
+        : null
+      const newProducts = products.map(p => p.id === product.id ? { ...p, active: next, updatedAt: updateResult.updatedAt } : p)
+      if (newCached) {
+        setCachedProducts(newCached)
+        persistCacheToDisk(newCached, cacheIncludesInactive)
       }
-      setProducts(updater)
+      setProducts(newProducts)
 
       setOpenMenuId(null)
     } finally {
@@ -1296,14 +1769,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       const next = !(product.featured === true)
       const updateResult = await updateProduct(product.id, { featured: next })
 
-      const updater = prev => prev.map(p =>
-        p.id === product.id ? { ...p, featured: next, updatedAt: updateResult.updatedAt } : p
-      )
-
-      if (cachedProducts) {
-        setCachedProducts(updater)
+      const newCached = cachedProducts
+        ? cachedProducts.map(p => p.id === product.id ? { ...p, featured: next, updatedAt: updateResult.updatedAt } : p)
+        : null
+      const newProducts = products.map(p => p.id === product.id ? { ...p, featured: next, updatedAt: updateResult.updatedAt } : p)
+      if (newCached) {
+        setCachedProducts(newCached)
+        persistCacheToDisk(newCached, cacheIncludesInactive)
       }
-      setProducts(updater)
+      setProducts(newProducts)
 
       setOpenMenuId(null)
     } finally {
@@ -1355,12 +1829,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       const valueMap = {}
       for (const id of targetIds) valueMap[id] = nextValue
 
-      const updater = prev => prev.map(p => valueMap[p.id] !== undefined ? { ...p, featured: valueMap[p.id], updatedAt: new Date() } : p)
-
-      if (cachedProducts) {
-        setCachedProducts(updater)
+      const newCached = cachedProducts
+        ? cachedProducts.map(p => valueMap[p.id] !== undefined ? { ...p, featured: valueMap[p.id], updatedAt: new Date() } : p)
+        : null
+      const newProducts = products.map(p => valueMap[p.id] !== undefined ? { ...p, featured: valueMap[p.id], updatedAt: new Date() } : p)
+      if (newCached) {
+        setCachedProducts(newCached)
+        persistCacheToDisk(newCached, cacheIncludesInactive)
       }
-      setProducts(updater)
+      setProducts(newProducts)
 
       if (action !== 'off-all') {
         setSelected(new Set())
@@ -1375,21 +1852,18 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const handleProductSave = (productData) => {
     if (!productData || !productData.id) return
 
+    let newCached = null
     if (cachedProducts) {
-      const updater = prev => {
-        const index = prev.findIndex(p => p.id === productData.id)
-        if (index !== -1) {
-          // Edit: update existing product in cache
-          const next = [...prev]
-          next[index] = { ...next[index], ...productData }
-          return next
-        } else {
-          // Create: add new product to cache
-          setTotalResults(prev => prev + 1)
-          return [productData, ...prev]
-        }
+      const index = cachedProducts.findIndex(p => p.id === productData.id)
+      if (index !== -1) {
+        newCached = [...cachedProducts]
+        newCached[index] = { ...newCached[index], ...productData }
+      } else {
+        setTotalResults(prev => prev + 1)
+        newCached = [productData, ...cachedProducts]
       }
-      setCachedProducts(updater)
+      setCachedProducts(newCached)
+      persistCacheToDisk(newCached, cacheIncludesInactive)
     }
 
     // Sempre atualiza o estado de products também para garantir exibição imediata se o cache ainda não estiver pronto
@@ -1435,7 +1909,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
         await removeProduct(id)
       }
       if (cachedProducts) {
-        setCachedProducts(prev => prev.filter(p => !selected.has(p.id)))
+        const newCached = cachedProducts.filter(p => !selected.has(p.id))
+        setCachedProducts(newCached)
+        persistCacheToDisk(newCached, cacheIncludesInactive)
         setTotalResults(prev => Math.max(0, prev - selected.size))
       } else {
         setPage(1)
@@ -1481,7 +1957,9 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       
       // Atualiza o cache se disponível
       if (cachedProducts) {
-        setCachedProducts(prev => prev.filter(item => item.id !== p.id))
+        const newCached = cachedProducts.filter(item => item.id !== p.id)
+        setCachedProducts(newCached)
+        persistCacheToDisk(newCached, cacheIncludesInactive)
         setTotalResults(prev => Math.max(0, prev - 1))
       }
 
@@ -1524,14 +2002,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       })
 
       // Atualiza o cache e o estado local para refletir na UI imediatamente
-      const updater = prev => prev.map(item => 
-        item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item
-      )
-
-      if (cachedProducts) {
-        setCachedProducts(updater)
+      const newCached = cachedProducts
+        ? cachedProducts.map(item => item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item)
+        : null
+      const newProducts = products.map(item => item.id === p.id ? { ...item, ...updateData, updatedAt: new Date() } : item)
+      if (newCached) {
+        setCachedProducts(newCached)
+        persistCacheToDisk(newCached, cacheIncludesInactive)
       }
-      setProducts(updater)
+      setProducts(newProducts)
 
       setStockModalOpen(false)
     } finally {
@@ -2300,7 +2779,56 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap justify-end">
+          {PERSISTENT_CACHE_ENABLED && tab === 'produto' && (
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {cacheSyncing || isCaching ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-[11px] font-medium">
+                  <span className="inline-block h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin"></span>
+                  {cacheLoadedFromDisk ? 'Sincronizando…' : 'Baixando produtos…'}
+                </span>
+              ) : cacheLoadedFromDisk ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[11px] font-medium">
+                  <span>●</span>
+                  Cache local
+                  {cacheLastUpdate && (
+                    <span className="opacity-80 ml-0.5">
+                      · Atualizado {cacheLastUpdate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </span>
+              ) : cachedProducts ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-[11px] font-medium">
+                  <span>●</span>
+                  Carregado
+                </span>
+              ) : null}
+
+              {PERSISTENT_CACHE_ENABLED && (
+                <button
+                  onClick={handleClearAllPersistentCache}
+                  disabled={cacheSyncing || isCaching}
+                  title="Apaga todo o cache salvo no dispositivo e baixa tudo do zero (Limpar Cache)"
+                  className="inline-flex items-center justify-center gap-1.5 px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-md border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-300 bg-white dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 text-[11px] font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span className="hidden sm:inline">Limpar Cache</span>
+                </button>
+              )}
+              {PERSISTENT_CACHE_ENABLED && (
+                <button
+                  onClick={handleForceRefresh}
+                  disabled={cacheSyncing || isCaching}
+                  title="Forçar atualização do servidor (Atualizar)"
+                  className="inline-flex items-center justify-center gap-1.5 px-2 py-1.5 sm:px-2.5 sm:py-1 rounded-md border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-[11px] font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors shrink-0"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+                  <span className="hidden sm:inline">Atualizar</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {loading && (
             <div className="hidden md:flex items-center gap-2 text-gray-500 dark:text-gray-300 text-sm">
               <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin"></span>

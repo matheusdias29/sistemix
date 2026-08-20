@@ -149,6 +149,31 @@ export default function App(){
     }
   }, [user, store])
 
+  // =========================================================================
+  // VALIDAÇÃO DE ACESSO A LOJA (Segurança extra para funcionários)
+  // Se for funcionário (memberId) e a loja selecionada NÃO estiver liberada
+  // → reseta store=null (volta para SelectStorePage automaticamente)
+  // =========================================================================
+  useEffect(() => {
+    if (!user || !store) return
+    if (!user.memberId) return // dono pode acessar qualquer loja sua
+    const allAccess = user.storesAllAccess === true
+    if (allAccess) return
+    const allowedIds = Array.isArray(user.storesAccess) ? user.storesAccess : []
+    const canAccess = allowedIds.includes(store.id)
+    if (!canAccess) {
+      console.warn(`[App] Acesso BLOQUEADO à loja ${store.id} para member ${user.memberId} (não está em storesAccess). Voltando para SelectStore.`)
+      setStore(null)
+      // Limpa a sessão também (não fica gravada a loja inválida)
+      try {
+        const raw = localStorage.getItem('session')
+        let sess = raw ? JSON.parse(raw) : {}
+        sess.store = null
+        localStorage.setItem('session', JSON.stringify({ ...sess, lastActivity: Date.now() }))
+      } catch {}
+    }
+  }, [user?.id, user?.memberId, user?.storesAllAccess, user?.storesAccess, store?.id])
+
   // Mantém loja atualizada em tempo real
   useEffect(() => {
     if (!store?.id) return

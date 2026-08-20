@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
-import { listenAccountsPayable } from '../services/accountsPayable'
+import { listenAccountsPayable, removeAccountPayable } from '../services/accountsPayable'
 import { listenAccountsReceivable } from '../services/accountsReceivable'
 import { listenCurrentCash, getClosedCashRegisters } from '../services/cash'
-import { listenProducts } from '../services/products'
+import { listenCatalogProducts } from '../services/products'
 import { listenCategories } from '../services/categories'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import { ArrowRight, ChevronRight, Package, TrendingUp, DollarSign } from 'lucide-react'
@@ -26,7 +26,41 @@ type Order = {
   valor?: number
   total?: number
   totalProducts?: number
-  products?: { name?: string; category?: string; cost?: number; quantity?: number }[]
+  products?: {
+    [key: string]: any
+    name?: string
+    category?: string
+    cost?: number
+    costTotal?: number
+    unitCost?: number
+    purchasePrice?: number
+    costPrice?: number
+    precoCusto?: number
+    custo?: number
+    quantity?: number
+    quantidade?: number
+    qty?: number
+    qtd?: number
+    produto?: string
+    descricao?: string
+  }[]
+  services?: {
+    [key: string]: any
+    serviceId?: string
+    name?: string
+    cost?: number
+    costTotal?: number
+    unitCost?: number
+    purchasePrice?: number
+    costPrice?: number
+    precoCusto?: number
+    custo?: number
+    quantity?: number
+    quantidade?: number
+    qty?: number
+    qtd?: number
+    price?: number
+  }[]
   client?: string
   attendant?: string
   attendantName?: string
@@ -111,6 +145,115 @@ type Category = {
   id: string
   name?: string
 }
+
+const COST_KEYS = [
+  'cost', 'purchasePrice', 'costPrice',
+  'precoCusto', 'preco_custo', 'precodecusto',
+  'custoCompra', 'custo_compra',
+  'custoProduto', 'custo_produto',
+  'valorCusto', 'valor_custo',
+  'valorCompra', 'valor_compra',
+  'precoCompra', 'preco_compra',
+  'custoUnitario', 'custo_unitario',
+  'custo', 'productCost', 'pCost',
+  'custoDeCompra', 'custo_de_compra',
+  'compraPreco', 'compra_preco'
+]
+
+function extractCost(o: any): number {
+  if (!o || typeof o !== 'object') return 0
+  const PRICE_BLACKLIST = [
+    'price','salePrice','sellPrice','sellingPrice','retailPrice',
+    'preco','precoVenda','preco_venda','precoDeVenda','preco_de_venda',
+    'valor','valorVenda','valor_venda','valorDeVenda','valor_de_venda',
+    'venda','valorFinal','precoFinal','priceFinal','finalPrice'
+  ]
+  for (const k of COST_KEYS) {
+    if (typeof o[k] !== 'undefined' && o[k] !== null) {
+      const v = Number(o[k])
+      if (Number.isFinite(v) && v > 0) return v
+    }
+  }
+  for (const k of Object.keys(o)) {
+    if (!k) continue
+    const kl = String(k).toLowerCase().replace(/[^a-z0-9]/g,'')
+    let isBlacklisted = false
+    for (const b of PRICE_BLACKLIST) if (kl.includes(b.replace(/[^a-z0-9]/g,''))) { isBlacklisted = true; break }
+    if (isBlacklisted) continue
+    if (/custo|compra|purchase|costprice|valorcompra|precocusto|custodecompra/i.test(k)) {
+      const v = Number(o[k])
+      if (Number.isFinite(v) && v > 0) return v
+    }
+  }
+  return 0
+}
+
+function extractCostDeep(o: any, depth = 0): number {
+  if (depth > 3) return 0
+  const direct = extractCost(o)
+  if (direct > 0) return direct
+  if (!o || typeof o !== 'object') return 0
+  const candidateFields = [
+    'precificacao','precificacoes','especificacao','especificacoes','variacao','variacoes',
+    'variation','variations','pricing','price','prices','custos','custoInfo','custoDetalhe',
+    'detalhes','info','dados','attributes','attrs','meta','metadata','props','properties',
+    'spec','specs','data','produto','product','item','compra','compraInfo','fornecedor','supplier'
+  ]
+  for (const k of candidateFields) {
+    const v = (o as any)[k]
+    if (!v) continue
+    if (Array.isArray(v)) {
+      for (const x of v) {
+        const c = extractCost(x)
+        if (c > 0) return c
+        if (depth < 2) {
+          const cd = extractCostDeep(x, depth + 1)
+          if (cd > 0) return cd
+        }
+      }
+    } else if (typeof v === 'object') {
+      const c = extractCost(v)
+      if (c > 0) return c
+      if (depth < 2) {
+        const cd = extractCostDeep(v, depth + 1)
+        if (cd > 0) return cd
+      }
+    }
+  }
+  return 0
+}
+
+function calcItemsRealCost(items: any[] | null | undefined): { totalCost: number } {
+  const list = Array.isArray(items) ? items : []
+  if (list.length === 0) return { totalCost: 0 }
+  let totalCost = 0
+  const QTY_KEYS = [
+    'quantity', 'quantidade', 'qty', 'amount', 'qtd',
+    'qtde', 'quant', 'count', 'units', 'unit'
+  ]
+  const readQty = (o: any): number => {
+    if (!o || typeof o !== 'object') return 1
+    for (const k of QTY_KEYS) {
+      const v = (o as any)[k]
+      if (v === null || v === undefined || v === '') continue
+      const n = Number(v)
+      if (Number.isFinite(n)) return Math.max(0, n)
+    }
+    return 1
+  }
+  for (const raw of list) {
+    const p = raw || {}
+    if (Number(p.costTotal || 0) > 0) {
+      totalCost += Number(p.costTotal)
+      continue
+    }
+    const qty = readQty(p)
+    const unitCost = extractCostDeep(p, 2)
+    if (qty > 0 && unitCost > 0) totalCost += unitCost * qty
+  }
+  return { totalCost }
+}
+
 
 const TABS = [
   'Vendas',
@@ -207,6 +350,121 @@ function isServiceOrder(order: Order, includeCancelled = false): boolean {
   return s.includes('os ') || s.includes('o.s.') || s.includes('finalizada') || s.includes('iniciado')
 }
 
+// ===========================================================================
+// REGRAS DE FATURAMENTO (TOTAIS MONETÁRIOS)
+// Whitelist de STATUS AUTORIZADOS a entrar nos cálculos de Total de Vendas
+// e Total de Ordens de Serviço. Qualquer outro status (orçamento, em aberto,
+// cancelado, iniciado, etc.) é EXCLUÍDO das somas monetárias.
+//
+// Para adicionar um NOVO status faturado no futuro, basta incluí-lo no array
+// correspondente abaixo. Status não mapeados geram 1 aviso por status no
+// console (para facilitar a manutenção), mas NÃO são incluídos no total.
+// ===========================================================================
+const BILLED_SALE_STATUS: readonly string[] = [
+  'cliente final',
+  'cliente lojista',
+  'cliente logista',
+  'faturada cliente final',
+  'faturada cliente lojista',
+  'faturada cliente logista',
+  'venda cliente final',
+  'venda cliente lojista',
+  'venda cliente logista',
+  'faturado cliente final',
+  'faturado cliente lojista',
+  'faturado cliente logista',
+] as const
+
+const BILLED_OS_STATUS: readonly string[] = [
+  'os faturada cliente final',
+  'os faturada cliente lojista',
+  'os faturada cliente logista',
+  'o.s. faturada cliente final',
+  'o.s. faturada cliente lojista',
+  'o.s. faturada cliente logista',
+  'faturada cliente final os',
+  'faturada cliente lojista os',
+  'faturada cliente logista os',
+  'os faturado cliente final',
+  'os faturado cliente lojista',
+  'os faturado cliente logista',
+] as const
+
+// Para evitar flood no console: avisa CADA status desconhecido SÓ UMA VEZ
+const __unknownSaleStatusWarned = new Set<string>()
+const __unknownOSStatusWarned = new Set<string>()
+
+function normalizeStatus(s: unknown): string {
+  return String(s || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+// Retorna true se o status de VENDA está na whitelist de faturamento.
+// Caso seja um status desconhecido, loga UM aviso (1x por status) para ajudar
+// a equipe a mapear novos status futuramente.
+function isBilledSaleStatus(rawStatus: unknown): boolean {
+  const norm = normalizeStatus(rawStatus)
+  if (!norm) return false
+  for (const allowed of BILLED_SALE_STATUS) {
+    const a = normalizeStatus(allowed)
+    if (a && (norm === a || norm.includes(a) || a.includes(norm))) {
+      return true
+    }
+  }
+  // Status não é vazio e não foi encontrado → aviso (uma única vez por status)
+  if (norm && !__unknownSaleStatusWarned.has(norm)) {
+    __unknownSaleStatusWarned.add(norm)
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[StatisticsPage] Status de VENDA não mapeado na whitelist de faturamento: "${String(rawStatus)}". ` +
+      `Status EXCLUÍDO do Total de Vendas. Se esse status deve contar como faturado, ` +
+      `adicione-o em BILLED_SALE_STATUS no StatisticsPage.tsx.`
+    )
+  }
+  return false
+}
+
+// Retorna true se o status de OS está na whitelist de faturamento (mesma lógica acima).
+function isBilledOSStatus(rawStatus: unknown): boolean {
+  const norm = normalizeStatus(rawStatus)
+  if (!norm) return false
+  for (const allowed of BILLED_OS_STATUS) {
+    const a = normalizeStatus(allowed)
+    if (a && (norm === a || norm.includes(a) || a.includes(norm))) {
+      return true
+    }
+  }
+  if (norm && !__unknownOSStatusWarned.has(norm)) {
+    __unknownOSStatusWarned.add(norm)
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[StatisticsPage] Status de OS não mapeado na whitelist de faturamento: "${String(rawStatus)}". ` +
+      `Status EXCLUÍDO do Total de OS. Se esse status deve contar como faturado, ` +
+      `adicione-o em BILLED_OS_STATUS no StatisticsPage.tsx.`
+    )
+  }
+  return false
+}
+
+// Compõe: pedido É UMA VENDA (não cancelada) E TEM STATUS FATURADO AUTORIZADO.
+// → Usado na base monetária (salesInPeriod) para TODOS os cálculos de $$$.
+function isBilledSale(order: Order): boolean {
+  if (!isSale(order, false)) return false
+  return isBilledSaleStatus(order.status)
+}
+
+// Compõe: pedido É UMA OS (não cancelada) E TEM STATUS FATURADO AUTORIZADO.
+// → Usado na base monetária (serviceOrdersInPeriod) para TODOS os cálculos de $$$.
+function isBilledServiceOrder(order: Order): boolean {
+  if (!isServiceOrder(order, false)) return false
+  return isBilledOSStatus(order.status)
+}
+
 export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
@@ -244,6 +502,22 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   const [closedCash, setClosedCash] = useState<CashRegister[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [categoriesList, setCategoriesList] = useState<Category[]>([])
+  const [ordersReady, setOrdersReady] = useState<Order[]>([])
+  const [dataSettling, setDataSettling] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(() => {
+      if (cancelled) return
+      setOrdersReady(orders)
+      setDataSettling(false)
+    }, 400)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [orders, products])
+
   const [activeTab, setActiveTab] = useState<TabKey>('Vendas')
   const [dateFilterOpen, setDateFilterOpen] = useState(false)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -263,6 +537,92 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       end: new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999),
     }
   })
+
+  // ====== Contas a Pagar: Seleção e Exclusão ======
+  const [selectedPayableIds, setSelectedPayableIds] = useState<Set<string>>(new Set())
+  const [openPayableMenuId, setOpenPayableMenuId] = useState<string | null>(null)
+  const [payableMenuPos, setPayableMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const [payableDeleteLoading, setPayableDeleteLoading] = useState(false)
+
+  useEffect(() => {
+    const handleClose = () => setOpenPayableMenuId(null)
+    window.addEventListener('scroll', handleClose, true)
+    window.addEventListener('click', handleClose)
+    return () => {
+      window.removeEventListener('scroll', handleClose, true)
+      window.removeEventListener('click', handleClose)
+    }
+  }, [])
+
+  const toggleSelectPayable = (id: string) => {
+    const next = new Set(selectedPayableIds)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setSelectedPayableIds(next)
+  }
+
+  const toggleSelectAllPayables = () => {
+    const all = filteredPayables.map(a => a.id).filter(Boolean) as string[]
+    if (selectedPayableIds.size === all.length && all.length > 0) {
+      setSelectedPayableIds(new Set())
+    } else {
+      setSelectedPayableIds(new Set(all))
+    }
+  }
+
+  const canDeletePayable = isOwner || !!perms?.payables?.delete
+
+  const handleDeletePayable = async (id: string) => {
+    if (!canDeletePayable) {
+      alert('Sem permissão para excluir contas a pagar.')
+      return
+    }
+    if (!window.confirm('Tem certeza que deseja excluir esta conta a pagar?')) return
+    try {
+      setPayableDeleteLoading(true)
+      await removeAccountPayable(id)
+      const next = new Set(selectedPayableIds)
+      next.delete(id)
+      setSelectedPayableIds(next)
+    } catch (e) {
+      console.error(e)
+      alert('Erro ao excluir conta a pagar.')
+    } finally {
+      setPayableDeleteLoading(false)
+    }
+  }
+
+  const handleDeleteSelectedPayables = async () => {
+    if (!canDeletePayable) {
+      alert('Sem permissão para excluir contas a pagar.')
+      return
+    }
+    const n = selectedPayableIds.size
+    if (n === 0) return
+    if (!window.confirm(`Tem certeza que deseja excluir ${n} conta(s) a pagar selecionada(s)?`)) return
+    try {
+      setPayableDeleteLoading(true)
+      const ids = Array.from(selectedPayableIds)
+      await Promise.all(ids.map(id => removeAccountPayable(id)))
+      setSelectedPayableIds(new Set())
+    } catch (e) {
+      console.error(e)
+      alert('Erro ao excluir contas a pagar.')
+    } finally {
+      setPayableDeleteLoading(false)
+    }
+  }
+
+  const formatPayableDate = (d: any): string => {
+    if (!d) return '-'
+    if (typeof d === 'string' && d.includes('-')) {
+      const [y, m, day] = d.split('-')
+      return `${day}/${m}/${y}`
+    }
+    const dt = parseDueDate(d)
+    if (dt) return dt.toLocaleDateString('pt-BR')
+    return '-'
+  }
 
   useEffect(() => {
     const unsub = listenOrders((items: Order[]) => setOrders(items), storeId)
@@ -321,7 +681,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
 
   useEffect(() => {
     if (!storeId) return
-    const unsub = listenProducts((items: any[]) => setProducts(items), storeId)
+    const unsub = listenCatalogProducts((items: any[]) => setProducts(items), storeId)
     return () => unsub && unsub()
   }, [storeId])
 
@@ -332,19 +692,19 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   }, [storeId])
 
   const salesInPeriod = useMemo(() => {
-    return orders.filter(o => {
-      if (!isSale(o, false)) return false
+    return ordersReady.filter(o => {
+      if (!isBilledSale(o)) return false
       const d = getOrderDate(o)
       if (!d) return false
       const { start, end } = dateRange
       if (!start || !end) return true
       return d >= start && d <= end
     })
-  }, [orders, dateRange])
+  }, [ordersReady, dateRange])
 
   // Inclui cancelados para estatísticas de status
   const allSalesInPeriod = useMemo(() => {
-    return orders.filter(o => {
+    return ordersReady.filter(o => {
       if (!isSale(o, true)) return false
       const d = getOrderDate(o)
       if (!d) return false
@@ -352,22 +712,22 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       if (!start || !end) return true
       return d >= start && d <= end
     })
-  }, [orders, dateRange])
+  }, [ordersReady, dateRange])
 
   const serviceOrdersInPeriod = useMemo(() => {
-    return orders.filter(o => {
-      if (!isServiceOrder(o, false)) return false
+    return ordersReady.filter(o => {
+      if (!isBilledServiceOrder(o)) return false
       const d = getOrderDate(o)
       if (!d) return false
       const { start, end } = dateRange
       if (!start || !end) return true
       return d >= start && d <= end
     })
-  }, [orders, dateRange])
+  }, [ordersReady, dateRange])
 
   // Inclui cancelados para estatísticas de status de O.S.
   const allServiceOrdersInPeriod = useMemo(() => {
-    return orders.filter(o => {
+    return ordersReady.filter(o => {
       if (!isServiceOrder(o, true)) return false
       const d = getOrderDate(o)
       if (!d) return false
@@ -375,7 +735,50 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       if (!start || !end) return true
       return d >= start && d <= end
     })
-  }, [orders, dateRange])
+  }, [ordersReady, dateRange])
+
+  const costByOrderIdMap = useMemo<Map<string, number>>(() => {
+    const map = new Map<string, number>()
+    const all = [...salesInPeriod, ...serviceOrdersInPeriod]
+    for (let i = 0; i < all.length; i++) {
+      const o = all[i]
+      if (!o?.id) continue
+      if (map.has(o.id)) continue
+      const prods = Array.isArray(o.products) ? o.products : []
+      const svcs = Array.isArray(o.services) ? o.services : []
+      const items = [...prods, ...svcs]
+      if (items.length === 0) {
+        map.set(o.id, 0)
+        continue
+      }
+      let sum = 0
+      for (let j = 0; j < items.length; j++) {
+        const it = items[j]
+        const ct = Number(it?.costTotal || 0)
+        if (ct > 0) {
+          sum += ct
+          continue
+        }
+        const unit = (Number(it?.cost || 0) || Number(it?.unitCost || 0) || Number(it?.purchasePrice || 0) || Number(it?.precoCusto || 0) || Number(it?.custo || 0))
+        const qty = Number(it?.quantity || it?.quantidade || it?.qty || it?.qtd || 0) || 1
+        if (unit > 0 && qty > 0) sum += unit * qty
+      }
+      map.set(o.id, sum)
+    }
+    return map
+  }, [salesInPeriod, serviceOrdersInPeriod])
+
+  const costByOrderIdFn = (o: Order): number => {
+    const prods = Array.isArray(o.products) ? o.products : []
+    const svcs = Array.isArray(o.services) ? o.services : []
+    const items = [...prods, ...svcs]
+    if (!o?.id) return calcItemsRealCost(items).totalCost
+    const cached = costByOrderIdMap.get(o.id)
+    if (typeof cached === 'number') return cached
+    const r = calcItemsRealCost(items)
+    costByOrderIdMap.set(o.id, r.totalCost)
+    return r.totalCost
+  }
 
   const clientOptions = useMemo<SimpleOption[]>(() => {
     const seen = new Set<string>()
@@ -519,16 +922,8 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
 
       const current = buckets.get(key) || { vendas: 0, custo: 0 }
       const venda = Number(o.valor ?? o.total ?? 0)
-
-      const items = Array.isArray(o.products) ? o.products : []
-      const costFromItems = items.reduce(
-        (s, p) => s + Number(p.cost || 0) * Number(p.quantity || 0),
-        0
-      )
-      const custo = costFromItems > 0 ? costFromItems : venda * 0.65
-
       current.vendas += venda
-      current.custo += custo
+      current.custo += costByOrderIdFn(o)
       buckets.set(key, current)
     })
 
@@ -552,7 +947,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
     })
 
     return result
-  }, [filteredSales, viewMode, activeTab, dateRange])
+  }, [filteredSales, viewMode, activeTab, dateRange, costByOrderIdMap])
 
   const maxChartValue = useMemo(() => {
     return (
@@ -659,19 +1054,10 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
     [filteredSales]
   )
 
-  const totalCost = useMemo(() => {
-    return filteredSales.reduce((sum, o) => {
-      const items = Array.isArray(o.products) ? o.products : []
-      const costFromItems = items.reduce(
-        (s, p) => s + (Number(p.cost || 0) * Number(p.quantity || 0)),
-        0
-      )
-      if (costFromItems > 0) return sum + costFromItems
-      return sum + Number(o.valor ?? o.total ?? 0) * 0.65
-    }, 0)
-  }, [filteredSales])
-
-  const profit = Math.max(0, totalSales - totalCost)
+  const totalCostValue = useMemo(() => {
+    return filteredSales.reduce((sum, o) => sum + costByOrderIdFn(o), 0)
+  }, [filteredSales, costByOrderIdMap])
+  const profit = totalSales - totalCostValue
   const profitPct = totalSales > 0 ? (profit / totalSales) * 100 : 0
   const avgTicket = filteredSales.length ? totalSales / filteredSales.length : 0
 
@@ -779,18 +1165,10 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   const osServicesTotal = Math.max(0, osTotalValue - osProductsTotal)
 
   const osCostTotal = useMemo(() => {
-    return filteredServiceOrders.reduce((sum, o) => {
-      const items = Array.isArray(o.products) ? o.products : []
-      const costFromItems = items.reduce(
-        (s, p) => s + (Number(p.cost || 0) * Number(p.quantity || 0)),
-        0
-      )
-      if (costFromItems > 0) return sum + costFromItems
-      return sum + Number(o.total ?? o.valor ?? 0) * 0.65
-    }, 0)
-  }, [filteredServiceOrders])
+    return filteredServiceOrders.reduce((sum, o) => sum + costByOrderIdFn(o), 0)
+  }, [filteredServiceOrders, costByOrderIdMap])
 
-  const osProfit = Math.max(0, osTotalValue - osCostTotal)
+  const osProfit = osTotalValue - osCostTotal
   const osProfitPct = osTotalValue > 0 ? (osProfit / osTotalValue) * 100 : 0
   const osAvgTicket =
     filteredServiceOrders.length > 0
@@ -1209,12 +1587,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
     const salesTax = 0 // Placeholder
     const salesNetAfterTax = salesNet - salesTax
     
-    const salesCost = filteredSales.reduce((acc, o) => {
-       const items = Array.isArray(o.products) ? o.products : []
-       const cost = items.reduce((s, p) => s + (Number(p.cost || 0) * Number(p.quantity || 0)), 0)
-       if (cost > 0) return acc + cost
-       return acc + (Number(o.total || 0) * 0.65)
-    }, 0)
+    const salesCost = filteredSales.reduce((acc, o) => acc + costByOrderIdFn(o), 0)
     
     const salesProfit = salesNetAfterTax - salesCost
 
@@ -1224,11 +1597,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
     const osNet = osGross - osDiscount
     const osTax = 0
     
-    const osProductCost = filteredServiceOrders.reduce((acc, o) => {
-       const items = Array.isArray(o.products) ? o.products : []
-       const cost = items.reduce((s, p) => s + (Number(p.cost || 0) * Number(p.quantity || 0)), 0)
-       return acc + cost
-    }, 0)
+    const osProductCost = filteredServiceOrders.reduce((acc, o) => acc + costByOrderIdFn(o), 0)
     
     // Service Cost
     const osServiceCost = 0 
@@ -1260,7 +1629,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       totalExpenses,
       finalResult
     }
-  }, [filteredSales, filteredServiceOrders, payablesPaidInPeriod])
+  }, [filteredSales, filteredServiceOrders, payablesPaidInPeriod, costByOrderIdMap])
 
   const DreRow = ({ label, value, isPositive, isNegative, bold }: any) => {
     const colorClass = isPositive ? 'text-green-600' : isNegative ? 'text-red-500' : 'text-gray-800'
@@ -1275,8 +1644,17 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   }
 
   return (
-    <div className="space-y-4 animate-[fadeIn_0.18s_ease-out]">
-      <div className="border-b border-gray-200">
+    <div className="space-y-4 animate-[fadeIn_0.18s_ease-out] relative">
+      {dataSettling && (
+        <div className="absolute inset-0 z-20 pointer-events-none flex items-start justify-center pt-20 backdrop-blur-[2px]">
+          <div className="bg-white/90 rounded-xl shadow-lg px-6 py-3 border border-gray-200 flex items-center gap-3">
+            <div className="w-5 h-5 rounded-full border-2 border-green-500 border-t-transparent animate-spin"></div>
+            <span className="text-sm text-gray-700 font-medium">Carregando dados…</span>
+          </div>
+        </div>
+      )}
+      <div className={`transition-opacity duration-300 ${dataSettling ? 'opacity-40' : 'opacity-100'}`}>
+        <div className="border-b border-gray-200">
         <div className="flex flex-wrap gap-4">
           {availableTabs.map(tab => (
             <button
@@ -1375,8 +1753,8 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Total dos Custos</div>
-                    <div className="text-orange-600 dark:text-orange-400 font-semibold text-base">
-                      {formatCurrency(totalCost)}
+                    <div className="text-purple-700 dark:text-purple-400 font-semibold text-base">
+                      {formatCurrency(totalCostValue)}
                     </div>
                   </div>
                   <div>
@@ -1592,7 +1970,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                   </div>
                   <div>
                     <div className="text-xs text-gray-500">Total dos Custos</div>
-                    <div className="text-orange-600 dark:text-orange-400 font-semibold text-base">
+                    <div className="text-purple-700 dark:text-purple-400 font-semibold text-base">
                       {formatCurrency(osCostTotal)}
                     </div>
                   </div>
@@ -1878,6 +2256,185 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
               </div>
             </section>
           </div>
+
+          <section className="rounded-lg bg-white shadow overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">
+                  Lista de Contas a Pagar
+                  <span className="ml-2 text-xs font-normal text-gray-500">
+                    ({filteredPayables.length} conta(s) no período)
+                  </span>
+                </h3>
+              </div>
+              {selectedPayableIds.size > 0 ? (
+                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                  <span className="text-xs text-gray-600">
+                    {selectedPayableIds.size} selecionada(s)
+                  </span>
+                  <button
+                    onClick={handleDeleteSelectedPayables}
+                    disabled={payableDeleteLoading || !canDeletePayable}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold rounded shadow-sm transition-colors flex items-center gap-1.5"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                    Excluir ({selectedPayableIds.size})
+                  </button>
+                </div>
+              ) : (
+                !canDeletePayable ? (
+                  <span className="text-xs text-gray-400">Sem permissão para excluir</span>
+                ) : (
+                  <span className="text-xs text-gray-400">Marque as contas para excluir</span>
+                )
+              )}
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-100 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="w-10 px-4 py-3 text-left">
+                      {canDeletePayable && filteredPayables.length > 0 && (
+                        <input
+                          type="checkbox"
+                          className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                          checked={filteredPayables.length > 0 && selectedPayableIds.size === filteredPayables.length}
+                          onChange={toggleSelectAllPayables}
+                        />
+                      )}
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-bold text-gray-600">Conta</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600">Valor Original</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600">Valor Pago</th>
+                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600">A Pagar</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-600">Vencimento</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-600">Pgto</th>
+                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-600">Status</th>
+                    <th className="w-10 px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-50">
+                  {filteredPayables.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-10 text-center text-xs text-gray-500">
+                        Nenhuma conta a pagar encontrada no período selecionado.
+                      </td>
+                    </tr>
+                  )}
+                  {filteredPayables.map((acc) => {
+                    const accStatus = String(acc.status || 'pending').toLowerCase()
+                    const dd = parseDueDate(acc.dueDate)
+                    const isOverduePending = accStatus === 'pending' && !!dd && dd < new Date(new Date().setHours(0,0,0,0))
+                    const remaining = Number(acc.remainingValue ?? (Number(acc.originalValue || 0) - Number(acc.paidValue || 0)))
+                    return (
+                      <tr
+                        key={acc.id}
+                        className="hover:bg-gray-50 transition-colors"
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          {canDeletePayable && acc.id && (
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                              checked={selectedPayableIds.has(acc.id as string)}
+                              onChange={() => toggleSelectPayable(acc.id as string)}
+                            />
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium text-gray-900 uppercase">
+                              {String(acc.supplierName || 'Fornecedor Desconhecido').slice(0, 60)}
+                            </span>
+                            <span className="text-[11px] text-gray-500 mt-0.5">
+                              {String(acc.description || '').slice(0, 80)}
+                              {acc.categoryName ? ` | ${String(acc.categoryName)}` : ''}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right text-xs text-gray-900">
+                          {formatCurrency(acc.originalValue)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right text-xs text-emerald-700">
+                          {formatCurrency(acc.paidValue)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-right text-xs font-semibold text-gray-900">
+                          {formatCurrency(remaining)}
+                        </td>
+                        <td className={`px-4 py-3 whitespace-nowrap text-center text-xs ${isOverduePending ? 'text-red-600 font-semibold' : 'text-gray-600'}`}>
+                          {formatPayableDate(acc.dueDate)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-center text-xs text-gray-500">
+                          {formatPayableDate(acc.paymentDate)}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-center">
+                          <span className={`px-2.5 py-0.5 inline-flex text-[11px] font-semibold rounded-full ${
+                            accStatus === 'pending'
+                              ? isOverduePending
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-orange-100 text-orange-700'
+                              : accStatus === 'paid'
+                              ? 'bg-green-100 text-green-800'
+                              : accStatus === 'cancelled'
+                              ? 'bg-gray-100 text-gray-600'
+                              : 'bg-gray-100 text-gray-700'
+                          }`}>
+                            {accStatus === 'pending' ? (isOverduePending ? 'Vencido' : 'A Pagar') :
+                             accStatus === 'paid' ? 'Pago' :
+                             accStatus === 'cancelled' ? 'Cancelado' :
+                             String(acc.status || '—')}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-center relative">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openPayableMenuId === acc.id) {
+                                setOpenPayableMenuId(null)
+                              } else if (acc.id) {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setPayableMenuPos({
+                                  top: rect.bottom + window.scrollY,
+                                  left: rect.left - 90 + window.scrollX,
+                                })
+                                setOpenPayableMenuId(acc.id)
+                              }
+                            }}
+                            className="p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-100"
+                            title="Mais opções"
+                          >
+                            ⋮
+                          </button>
+
+                          {openPayableMenuId === acc.id && canDeletePayable && (
+                            <div
+                              className="fixed bg-white rounded-md shadow-lg border border-gray-100 z-[100] py-1 w-32"
+                              style={{ top: payableMenuPos.top, left: payableMenuPos.left }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setOpenPayableMenuId(null)
+                                  if (acc.id) handleDeletePayable(acc.id)
+                                }}
+                                disabled={payableDeleteLoading}
+                                className="w-full text-left px-4 py-2 text-xs text-red-600 hover:bg-red-50 disabled:opacity-50 flex items-center gap-2"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                                Excluir
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       )}
 
@@ -2424,6 +2981,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
           setSelectPaymentOpen(false)
         }}
       />
+      </div>
     </div>
   )
 }

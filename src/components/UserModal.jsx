@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import Switch from './Switch'
 import PermissionsModal from './PermissionsModal'
 
-export default function UserModal({ user, onClose, onSave }){
+export default function UserModal({ user, onClose, onSave, ownerStores = [] }){
   const [name, setName] = useState(user?.name || '')
   const [email, setEmail] = useState(user?.email || '')
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '')
@@ -28,6 +28,22 @@ export default function UserModal({ user, onClose, onSave }){
   const [passwordConfirm, setPasswordConfirm] = useState('')
   const [error, setError] = useState('')
 
+  // --- Acesso a Lojas (NOVA FEATURE) ---
+  // Se NÃO TEM settings salvos (default) → "storesAllAccess = true" (libera todas, comportamento anterior).
+  // Se tiver configurado → usa o que tiver salvo.
+  const userSetAccessMode =
+    user && (typeof user?.storesAllAccess === 'boolean' || Array.isArray(user?.storesAccess))
+  const defaultStoresAllAccess = userSetAccessMode ? !!user.storesAllAccess : true
+  const [storesAllAccess, setStoresAllAccess] = useState(defaultStoresAllAccess)
+  const [storesAccess, setStoresAccess] = useState(() => {
+    if (Array.isArray(user?.storesAccess) && user.storesAccess.length > 0) {
+      return user.storesAccess.slice()
+    }
+    // Default = TODAS as lojas marcadas (modo todas -> mostra todas), porém se for modo "todas"
+    // o payload vai enviar storesAllAccess=true e storesAccess pode ignorar
+    return (ownerStores || []).map(s => s.id)
+  })
+
   useEffect(() => {
     setName(user?.name || '')
     setEmail(user?.email || '')
@@ -45,7 +61,16 @@ export default function UserModal({ user, onClose, onSave }){
     setError('')
     setPassword('')
     setPasswordConfirm('')
-  }, [user])
+    // Inicializa Acesso a Lojas com valores do usuário, ou default
+    const hasSettings =
+      user && (typeof user?.storesAllAccess === 'boolean' || Array.isArray(user?.storesAccess))
+    const defAll = hasSettings ? !!user.storesAllAccess : true
+    setStoresAllAccess(defAll)
+    const defSel = hasSettings && Array.isArray(user?.storesAccess) && user.storesAccess.length > 0
+      ? user.storesAccess.slice()
+      : (ownerStores || []).map(s => s.id)
+    setStoresAccess(defSel)
+  }, [user, ownerStores])
 
   const deriveRole = () => {
     if (isAdmin) return 'admin'
@@ -79,6 +104,9 @@ export default function UserModal({ user, onClose, onSave }){
       active,
       role: deriveRole(),
       permissions,
+      // Controle de acesso por loja (nova feature)
+      storesAllAccess: storesAllAccess === true,
+      storesAccess: storesAllAccess === true ? [] : (storesAccess || []).slice(),
       // Inclui senha apenas na criação
       ...(user ? {} : { password: String(password) })
     }
@@ -209,6 +237,71 @@ export default function UserModal({ user, onClose, onSave }){
           {/* Cadastro ativo */}
           <div>
             <Switch checked={active} onChange={setActive} label="Cadastro ativo" />
+          </div>
+
+          {/* Acesso a Lojas */}
+          <div>
+            <div className="font-semibold text-sm mb-2">Acesso a Lojas</div>
+            <div className="text-xs text-gray-600 bg-gray-100 rounded p-3 mb-3">
+              Define quais lojas este usuário poderá acessar após fazer login.
+              Padrão: acesso liberado a todas as lojas da conta.
+            </div>
+            <div className="space-y-2">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  className="mt-1"
+                  checked={storesAllAccess === true}
+                  onChange={() => setStoresAllAccess(true)}
+                />
+                <span className="text-sm text-gray-800">
+                  <span className="font-medium">Acesso a TODAS as lojas</span>
+                  <span className="text-gray-500 ml-1">(libera qualquer loja criada)</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  className="mt-1"
+                  checked={storesAllAccess === false}
+                  onChange={() => setStoresAllAccess(false)}
+                />
+                <span className="text-sm text-gray-800">
+                  <span className="font-medium">Selecionar lojas específicas</span>
+                </span>
+              </label>
+              {storesAllAccess === false && (
+                <div className="mt-2 ml-5 rounded border border-gray-200 p-3 space-y-2 max-h-60 overflow-y-auto bg-gray-50">
+                  {(ownerStores && ownerStores.length === 0) ? (
+                    <div className="text-xs text-gray-500 py-1">
+                      Nenhuma loja cadastrada para esta conta ainda.
+                    </div>
+                  ) : (ownerStores || []).map(store => {
+                    const checked = (storesAccess || []).includes(store.id)
+                    return (
+                      <label key={store.id} className="flex items-center gap-2 cursor-pointer text-sm text-gray-800">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setStoresAccess(prev => {
+                              const cur = Array.isArray(prev) ? prev.slice() : []
+                              if (checked) return cur.filter(id => id !== store.id)
+                              cur.push(store.id)
+                              return cur
+                            })
+                          }}
+                        />
+                        <span className="truncate">
+                          <span className="font-medium">{store.name || 'Loja sem nome'}</span>
+                          {store.city && <span className="text-gray-500 ml-1 text-xs">· {store.city}/{store.state || ''}</span>}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center justify-end gap-2 pt-2">

@@ -1,13 +1,16 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter, getDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter, getDoc, runTransaction } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { getStoreById, listStoresByOwner } from './stores'
 
 const colRef = collection(db, 'products')
 
 export function listenProducts(callback, storeId){
+  // CORREÇÃO CRÍTICA (igual clientes): orderBy('__name__') (ID do documento) NÃO orderBy('createdAt')
+  // Motivo: produtos antigos NÃO TEM createdAt → orderBy(createdAt) IGNORA eles completamente!
+  // __name__ sempre existe → retorna 100% dos docs da loja
   const q = storeId 
-    ? query(colRef, where('storeId','==',storeId), orderBy('createdAt', 'desc'), limit(50))
-    : query(colRef, orderBy('createdAt', 'desc'), limit(50))
+    ? query(colRef, where('storeId','==',storeId), orderBy('__name__', 'desc'), limit(50))
+    : query(colRef, orderBy('__name__', 'desc'), limit(50))
   return onSnapshot(q, (snap) => {
     const items = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))
@@ -42,49 +45,109 @@ export async function getTotalProductsCount(storeId) {
   return snap.data().count
 }
 
-export async function getAllProducts(storeId) {
+// Retorna contagem TOTAL de PRODUTOS ATIVOS (0 reads cobrados — só metadados getCountFromServer)
+// CORREÇÃO CRÍTICA (igual clientes): 99% dos produtos ANTIGOS não tem o campo 'active' gravado.
+// Firestore IGNORA COMPLETAMENTE docs undefined em where('active','==',true).
+// Portanto, consideramos TODOS os produtos (menos active===false) como ativos.
+export async function getTotalActiveProductsCount(storeId) {
+  const q = query(colRef, where('storeId', '==', storeId))
+  const snap = await getCountFromServer(q)
+  return snap.data().count
+}
+
+// Retorna APENAS PRODUTOS ATIVOS (paginação cursor 1k em 1k)
+// ESTRATÉGIA SMART CACHE: primeiro carregamento SÓ ativos (economiza inativos).
+// Inativos SÓ baixados se o usuário abrir filtros e marcar filterInactive=true.
+//
+// CORREÇÃO CRÍTICA (igual clientes): não usamos where('active','==',true).
+//   Motivo: 99% dos produtos ANTIGOS não tem o campo active (undefined) → Firestore os IGNORA.
+//   SOLUÇÃO: baixamos TUDO (cursor 1k/pg orderBy __name__) e FILTRAMOS LOCALMENTE
+//   removendo apenas active===false. Undefined/null = CONSIDERADO ATIVO (padrão default).
+export async function getActiveProducts(storeId) {
+  const PAGE_SIZE = 1000
   const all = []
   let lastDoc = null
-  const CHUNK_SIZE = 5000 
-
+  let page = 0
+  console.log(`[getActiveProducts] Iniciando paginação produtos loja ${storeId} (ordem __name__ DESC, ${PAGE_SIZE}/página).`)
+  console.log(`[getActiveProducts] Filtrando LOCALMENTE: remove active===false. Undefined/null = ATIVO.`)
   try {
     while (true) {
-      // REMOVIDO orderBy('name') para evitar necessidade de índice composto com storeId
-      // O Firestore permite startAfter sem orderBy explícito (usa o ID do documento por padrão)
-      let q = query(
-        colRef, 
-        where('storeId', '==', storeId), 
-        limit(CHUNK_SIZE)
-      )
-      
-      if (lastDoc) {
-        q = query(q, startAfter(lastDoc))
+      page++
+      let q
+      if (!lastDoc) {
+        q = query(colRef, where('storeId', '==', storeId), orderBy('__name__', 'desc'), limit(PAGE_SIZE))
+      } else {
+        q = query(colRef, where('storeId', '==', storeId), orderBy('__name__', 'desc'), startAfter(lastDoc), limit(PAGE_SIZE))
       }
-
       const snap = await getDocs(q)
-      if (snap.empty) break
-      
+      if (snap.empty) {
+        console.log(`[getActiveProducts] Pg ${page}: VAZIA. Total bruto=${all.length}`)
+        break
+      }
       snap.docs.forEach(d => all.push({ id: d.id, ...d.data() }))
-      if (snap.docs.length < CHUNK_SIZE) break
-      
+      console.log(`[getActiveProducts] Pg ${page}: +${snap.docs.length} total bruto=${all.length}`)
+      if (snap.docs.length < PAGE_SIZE) break
       lastDoc = snap.docs[snap.docs.length - 1]
+      if (page >= 100) {
+        console.warn(`[getActiveProducts] Limite 100 pág (${all.length}). Parando.`)
+        break
+      }
+    }
+  } catch (err) {
+    console.error('Erro em getActiveProducts:', err)
+  }
+  const activeOnly = all.filter(p => p.active !== false)
+  console.log(`[getActiveProducts] Concluído: ${all.length} bruto → ${activeOnly.length} ATIVOS em ${page} página(s).`)
+  return activeOnly
+}
+
+// Retorna TODOS os produtos da loja com PAGINAÇÃO POR CURSOR de 1000 em 1000
+// (evita limite implícito do firestore 81/500 docs)
+// CORREÇÃO CRÍTICA: orderBy('__name__') SEMPRE → produtos SEM createdAt não são ignorados.
+export async function getAllProducts(storeId) {
+  const PAGE_SIZE = 1000
+  const all = []
+  let lastDoc = null
+  let page = 0
+  console.log(`[getAllProducts] Iniciando paginação produtos loja ${storeId} (ordem __name__ DESC, ${PAGE_SIZE}/página)`)
+  try {
+    while (true) {
+      page++
+      let q
+      if (!lastDoc) {
+        q = query(colRef, where('storeId', '==', storeId), orderBy('__name__', 'desc'), limit(PAGE_SIZE))
+      } else {
+        q = query(colRef, where('storeId', '==', storeId), orderBy('__name__', 'desc'), startAfter(lastDoc), limit(PAGE_SIZE))
+      }
+      const snap = await getDocs(q)
+      if (snap.empty) {
+        console.log(`[getAllProducts] Página ${page}: VAZIA. Finalizando. Total=${all.length}`)
+        break
+      }
+      snap.docs.forEach(d => all.push({ id: d.id, ...d.data() }))
+      console.log(`[getAllProducts] Pg ${page}: +${snap.docs.length} total=${all.length}`)
+      if (snap.docs.length < PAGE_SIZE) break
+      lastDoc = snap.docs[snap.docs.length - 1]
+      if (page >= 100) {
+        console.warn(`[getAllProducts] Limite 100 páginas (${all.length} produtos). Parando.`)
+        break
+      }
     }
   } catch (err) {
     console.error('Erro em getAllProducts:', err)
-    // Se falhar a busca otimizada, tenta uma busca simples sem limite ou chunks se for pequeno,
-    // mas aqui o ideal é retornar o que conseguimos ou erro.
   }
-  
+  console.log(`[getAllProducts] Concluído: ${all.length} produtos em ${page} página(s).`)
   return all
 }
 
 export async function getProductsByPage(storeId, page, pageSize) {
+  // CORREÇÃO: orderBy('__name__') não createdAt (garante 100% docs, sem ignorar velhos)
   const targetIndex = (page - 1) * pageSize
-  // Limit strategy for pagination
-  const qBig = query(colRef, where('storeId', '==', storeId), orderBy('createdAt', 'desc'), limit(targetIndex + pageSize))
+  const qBig = query(colRef, where('storeId', '==', storeId), orderBy('__name__', 'desc'), limit(targetIndex + pageSize))
   const snap = await getDocs(qBig)
   const allDocs = snap.docs
   const pageDocs = allDocs.slice(targetIndex, targetIndex + pageSize)
+  console.log(`[getProductsByPage] p=${page} sz=${pageSize} all=${allDocs.length} retornados=${pageDocs.length} (orderBy __name__)`)
   return pageDocs.map(d => ({ id: d.id, ...d.data() }))
 }
 
@@ -163,7 +226,7 @@ export async function addProduct(product, storeId){
     // Básico
     name: product.name ?? 'Novo Produto',
     nameLower: (product.name ?? 'Novo Produto').toLowerCase(),
-    active: product.active ?? true,
+    active: product.active === false ? false : true,
 
     // Classificação
     categoryId: product.categoryId ?? null,
@@ -236,8 +299,14 @@ export async function updateProduct(id, partial){
   if (partial.name) {
     data.nameLower = partial.name.toLowerCase()
   }
+  // CORREÇÃO: active SEMPRE gravado como boolean (nunca undefined/null)
+  if ('active' in data) {
+    data.active = data.active === false ? false : true
+  }
   await updateDoc(ref, data)
-  return { ...data, updatedAt: new Date() }
+  const out = { ...data, updatedAt: new Date() }
+  if ('active' in out) out.active = out.active === false ? false : true
+  return out
 }
 
 export async function removeProduct(id){
@@ -446,4 +515,122 @@ export async function getNextProductReference(storeId) {
     console.error("Error getting next reference:", error)
     return '1'
   }
+}
+
+// ======================================================================
+// 💠 FUNÇÃO CENTRAL DE AJUSTE DE ESTOQUE (SEM RACE CONDITION!)
+// ======================================================================
+//
+// Problema anterior: NewSaleModal, ServiceOrdersPage e SaleDetailModal
+// faziam:
+//   const cur = Number(realProduct.stock || 0)   ← VALOR DE CACHE LOCAL
+//   await updateProduct(pId, { stock: cur - qty }) ← SEM TRANSACTION
+// Resultado: 2 usuários ao mesmo tempo vendendo produto com stock=10
+//            → AMBOS gravam stock=5 → FICA 5, deveria ser 0.
+//            Perda de estoque / overselling.
+//
+// Solução (abaixo): usa runTransaction nativo do Firestore (atomicidade,
+// lock otimista). DENTRO da transaction, o stock é LIDO DIRETAMENTE
+// do servidor em tempo REAL (não de cache local). Se 2 transactions
+// tentarem escrever ao mesmo tempo, Firestore re-executa automaticamente
+// a transação perdedora com o valor novo do servidor — garantindo
+// resultado CORRETO (sem corrida, sem overselling, sem perda de estoque).
+//
+// Parâmetros:
+//   productId         : string (obrigatório)
+//   delta             : number — +N = adicionar estoque (estorno/cancelamento/entrada)
+//                                 -N = remover estoque (venda/OS/baixa)
+//   opts.variationName: string opcional — nome da variação (se for produto com variações)
+//   opts.allowNegative: bool — default false (não permite estoque negativo).
+//
+// Retorna: Promise<{
+//   productId, ok: true,
+//   finalStock: number,            — estoque final do produto principal
+//   finalVariationsData?: any[],   — se houver variações, array final atualizado
+//   patch: { stock, variationsData? }
+// }>
+export async function adjustProductStockTransactionally(productId, delta, opts = {}) {
+  if (!productId) throw new Error('productId é obrigatório (adjustProductStockTransactionally)')
+  const d = Number(delta || 0)
+  if (d === 0) {
+    return { productId, ok: true, finalStock: 0, delta: 0, patch: {} }
+  }
+  const variationName = opts?.variationName || null
+  const allowNegative = !!opts?.allowNegative
+
+  const ref = doc(db, 'products', productId)
+
+  const result = await runTransaction(db, async (txn) => {
+    const snap = await txn.get(ref)
+    if (!snap.exists()) {
+      throw new Error(`Produto ${productId} não encontrado no Firestore`)
+    }
+    const data = snap.data() || {}
+    const hasVars = Array.isArray(data.variationsData) && data.variationsData.length > 0
+
+    // ------------------------------------------------------------
+    // 1) Lê estoque REAL do servidor (não de cache!)
+    // ------------------------------------------------------------
+    let currentStock = Number(data.stock ?? (Number(data.stockInitial ?? 0)))
+    let variationsData = hasVars ? data.variationsData.map(v => ({ ...v })) : null
+
+    // ------------------------------------------------------------
+    // 2) Aplica delta
+    // ------------------------------------------------------------
+    let newStock = currentStock + d
+    let newVars = variationsData
+    let finalStock = newStock
+
+    if (hasVars) {
+      if (variationName) {
+        // Produto com variações + operação específica de uma variação
+        const idx = newVars.findIndex(v => String(v?.name) === String(variationName))
+        if (idx < 0) {
+          // Variação não existe → joga no estoque geral e grava warning
+          console.warn(`[adjustStock] variação "${variationName}" não encontrada no produto ${productId}. Ajustando estoque geral.`)
+        } else {
+          // Variação existe: ajusta estoque DELA e também do produto principal.
+          const v = newVars[idx]
+          // Variação tem PRÓPRIO controle de estoque? (usa stock/v.stock se tiver)
+          const vCurrent = Number(v.stock ?? (Number(v.stockInitial ?? Number(currentStock))))
+          let vNext = vCurrent + d
+          if (!allowNegative && vNext < 0) vNext = 0
+          newVars = newVars.map((vv, i) => i === idx ? { ...vv, stock: vNext } : vv)
+        }
+      } else {
+        // Produto com variações, mas sem nome de variação (ajuste geral):
+        // Atualiza TODAS as variações para o mesmo valor final newStock (comportamento
+        // antigo do sistema, para manter compatibilidade).
+        if (!allowNegative && newStock < 0) newStock = 0
+        finalStock = newStock
+        newVars = newVars.map(vv => ({ ...vv, stock: finalStock }))
+      }
+    }
+
+    if (!allowNegative && newStock < 0) newStock = 0
+    finalStock = newStock
+
+    // ------------------------------------------------------------
+    // 3) Escreve atomicamente no Firestore (transaction.update)
+    // ------------------------------------------------------------
+    const patch = {
+      stock: finalStock,
+      updatedAt: serverTimestamp(),
+    }
+    if (newVars) patch.variationsData = newVars
+    if ('active' in data) patch.active = data.active === false ? false : true
+
+    txn.update(ref, patch)
+
+    return {
+      ok: true,
+      productId,
+      delta: d,
+      finalStock,
+      finalVariationsData: newVars,
+      patch,
+    }
+  })
+
+  return result
 }

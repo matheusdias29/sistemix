@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { getAllProducts, updateProduct, listenProducts, syncUnifiedStockAcrossStores } from '../services/products'
+import { getAllProducts, updateProduct, listenProducts, syncUnifiedStockAcrossStores, adjustProductStockTransactionally, getProductById } from '../services/products'
+import { applyProductsPatchesToDiskCache } from '../lib/datacache'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
 import { listenClients, getAllClients } from '../services/clients'
@@ -12,8 +13,55 @@ import SelectVariationModal from './SelectVariationModal'
 import EditCartItemModal from './EditCartItemModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
 
-export default function NewSaleModal({ open, onClose, storeId, user, isEdit = false, sale = null }) {
+const COST_KEYS_PREFERRED = [
+  'cost', 'purchasePrice', 'costPrice',
+  'precoCusto', 'preco_custo', 'precodecusto',
+  'custoCompra', 'custo_compra',
+  'custoProduto', 'custo_produto',
+  'valorCusto', 'valor_custo',
+  'valorCompra', 'valor_compra',
+  'precoCompra', 'preco_compra',
+  'custoUnitario', 'custo_unitario',
+  'custo', 'productCost', 'pCost',
+  'custoDeCompra', 'custo_de_compra',
+  'compraPreco', 'compra_preco'
+]
 
+function extractUnitCost(obj) {
+  if (!obj || typeof obj !== 'object') return 0
+  for (const k of COST_KEYS_PREFERRED) {
+    if (typeof obj[k] !== 'undefined' && obj[k] !== null && Number(obj[k]) > 0) {
+      return Number(obj[k])
+    }
+  }
+  for (const k of Object.keys(obj)) {
+    if (/custo|compra|purchase|costprice/i.test(k) && Number(obj[k]) > 0) {
+      return Number(obj[k])
+    }
+  }
+  return 0
+}
+
+function buildCostSnapshot(obj) {
+  const snapshot = {}
+  if (!obj || typeof obj !== 'object') return snapshot
+  for (const k of COST_KEYS_PREFERRED) {
+    if (typeof obj[k] !== 'undefined' && obj[k] !== null) {
+      const v = Number(obj[k])
+      if (Number.isFinite(v)) snapshot[k] = v
+    }
+  }
+  for (const k of Object.keys(obj)) {
+    if (!snapshot[k] && /custo|compra|purchase|costprice/i.test(k)) {
+      const v = Number(obj[k])
+      if (Number.isFinite(v)) snapshot[k] = v
+    }
+  }
+  return snapshot
+}
+
+export default function NewSaleModal({ open, onClose, storeId, user, isEdit = false, sale = null }) {
+  const uid = user?.id || user?.uid || user?.memberId || 'anon'
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
 
@@ -585,14 +633,45 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           salesAttendantPercent,
           salesAttendantValue: commissionValue
         },
-        products: cart.map(item => ({
-          id: item.product.originalId || item.product.id,
-          name: item.product.name,
-          variationName: item.product.variationRawName || null,
-          price: item.price,
-          quantity: item.quantity,
-          total: item.total
-        })),
+        products: cart.map(item => {
+          const productId = String(item.product.originalId || item.product.productId || item.product.id || '')
+          const variationName = item.product.variationRawName || item.product.variation || item.product.variacao || null
+          const realProduct =
+            (productId && (cachedProducts || products))
+              ? (cachedProducts || products).find(p => String(p.originalId || p.productId || p.id || '') === productId) || null
+              : null
+          const vCost =
+            (realProduct && variationName && Array.isArray(realProduct.variationsData))
+              ? realProduct.variationsData.find(v => String(v.name || v.label || '').trim() === String(variationName || '').trim()) || null
+              : null
+          const unitCost =
+            extractUnitCost(item.product) ||
+            (vCost ? extractUnitCost(vCost) : 0) ||
+            (realProduct ? extractUnitCost(realProduct) : 0)
+          const quantity = Number(item.quantity || 0)
+          const costSnapFromProduct = buildCostSnapshot(item.product)
+          const costSnapFromVar = vCost ? buildCostSnapshot(vCost) : {}
+          const costSnapFromProdReal = realProduct ? buildCostSnapshot(realProduct) : {}
+          return {
+            id: productId,
+            productId: productId,
+            originalId: item.product.originalId || null,
+            name: item.product.name,
+            variationName: variationName,
+            price: item.price,
+            quantity: quantity,
+            total: item.total,
+            cost: unitCost > 0 ? unitCost : undefined,
+            purchasePrice: unitCost > 0 ? unitCost : undefined,
+            costPrice: unitCost > 0 ? unitCost : undefined,
+            precoCusto: unitCost > 0 ? unitCost : undefined,
+            custo: unitCost > 0 ? unitCost : undefined,
+            costTotal: unitCost > 0 ? Number((unitCost * quantity).toFixed(2)) : undefined,
+            _costSnapFromProduct: Object.keys(costSnapFromProduct).length > 0 ? costSnapFromProduct : undefined,
+            _costSnapFromVar: Object.keys(costSnapFromVar).length > 0 ? costSnapFromVar : undefined,
+            _costSnapFromProdReal: Object.keys(costSnapFromProdReal).length > 0 ? costSnapFromProdReal : undefined,
+          }
+        }),
         totalProducts: subtotal,
         feesApplied: appliedFees,
         discount,
@@ -641,75 +720,215 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         orderId = await addOrder(payload, storeId)
       }
 
-      if (!isEdit && (status === 'Venda' || status === 'Pedido' || status === 'Cliente Final' || status === 'Cliente Lojista')) {
+      // ====== AJUSTE DE ESTOQUE (TRANSAÇÃO, SEM RACE CONDITION) ======
+      //
+      // Regras para decidir o que fazer:
+      //   finalStatuses = status que RESERVAM / BAIXAM estoque
+      //   wasDeducted   = status ANTERIOR (se edição) já baixou estoque
+      //   nowDeducted   = status ATUAL  vai baixar estoque
+      //
+      //   1) nowDeducted && !wasDeducted → BAIXA tudo (igual nova venda)
+      //   2) nowDeducted &&  wasDeducted → CALCULA delta por produto
+      //   3)!nowDeducted &&  wasDeducted → DEVOLVE tudo (estorno total)
+      //   4) nenhuma regra acima         → sem alteração de estoque
+      //
+      // Em TÓDOS os casos acima usamos adjustProductStockTransactionally
+      // (runTransaction Firestore → lê estoque REAL do servidor DENTRO da
+      // transaction, sem race condition, reexecuta automaticamente a perdedora).
+      {
+        const FINAL_STATUSES = ['venda','pedido','cliente final','cliente lojista','finalizado','pago']
+        const normNew = String(status || '').toLowerCase().trim()
+        const nowDeducted = FINAL_STATUSES.includes(normNew)
+
+        let wasDeducted = false
+        if (isEdit && sale) {
+          const normOrig = String(sale.status || '').toLowerCase().trim()
+          wasDeducted = FINAL_STATUSES.includes(normOrig)
+        }
+
         const sourceList = cachedProducts || products
-        for (const item of cart) {
-          const qty = item.quantity
-          const pId = item.product.originalId || item.product.id
-          const realProduct = sourceList.find(p => p.id === pId)
-          
-          if (realProduct) {
-            let variationId = null
-            let variationName = null
+        const patchesForCache = []
 
-            if (item.product.variationRawName) {
-              // Variation
-              if (realProduct.variationsData && Array.isArray(realProduct.variationsData)) {
-                const targetVar = realProduct.variationsData.find(v => v.name === item.product.variationRawName)
-                if (targetVar) {
-                   variationId = targetVar.id || null
-                   variationName = targetVar.name || targetVar.label || item.product.variationRawName
-                }
-
-                const vars = realProduct.variationsData
-                const index = vars.findIndex(v => v.name === item.product.variationRawName)
-                let newVars = vars
-                if (usesSharedStockForVariation(realProduct, item.product.variationRawName)) {
-                  newVars = vars.map((v, i) => {
-                    if (i === 0) {
-                      return { ...v, stock: Number(v.stock || 0) - qty }
-                    }
-                    return v
-                  })
-                } else {
-                  newVars = vars.map(v => {
-                    if (v.name === item.product.variationRawName) {
-                      return { ...v, stock: Number(v.stock || 0) - qty }
-                    }
-                    return v
-                  })
-                }
-                const currentTotal = Number(realProduct.stock || 0)
-                const stockUpdate = {
-                  variationsData: newVars,
-                  stock: currentTotal - qty
-                }
-                await updateProduct(pId, stockUpdate)
-                await syncUnifiedStockAcrossStores(realProduct, storeId, stockUpdate)
+        // Resolve produto + variação a partir de um item (origem sale.products ou cart)
+        const resolveMetaFromItem = (rawId, vName) => {
+          let pId = String(rawId || '').trim()
+          let variationName = String(vName || '').trim() || null
+          if (!pId) return null
+          // Composite id (BaseID-VariationName) — extrai a base e variação
+          if (pId.includes('-') && !sourceList.some(p => p.id === pId)) {
+            const parts = pId.split('-')
+            const candidate = parts[0]
+            if (sourceList.some(p => p.id === candidate)) {
+              pId = candidate
+              if (!variationName && parts.length > 1) {
+                variationName = parts.slice(1).join('-')
               }
-            } else {
-              // Simple Product
-              const currentStock = Number(realProduct.stock || 0)
-              const stockUpdate = { stock: currentStock - qty }
-              await updateProduct(pId, stockUpdate)
-              await syncUnifiedStockAcrossStores(realProduct, storeId, stockUpdate)
             }
+          }
+          const realProduct = sourceList.find(p => p.id === pId) || null
+          return { pId, variationName, realProduct }
+        }
 
-            // Log Movement
+        const runAdjustForSingle = async ({ pId, delta, variationName, realProduct, reason, description }) => {
+          if (!pId || delta === 0) return null
+          let adjustResult = null
+          try {
+            adjustResult = await adjustProductStockTransactionally(pId, delta, { variationName: variationName || undefined })
+          } catch (txErr) {
+            console.error('Erro transação ajuste estoque', pId, 'delta=', delta, txErr)
+            // FALLBACK: getProductById (servidor) + updateProduct
+            try {
+              const fbProd = (await getProductById(pId).catch(() => null)) || realProduct
+              if (fbProd) {
+                const cur = Number(fbProd.stock ?? (Number(fbProd.stockInitial ?? 0)))
+                let next = cur + delta
+                if (next < 0 && delta < 0) next = cur // fallback seguro: não deixa negativo por erro
+                let updateData = { stock: next }
+                if (Array.isArray(fbProd.variationsData) && fbProd.variationsData.length > 0) {
+                  if (variationName) {
+                    const idx = fbProd.variationsData.findIndex(v => String(v?.name) === String(variationName))
+                    if (idx >= 0) {
+                      const nextVars = fbProd.variationsData.map((vv, i) => i === idx ? { ...vv, stock: next } : vv)
+                      updateData.variationsData = nextVars
+                    } else {
+                      updateData.variationsData = fbProd.variationsData.map(vv => ({ ...vv, stock: next }))
+                    }
+                  } else {
+                    updateData.variationsData = fbProd.variationsData.map(vv => ({ ...vv, stock: next }))
+                  }
+                }
+                await updateProduct(fbProd.id, updateData)
+                await syncUnifiedStockAcrossStores(fbProd, storeId, updateData)
+                return { fallback: true, patch: updateData, pId }
+              }
+            } catch (fallbackErr) { console.error('Fallback ajuste estoque falhou', fallbackErr) }
+          }
+          const patch = adjustResult?.patch || null
+          if (patch) {
+            patchesForCache.push({ productId: pId, patch })
+            if (realProduct) {
+              try { await syncUnifiedStockAcrossStores(realProduct, storeId, patch) } catch (e) { console.warn('syncUnified falhou (nao-fatal)', e) }
+            }
+          }
+          // Movimento de estoque
+          const type = delta > 0 ? 'in' : 'out'
+          const qtyAbs = Math.abs(delta)
+          try {
             await recordStockMovement({
               productId: pId,
-              productName: realProduct.name,
-              variationId,
-              variationName,
-              type: 'out',
-              quantity: qty,
-              reason: 'sale',
+              productName: realProduct?.name || (adjustResult?.productId ? ('Produto ' + pId) : ''),
+              variationName: variationName || null,
+              type,
+              quantity: qtyAbs,
+              reason: reason || (isEdit ? 'adjustment' : 'sale'),
               referenceId: orderId,
-              description: `Venda para ${payload.client}`,
+              description: description || (isEdit ? 'Ajuste edição venda' : `Venda para ${payload.client}`),
               userId: user?.id,
               userName: user?.name
             })
+          } catch {}
+          return adjustResult
+        }
+
+        if (nowDeducted && !wasDeducted) {
+          // =========================================================
+          // CASO 1: Agora virou venda faturada (e não era antes)
+          // OU Nova venda (!isEdit) → baixa TUDO do carrinho
+          // =========================================================
+          for (const item of cart) {
+            const qty = Number(item.quantity || 0)
+            if (qty <= 0) continue
+            const rawId = item.product.originalId || item.product.id
+            const vRaw = item.product.variationRawName || item.product.variation || item.product.variacao
+            const meta = resolveMetaFromItem(rawId, vRaw)
+            if (!meta) continue
+            await runAdjustForSingle({
+              pId: meta.pId,
+              delta: -qty,
+              variationName: meta.variationName,
+              realProduct: meta.realProduct,
+              reason: 'sale',
+              description: `Venda para ${payload.client}`
+            })
           }
+        } else if (nowDeducted && wasDeducted) {
+          // =========================================================
+          // CASO 2: Edição de venda JÁ FATURADA → delta por produto
+          // =========================================================
+          // 2a) Monta mapa do original (sale.products)
+          const origMap = new Map()
+          if (Array.isArray(sale?.products)) {
+            for (const it of sale.products) {
+              const qty = Number(it.quantity || 0)
+              if (qty <= 0) continue
+              const pIdRaw = String(it.originalId || it.productId || it.id || '').trim()
+              const vName = String(it.variationName || '').trim()
+              const meta = resolveMetaFromItem(pIdRaw, vName)
+              if (!meta) continue
+              const k = meta.variationName ? `${meta.pId}|${meta.variationName}` : meta.pId
+              origMap.set(k, (origMap.get(k) || 0) + qty)
+            }
+          }
+          // 2b) Monta mapa do novo (cart atual)
+          const newMap = new Map()
+          for (const item of cart) {
+            const qty = Number(item.quantity || 0)
+            if (qty <= 0) continue
+            const rawId = item.product.originalId || item.product.id
+            const vRaw = item.product.variationRawName || item.product.variation || item.product.variacao
+            const meta = resolveMetaFromItem(rawId, vRaw)
+            if (!meta) continue
+            const k = meta.variationName ? `${meta.pId}|${meta.variationName}` : meta.pId
+            newMap.set(k, (newMap.get(k) || 0) + qty)
+          }
+          // 2c) União de keys
+          const allKeys = new Set([...origMap.keys(), ...newMap.keys()])
+          // 2d) Ajusta delta por item
+          for (const k of allKeys) {
+            const origQty = Number(origMap.get(k) || 0)
+            const newQty  = Number(newMap.get(k)  || 0)
+            const delta = newQty - origQty  // + = adicionou quantidade (baixa mais estoque, delta negativo)
+                                            // - = removeu quantidade (volta estoque, delta positivo)
+            if (delta === 0) continue
+            const [pId, vName] = k.includes('|') ? k.split('|', 2) : [k, null]
+            const realProduct = sourceList.find(p => p.id === pId) || null
+            const txDelta = -delta // ajuste transacional: +qty carrinho → -delta estoque
+            await runAdjustForSingle({
+              pId,
+              delta: txDelta,
+              variationName: vName || null,
+              realProduct,
+              reason: 'adjustment',
+              description: `Edição venda ${sale?.number || sale?.id || ''} (${origQty} → ${newQty})`
+            })
+          }
+        } else if (!nowDeducted && wasDeducted) {
+          // =========================================================
+          // CASO 3: Status deixou de ser faturado (estorno TOTAL)
+          // (raro em edição, mas cobre caso usuário mude para orçamento)
+          // =========================================================
+          const items = Array.isArray(sale?.products) ? sale.products : []
+          for (const it of items) {
+            const qty = Number(it.quantity || 0)
+            if (qty <= 0) continue
+            const pIdRaw = String(it.originalId || it.productId || it.id || '').trim()
+            const vName = String(it.variationName || '').trim()
+            const meta = resolveMetaFromItem(pIdRaw, vName)
+            if (!meta) continue
+            await runAdjustForSingle({
+              pId: meta.pId,
+              delta: +qty,  // devolve ao estoque
+              variationName: meta.variationName,
+              realProduct: meta.realProduct,
+              reason: 'cancel',
+              description: `Edição venda: status deixou de ser faturado (${sale?.number || sale?.id || ''})`
+            })
+          }
+        }
+
+        // Atualiza cache em disco NA HORA (ProductsPage reflete imediatamente)
+        if (patchesForCache.length > 0) {
+          applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
         }
       }
 

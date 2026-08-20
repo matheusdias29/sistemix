@@ -11,13 +11,39 @@ export default function SelectStorePage({ user, onSelect }){
     let mounted = true
     async function load(){
       setLoading(true)
-      const data = await listStoresByOwner(user.id)
-      if (mounted) setStores(data)
+      try {
+        // Usuário DONO (sem memberId): suas lojas pelo user.id
+        // Usuário FUNCIONÁRIO (com memberId): lojas do OWNER (user.ownerId)
+        const ownerLookupId = user.memberId ? (user.ownerId || user.id) : user.id
+        const allFromOwner = await listStoresByOwner(ownerLookupId)
+
+        // Se for FUNCIONÁRIO: aplicar filtro de permissão por loja
+        let finalList = allFromOwner || []
+        if (user.memberId) {
+          const allAccess = user.storesAllAccess === true
+          if (!allAccess) {
+            const allowedIds = Array.isArray(user.storesAccess) ? user.storesAccess : []
+            if (allowedIds.length === 0) {
+              finalList = []
+            } else {
+              const set = new Set(allowedIds)
+              finalList = (allFromOwner || []).filter(s => set.has(s.id))
+            }
+            console.log(`[SelectStore] Member ${user.memberId}: allAccess=false permitidas=${allowedIds.length} lojas, filtrou ${finalList.length}/${allFromOwner.length}`)
+          } else {
+            console.log(`[SelectStore] Member ${user.memberId}: allAccess=true, todas as ${finalList.length} lojas liberadas`)
+          }
+        }
+        if (mounted) setStores(finalList)
+      } catch (e) {
+        console.error('[SelectStore] Erro ao carregar lojas:', e)
+        if (mounted) setStores([])
+      }
       setLoading(false)
     }
     load()
     return () => { mounted = false }
-  }, [user.id])
+  }, [user.id, user.memberId, user.ownerId, user.storesAllAccess, JSON.stringify(user.storesAccess || [])])
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-2 font-sans">

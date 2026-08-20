@@ -144,6 +144,9 @@ export async function addSubUser(ownerUserId, user){
     active: user.active ?? true,
     // Permissões avançadas
     permissions: user.permissions ?? {},
+    // Acesso a Lojas (controle de permissão por loja — NOVA FEATURE
+    storesAllAccess: user.storesAllAccess === true,
+    storesAccess: Array.isArray(user.storesAccess) ? user.storesAccess.slice() : [],
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
@@ -262,6 +265,9 @@ export async function login(email, password){
       active: member.active !== false,
       status: billingStatus === 'em_atraso' ? 'em_atraso' : (member.status || 'ativo'),
       permissions: member.permissions || {},
+      // Acesso a Lojas (nova feature de permissão por loja)
+      storesAllAccess: member.storesAllAccess === true,
+      storesAccess: Array.isArray(member.storesAccess) ? member.storesAccess.slice() : [],
     }
   }
   throw new Error('Usuário não encontrado')

@@ -2,10 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { listenSubUsers, addSubUser, updateSubUser, removeSubUser } from '../services/users'
 import UserModal from './UserModal'
+import { listStoresByOwner } from '../services/stores'
 
 export default function UsersPage({ owner }){
   const MAX_ACTIVE_USERS = 15
   const [members, setMembers] = useState([])
+  const [ownerStores, setOwnerStores] = useState([]) // lojas do DONO (para checkboxes permissão)
   const [showActive, setShowActive] = useState(true)
   const [showInactive, setShowInactive] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
@@ -22,6 +24,16 @@ export default function UsersPage({ owner }){
     if (!owner?.id) return
     const unsub = listenSubUsers(owner.id, (list) => setMembers(list))
     return () => unsub && unsub()
+  }, [owner?.id])
+
+  // CARREGA AS LOJAS DO DONO (exibidas nas permissões por loja do UserModal)
+  useEffect(() => {
+    if (!owner?.id) return
+    let mounted = true
+    listStoresByOwner(owner.id)
+      .then(list => { if (mounted) setOwnerStores(list || []) })
+      .catch(err => console.warn('Erro ao carregar lojas do dono (para permissões user):', err))
+    return () => { mounted = false }
   }, [owner?.id])
 
   const filtered = useMemo(() => {
@@ -174,6 +186,7 @@ export default function UsersPage({ owner }){
       {modalOpen && (
         <UserModal
           user={editingUser}
+          ownerStores={ownerStores || []}
           onClose={() => { setModalOpen(false); setEditingUser(null); }}
           onSave={handleSave}
         />

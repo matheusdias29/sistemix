@@ -13,7 +13,36 @@ const dateStr = (d) => {
     const [y, m, day] = d.split('-')
     return `${day}/${m}/${y}`
   }
+  if (d?.toDate) {
+    try {
+      const dt = d.toDate()
+      const yy = String(dt.getFullYear())
+      const mm = String(dt.getMonth() + 1).padStart(2, '0')
+      const dd = String(dt.getDate()).padStart(2, '0')
+      return `${dd}/${mm}/${yy}`
+    } catch {
+      return '-'
+    }
+  }
+  if (d instanceof Date) {
+    const yy = String(d.getFullYear())
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${dd}/${mm}/${yy}`
+  }
   return '-'
+}
+const dueDateToTimestamp = (d) => {
+  if (!d) return Number.MAX_SAFE_INTEGER
+  if (typeof d === 'string' && d.includes('-')) {
+    const t = new Date(d + 'T12:00:00').getTime()
+    return isNaN(t) ? Number.MAX_SAFE_INTEGER : t
+  }
+  if (d?.toDate) {
+    try { return d.toDate().getTime() } catch { return Number.MAX_SAFE_INTEGER }
+  }
+  if (d instanceof Date) return d.getTime()
+  return Number.MAX_SAFE_INTEGER
 }
 
 export default function AccountsReceivablePage({ storeId, user, store }) {
@@ -485,7 +514,11 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
           countReceivable: 0,
           countOverdue: 0,
           countCredit: 0,
-          latestCreatedAt: 0
+          latestCreatedAt: 0,
+          nextDueDateTs: Number.MAX_SAFE_INTEGER,
+          nextDueDateRaw: null,
+          nextOverdueTs: Number.MAX_SAFE_INTEGER,
+          nextOverdueRaw: null,
         }
       }
 
@@ -500,8 +533,18 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
           if (acc.dueDate && acc.dueDate < today) {
             groups[key].totalOverdue += acc.remainingValue
             groups[key].countOverdue++
+            const ovTs = dueDateToTimestamp(acc.dueDate)
+            if (ovTs < groups[key].nextOverdueTs) {
+              groups[key].nextOverdueTs = ovTs
+              groups[key].nextOverdueRaw = acc.dueDate
+            }
           } else {
             groups[key].countReceivable++
+            const ndt = dueDateToTimestamp(acc.dueDate)
+            if (ndt < groups[key].nextDueDateTs) {
+              groups[key].nextDueDateTs = ndt
+              groups[key].nextDueDateRaw = acc.dueDate
+            }
           }
         }
       }
@@ -911,6 +954,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
              <thead className="bg-gray-50 dark:bg-gray-700/50">
                <tr>
                  <th scope="col" className="px-6 py-3 text-left text-sm font-bold text-gray-600 dark:text-gray-300">Cliente / Descrição</th>
+                 <th scope="col" className="px-6 py-3 text-center text-sm font-bold text-gray-600 dark:text-gray-300">Vencimento</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Valor Débito</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Valor Vencido</th>
                  <th scope="col" className="px-6 py-3 text-right text-sm font-bold text-gray-600 dark:text-gray-300">Valor Crédito</th>
@@ -920,14 +964,17 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
                {grouped.length === 0 ? (
                  <tr>
-                   <td colSpan="5" className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
+                   <td colSpan="6" className="px-6 py-10 text-center text-gray-500 dark:text-gray-400">
                      Nenhuma conta encontrada.
                    </td>
                  </tr>
                ) : (
                  grouped.map((group, idx) => {
                    const groupKey = group.groupKey || idx
-
+                   const showOverdue = group.nextOverdueRaw != null
+                   const showNext = group.nextDueDateRaw != null
+                   const dueRaw = showOverdue ? group.nextOverdueRaw : (showNext ? group.nextDueDateRaw : null)
+                   const dueLabel = showOverdue ? 'Vencido' : 'A vencer'
                    return (
                      <tr
                        key={groupKey}
@@ -939,6 +986,20 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                      >
                        <td className="px-6 py-4 whitespace-nowrap">
                          <div className="text-sm text-gray-700 dark:text-gray-200">{group.clientName}</div>
+                       </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-center">
+                         {dueRaw ? (
+                           <div className="flex flex-col items-center gap-0.5">
+                             <span className={`text-sm font-semibold ${showOverdue ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                               {dateStr(dueRaw)}
+                             </span>
+                             <span className={`text-[10px] uppercase tracking-wide ${showOverdue ? 'text-red-500 dark:text-red-500/80' : 'text-orange-500 dark:text-orange-500/80'}`}>
+                               {dueLabel}
+                             </span>
+                           </div>
+                         ) : (
+                           <span className="text-sm text-gray-400 dark:text-gray-500">-</span>
+                         )}
                        </td>
                        <td className="px-6 py-4 whitespace-nowrap text-right">
                          <div className="text-sm text-red-500 dark:text-red-400">{money(group.totalDebit)}</div>
@@ -1355,6 +1416,9 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                       <th className="px-4 py-2 text-left text-xs font-bold text-gray-600">
                         Conta
                       </th>
+                      <th className="px-4 py-2 text-center text-xs font-bold text-gray-600">
+                        Vencimento
+                      </th>
                       <th className="px-4 py-2 text-right text-xs font-bold text-gray-600">
                         Valor original
                       </th>
@@ -1373,7 +1437,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                     {receiveTargetAccounts.length === 0 ? (
                       <tr>
                         <td
-                          colSpan={5}
+                          colSpan={6}
                           className="px-4 py-6 text-center text-sm text-gray-500"
                         >
                           Nenhuma conta selecionada.
@@ -1397,6 +1461,9 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
                               <div className="text-xs text-gray-500">
                                 {acc.description}
                               </div>
+                            </td>
+                            <td className="px-4 py-2 text-center text-sm text-gray-700">
+                              {dateStr(acc.dueDate)}
                             </td>
                             <td className="px-4 py-2 text-right text-sm text-gray-900">
                               {money(original)}

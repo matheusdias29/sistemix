@@ -196,6 +196,9 @@ export default function AccountsPayablePage({ storeId, user, store }) {
       await removeAccountPayable(id)
       setIsModalOpen(false)
       setEditingAccount(null)
+      const next = new Set(selectedIds)
+      next.delete(id)
+      setSelectedIds(next)
     } catch (error) {
       console.error(error)
       alert('Erro ao excluir conta')
@@ -203,6 +206,29 @@ export default function AccountsPayablePage({ storeId, user, store }) {
       setIsLoading(false)
     }
   }
+
+  const handleDeleteSelected = async () => {
+    if (!isOwner && !perms.payables?.delete) {
+      alert('Sem permissão para excluir contas a pagar.')
+      return
+    }
+    const n = selectedIds.size
+    if (n === 0) return
+    if (!window.confirm(`Confirma a exclusão de ${n} conta(s) a pagar selecionada(s)?`)) return
+    try {
+      setIsLoading(true)
+      const ids = Array.from(selectedIds)
+      await Promise.all(ids.map(id => removeAccountPayable(id)))
+      setSelectedIds(new Set())
+    } catch (error) {
+      console.error(error)
+      alert('Erro ao excluir contas')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const canDelete = isOwner || !!perms.payables?.delete
 
   const handleEdit = (account) => {
     setEditingAccount(account)
@@ -586,7 +612,7 @@ export default function AccountsPayablePage({ storeId, user, store }) {
             </div>
 
             {/* Total Bar */}
-            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 flex justify-between items-center border border-gray-100 dark:border-gray-700">
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border border-gray-100 dark:border-gray-700">
                <div>
                  <span className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1">Total</span>
                  <span className={`text-xl font-bold ${statusFilter === 'pending' ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-white'}`}>
@@ -594,20 +620,37 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                  </span>
                </div>
                
-               {statusFilter === 'pending' && selectedIds.size > 0 ? (
-                 <div className="flex items-center gap-4 animate-fade-in">
-                   <span className="text-sm text-gray-600 dark:text-gray-300">
-                     Valor a pagar: <span className="font-bold text-gray-800 dark:text-white">{money(selectedTotal)}</span>
-                   </span>
-                   <button 
-                     onClick={handlePaySelected}
-                     className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded shadow-sm transition-colors"
-                   >
-                     Pagar
-                   </button>
+               {selectedIds.size > 0 ? (
+                 <div className="flex flex-wrap items-center gap-3 animate-fade-in w-full md:w-auto justify-end">
+                   {statusFilter === 'pending' && (
+                     <>
+                       <span className="text-sm text-gray-600 dark:text-gray-300">
+                         Valor a pagar: <span className="font-bold text-gray-800 dark:text-white">{money(selectedTotal)}</span>
+                       </span>
+                       <button 
+                         onClick={handlePaySelected}
+                         disabled={isLoading}
+                         className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded shadow-sm transition-colors"
+                       >
+                         Pagar
+                       </button>
+                     </>
+                   )}
+                   {canDelete && (
+                     <button
+                       onClick={handleDeleteSelected}
+                       disabled={isLoading}
+                       className="px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded shadow-sm transition-colors flex items-center gap-2"
+                     >
+                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                       Excluir ({selectedIds.size})
+                     </button>
+                   )}
                  </div>
                ) : (
-                 <span className="text-xs text-gray-400 dark:text-gray-500">Selecione as contas que deseja pagar</span>
+                 <span className="text-xs text-gray-400 dark:text-gray-500">
+                   {canDelete ? 'Selecione as contas que deseja pagar ou excluir' : 'Selecione as contas que deseja pagar'}
+                 </span>
                )}
             </div>
 
@@ -736,17 +779,18 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                                 Editar
                               </button>
                               
-                              {acc.status === 'paid' && (isOwner || perms.payables?.delete) && (
+                              {canDelete && (
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation()
-                                    if (window.confirm('Tem certeza que deseja excluir esta conta paga?')) {
+                                    if (window.confirm('Tem certeza que deseja excluir esta conta a pagar?')) {
                                       handleDelete(acc.id)
                                     }
                                     setOpenMenuId(null)
                                   }}
-                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                                 >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                                   Excluir
                                 </button>
                               )}

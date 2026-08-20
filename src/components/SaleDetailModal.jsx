@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState } from 'react'
 import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { updateOrder, deleteOrder } from '../services/orders'
-import { updateProduct, getProductById, syncUnifiedStockAcrossStores } from '../services/products'
+import { updateProduct, getProductById, syncUnifiedStockAcrossStores, adjustProductStockTransactionally } from '../services/products'
 import { recordStockMovement } from '../services/stockMovements'
-import ShareSaleModal from './ShareSaleModal'
-import ServiceOrderPrintModal from './ServiceOrderPrintModal'
+import { applyProductsPatchesToDiskCache } from '../lib/datacache'
 
 export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, storeId, store, products = [], user }) {
   if (!open || !sale) return null
+  const uid = user?.id || user?.uid || user?.memberId || 'anon'
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
   const [shareModalOpen, setShareModalOpen] = useState(false)
@@ -120,85 +120,93 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                 if (shouldRestock) {
                   // Restock products - Grouping by product/variation to avoid race conditions
                   const items = Array.isArray(sale.products) ? sale.products : []
-                
+
                 // key: productId + (variationName || '')
                 const restockingMap = new Map()
-                
+
                 for (const it of items) {
                   const qty = Math.max(0, parseFloat(it.quantity) || 0)
                   if (qty <= 0) continue
-                  
+
                   const pid = String(it.id || '')
                   const vname = String(it.variationName || '').trim() || null
                   const key = vname ? `${pid}|${vname}` : pid
-                  
+
                   if (restockingMap.has(key)) {
                     restockingMap.get(key).quantity += qty
                   } else {
-                    restockingMap.set(key, { 
-                      productId: pid, 
-                      variationName: vname, 
+                    restockingMap.set(key, {
+                      productId: pid,
+                      variationName: vname,
                       quantity: qty,
-                      originalName: it.name 
+                      originalName: it.name
                     })
                   }
                 }
 
                 let restoredCount = 0
+                const patchesForCache = []
 
                 for (const [key, entry] of restockingMap.entries()) {
                     const { productId, variationName, quantity, originalName } = entry
-                    
-                    let prod = products.find(p => p.id === productId)
-                    
-                    // Fallback 1: Composite ID Check (BaseID-VariationName) if ID in sale was composite
-                    if (!prod && productId.includes('-')) {
+                    let pidToLookup = productId
+
+                    // Fallback composite IDs (BaseID-VariationName) — pega a parte base
+                    if (String(pidToLookup).includes('-') && !(products || []).some(p => p.id === pidToLookup)) {
+                      pidToLookup = String(pidToLookup).split('-')[0]
+                    }
+
+                    let prod = products.find(p => p.id === pidToLookup)
+                    if (!prod && String(productId).includes('-')) {
                       prod = products.find(p => productId.startsWith(p.id + '-'))
                     }
-
-                    // Fallback 2: Get from Firestore if not in cache
                     if (!prod) {
-                      let pid = productId
-                      if (String(pid).includes('-')) {
-                        pid = String(pid).split('-')[0]
-                      }
-                      try {
-                        prod = await getProductById(pid)
-                      } catch (err) {
-                        console.error('Erro ao buscar produto do banco:', err)
-                      }
+                      try { prod = await getProductById(pidToLookup) } catch (e) { console.warn('getProductById falhou estorno:', e) }
                     }
-
-                    // Fallback 3: Name Matching (using originalName from sale)
                     if (!prod) {
                       const pNameRaw = String(originalName || '')
                       const parts = pNameRaw.split(' - ')
                       let baseName = parts.length > 1 ? parts[0] : pNameRaw
                       baseName = baseName.replace(/ -- \d+$/, '').trim()
-
                       let candidates = products.filter(p => String(p.name || '').trim() === baseName)
-                      if (candidates.length === 0) {
-                         candidates = products.filter(p => pNameRaw.startsWith(String(p.name || '').trim()))
-                      }
+                      if (candidates.length === 0) candidates = products.filter(p => pNameRaw.startsWith(String(p.name || '').trim()))
                       if (candidates.length > 0) prod = candidates[0]
                     }
 
                     if (prod) {
-                      console.log('Restocking product:', prod.name, 'Qty:', quantity)
-                      
-                      // Sempre restaura no estoque principal do produto e sincroniza variações
-                      const cur = Number(prod.stock ?? 0)
-                      const next = cur + quantity
-                      
-                      let updateData = { stock: next }
-                      if (Array.isArray(prod.variationsData) && prod.variationsData.length > 0) {
-                        updateData.variationsData = prod.variationsData.map(v => ({ ...v, stock: next }))
+                      console.log('Restocking product (transacional):', prod.name, 'Qty:', quantity)
+
+                      // 💠 Usa runTransaction ATÔMICA (sem race condition em cancelamento concorrente!)
+                      let adjustResult = null
+                      try {
+                        adjustResult = await adjustProductStockTransactionally(prod.id, +quantity, { variationName: variationName || undefined })
+                        if (adjustResult?.patch) {
+                          patchesForCache.push({ productId: prod.id, patch: adjustResult.patch })
+                          try {
+                            await syncUnifiedStockAcrossStores(prod, storeId, adjustResult.patch)
+                          } catch (e) { console.warn('syncUnified estorno falhou (nao-fatal):', e) }
+                        }
+                      } catch (txErr) {
+                        console.error('Erro transação restock produto', prod.id, txErr)
+                        try {
+                          // Fallback: read do firestore + updateProduto
+                          const fbProd = (await getProductById(prod.id).catch(() => null)) || prod
+                          const cur = Number(fbProd.stock ?? 0)
+                          const next = cur + quantity
+                          const updateData = { stock: next }
+                          if (Array.isArray(fbProd.variationsData) && fbProd.variationsData.length > 0) {
+                            updateData.variationsData = fbProd.variationsData.map(v => ({ ...v, stock: next }))
+                          }
+                          await updateProduct(fbProd.id, updateData)
+                          await syncUnifiedStockAcrossStores(fbProd, storeId, updateData)
+                          patchesForCache.push({ productId: prod.id, patch: updateData })
+                        } catch (fallbackErr) {
+                          console.error('Fallback restock também falhou', fallbackErr)
+                        }
                       }
 
-                      await updateProduct(prod.id, updateData)
-                      await syncUnifiedStockAcrossStores(prod, storeId, updateData)
                       restoredCount++
-                      
+
                       const formattedNumber = (() => {
                         if (sale.number) {
                           const digits = String(sale.number).replace(/\D/g, '')
@@ -224,7 +232,12 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                         console.warn('Product not found for restocking:', originalName, productId)
                     }
                   }
-                  
+
+                  // Atualiza cache em disco NA HORA (ProdutosPage reflete imediatamente)
+                  if (patchesForCache.length > 0) {
+                    applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
+                  }
+
                   if (restoredCount > 0) {
                       alert(`Venda cancelada e ${restoredCount} produto(s) devolvido(s) ao estoque.`)
                   } else {
