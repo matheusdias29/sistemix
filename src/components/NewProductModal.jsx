@@ -281,7 +281,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       const idx = pricingConfig.groups.findIndex(g => (g.key || '') === product.pricingGroupKey)
       if (idx >= 0) setActivePricingGroupIdx(idx)
     }
-  }, [open, isEdit, product, pricingConfig])
+    // 🔧 CORREÇÃO ESTABILIDADE: dependemos de product.id, não do objeto inteiro.
+    //    Assim o useEffect NÃO DISPARA NOVAMENTE quando o onSuccess atualiza
+    //    cachedProducts do ProductsPage (passa novo objeto com mesmo id).
+    //    Antes estava "setStock(product.stock)" de volta para o valor original
+    //    no meio da edição — por isso o usuário precisava salvar 2 vezes.
+  }, [open, isEdit, product?.id, pricingConfig])
 
   // Pré-carregar dados ao editar um produto
   useEffect(() => {
@@ -389,7 +394,10 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         }
       }
     }
-  }, [open, isEdit, product, storeId])
+    // 🔧 CORREÇÃO ESTABILIDADE: dependemos de product.id, não do objeto product.
+    //    Elimina re-disparos acidentais quando o produto do prop recebe novos
+    //    campos pelo onSuccess do save (voltava o valor original sem querer).
+  }, [open, isEdit, product?.id, storeId])
 
   const makeVarFromProduct = () => ({
     name: 'var 1',
@@ -410,6 +418,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const close = () => {
     if (saving) return
     onClose && onClose()
+    // Reset refs de snapshot original (estabilidade entre aberturas)
+    originalStockRef.current = null
+    originalStockInitialRef.current = null
+    originalStockMinRef.current = null
+    originalVariationsRef.current = null
     // reset state when closing
     setTab('cadastro')
     setName('')
