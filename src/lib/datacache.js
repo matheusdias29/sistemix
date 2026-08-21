@@ -116,6 +116,46 @@ export const applyProductsPatchesToDiskCache = async (storeId, userId, patches) 
   }
 }
 
+// Upsert: substitui ou insere o OBJETO COMPLETO no cache de disco.
+// Use em NewProductModal após updateProduct sucesso — pois editou nome/preço/imagem/estoque etc (tudo).
+// items: [{ id: ... , ...todosCamposProduto }]
+export const upsertProductsToDiskCache = async (storeId, userId, items) => {
+  if (!Array.isArray(items) || items.length === 0) return
+  if (!storeId) return
+  try {
+    const key = productsCacheKey(storeId, userId)
+    const hit = await storageGet(key)
+    // Se não tem cache salvo ainda nao importa — o carregamento do ProductsPage vai chamar Firestore.
+    if (!hit || !Array.isArray(hit?.data)) return
+    let changed = false
+    const existing = [...hit.data]
+    for (const newItem of items) {
+      if (!newItem || !newItem.id) continue
+      const idx = existing.findIndex(p => p && p.id === newItem.id)
+      const cleaned = pickProductFields({ ...newItem, id: newItem.id })
+      if (idx >= 0) {
+        // Mantem o resto de campos do original que podem ser úteis (ex: rootId, stockInitial etc — mas só substituímos)
+        existing[idx] = { ...existing[idx], ...cleaned }
+        changed = true
+      } else {
+        // Se não existia, adiciona (raro, possível criado por outro fluxo)
+        existing.push(cleaned)
+        changed = true
+      }
+    }
+    if (!changed) return
+    const updatedEntry = {
+      ...hit,
+      data: existing,
+      savedAt: Date.now(),
+      totalCount: existing.length,
+    }
+    await storageSet(key, updatedEntry).catch(() => {})
+  } catch (e) {
+    console.warn('upsertProductsToDiskCache skip:', e?.message || e)
+  }
+}
+
 function notify(map, subsMap, storeId){
   const list = map.get(storeId) || []
   const subs = subsMap.get(storeId)

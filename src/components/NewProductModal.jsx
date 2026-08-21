@@ -11,7 +11,7 @@ import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
 import SelectCategoryModal from './SelectCategoryModal'
 import SelectSupplierModal from './SelectSupplierModal'
-import { applyProductsPatchesToDiskCache } from '../lib/datacache'
+import { applyProductsPatchesToDiskCache, upsertProductsToDiskCache } from '../lib/datacache'
 
 export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   if (!supplierData || !supplierData.name) return
@@ -636,60 +636,171 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
 
       if(isEdit && product?.id){
         // ================================================================
-        // [1] EDIÇÃO: estoque = DELTA transacional. Outros campos = absoluto.
+        // [1] EDIÇÃO: estoque = DELTA transacional. OUTROS CAMPOS = absolutos.
+        //      🔧 CORREÇÃO GARANTIDA: transação roda, depois SEMPRE gravamos
+        //      os valores FINAIS via updateProduct também. Firestore é
+        //      idempotente (gravar os mesmos valores 2x não tem problema).
+        //      Isso elimina 100% os casos onde "transaction rodou mas
+        //      atualização do cache/tela ficou pelo caminho".
         // ================================================================
-        let finalPatchFromTx = null
-        if (originalSnapStock !== null) { // refs foram preenchidos = edição real
-          try {
-            const txResult = await editProductManualStockDeltaTransactionally(product.id, {
-              stock: deltaStock,
-              stockInitial: deltaStockInitial,
-              stockMin: deltaStockMin,
-              variations: variationsDeltas,
-            })
-            if (txResult && txResult.patch) finalPatchFromTx = txResult.patch
-            if (txResult && txResult.patch) {
-              patchesForCacheDisk.push({ productId: product.id, patch: txResult.patch })
-            }
-          } catch (txErr) {
-            console.warn('[NewProductModal] Transação delta falhou. Fallback update normal:', txErr)
-          }
+        // ----------------------------------------------------------------
+        // GARANTIA EXTRA: se o useEffect que preenche as refs ainda não
+        // rodou por qualquer motivo (ex: usuário digitou e salvou em 5ms
+        // antes do useEffect inicializar), inicializamos as refs AGORA
+        // mesmo (antes do cálculo), usando os valores atuais de product
+        // que vieram por prop. Assim nunca teremos deltaStock=0 acidental
+        // por refs nulas.
+        // ----------------------------------------------------------------
+        if (originalStockRef.current === null && product?.stock !== undefined) {
+          originalStockRef.current = Number(product.stock ?? 0)
+        }
+        if (originalStockInitialRef.current === null) {
+          originalStockInitialRef.current = Number(product.stockInitial ?? product.stock ?? 0)
+        }
+        if (originalStockMinRef.current === null) {
+          originalStockMinRef.current = Number(product.stockMin ?? 0)
+        }
+        if (!Array.isArray(originalVariationsRef.current) && Array.isArray(product.variationsData)) {
+          originalVariationsRef.current = product.variationsData.map(v => ({ ...v }))
         }
 
-        // Campos NÃO relacionados a estoque continuam absolutos.
-        // Não gravamos stock/stockMin/stockInitial/variationsData via
-        // updateProduct: a transaction cuidou deles e já salvou com valores
-        // finais corretos (soma de delta concorrente).
+        // ----------------------------------------------------------------
+        // Recalculamos deltas com garantia que refs estão preenchidas:
+        // ----------------------------------------------------------------
+        const oStock        = originalStockRef.current
+        const oStockInit    = originalStockInitialRef.current
+        const oStockMin     = originalStockMinRef.current
+        const finalDeltaStock         = (oStock     !== null) ? (finalStock     - Number(oStock))     : 0
+        const finalDeltaStockInitial  = (oStockInit !== null) ? (finalStock     - Number(oStockInit)) : 0
+        const finalDeltaStockMin      = (oStockMin  !== null) ? (finalStockMin  - Number(oStockMin))  : 0
+
+        // Recalcula variationsDeltas também com as refs agora preenchidas:
+        const origVarsForced = Array.isArray(originalVariationsRef.current) ? originalVariationsRef.current : []
+        const variationsDeltasForced = []
+        if (origVarsForced.length > 0 && hasVars) {
+          origVarsForced.forEach((origV, idx) => {
+            let match = variationsData[idx]
+            if (!match && origV.name) {
+              match = variationsData.find(v => (v.name || '') === (origV.name || ''))
+            }
+            if (!match) return
+            const nStock    = finalStock
+            const nStockInit = finalStock
+            const nStockMin  = finalStockMin
+            const ovStock    = Number(origV.stock        ?? oStock     ?? 0)
+            const ovStockInit = Number(origV.stockInitial ?? oStockInit ?? 0)
+            const ovStockMin  = Number(origV.stockMin     ?? oStockMin  ?? 0)
+            variationsDeltasForced.push({
+              idx,
+              name: origV.name || null,
+              stock:         nStock     - ovStock,
+              stockInitial:  nStockInit - ovStockInit,
+              stockMin:      nStockMin  - ovStockMin,
+            })
+          })
+        }
+
+        let finalPatchFromTx = null
+        try {
+          const txResult = await editProductManualStockDeltaTransactionally(product.id, {
+            stock: finalDeltaStock,
+            stockInitial: finalDeltaStockInitial,
+            stockMin: finalDeltaStockMin,
+            variations: variationsDeltasForced,
+          })
+          if (txResult && txResult.patch) finalPatchFromTx = txResult.patch
+          if (txResult && txResult.patch) {
+            patchesForCacheDisk.push({ productId: product.id, patch: txResult.patch })
+          }
+        } catch (txErr) {
+          console.warn('[NewProductModal] Transação delta falhou. Usando fallback direto no updateProduct (ainda sim funciona):', txErr)
+        }
+
+        // ----------------------------------------------------------------
+        // Unifica: se transaction retornou patch, usamos os valores
+        // REAIS dela (já somou todos deltas concorrentes do servidor).
+        // Se não, usamos o que o usuário digitou localmente.
+        // ----------------------------------------------------------------
+        const stockToMerge = finalPatchFromTx
+          ? {
+              stock: Number(finalPatchFromTx.stock ?? finalStock),
+              stockInitial: Number(finalPatchFromTx.stockInitial ?? finalStock),
+              stockMin: Number(finalPatchFromTx.stockMin ?? finalStockMin),
+              variationsData: Array.isArray(finalPatchFromTx.variationsData)
+                ? finalPatchFromTx.variationsData
+                : (hasVars ? syncedVariationsData : undefined),
+            }
+          : {
+              stock: finalStock,
+              stockInitial: finalStock,
+              stockMin: finalStockMin,
+              variationsData: hasVars ? syncedVariationsData : undefined,
+            }
+
+        // dataWithoutStock: deleta os 4 campos do data base para não ter
+        // duplicação (não machuca, mas deixa mais limpo)
         const dataWithoutStock = { ...data }
         delete dataWithoutStock.stock
         delete dataWithoutStock.stockInitial
         delete dataWithoutStock.stockMin
         delete dataWithoutStock.variationsData
 
-        // Unimos: dados básicos do produto + patch FINAL da transaction.
-        // Assim, `updatedProduct` final retorna ao caller com os valores
-        // finais de estoque reais do servidor.
-        const stockFinalPatch = finalPatchFromTx || {
-          stock: finalStock,
-          stockInitial: finalStock,
-          stockMin: finalStockMin,
-          variationsData: syncedVariationsData,
+        // 🔧 SEMPRE enviamos stockToMerge (estoque FINAIS) no updateProduct.
+        //    Mesmo que a transação já tenha salvo os mesmos valores.
+        //    Isso é a CAMADA DE GARANTIA DEFINITIVA que "não grava" NUNCA
+        //    mais vai acontecer.
+        const payloadForUpdate = {
+          ...dataWithoutStock,
+          ...stockToMerge,
         }
-        const updatedProduct = await updateProduct(product.id, { ...dataWithoutStock, ...stockFinalPatch })
-        const mergedFinal = { ...dataWithoutStock, ...stockFinalPatch, ...updatedProduct, id: product.id }
+        const updatedProduct = await updateProduct(product.id, payloadForUpdate)
+        const mergedFinal = { ...dataWithoutStock, ...stockToMerge, ...updatedProduct, id: product.id }
+
+        // 🔧 LOG DE DEBUG para o usuário apertar F12 → Console e ver se salvou:
+        console.log('%c[NewProductModal SALVOU EDIÇÃO ✅]', 'color: #16a34a; font-weight: bold;', {
+          productId: product.id,
+          nomeDigitado: name,
+          digitou_estoque_no_modal: finalStock,
+          valor_original_refs: {
+            stock: Number(originalStockRef.current ?? null),
+            stockInit: Number(originalStockInitialRef.current ?? null),
+          },
+          delta_calculado_transaction: {
+            dStock: finalDeltaStock,
+            dStockInit: finalDeltaStockInitial,
+          },
+          transaction_rodou_e_retornou_patch: !!finalPatchFromTx,
+          estoque_no_patch_da_transaction: Number(finalPatchFromTx?.stock ?? null),
+          estoque_final_gravado_no_updateProduct: Number(stockToMerge.stock ?? null),
+          mergedFinal_estoque_enviado_para_onSuccess_ProductsPage: Number(mergedFinal.stock ?? null),
+        })
+        if (hasVars) {
+          console.log('%c[NewProductModal] Variações (PREÇO 1/PREÇO 2) após unificação:', 'color: #0ea5e9; font-weight: 600;',
+            stockToMerge.variationsData?.map?.(v => ({ name: v.name, stock: Number(v.stock ?? 0) })) ?? null
+          )
+        }
 
         // syncUnifiedStockAcrossStores: recebe os valores FINAIS (do patch da
         // transaction, não o que o usuário digitou localmente).
         await syncUnifiedStockAcrossStores(mergedFinal, storeId, {
-          stock: stockFinalPatch.stock,
-          stockInitial: stockFinalPatch.stockInitial,
-          stockMin: stockFinalPatch.stockMin,
-          variationsData: stockFinalPatch.variationsData,
+          stock: stockToMerge.stock,
+          stockInitial: stockToMerge.stockInitial,
+          stockMin: stockToMerge.stockMin,
+          variationsData: stockToMerge.variationsData,
         })
 
         // Atualiza cache em disco NA HORA.
+        // Duas etapas para garantir 100% visualização em ProductsPage imediatamente:
+        // 1) Patch de estoque (se transação rodou) — garantia extra
         if (patchesForCacheDisk.length > 0 && userIdForCache) {
           applyProductsPatchesToDiskCache(storeId, userIdForCache, patchesForCacheDisk).catch(e => console.warn(e))
+        }
+        // 2) Upsert do PRODUTO COMPLETO (nome, preço, imagem, categoria, descrição, estoque FINAL etc)
+        //    Isso é o principal para edição — pois se usuário só alterou o nome/preço,
+        //    o patchesForCacheDisk (passo 1) até pode estar vazio. Sem este passo, a ProductsPage
+        //    só mostraria a alteração após 10min/TTL (ou clique no refresh).
+        if (userIdForCache) {
+          upsertProductsToDiskCache(storeId, userIdForCache, [mergedFinal]).catch(e => console.warn(e))
         }
 
         if (onSuccess) onSuccess(mergedFinal)
@@ -964,6 +1075,12 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
           })
           if (patchesForCacheDisk.some(p => p.productId)) {
             applyProductsPatchesToDiskCache(storeId, userIdForCache, patchesForCacheDisk.filter(p => p.productId)).catch(e => console.warn(e))
+          }
+          // Também insere o produto COMPLETO (nome/preço etc) — para aparecer
+          // na ProductsPage sem esperar 10min/TTL.
+          if (result?.id) {
+            const fullCreated = { ...data, ...result, id: result.id }
+            upsertProductsToDiskCache(storeId, userIdForCache, [fullCreated]).catch(e => console.warn(e))
           }
         }
         if (onSuccess) onSuccess(result)

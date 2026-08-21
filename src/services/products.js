@@ -708,10 +708,13 @@ export async function editProductManualStockDeltaTransactionally(productId, delt
 
     // ----------------------------------------------------------------
     // 3) Aplica deltas nas variações (se existirem)
+    //    🚨 CORREÇÃO CRÍTICA: Se hasVars = true, SEMPRE inicializamos newVars
+    //    com os dados atuais das variações (mesmo que varDeltas = [] vazio).
+    //    Assim, no passo 4, podemos propagar o estoque unificado para todas,
+    //    evitando valores órfãos (ex: produto principal 111 e vars ainda 155).
     // ----------------------------------------------------------------
-    let newVars = null
+    let newVars = hasVars ? variationsData.map(v => ({ ...v })) : null // ← ANTES: let newVars = null; agora inicializa com cópia se houver vars
     if (hasVars && varDeltas.length > 0) {
-      newVars = variationsData
       varDeltas.forEach(vd => {
         // Prioridade de match: idx exato > nome exato
         let matchIdx = -1
@@ -735,6 +738,8 @@ export async function editProductManualStockDeltaTransactionally(productId, delt
     // 4) Estratégia: ESTOQUE UNIFICADO (nunca separado). Após deltas,
     //    propagar stock principal para TODAS as variações, e vice-
     //    versa (maior valor = referência).
+    //    🚨 CORREÇÃO: Agora sempre entra aqui se hasVars, pois newVars
+    //    é inicializado no passo 3 mesmo sem varDeltas individuais.
     // ----------------------------------------------------------------
     if (hasVars && newVars) {
       const varMaxStock = Math.max(...newVars.map(v => Number(v?.stock ?? 0)), newStock)
