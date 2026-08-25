@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 
-export default function SelectClientModal({ open, onClose, clients=[], onChoose, onNew, title = 'Selecionar cliente', newItemLabel = 'Novo Cliente', searchPlaceholder = 'Pesquisar por nome...', emptyLabel = 'Nenhum cliente encontrado' }){
+export default function SelectClientModal({ open, onClose, clients=[], onChoose, onNew, title = 'Selecionar cliente', newItemLabel = 'Novo Cliente', searchPlaceholder = 'Pesquisar por nome, código, CPF, telefone...', emptyLabel = 'Nenhum cliente encontrado', syncing = false, cacheLoadedFromDisk = null, cacheLastUpdate = null }){
   const [query, setQuery] = useState('')
   const PAGE_SIZE = 30
   const [page, setPage] = useState(1)
@@ -8,17 +8,40 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
   useEffect(() => {
     if (open) {
       setPage(1)
+      setQuery('')
     }
-  }, [open, query])
+  }, [open])
 
   const q = query.trim().toLowerCase()
+  const qDigits = q.replace(/\D/g, '') // Para busca por telefone/CPF sem formatação
   const filtered = useMemo(() => {
     if (!open) return []
-    return (clients||[]).filter(c => 
-      (c.name||'').toLowerCase().includes(q) ||
-      (String(c.code || '').toLowerCase().includes(q))
-    )
-  }, [clients, q, open])
+    return (clients||[]).filter(c => {
+      const name = String(c.name || '').toLowerCase()
+      const code = String(c.code || '').toLowerCase()
+      const reference = String(c.reference || '').toLowerCase()
+      const phone = String(c.phone || '').toLowerCase()
+      const phoneDigits = String(c.phoneDigits || '').replace(/\D/g, '')
+      const cpf = String(c.cpf || '').toLowerCase()
+      const cnpj = String(c.cnpj || '').toLowerCase()
+      const cpfCnpj = String(c.cpfCnpj || '').toLowerCase()
+      const cpfCnpjDigits = String(c.cpfCnpj || c.cpf || c.cnpj || '').replace(/\D/g, '')
+      const email = String(c.email || '').toLowerCase()
+
+      if (name.includes(q)) return true
+      if (code.includes(q)) return true
+      if (reference.includes(q)) return true
+      if (email.includes(q)) return true
+      if (phone.includes(q)) return true
+      if (cpf.includes(q) || cnpj.includes(q) || cpfCnpj.includes(q)) return true
+
+      if (qDigits) {
+        if (phoneDigits && phoneDigits.includes(qDigits)) return true
+        if (cpfCnpjDigits && cpfCnpjDigits.includes(qDigits)) return true
+      }
+      return false
+    })
+  }, [clients, q, qDigits, open])
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE) || 1
   const safePage = Math.min(Math.max(1, page), totalPages)
@@ -145,8 +168,26 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
               autoFocus
             />
           </div>
-          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex justify-between">
-            <span>{filtered.length} encontrados</span>
+          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 flex justify-between items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="font-medium tabular-nums">{filtered.length} encontrados</span>
+              {syncing && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
+                  <span className="w-2 h-2 rounded-full bg-green-500 dark:bg-green-400 animate-pulse"></span>
+                  Sincronizando…
+                </span>
+              )}
+              {!syncing && cacheLoadedFromDisk && cacheLastUpdate && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500">
+                  Atualizado em {cacheLastUpdate.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                </span>
+              )}
+              {!syncing && cacheLoadedFromDisk === false && (
+                <span className="inline-flex items-center gap-1 text-[11px] text-gray-400 dark:text-gray-500">
+                  Carregando cache…
+                </span>
+              )}
+            </div>
             {totalPages > 1 && <span>Página {safePage} de {totalPages}</span>}
           </div>
         </div>
@@ -155,25 +196,38 @@ export default function SelectClientModal({ open, onClose, clients=[], onChoose,
         <div className="flex-1 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600">
           {displayed.length > 0 ? (
             <div className="space-y-1">
-              {displayed.map(c => (
-                <div 
-                  key={c.id} 
-                  onClick={() => onChoose && onChoose(c)}
-                  className="group flex items-center justify-between p-3 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 border border-transparent hover:border-green-200 dark:hover:border-green-800 cursor-pointer transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 font-medium text-xs group-hover:bg-green-100 dark:group-hover:bg-green-800 group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors">
-                      {c.name.charAt(0).toUpperCase()}
+              {displayed.map(c => {
+                const metaBits = []
+                if (c.code) metaBits.push(`Cód. ${c.code}`)
+                if (c.reference) metaBits.push(`Ref. ${c.reference}`)
+                if (c.cpfCnpj || c.cpf || c.cnpj) metaBits.push(`CPF/CNPJ: ${c.cpfCnpj || c.cpf || c.cnpj}`)
+                if (c.phone) metaBits.push(`📞 ${c.phone}`)
+                if (c.email) metaBits.push(`✉ ${c.email}`)
+                return (
+                  <div 
+                    key={c.id} 
+                    onClick={() => onChoose && onChoose(c)}
+                    className="group flex items-center justify-between p-3 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 border border-transparent hover:border-green-200 dark:hover:border-green-800 cursor-pointer transition-all"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 font-medium text-xs group-hover:bg-green-100 dark:group-hover:bg-green-800 group-hover:text-green-700 dark:group-hover:text-green-300 transition-colors shrink-0">
+                        {c.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium text-gray-800 dark:text-gray-200 group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors truncate">{c.name}</div>
+                        {metaBits.length > 0 && (
+                          <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                            {metaBits.join(' • ')}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-medium text-gray-800 dark:text-gray-200 group-hover:text-green-700 dark:group-hover:text-green-400 transition-colors">{c.name}</div>
+                    <div className="text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors shrink-0 ml-2">
+                      ›
                     </div>
                   </div>
-                  <div className="text-gray-400 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
-                    ›
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-40 text-gray-500 dark:text-gray-400">

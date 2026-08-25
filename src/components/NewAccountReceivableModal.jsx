@@ -1,11 +1,31 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import SelectClientModal from './SelectClientModal'
 import NewClientModal from './NewClientModal'
-import { listenClients } from '../services/clients'
+import { listenClients, getAllClients } from '../services/clients'
+import { storageGet, storageSet } from '../lib/datacache'
+
+const CLIENTS_CACHE_SCHEMA_VERSION = 3
+const CLIENTS_CACHE_TTL_MS = 60 * 60 * 1000
+const clientsCacheKey = (storeId, userId) =>
+  `sistemix:clients:u${String(userId || 'anon')}:s${String(storeId || 'default')}`
+
+const optimizeClient = (c) => ({
+  id: c.id,
+  name: c.name,
+  code: c.code,
+  reference: c.reference,
+  phone: c.phone,
+  phoneDigits: c.phoneDigits,
+  cpf: c.cpf,
+  cnpj: c.cnpj,
+  cpfCnpj: c.cpfCnpj,
+  email: c.email
+})
 
 export default function NewAccountReceivableModal({ onClose, onSave, onDelete, isLoading, storeId, initialData, prefillData, mode = 'create', titleOverride = '', defaultType = 'receivable', user }) {
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
+  const userId = user?.id || user?.memberId || 'anon'
   const [client, setClient] = useState(null)
   const [description, setDescription] = useState('')
   const [details, setDetails] = useState('')
@@ -14,14 +34,18 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
   const [daysToDue, setDaysToDue] = useState(0)
   const [type, setType] = useState(defaultType)
   
-  // States specific to "Conta a Receber"
-  const [paymentMode, setPaymentMode] = useState('single') // 'single' | 'installment'
-  const [installmentCount, setInstallmentCount] = useState('') // New state for installments
+  const [paymentMode, setPaymentMode] = useState('single')
+  const [installmentCount, setInstallmentCount] = useState('')
 
-  // Modais de seleção
   const [showClientSelect, setShowClientSelect] = useState(false)
   const [showNewClient, setShowNewClient] = useState(false)
   const [clients, setClients] = useState([])
+  const [cachedClients, setCachedClients] = useState(null)
+  const [cacheSyncing, setCacheSyncing] = useState(false)
+  const [cacheLastUpdate, setCacheLastUpdate] = useState(null)
+  const [cacheLoadedFromDisk, setCacheLoadedFromDisk] = useState(false)
+  const isCachingClientsRef = useRef(false)
+  const bootNonceRef = useRef(0)
 
   useEffect(() => {
     if (mode === 'edit' && initialData) {
@@ -32,7 +56,6 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
       setDueDate(initialData.dueDate || '')
       setType(initialData.type || 'receivable')
       
-      // Calculate days if due date exists
       if (initialData.dueDate) {
         const diff = Math.ceil((new Date(initialData.dueDate) - new Date()) / (1000 * 60 * 60 * 24))
         setDaysToDue(diff > 0 ? diff : 0)
@@ -62,7 +85,6 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
       setDaysToDue(0)
       setType(defaultType)
       
-      // Default due date to today
       const today = new Date().toISOString().split('T')[0]
       setDueDate(today)
     }
@@ -76,6 +98,85 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
       setClients(items)
     }, storeId)
     return () => unsubClients()
+  }, [storeId])
+
+  const refreshCacheFromServer = async (silent = true) => {
+    if (!storeId) return
+    if (isCachingClientsRef.current) return
+    isCachingClientsRef.current = true
+    if (!silent) setCacheSyncing(true)
+    try {
+      const all = await getAllClients(storeId)
+      const optimized = Array.isArray(all) ? all.map(optimizeClient) : []
+      const savedAt = Date.now()
+      const cacheEntry = {
+        schemaVersion: CLIENTS_CACHE_SCHEMA_VERSION,
+        savedAt,
+        totalCount: optimized.length,
+        data: optimized
+      }
+      const key = clientsCacheKey(storeId, userId)
+      storageSet(key, cacheEntry).catch(() => {})
+      setCachedClients(optimized)
+      setCacheLastUpdate(new Date(savedAt))
+    } catch (err) {
+      console.error('Error refreshing clients cache:', err)
+    } finally {
+      isCachingClientsRef.current = false
+      setCacheSyncing(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!storeId) return
+    bootNonceRef.current += 1
+    const myNonce = bootNonceRef.current
+    const key = clientsCacheKey(storeId, userId)
+    let cancelled = false
+
+    const boot = async () => {
+      try {
+        const hit = await storageGet(key)
+        if (cancelled || myNonce !== bootNonceRef.current) return
+
+        const now = Date.now()
+        let cacheValid = false
+        if (
+          hit &&
+          hit.schemaVersion === CLIENTS_CACHE_SCHEMA_VERSION &&
+          Array.isArray(hit.data) &&
+          typeof hit.savedAt === 'number' &&
+          (now - hit.savedAt) < CLIENTS_CACHE_TTL_MS
+        ) {
+          cacheValid = true
+        }
+
+        if (hit && Array.isArray(hit.data)) {
+          setCachedClients(hit.data)
+          setCacheLastUpdate(typeof hit.savedAt === 'number' ? new Date(hit.savedAt) : null)
+        }
+        setCacheLoadedFromDisk(true)
+
+        if (!cacheValid) {
+          refreshCacheFromServer(true).catch(() => {})
+        }
+      } catch (e) {
+        console.error('Clients cache boot failed:', e)
+        setCacheLoadedFromDisk(true)
+        refreshCacheFromServer(true).catch(() => {})
+      }
+    }
+    boot()
+
+    return () => { cancelled = true }
+  }, [storeId, userId])
+
+  useEffect(() => {
+    isCachingClientsRef.current = false
+    setCachedClients(null)
+    setCacheLastUpdate(null)
+    setCacheLoadedFromDisk(false)
+    setCacheSyncing(false)
   }, [storeId])
 
   // Logic to sync Days <-> Date
@@ -92,7 +193,7 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
     setDueDate(newDate)
     if (newDate) {
       const diff = Math.ceil((new Date(newDate) - new Date()) / (1000 * 60 * 60 * 24))
-      setDaysToDue(diff) // Allow negative if past
+      setDaysToDue(diff)
     }
   }
 
@@ -126,7 +227,7 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
 
        const installmentValue = totalVal / count
        const installments = []
-       const baseDate = new Date() // Start from today
+       const baseDate = new Date()
 
        for (let i = 1; i <= count; i++) {
           const d = new Date(baseDate)
@@ -146,7 +247,6 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
        onSave(installments)
 
     } else {
-        // Single
         onSave({
           id: mode === 'edit' ? initialData?.id : undefined,
           clientId: client.id,
@@ -258,7 +358,7 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
                             type="number"
                             className="w-full bg-transparent text-gray-900 dark:text-white font-medium outline-none"
                             value={daysToDue}
-                            onChange={handleDaysChange} // Reuse handleDaysChange to update dueDate internally, though we just need the days value
+                            onChange={handleDaysChange}
                             placeholder="30"
                           />
                        </div>
@@ -323,7 +423,10 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
       <SelectClientModal
         open={showClientSelect}
         onClose={() => setShowClientSelect(false)}
-        clients={clients}
+        clients={cachedClients || clients}
+        syncing={cacheSyncing}
+        cacheLoadedFromDisk={cacheLoadedFromDisk}
+        cacheLastUpdate={cacheLastUpdate}
         onChoose={(c) => {
           setClient(c)
           setShowClientSelect(false)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { getAllProducts, updateProduct, listenProducts, syncUnifiedStockAcrossStores, adjustProductStockTransactionally, getProductById } from '../services/products'
-import { applyProductsPatchesToDiskCache } from '../lib/datacache'
+import { applyProductsPatchesToDiskCache, storageGet, storageSet } from '../lib/datacache'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
 import { listenClients, getAllClients } from '../services/clients'
@@ -12,6 +12,24 @@ import NewClientModal from './NewClientModal'
 import SelectVariationModal from './SelectVariationModal'
 import EditCartItemModal from './EditCartItemModal'
 import { PaymentMethodsModal, PaymentAmountModal, AboveAmountConfirmModal, PaymentRemainingModal, AfterAboveAdjustedModal } from './PaymentModals'
+
+const CLIENTS_CACHE_SCHEMA_VERSION = 3
+const CLIENTS_CACHE_TTL_MS = 60 * 60 * 1000
+const clientsCacheKey = (storeId, userId) =>
+  `sistemix:clients:u${String(userId || 'anon')}:s${String(storeId || 'default')}`
+
+const optimizeClient = (c) => ({
+  id: c.id,
+  name: c.name,
+  code: c.code,
+  reference: c.reference,
+  phone: c.phone,
+  phoneDigits: c.phoneDigits,
+  cpf: c.cpf,
+  cnpj: c.cnpj,
+  cpfCnpj: c.cpfCnpj,
+  email: c.email
+})
 
 const COST_KEYS_PREFERRED = [
   'cost', 'purchasePrice', 'costPrice',
@@ -78,7 +96,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   const [categories, setCategories] = useState([])
   const [clients, setClients] = useState([])
   const [cachedClients, setCachedClients] = useState(null)
-  const [isCachingClients, setIsCachingClients] = useState(false)
+  const [cacheSyncing, setCacheSyncing] = useState(false)
+  const [cacheLoadedFromDisk, setCacheLoadedFromDisk] = useState(null)
+  const [cacheLastUpdate, setCacheLastUpdate] = useState(null)
+  const cachingClientsRef = useRef(false)
+  const clientCacheNonceRef = useRef(0)
   const [store, setStore] = useState(null)
 
   // UI State
@@ -231,28 +253,77 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
     })
   }, [open, storeId, cachedProducts, isCaching])
 
-  // 3. Client Cache (Background)
+  // 3. Client Cache: lê do disco instantaneamente; atualiza em background se TTL expirado.
+  //    Usa a MESMA chave da ClientsPage (`sistemix:clients:...`) → nunca baixa duplicata!
+  const refreshClientsFromServer = async (silent = true) => {
+    if (!open || !storeId) return
+    if (cachingClientsRef.current) return
+    cachingClientsRef.current = true
+    if (!silent) setCacheSyncing(true)
+    try {
+      const all = await getAllClients(storeId)
+      const optimized = Array.isArray(all) ? all.map(optimizeClient) : []
+      const savedAt = Date.now()
+      const entry = {
+        schemaVersion: CLIENTS_CACHE_SCHEMA_VERSION,
+        savedAt,
+        totalCount: optimized.length,
+        data: optimized
+      }
+      const key = clientsCacheKey(storeId, uid)
+      storageSet(key, entry).catch(() => {})
+      setCachedClients(optimized)
+      setCacheLastUpdate(new Date(savedAt))
+    } catch (err) {
+      console.error('Error refreshing client cache:', err)
+    } finally {
+      cachingClientsRef.current = false
+      setCacheSyncing(false)
+    }
+  }
+
   useEffect(() => {
     if (!open || !storeId) return
-    if (cachedClients || isCachingClients) return
+    clientCacheNonceRef.current += 1
+    const myNonce = clientCacheNonceRef.current
+    const key = clientsCacheKey(storeId, uid)
+    let cancelled = false
 
-    setIsCachingClients(true)
-    getAllClients(storeId).then(all => {
-      const optimized = all.map(c => ({
-        id: c.id,
-        name: c.name,
-        code: c.code,
-        phone: c.phone,
-        cpf: c.cpf,
-        email: c.email
-      }))
-      setCachedClients(optimized)
-    }).catch(err => {
-      console.error('Error loading client cache:', err)
-    }).finally(() => {
-      setIsCachingClients(false)
-    })
-  }, [open, storeId, cachedClients, isCachingClients])
+    const boot = async () => {
+      try {
+        const hit = await storageGet(key)
+        if (cancelled || myNonce !== clientCacheNonceRef.current) return
+
+        const now = Date.now()
+        let cacheValid = false
+        if (
+          hit &&
+          hit.schemaVersion === CLIENTS_CACHE_SCHEMA_VERSION &&
+          Array.isArray(hit.data) &&
+          typeof hit.savedAt === 'number' &&
+          (now - hit.savedAt) < CLIENTS_CACHE_TTL_MS
+        ) {
+          cacheValid = true
+        }
+
+        if (hit && Array.isArray(hit.data)) {
+          setCachedClients(hit.data)
+          setCacheLastUpdate(typeof hit.savedAt === 'number' ? new Date(hit.savedAt) : null)
+        }
+        setCacheLoadedFromDisk(true)
+
+        if (!cacheValid) {
+          refreshClientsFromServer(true).catch(() => {})
+        }
+      } catch (e) {
+        console.error('Client cache boot failed:', e)
+        setCacheLoadedFromDisk(true)
+        refreshClientsFromServer(true).catch(() => {})
+      }
+    }
+    boot()
+    return () => { cancelled = true }
+  }, [open, storeId, uid])
 
   // Reset when opening
   useEffect(() => {
@@ -261,8 +332,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       // Reset cache when store changes
     setCachedProducts(null)
     setIsCaching(false)
+    cachingClientsRef.current = false
     setCachedClients(null)
-    setIsCachingClients(false)
+    setCacheSyncing(false)
+    setCacheLoadedFromDisk(null)
+    setCacheLastUpdate(null)
     return () => unsub()
     }
   }, [storeId])
@@ -1386,7 +1460,10 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       <SelectClientModal 
         open={clientSelectOpen} 
         onClose={() => setClientSelectOpen(false)} 
-        clients={cachedClients || clients} 
+        clients={cachedClients || clients}
+        syncing={cacheSyncing}
+        cacheLoadedFromDisk={cacheLoadedFromDisk}
+        cacheLastUpdate={cacheLastUpdate}
         onChoose={(c) => {
           setSelectedClient(c)
           setClientSelectOpen(false)

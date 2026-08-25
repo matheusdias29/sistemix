@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { listenOrders, addOrder, updateOrder, deleteOrder } from '../services/orders'
 import { recordStockMovement } from '../services/stockMovements'
 import { listenProducts, updateProduct, getAllProducts, getProductById, syncUnifiedStockAcrossStores, adjustProductStockTransactionally } from '../services/products'
-import { applyProductsPatchesToDiskCache } from '../lib/datacache'
+import { applyProductsPatchesToDiskCache, storageGet, storageSet } from '../lib/datacache'
 import NewProductModal from './NewProductModal'
 import { listenCategories } from '../services/categories'
 import { listenSuppliers } from '../services/suppliers'
@@ -15,6 +15,24 @@ import { listenSubUsers, getOwner } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
+
+const CLIENTS_CACHE_SCHEMA_VERSION = 3
+const CLIENTS_CACHE_TTL_MS = 60 * 60 * 1000
+const clientsCacheKey = (storeId, userId) =>
+  `sistemix:clients:u${String(userId || 'anon')}:s${String(storeId || 'default')}`
+
+const optimizeClient = (c) => ({
+  id: c.id,
+  name: c.name,
+  code: c.code,
+  reference: c.reference,
+  phone: c.phone,
+  phoneDigits: c.phoneDigits,
+  cpf: c.cpf,
+  cnpj: c.cnpj,
+  cpfCnpj: c.cpfCnpj,
+  email: c.email
+})
 import { listenStore, listenFees, updateStore } from '../services/stores'
 import { listenServices, addService, updateService } from '../services/services'
 import ChooseFinalStatusModal from './ChooseFinalStatusModal'
@@ -462,7 +480,11 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const [newClientOpen, setNewClientOpen] = useState(false)
   const [clientsAll, setClientsAll] = useState([])
   const [cachedClients, setCachedClients] = useState(null)
-  const [isClientsCaching, setIsClientsCaching] = useState(false)
+  const [cacheSyncing, setCacheSyncing] = useState(false)
+  const [cacheLoadedFromDisk, setCacheLoadedFromDisk] = useState(null)
+  const [cacheLastUpdate, setCacheLastUpdate] = useState(null)
+  const cachingClientsRef = useRef(false)
+  const clientCacheNonceRef = useRef(0)
   const [technician, setTechnician] = useState('')
   const [attendant, setAttendant] = useState('')
   const [subUsers, setSubUsers] = useState([])
@@ -727,19 +749,84 @@ const canEditService = isOwner || perms.services?.edit
   }, [storeId, ownerId])
 
   useEffect(() => {
+    cachingClientsRef.current = false
     setCachedClients(null)
-    setIsClientsCaching(false)
+    setCacheSyncing(false)
+    setCacheLoadedFromDisk(null)
+    setCacheLastUpdate(null)
   }, [storeId])
+
+  // 3. Client Cache: lê do disco INSTANTANEAMENTE (cache compartilhado com ClientsPage).
+  //    Usa a MESMA chave `sistemix:clients:...` — nunca baixa duplicata de 22 mil clientes!
+  const refreshClientsFromServer = async (silent = true) => {
+    if (!storeId) return
+    if (cachingClientsRef.current) return
+    cachingClientsRef.current = true
+    if (!silent) setCacheSyncing(true)
+    try {
+      const all = await getAllClients(storeId)
+      const optimized = Array.isArray(all) ? all.map(optimizeClient) : []
+      const savedAt = Date.now()
+      const entry = {
+        schemaVersion: CLIENTS_CACHE_SCHEMA_VERSION,
+        savedAt,
+        totalCount: optimized.length,
+        data: optimized
+      }
+      const key = clientsCacheKey(storeId, uid)
+      storageSet(key, entry).catch(() => {})
+      setCachedClients(optimized)
+      setCacheLastUpdate(new Date(savedAt))
+    } catch (err) {
+      console.error('Error refreshing client cache:', err)
+    } finally {
+      cachingClientsRef.current = false
+      setCacheSyncing(false)
+    }
+  }
 
   useEffect(() => {
     if (!storeId) return
-    if (cachedClients || isClientsCaching) return
-    setIsClientsCaching(true)
-    getAllClients(storeId)
-      .then((rows) => setCachedClients(rows))
-      .catch(() => {})
-      .finally(() => setIsClientsCaching(false))
-  }, [storeId, cachedClients, isClientsCaching])
+    clientCacheNonceRef.current += 1
+    const myNonce = clientCacheNonceRef.current
+    const key = clientsCacheKey(storeId, uid)
+    let cancelled = false
+
+    const boot = async () => {
+      try {
+        const hit = await storageGet(key)
+        if (cancelled || myNonce !== clientCacheNonceRef.current) return
+
+        const now = Date.now()
+        let cacheValid = false
+        if (
+          hit &&
+          hit.schemaVersion === CLIENTS_CACHE_SCHEMA_VERSION &&
+          Array.isArray(hit.data) &&
+          typeof hit.savedAt === 'number' &&
+          (now - hit.savedAt) < CLIENTS_CACHE_TTL_MS
+        ) {
+          cacheValid = true
+        }
+
+        if (hit && Array.isArray(hit.data)) {
+          setCachedClients(hit.data)
+          setCacheLastUpdate(typeof hit.savedAt === 'number' ? new Date(hit.savedAt) : null)
+        }
+        setCacheLoadedFromDisk(true)
+
+        if (!cacheValid) {
+          refreshClientsFromServer(true).catch(() => {})
+        }
+      } catch (e) {
+        console.error('Client cache boot failed:', e)
+        setCacheLoadedFromDisk(true)
+        refreshClientsFromServer(true).catch(() => {})
+      }
+    }
+    boot()
+    return () => { cancelled = true }
+  }, [storeId, uid])
 
   // Product Cache (Background)
   useEffect(() => {
@@ -3118,6 +3205,9 @@ const canEditService = isOwner || perms.services?.edit
               open={clientSelectOpen}
               onClose={()=>setClientSelectOpen(false)}
               clients={(cachedClients && cachedClients.length) ? cachedClients : clientsAll}
+              syncing={cacheSyncing}
+              cacheLoadedFromDisk={cacheLoadedFromDisk}
+              cacheLastUpdate={cacheLastUpdate}
               onChoose={(c)=>{ setClient(c.name||''); setClientSelectOpen(false) }}
               onNew={(isOwner || perms.clients?.create) ? ()=>{ setClientSelectOpen(false); setNewClientOpen(true) } : undefined}
             />
