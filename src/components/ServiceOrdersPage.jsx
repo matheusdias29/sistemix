@@ -753,6 +753,7 @@ const canEditService = isOwner || perms.services?.edit
         name: p.name,
         code: p.code,
         reference: p.reference,
+        barcode: p.barcode,
         stock: p.stock,
         salePrice: p.salePrice,
         promoPrice: p.promoPrice,
@@ -4011,15 +4012,29 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew, priceInd
   const [limit, setLimit] = useState(20)
 
   useEffect(() => {
-    if (open) setLimit(20)
-  }, [open, query])
+    if (open) {
+      setLimit(20)
+      setQuery('')
+    }
+  }, [open])
 
   if(!open) return null
   
-  const filtered = (products||[]).filter(p => 
-    p.active !== false && 
-    (p.name||'').toLowerCase().includes(query.trim().toLowerCase())
-  )
+  const q = query.trim().toLowerCase()
+  const filtered = (products||[]).filter(p => {
+    if (p.active === false) return false
+    if (!q) return true
+    const name = String(p.name || '').toLowerCase()
+    const code = String(p.code || '').toLowerCase()
+    const reference = String(p.reference || '').toLowerCase()
+    const barcode = String(p.barcode || '').toLowerCase()
+    return (
+      name.includes(q) ||
+      code.includes(q) ||
+      reference.includes(q) ||
+      barcode.includes(q)
+    )
+  })
   const displayed = filtered.slice(0, limit)
   const hasMore = filtered.length > limit
 
@@ -4054,23 +4069,34 @@ function SelectProductModal({ open, onClose, products, onChoose, onNew, priceInd
           <button onClick={onNew} className="px-3 py-1 rounded text-xs bg-green-600 text-white hover:bg-green-700">+ Novo</button>
         </div>
         <div className="p-4">
-          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar..." className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
+          <input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Pesquisar por nome, código, referência ou EAN..." className="w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
           <div className="mt-3 max-h-[60vh] overflow-y-auto">
-            {displayed.map(p => (
-              <div key={p.id} className="grid grid-cols-[1fr_auto] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100" onClick={()=>onChoose(p)}>
-                <div>
-                  <div className="font-medium">{p.name}</div>
+            {displayed.map(p => {
+              const metaBits = []
+              if (p.reference) metaBits.push(`Ref. ${p.reference}`)
+              if (p.code) metaBits.push(`Cód. ${p.code}`)
+              if (p.barcode) metaBits.push(p.barcode)
+              return (
+                <div key={p.id} className="grid grid-cols-[1fr_auto] items-center gap-3 px-2 py-3 border-b dark:border-gray-700 last:border-0 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100" onClick={()=>onChoose(p)}>
+                  <div>
+                    <div className="font-medium">{p.name}</div>
+                    {metaBits.length > 0 && (
+                      <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 font-mono tracking-tight">
+                        {metaBits.join(' • ')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right flex flex-col items-end">
+                    <div>{Number(getPrice(p)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+                    {showStock && (
+                      <div className={`text-xs ${getStock(p) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
+                        {getStock(p)} un.
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className="text-right flex flex-col items-end">
-                  <div>{Number(getPrice(p)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                  {showStock && (
-                    <div className={`text-xs ${getStock(p) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>
-                      {getStock(p)} un.
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
+              )
+            })}
             {hasMore && (
               <button 
                 onClick={() => setLimit(l => l + 20)}

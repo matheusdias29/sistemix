@@ -1426,6 +1426,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       const arr = cachedProducts.filter(p => {
         const nameMatch = (p.name || '').toLowerCase().includes(q)
         const refMatch = (p.reference || '').toLowerCase().includes(q)
+        const codeMatch = (p.code || '').toLowerCase().includes(q)
         const barcodeMatch = (p.barcode || '').toLowerCase().includes(q)
         const nameLowerMatch = (p.nameLower || '').includes(q)
         
@@ -1452,7 +1453,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
           stockMatch = Number(p.stock || 0) === 0
         }
 
-        const matchesSearch = nameMatch || refMatch || barcodeMatch || nameLowerMatch
+        const matchesSearch = nameMatch || refMatch || codeMatch || barcodeMatch || nameLowerMatch
         const matchesFilters = categoryMatch && supplierMatch && originMatch && ncmMatch && cestMatch && validityMatch && stockMatch
         
         // Status filter
