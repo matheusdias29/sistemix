@@ -223,7 +223,7 @@ function extractCostDeep(o: any, depth = 0): number {
   return 0
 }
 
-function calcItemsRealCost(items: any[] | null | undefined): { totalCost: number } {
+function calcItemsRealCost(items: any[] | null | undefined, productsLookup?: any[] | null | undefined): { totalCost: number } {
   const list = Array.isArray(items) ? items : []
   if (list.length === 0) return { totalCost: 0 }
   let totalCost = 0
@@ -241,6 +241,25 @@ function calcItemsRealCost(items: any[] | null | undefined): { totalCost: number
     }
     return 1
   }
+
+  // Monta mapa de produtos UMA VEZ (se recebemos a lista para lookup) — busca rápida.
+  const productMap: Map<string, any> | null = (Array.isArray(productsLookup) && productsLookup.length > 0)
+    ? new Map(productsLookup.map((p: any) => {
+        const ids = [p && (p.id != null) ? p.id : null, p && (p.productId != null) ? p.productId : null, p && (p.originalId != null) ? p.originalId : null].filter(Boolean).map(x => String(x))
+        return ids.map(id => [id, p] as const)
+      }).flat())
+    : null
+
+  const findRealProduct = (it: any): any | null => {
+    if (!productMap) return null
+    const ids = [it.originalId, it.productId, it.id].filter(Boolean).map(x => String(x))
+    for (const id of ids) {
+      const found = productMap.get(id)
+      if (found) return found
+    }
+    return null
+  }
+
   for (const raw of list) {
     const p = raw || {}
     if (Number(p.costTotal || 0) > 0) {
@@ -249,7 +268,41 @@ function calcItemsRealCost(items: any[] | null | undefined): { totalCost: number
     }
     const qty = readQty(p)
     const unitCost = extractCostDeep(p, 2)
-    if (qty > 0 && unitCost > 0) totalCost += unitCost * qty
+    if (qty > 0 && unitCost > 0) {
+      totalCost += unitCost * qty
+      continue
+    }
+
+    // ================================================================
+    // ✅ FALLBACK ESPECIAL para vendas LEGADAS (sem custo salvo em
+    //    sale.products). Quando não acha NENHUM custo no item (ex: a
+    //    venda foi salva antes da nossa correção ou aberta em modo
+    //    edição), tenta pegar o CUSTO ATUAL do produto no Firestore.
+    //
+    // Exato cenário do bug reportado: "Salvar pedido → Faturar depois
+    // não mostra custo na Estatística".
+    // ================================================================
+    if (qty > 0 && productMap) {
+      const realProduct = findRealProduct(p)
+      if (realProduct) {
+        // 1) Tenta achar a variação primeiro (se a venda tem variationName)
+        const variationName = String(p.variationName || '').trim()
+        if (variationName && Array.isArray(realProduct.variationsData)) {
+          const v = realProduct.variationsData.find(v => String(v?.name || v?.label || '').trim() === variationName)
+          const varUnitCost = v ? extractCostDeep(v, 2) : 0
+          if (varUnitCost > 0) {
+            totalCost += varUnitCost * qty
+            continue
+          }
+        }
+        // 2) Senão, custo do produto principal
+        const prodUnitCost = extractCostDeep(realProduct, 2)
+        if (prodUnitCost > 0) {
+          totalCost += prodUnitCost * qty
+          continue
+        }
+      }
+    }
   }
   return { totalCost }
 }
@@ -740,6 +793,25 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   const costByOrderIdMap = useMemo<Map<string, number>>(() => {
     const map = new Map<string, number>()
     const all = [...salesInPeriod, ...serviceOrdersInPeriod]
+
+    // Mapa de produtos para busca rápida (igual calcItemsRealCost)
+    const productMap: Map<string, any> | null = (Array.isArray(products) && products.length > 0)
+      ? new Map(products.map((p: any) => {
+          const ids = [p && (p.id != null) ? p.id : null, p && (p.productId != null) ? p.productId : null, p && (p.originalId != null) ? p.originalId : null].filter(Boolean).map(x => String(x))
+          return ids.map(id => [id, p] as const)
+        }).flat())
+      : null
+
+    const findRealProduct = (it: any): any | null => {
+      if (!productMap) return null
+      const ids = [it.originalId, it.productId, it.id].filter(Boolean).map(x => String(x))
+      for (const id of ids) {
+        const found = productMap.get(id)
+        if (found) return found
+      }
+      return null
+    }
+
     for (let i = 0; i < all.length; i++) {
       const o = all[i]
       if (!o?.id) continue
@@ -761,21 +833,39 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
         }
         const unit = (Number(it?.cost || 0) || Number(it?.unitCost || 0) || Number(it?.purchasePrice || 0) || Number(it?.precoCusto || 0) || Number(it?.custo || 0))
         const qty = Number(it?.quantity || it?.quantidade || it?.qty || it?.qtd || 0) || 1
-        if (unit > 0 && qty > 0) sum += unit * qty
+        if (unit > 0 && qty > 0) {
+          sum += unit * qty
+          continue
+        }
+
+        // ✅ Fallback para vendas LEGADAS: busca custo no array de produtos ATUAIS
+        if (qty > 0 && productMap) {
+          const realProduct = findRealProduct(it)
+          if (realProduct) {
+            const variationName = String(it.variationName || '').trim()
+            if (variationName && Array.isArray(realProduct.variationsData)) {
+              const v = realProduct.variationsData.find(v => String(v?.name || v?.label || '').trim() === variationName)
+              const varCost = v ? extractCostDeep(v, 2) : 0
+              if (varCost > 0) { sum += varCost * qty; continue }
+            }
+            const prodCost = extractCostDeep(realProduct, 2)
+            if (prodCost > 0) { sum += prodCost * qty; continue }
+          }
+        }
       }
       map.set(o.id, sum)
     }
     return map
-  }, [salesInPeriod, serviceOrdersInPeriod])
+  }, [salesInPeriod, serviceOrdersInPeriod, products])
 
   const costByOrderIdFn = (o: Order): number => {
     const prods = Array.isArray(o.products) ? o.products : []
     const svcs = Array.isArray(o.services) ? o.services : []
     const items = [...prods, ...svcs]
-    if (!o?.id) return calcItemsRealCost(items).totalCost
+    if (!o?.id) return calcItemsRealCost(items, products).totalCost
     const cached = costByOrderIdMap.get(o.id)
     if (typeof cached === 'number') return cached
-    const r = calcItemsRealCost(items)
+    const r = calcItemsRealCost(items, products)
     costByOrderIdMap.set(o.id, r.totalCost)
     return r.totalCost
   }

@@ -361,12 +361,50 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         setAppliedFees([])
         setDiscount({ type: null, value: 0 })
       } else if (sale) {
-        const initialCart = Array.isArray(sale.products) ? sale.products.map(p => ({
-          product: { id: p.id, name: p.name, salePrice: p.price },
-          quantity: Number(p.quantity || 1),
-          price: Number(p.price || 0),
-          total: Number(p.total || (Number(p.price || 0) * Number(p.quantity || 1)))
-        })) : []
+        // ================================================================
+        // RESTAURAÇÃO DO CARRINHO NO MODO EDIÇÃO
+        // 
+        // ✅ PRESERVA O MÁXIMO DE CAMPOS SALVOS no sale.products[i]:
+        //   - cost, costTotal, purchasePrice, costPrice, precoCusto, custo
+        //   - _costSnapFromProduct / _costSnapFromVar / _costSnapFromProdReal
+        //   - productId, originalId, variationName (IDs para achar produto real)
+        //   - price, quantity, total (valores calculados)
+        // 
+        // ⚠️ NÃO podemos criar um objeto novo { id, name, salePrice } pq isso
+        //    APAGARIA todos os campos de custo acima → Estatísticas não somaria
+        //    nada ao faturar novamente um pedido salvo!
+        // ================================================================
+        const initialCart = Array.isArray(sale.products)
+          ? sale.products.map(p => {
+              const qty = Number(p.quantity || 1)
+              const price = Number(p.price || 0)
+              const total = Number(p.total || (price * qty))
+              // Preserva todo o resto do item do carrinho já salvo, e só
+              // garante os campos mínimos que a UI usa (product.{id,name,salePrice})
+              const cartProductItem = {
+                ...(p && typeof p === 'object' ? p : {}),   // ← PRESERVA TUDO (cost, originalId, variationName, productId, costTotal, etc)
+                id: p.id,
+                name: p.name,
+                salePrice: price,
+                // Campos extras para ajudar a encontrar produto real + variação
+                ...(p.originalId ? { originalId: p.originalId } : {}),
+                ...(p.productId ? { productId: p.productId } : {}),
+                ...(p.variationName
+                  ? {
+                      variation: p.variationName,
+                      variacao: p.variationName,
+                      variationRawName: p.variationName,
+                    }
+                  : {}),
+              }
+              return {
+                product: cartProductItem,
+                quantity: qty,
+                price,
+                total,
+              }
+            })
+          : []
         setCart(initialCart)
         setPayments(Array.isArray(sale.payments) ? sale.payments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0) })) : [])
         setPlannedPayments(
@@ -718,10 +756,41 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
             (realProduct && variationName && Array.isArray(realProduct.variationsData))
               ? realProduct.variationsData.find(v => String(v.name || v.label || '').trim() === String(variationName || '').trim()) || null
               : null
-          const unitCost =
-            extractUnitCost(item.product) ||
-            (vCost ? extractUnitCost(vCost) : 0) ||
-            (realProduct ? extractUnitCost(realProduct) : 0)
+          const unitCost = (() => {
+            // 1) Extração principal (já busca cost, unitCost, purchasePrice etc em item.product)
+            const c1 = extractUnitCost(item.product)
+            if (c1 > 0) return c1
+            // 2) Busca na variação do produto real
+            const c2 = vCost ? extractUnitCost(vCost) : 0
+            if (c2 > 0) return c2
+            // 3) Busca no produto real
+            const c3 = realProduct ? extractUnitCost(realProduct) : 0
+            if (c3 > 0) return c3
+            // 4) ✅ FALLBACK 1: se tem costTotal salvo no item do carrinho (edicao),
+            //    calcula unitCost = costTotal / qty (custos legados que foram salvos só com total)
+            const savedCostTotal = Number((item?.costTotal != null ? item.costTotal : (item?.product?.costTotal || 0)))
+            if (savedCostTotal > 0 && quantity > 0) {
+              const unit = savedCostTotal / quantity
+              if (unit > 0) return Number(unit.toFixed(4))
+            }
+            // 5) ✅ FALLBACK 2 (mais bruto): busca por QUALQUER campo de custo
+            //    diretamente no item.product (já que no isEdit=true a gente
+            //    preservou TODO o objeto com spread ...p)
+            const raw = item.product || {}
+            const candidates = [
+              raw.cost, raw.purchasePrice, raw.costPrice, raw.precoCusto,
+              raw.preco_custo, raw.precodecusto, raw.custoCompra,
+              raw.custo_compra, raw.custoProduto, raw.custo_produto,
+              raw.valorCusto, raw.valor_custo, raw.unitCost, raw.unit_cost,
+              raw.custoUnitario, raw.custo_unitario, raw.custo, raw.productCost,
+              raw.pCost, raw.custoDeCompra, raw.custo_de_compra, raw.cp, raw.c
+            ]
+            for (const c of candidates) {
+              const n = Number(c)
+              if (Number.isFinite(n) && n > 0) return n
+            }
+            return 0
+          })()
           const quantity = Number(item.quantity || 0)
           const costSnapFromProduct = buildCostSnapshot(item.product)
           const costSnapFromVar = vCost ? buildCostSnapshot(vCost) : {}

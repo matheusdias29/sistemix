@@ -357,6 +357,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const BULK_SYNC_KEY = '__bulk_sync__'
   // Mobile: controle de sanfona por linha (produtos abertos)
   const [mobileOpenRows, setMobileOpenRows] = useState(() => new Set())
+  // Grade com ícones: controle de sanfona para exibir precificações por card
+  const [gridOpenRows, setGridOpenRows] = useState(() => new Set())
   const [openMenuId, setOpenMenuId] = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
   const [stockModalOpen, setStockModalOpen] = useState(false)
@@ -1569,6 +1571,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     const next = new Set(mobileOpenRows)
     if(next.has(id)) next.delete(id); else next.add(id)
     setMobileOpenRows(next)
+  }
+
+  const toggleGridRow = (id) => {
+    const next = new Set(gridOpenRows)
+    if(next.has(id)) next.delete(id); else next.add(id)
+    setGridOpenRows(next)
   }
 
   const toggleCatSelect = (id) => {
@@ -3072,6 +3080,8 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                {!loading && paginatedResults.map(p => {
                  const clientFinal = getClientFinalPrice(p)
                  const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
+                 const stock = Number(p.stock ?? 0)
+                 const stockBadge = stock <= 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
                  return (
                    <div 
                      key={p.id}
@@ -3102,22 +3112,92 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                        {p.name}
                      </h3>
 
-                     {/* Footer (Preço e Ícone) */}
-                     <div className="mt-auto pt-2 flex items-end justify-between">
-                       <div className="font-bold text-gray-900 dark:text-white">
-                         {priceText}
-                       </div>
-                       <div className="flex flex-col items-end">
-                          {/* Tag Icon */}
-                          <svg className="w-4 h-4 text-gray-400 mb-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                          </svg>
-                       </div>
-                     </div>
-                   </div>
-                 )
-               })}
-             </div>
+                    {/* Estoque (único, 1 vez por produto) */}
+                    <div className={`text-[11px] mb-1 font-medium whitespace-nowrap ${stockBadge}`}>
+                      Estoque: {stock.toLocaleString('pt-BR')}
+                    </div>
+
+                    {/* Footer (Preço e Ações) */}
+                    <div className="mt-auto pt-2 flex items-end justify-between gap-2">
+                      <div className="font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                        {priceText}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Tag Icon */}
+                        <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
+                        {/* Botão de precificações (só aparece se tiver variações) */}
+                        {(Array.isArray(p.variationsData) && p.variationsData.length > 0) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleGridRow(p.id)
+                            }}
+                            aria-label={gridOpenRows.has(p.id) ? 'Fechar precificações' : 'Abrir precificações'}
+                            title={gridOpenRows.has(p.id) ? 'Fechar precificações' : 'Abrir precificações'}
+                            className="inline-flex h-6 w-6 items-center justify-center rounded border bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 transition-all"
+                          >
+                            <svg
+                              className={`${gridOpenRows.has(p.id) ? '' : 'rotate-180'} transition-transform`}
+                              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                            >
+                              <polyline points="18 15 12 9 6 15"></polyline>
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Painel de precificações expandido no card de grade (com animação) */}
+                    {(Array.isArray(p.variationsData) && p.variationsData.length > 0) && gridOpenRows.has(p.id) && (
+                      <div className="mt-2 -mx-3 -mb-3">
+                        <div className={`overflow-hidden transition-all duration-200 ease-in-out ${gridOpenRows.has(p.id) ? 'max-h-[520px] opacity-100' : 'max-h-0 opacity-0'} border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40`}>
+                          <div className="px-3 py-3 space-y-2">
+                            {p.variationsData.map((v, idx) => {
+                              const sale = Number(v?.salePrice ?? 0)
+                              const promo = v?.promoPrice != null ? Number(v.promoPrice) : null
+                              const price = promo != null ? promo : sale
+                              return (
+                                <div key={idx} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
+                                  <div className="min-w-0">
+                                    <div className="truncate font-medium" title={v?.name || v?.label || `Variação ${idx+1}`}>
+                                      {v?.name || v?.label || `Variação ${idx+1}`}
+                                    </div>
+                                    {(v.reference) && (
+                                      <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                        <span className="truncate max-w-[10rem]">Cód: {v.reference}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="text-right whitespace-nowrap pt-[1px] tabular-nums font-semibold">
+                                    {promo != null && promo < sale ? (
+                                      <div className="flex flex-col items-end">
+                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 line-through">
+                                          {sale.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                        </span>
+                                        <span className="text-green-600 dark:text-green-400">
+                                          {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-900 dark:text-white">
+                                        {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                  </div>
+                )})}
+              </div>
           ) : (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
             {loading && paginatedResults.length === 0 && (
@@ -3321,20 +3401,33 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                               const sale = Number(v?.salePrice ?? 0)
                               const promo = v?.promoPrice != null ? Number(v.promoPrice) : null
                               const price = promo != null ? promo : sale
-                              const stockVar = Number(v?.stock ?? 0)
                               return (
-                                <div key={idx} className="grid grid-cols-[minmax(0,1fr)_6rem] items-start gap-2 text-xs text-gray-700 dark:text-gray-200">
+                                <div key={idx} className="grid grid-cols-[minmax(0,1fr)_6rem] items-center gap-2 text-xs text-gray-700 dark:text-gray-200">
                                   <div className="min-w-0">
                                     <div className="truncate font-medium" title={v?.name || v?.label || `Variação ${idx+1}`}>
                                       {v?.name || v?.label || `Variação ${idx+1}`}
                                     </div>
-                                    <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                                      <span className="whitespace-nowrap">Estoque: {stockVar.toLocaleString('pt-BR')}</span>
-                                      {p.reference ? <span className="truncate max-w-[10rem]">Cód: {p.reference}</span> : null}
-                                    </div>
+                                    {v.reference ? (
+                                      <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                        <span className="truncate max-w-[10rem]">Cód: {v.reference}</span>
+                                      </div>
+                                    ) : null}
                                   </div>
-                                  <div className="text-right whitespace-nowrap pt-[1px]">
-                                    {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                  <div className="text-right whitespace-nowrap pt-[1px] tabular-nums font-semibold">
+                                    {promo != null && promo < sale ? (
+                                      <div className="flex flex-col items-end">
+                                        <span className="text-[10px] text-gray-400 dark:text-gray-500 line-through">
+                                          {sale.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                        </span>
+                                        <span className="text-green-600 dark:text-green-400">
+                                          {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                        </span>
+                                      </div>
+                                    ) : (
+                                      <span className="text-gray-900 dark:text-white">
+                                        {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
                               )
@@ -3354,7 +3447,6 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                             const sale = Number(v?.salePrice ?? 0)
                             const promo = v?.promoPrice != null ? Number(v.promoPrice) : null
                             const price = promo != null ? promo : sale
-                            const stockVar = Number(v?.stock ?? 0)
                             return (
                               <div 
                                 key={idx} 
@@ -3362,15 +3454,23 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                                 style={gridCols ? { gridTemplateColumns: gridCols } : {}}
                               >
                                 <div></div>
-                                <div className={`${showExtras ? 'col-span-5' : 'col-span-1'} truncate`} title={v?.name || v?.label || `Variação ${idx+1}`}>
-                                  <span className="font-medium text-gray-700">{v?.name || v?.label || `Variação ${idx+1}`}</span>
-                                  {p.reference ? (<span className="ml-1 text-gray-500">({p.reference})</span>) : null}
+                                <div className={`${showExtras ? 'col-span-5' : 'col-span-2'} truncate`} title={v?.name || v?.label || `Variação ${idx+1}`}>
+                                  <span className="font-medium text-gray-700 dark:text-gray-200">{v?.name || v?.label || `Variação ${idx+1}`}</span>
+                                  {v.reference ? (<span className="ml-1 text-gray-500 dark:text-gray-400">({v.reference})</span>) : null}
                                 </div>
-                                <div className="text-right whitespace-nowrap">
-                                  {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
-                                </div>
-                                <div className="text-right text-gray-500">
-                                  {stockVar ? stockVar.toLocaleString('pt-BR') : '-'}
+                                <div className="text-right whitespace-nowrap tabular-nums font-semibold">
+                                  {promo != null && promo < sale ? (
+                                    <span className="text-green-600 dark:text-green-400">
+                                      {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                      <span className="ml-2 text-[10px] text-gray-400 dark:text-gray-500 line-through font-normal">
+                                        {sale.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                      </span>
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-900 dark:text-white">
+                                      {price.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                                    </span>
+                                  )}
                                 </div>
                                 <div></div>
                                 <div></div>
