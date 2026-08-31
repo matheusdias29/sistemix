@@ -328,6 +328,14 @@ export default function NewAccountPayableModal({ onClose, onSave, onDelete, isLo
           storeId={storeId}
           isEdit={!!editingSupplier}
           supplier={editingSupplier}
+          onSuccess={(newS) => {
+            setSuppliers(prev => prev.find(s => s.id === newS.id) ? prev : [newS, ...prev])
+            if (!editingSupplier) {
+              setSupplier({ id: newS.id, name: newS.name })
+            }
+            setShowNewSupplierModal(false)
+            setEditingSupplier(null)
+          }}
         />
       )}
 

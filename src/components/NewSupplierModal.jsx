@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { addSupplier, updateSupplier } from '../services/suppliers'
 import { searchCep } from '../services/cep'
 
-export default function NewSupplierModal({ open, onClose, isEdit=false, supplier=null, storeId }){
+export default function NewSupplierModal({ open, onClose, isEdit=false, supplier=null, storeId, onSuccess }){
   const [name, setName] = useState('')
   const [whatsapp, setWhatsapp] = useState('')
   const [phone, setPhone] = useState('')
@@ -126,11 +126,15 @@ export default function NewSupplierModal({ open, onClose, isEdit=false, supplier
         notes: notes.trim(),
         active,
       }
+      let result = null
       if (isEdit && supplier?.id){
         await updateSupplier(supplier.id, payload)
+        result = { id: supplier.id, ...payload }
       } else {
-        await addSupplier(payload, storeId)
+        const newId = await addSupplier(payload, storeId)
+        result = { id: newId, ...payload }
       }
+      if (onSuccess) onSuccess(result)
       close()
     }catch(err){
       console.error(err)

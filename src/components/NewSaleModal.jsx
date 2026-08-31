@@ -1440,7 +1440,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               )}
 
               {(isOwner || perms.sales?.finalize || (isEdit && perms.sales?.edit)) && (
-              <button 
+              <button
                 onClick={() => {
                   const isPedido = String(sale?.status || '').toLowerCase() === 'pedido'
                   if (isEdit && isPedido && (!payments || payments.length === 0) && plannedPayments && plannedPayments.length > 0) {
@@ -1452,7 +1452,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 disabled={cart.length === 0}
                 className="flex-[2] py-3 bg-green-600 text-white rounded font-medium hover:bg-green-700 transition-colors disabled:opacity-50 shadow-sm flex flex-col items-center justify-center leading-tight"
               >
-                <span>{isEdit ? 'Salvar' : 'Faturar'}</span>
+                <span>{(isEdit && String(sale?.status || '').toLowerCase() !== 'pedido') ? 'Salvar' : 'Faturar'}</span>
                 <span className="text-xs opacity-90">{remainingToPay > 0 ? `Restante: ${money(remainingToPay)}` : 'Pago'}</span>
               </button>
               )}
@@ -1543,7 +1543,32 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         } : undefined}
       />
       
-      <NewClientModal open={newClientOpen} onClose={() => setNewClientOpen(false)} storeId={storeId} user={user} />
+      <NewClientModal
+        open={newClientOpen}
+        onClose={() => setNewClientOpen(false)}
+        storeId={storeId}
+        user={user}
+        onSuccess={async (newC) => {
+          const opt = optimizeClient(newC)
+          setClients(prev => prev.find(c => c.id === opt.id) ? prev : [opt, ...prev])
+          setCachedClients(prev => {
+            if (!prev) return [opt]
+            if (prev.find(c => c.id === opt.id)) return prev
+            return [opt, ...prev]
+          })
+          try {
+            const key = clientsCacheKey(storeId, user?.uid)
+            const hit = await storageGet(key)
+            const now = Date.now()
+            if (hit && hit.schemaVersion === CLIENTS_CACHE_SCHEMA_VERSION && Array.isArray(hit.clients)) {
+              const list = hit.clients.filter(c => c.id !== opt.id)
+              storageSet(key, { schemaVersion: CLIENTS_CACHE_SCHEMA_VERSION, savedAt: now, clients: [opt, ...list] }).catch(() => {})
+            }
+          } catch {}
+          setSelectedClient(opt)
+          setNewClientOpen(false)
+        }}
+      />
 
       <SelectVariationModal
         open={varSelectOpen}
