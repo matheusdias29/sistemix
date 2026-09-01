@@ -213,8 +213,10 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                         if (sale.number) {
                           const digits = String(sale.number).replace(/\D/g, '')
                           const n = parseInt(digits, 10)
-                          const prefix = (sale.type === 'os' || sale.type === 'service_order') ? 'O.S' : 'PV'
-                          return `${prefix}:${String(n).padStart(4, '0')}`
+                          const isOS = sale.type === 'os' || sale.type === 'service_order'
+                            || (sale.orderType && String(sale.orderType).toLowerCase().includes('service'))
+                            || /OS|Ordem|Serv/i.test(sale.number || '')
+                          return isOS ? `O.S.${String(n).padStart(4, '0')}` : `P.V.${String(n).padStart(4, '0')}`
                         }
                         return String(sale.id).slice(-4)
                       })()

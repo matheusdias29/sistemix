@@ -1262,7 +1262,7 @@ const canEditService = isOwner || perms.services?.edit
               productName: p.name,
               type,
               quantity: movedQty,
-              reason: 'adjustment',
+              reason: 'service_order',
               referenceId: editingOrderId,
               referenceNumber: formattedNumber,
               description: type === 'in'

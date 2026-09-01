@@ -26,7 +26,35 @@ export default function StockMovementsModal({ open, onClose, product }) {
   }
 
   const getReasonLabel = (mov) => {
-    const r = mov.reason
+    const r = String(mov.reason || '').toLowerCase()
+    const ref = String(mov.referenceNumber || '').trim()
+
+    const normalizeNum = (s) => String(s || '').replace(/\D/g, '')
+    const pad = (n) => String(n || '0').padStart(4, '0')
+
+    const osMatch = ref.match(/(OS|O\.S|o\.s|ordem)[^\d]*(\d+)/i)
+    const digits = normalizeNum(ref)
+
+    const isOSLike = r === 'service_order' || r === 'cancel'
+      ? (osMatch || /(os|o\.s|ordem)/i.test(ref) || (mov.description && /OS|Ordem/.test(mov.description)))
+      : (osMatch || /(os|o\.s|ordem)/i.test(ref))
+
+    const isSaleLike = r === 'sale' || (!isOSLike && /(pv|venda)/i.test(ref))
+      || (mov.description && /(venda|PV)/i.test(mov.description))
+
+    if (ref && (isOSLike || (r === 'cancel' && mov.description && /OS|Ordem/.test(mov.description)))) {
+      const n = pad(osMatch ? osMatch[2] : digits)
+      if (r === 'cancel') return `Cancelamento/Estorno O.S.${n}`
+      return `O.S.${n}`
+    }
+
+    if (ref && (isSaleLike || (r === 'adjustment' && /PV|venda/i.test(mov.description || '')))) {
+      const pvMatch = ref.match(/(PV|P\.V|pv)[^\d]*(\d+)/i)
+      const n = pad(pvMatch ? pvMatch[2] : digits)
+      if (r === 'cancel') return `Cancelamento/Estorno P.V.${n}`
+      return `P.V.${n}`
+    }
+
     const map = {
       'sale': 'Venda',
       'manual_adjust': 'Ajuste Manual',
@@ -35,12 +63,13 @@ export default function StockMovementsModal({ open, onClose, product }) {
       'service_order': 'Ordem de Serviço',
       'cancel': 'Cancelamento/Estorno'
     }
-    
-    if (r === 'service_order' && mov.referenceNumber) {
-      return mov.referenceNumber
+
+    if (r === 'adjustment') {
+      if (mov.description) return String(mov.description).slice(0, 40)
+      return 'Ajuste do Sistema'
     }
-    
-    return map[r] || r
+
+    return map[r] || (ref && (digits || ref)) || r || '-'
   }
 
   return (

@@ -11,7 +11,7 @@ import NewCategoryModal from './NewCategoryModal'
 import NewSupplierModal from './NewSupplierModal'
 import SelectCategoryModal from './SelectCategoryModal'
 import SelectSupplierModal from './SelectSupplierModal'
-import { applyProductsPatchesToDiskCache, upsertProductsToDiskCache } from '../lib/datacache'
+import { applyProductsPatchesToDiskCache, upsertProductsToDiskCache, getStockTextColorClass } from '../lib/datacache'
 
 export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   if (!supplierData || !supplierData.name) return
@@ -1542,7 +1542,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 <div className="min-w-0">
                   <div className="text-sm font-medium leading-tight truncate dark:text-white" title={v.name}>{v.name || '-'}</div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                    <span>Estoque: {v.stock ?? 0}</span>
+                    <span>Estoque: <span className={getStockTextColorClass(v.stock, v.stockMin, { light: true })}>{v.stock ?? 0}</span></span>
                   </div>
                 </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400 pt-[1px] max-w-[6rem] truncate">{(reference || '').trim() ? reference : ''}</div>

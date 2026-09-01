@@ -300,3 +300,27 @@ export async function warmUpStore(storeId){
     liveUnsubs.delete(storeId)
   }
 }
+
+export function getStockState(stock, minStock) {
+  const s = Number(stock ?? 0)
+  const m = Number(minStock ?? 0)
+  if (s <= 0) return 'empty'
+  if (s <= m) return 'alert'
+  return 'ok'
+}
+
+export function getStockTextColorClass(stock, minStock, { light=false } = {}) {
+  const state = getStockState(stock, minStock)
+  if (state === 'empty') return 'text-red-500 dark:text-red-400'
+  if (state === 'alert') return 'text-orange-500 dark:text-orange-400'
+  return light
+    ? 'text-gray-700 dark:text-gray-300'
+    : 'text-gray-900 dark:text-white'
+}
+
+export function getStockDotClass(stock, minStock) {
+  const state = getStockState(stock, minStock)
+  if (state === 'empty') return 'red-dot'
+  if (state === 'alert') return 'orange-dot'
+  return 'green-dot'
+}

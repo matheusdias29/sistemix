@@ -66,14 +66,17 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
       type: 'dinheiro'
     },
     ...dbMethods.filter(m => m.active).map(m => ({
-      code: m.type, // keeping 'code' for compatibility, but ideally should use ID or Type
+      code: m.type,
       id: m.id,
       label: m.label,
       type: m.type,
       icon: getIcon(m.type),
-      ...m // Spread other properties like installmentsConfig, etc.
+      ...m
     }))
   ]
+
+  const remainingVal = Number(remaining || 0)
+  const isFullyPaid = Math.round(remainingVal * 100) <= 0
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[120]">
@@ -81,7 +84,7 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
         <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
           <div className="text-center">
             <div className="text-sm text-gray-600 dark:text-gray-400">Restante a pagar:</div>
-            <div className="text-3xl font-bold dark:text-white">R$ {Number(remaining||0).toFixed(2)}</div>
+            <div className={`text-3xl font-bold ${isFullyPaid ? 'text-green-600 dark:text-green-400' : 'dark:text-white'}`}>R$ {remainingVal.toFixed(2)}</div>
           </div>
           {payments && payments.length > 0 && (
             <div className="mt-3">
@@ -96,7 +99,7 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
                     </div>
                     <div className="flex items-center">
                       <span className="mr-3 font-medium dark:text-white">{p.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                      {onRemovePayment && (
+                      {onRemovePayment && !isFullyPaid && (
                         <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400">✕</button>
                       )}
                     </div>
@@ -107,8 +110,22 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
               <div className="border-t dark:border-gray-700"></div>
             </div>
           )}
-          <h2 className="text-sm font-medium mt-2 text-center dark:text-gray-300">Selecionar forma de pagamento:</h2>
+          {!isFullyPaid && (
+            <h2 className="text-sm font-medium mt-2 text-center dark:text-gray-300">Selecionar forma de pagamento:</h2>
+          )}
+          {isFullyPaid && (
+            <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-center">
+              <div className="flex items-center justify-center mb-1">
+                <svg className="w-5 h-5 text-green-600 dark:text-green-400 mr-2" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M9,20.42L2.79,14.21L5.62,11.38L9,14.77L18.88,4.88L21.71,7.71L9,20.42Z"/>
+                </svg>
+                <span className="text-sm font-semibold text-green-700 dark:text-green-300">Pagamento total realizado</span>
+              </div>
+              <p className="text-xs text-green-600 dark:text-green-400">Confirme abaixo para finalizar a operação.</p>
+            </div>
+          )}
         </div>
+        {!isFullyPaid && (
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {paymentMethods.map((method) => (
@@ -125,12 +142,13 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
             ))}
           </div>
         </div>
-        <div className="p-4 border-t dark:border-gray-700 flex items-center justify-end space-x-2 flex-shrink-0 bg-white dark:bg-gray-800 rounded-b-lg">
+        )}
+        <div className={`p-4 border-t dark:border-gray-700 flex items-center justify-end space-x-2 flex-shrink-0 bg-white dark:bg-gray-800 rounded-b-lg ${isFullyPaid ? '' : ''}`}>
           <button type="button" onClick={onClose} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200">
             ✕ Cancelar
           </button>
-          <button type="button" onClick={onConfirm} className="px-4 py-2 bg-green-500 text-white rounded text-sm hover:bg-green-600">
-            ✓ Confirmar
+          <button type="button" onClick={onConfirm} className={`px-5 py-2.5 text-white rounded text-sm font-medium transition-colors shadow-sm ${isFullyPaid ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'}`}>
+            {isFullyPaid ? '✓ Finalizar' : '✓ Confirmar'}
           </button>
         </div>
       </div>

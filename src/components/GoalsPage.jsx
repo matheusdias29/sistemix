@@ -20,6 +20,25 @@ function toDate(ts){
   return ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
 }
 
+function getBillingDate(o){
+  if (!o) return null
+  const statusLow = (o.status || '').toLowerCase()
+  const isSale = statusLow === 'venda' || statusLow === 'cliente final' || statusLow === 'cliente lojista'
+  const isOS = isOsFinalizadaFaturada(o.status)
+  const isBilled = (isSale || isOS) && !statusLow.includes('cancelad')
+  if (isBilled) {
+    const pays = Array.isArray(o.payments) ? o.payments.filter(p => Number(p?.amount||0) > 0) : null
+    if (pays && pays.length) {
+      const lastPay = pays[pays.length - 1]
+      const dt = toDate(lastPay.date)
+      if (dt) return dt
+    }
+    const u = toDate(o.updatedAt)
+    if (u) return u
+  }
+  return toDate(o.createdAt) || toDate(o.date)
+}
+
 function isOsFinalizadaFaturada(status){
   const s = (status || '').toLowerCase()
   // Aceita status que indicam finalização ou faturamento
@@ -74,11 +93,11 @@ export default function GoalsPage({ storeId, owner, viewParams }){
       if (parsed) {
         const { month, year } = parsed
         const vendas = orders.filter(o => {
-          const d = toDate(o.createdAt)
+          const d = getBillingDate(o)
           return !!d && isSameMonth(d, month, year) && ((o.status||'').toLowerCase()==='venda' || (o.status||'').toLowerCase()==='cliente final' || (o.status||'').toLowerCase()==='cliente lojista')
         })
         const os = orders.filter(o => {
-          const d = toDate(o.createdAt)
+          const d = getBillingDate(o)
           return !!d && isSameMonth(d, month, year) && isOsFinalizadaFaturada(o.status)
         })
         if (g.includeSale) total += vendas.reduce((acc, o) => acc + Number(o.valor || o.total || 0), 0)
@@ -98,7 +117,7 @@ export default function GoalsPage({ storeId, owner, viewParams }){
       if (parsed) {
         const { month, year } = parsed
         const monthOrders = orders.filter(o => {
-          const d = toDate(o.createdAt)
+          const d = getBillingDate(o)
           const status = (o.status || '').toLowerCase()
           const isVenda = status === 'venda' || status === 'cliente final' || status === 'cliente lojista'
           const isOS = isOsFinalizadaFaturada(o.status)

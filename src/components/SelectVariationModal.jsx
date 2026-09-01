@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { getStockTextColorClass } from '../lib/datacache'
 
 export default function SelectVariationModal({ open, onClose, product, onChoose, hideFifth = false, reservedList = [] }){
   const [query, setQuery] = useState('')
@@ -47,7 +48,7 @@ export default function SelectVariationModal({ open, onClose, product, onChoose,
                     <div className="font-medium text-gray-800 dark:text-gray-200 text-sm uppercase">{variation.name}</div>
                     {showStock && (
                       <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        <span className={stock > 0 ? "text-gray-500 dark:text-gray-400" : "text-red-500 dark:text-red-400"}>Estoque: {stock}</span>
+                        <span className={getStockTextColorClass(stock, variation.stockMin, { light: true })}>Estoque: {stock}</span>
                       </div>
                     )}
                   </div>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { getStockTextColorClass } from '../lib/datacache'
 
 export default function VariationsModal({ open, onClose, onConfirm, commissionPercent = 0, initialItems = [], defaultMarkups = null, defaultMarkupModes = null, defaultMarkupAddCost = null, user }){
   const isOwner = !user?.memberId
@@ -201,7 +202,7 @@ export default function VariationsModal({ open, onClose, onConfirm, commissionPe
                           <div>
                             <div className="text-sm font-medium leading-tight truncate">{it.name || '-'}</div>
                             <div className="mt-1 text-xs text-gray-600">
-                              <span>Estoque: {parseInt(it.stock || '0', 10) || 0}</span>
+                              <span>Estoque: <span className={getStockTextColorClass(parseInt(it.stock || '0', 10) || 0, it.stockMin)}>{parseInt(it.stock || '0', 10) || 0}</span></span>
                             </div>
                           </div>
                           <div className="text-right">

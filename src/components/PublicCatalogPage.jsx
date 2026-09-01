@@ -4,6 +4,7 @@ import { listenCategories } from '../services/categories'
 import { listenStore } from '../services/stores'
 import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart, MessageCircle } from 'lucide-react'
 import logoWhite from '../assets/logofundobranco.png'
+import { getStockState } from '../lib/datacache'
 
 export default function PublicCatalogPage({ storeId, store, loading }) {
   const [products, setProducts] = useState([])
@@ -807,9 +808,20 @@ function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSet
                 )}
               </div>
               <div className="mt-3 flex items-center justify-between text-xs">
-                <div className={`font-bold px-2 py-1 rounded-md border ${Number(product.stock || 0) > 0 ? 'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-green-100 dark:border-green-500/20' : 'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-100 dark:border-red-500/20'}`}>
-                  {Number(product.stock || 0) > 0 ? `Estoque: ${Number(product.stock || 0)}` : 'Indisponível'}
-                </div>
+                {(() => {
+                  const stock = Number(product.stock || 0)
+                  const state = getStockState(stock, product.stockMin)
+                  const clsByState = {
+                    ok:      'bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-green-100 dark:border-green-500/20',
+                    alert:   'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400 border-orange-100 dark:border-orange-500/20',
+                    empty:   'bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-100 dark:border-red-500/20'
+                  }
+                  return (
+                    <div className={`font-bold px-2 py-1 rounded-md border ${clsByState[state]}`}>
+                      {state === 'empty' ? 'Indisponível' : (state === 'alert' ? `Estoque baixo: ${stock}` : `Estoque: ${stock}`)}
+                    </div>
+                  )
+                })()}
                 {isUnavailable && (
                   <div className="font-bold text-red-600 dark:text-red-400">Esgotado</div>
                 )}

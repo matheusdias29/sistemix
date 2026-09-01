@@ -13,7 +13,7 @@ import StockMovementsModal from './StockMovementsModal'
 import { getStoreById, listStoresByOwner, updateStore, listenStore } from '../services/stores'
 import { collection, query as firestoreQuery, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
-import { applyProductsPatchesToDiskCache } from '../lib/datacache'
+import { applyProductsPatchesToDiskCache, getStockTextColorClass, getStockDotClass } from '../lib/datacache'
 
 // ===========================================================================
 // CONFIGURAÇÃO CENTRAL DE CACHE PERSISTENTE (PRODUTOS)
@@ -2715,7 +2715,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                               <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{money(p.salePrice ?? p.priceMin ?? 0)}</td>
                               <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{p.promoPrice != null ? money(p.promoPrice) : '—'}</td>
                               <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">{variationsCount}</td>
-                              <td className="border border-gray-200 dark:border-gray-700 p-2 text-right">{Number(p.stock || 0)}</td>
+                              <td className={`border border-gray-200 dark:border-gray-700 p-2 text-right ${getStockTextColorClass(p.stock, p.stockMin)}`}>{Number(p.stock || 0)}</td>
                               <td className="border border-gray-200 dark:border-gray-700 p-2 text-center">
                                 <span className={statusActive ? 'text-green-700 dark:text-green-400 font-semibold' : 'text-red-700 dark:text-red-400 font-semibold'}>
                                   {statusActive ? 'Ativo' : 'Inativo'}
@@ -3081,7 +3081,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                  const clientFinal = getClientFinalPrice(p)
                  const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
                  const stock = Number(p.stock ?? 0)
-                 const stockBadge = stock <= 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'
+                 const stockBadge = getStockTextColorClass(stock, p.stockMin, { light: true })
                  return (
                    <div 
                      key={p.id}
@@ -3219,7 +3219,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
               const priceText = clientFinal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})
               const stock = Number(p.stock ?? 0)
               const reserved = reservedMap[p.id] || 0
-              const stockDotClass = stock <= 0 ? 'red-dot' : (stock === 1 ? 'orange-dot' : 'green-dot')
+              const stockDotClass = getStockDotClass(stock, p.stockMin)
               return (
                 <>
                 <div 
@@ -3239,7 +3239,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                       {p.name}
                     </div>
                     <div className="md:hidden text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mt-1">
-                      Estoque: {stock.toLocaleString('pt-BR')}
+                      Estoque: <span className={getStockTextColorClass(stock, p.stockMin, { light: true })}>{stock.toLocaleString('pt-BR')}</span>
                       <span className={stockDotClass} />
                     </div>
                   </div>
@@ -3301,7 +3301,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   </div>
                   {/* Div anterior do botão sanfona removida/esvaziada para manter grid, ou ajustada */}
                   <div className="md:hidden text-right hidden"></div>
-                  <div className={`hidden md:block text-right text-xs lg:text-sm whitespace-nowrap ${stock === 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-900 dark:text-white'}`}>{stock.toLocaleString('pt-BR')}</div>
+                  <div className={`hidden md:block text-right text-xs lg:text-sm whitespace-nowrap ${getStockTextColorClass(stock, p.stockMin)}`}>{stock.toLocaleString('pt-BR')}</div>
                   <div className="hidden md:block text-right text-xs lg:text-sm">
                     <div className={`inline-block px-2 py-0.5 rounded text-xs lg:text-sm font-semibold border ${(p.active ?? true) ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-900/50' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-900/50'}`}>{(p.active ?? true) ? 'Ativo' : 'Inativo'}</div>
                   </div>

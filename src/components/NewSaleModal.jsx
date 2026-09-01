@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { getAllProducts, updateProduct, listenProducts, syncUnifiedStockAcrossStores, adjustProductStockTransactionally, getProductById } from '../services/products'
-import { applyProductsPatchesToDiskCache, storageGet, storageSet } from '../lib/datacache'
+import { applyProductsPatchesToDiskCache, storageGet, storageSet, getStockTextColorClass } from '../lib/datacache'
 import { listenCurrentCash, openCashRegister } from '../services/cash'
 import { listenCategories } from '../services/categories'
 import { listenClients, getAllClients } from '../services/clients'
@@ -863,6 +863,23 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         orderId = await addOrder(payload, storeId)
       }
 
+      const saleRefNumber = (() => {
+        const raw = sale?.number || (isEdit ? null : null)
+        if (raw) {
+          const d = String(raw).replace(/\D/g, '')
+          const n = parseInt(d, 10)
+          if (!isNaN(n)) return `P.V.${String(n).padStart(4, '0')}`
+        }
+        if (orderId) {
+          const d = String(orderId).replace(/\D/g, '').slice(-4)
+          const n = parseInt(d, 10)
+          if (!isNaN(n)) return `P.V.${String(n).padStart(4, '0')}`
+          const tail = String(orderId).slice(-4)
+          return `PV:${tail}`
+        }
+        return null
+      })()
+
       // ====== AJUSTE DE ESTOQUE (TRANSAÇÃO, SEM RACE CONDITION) ======
       //
       // Regras para decidir o que fazer:
@@ -912,7 +929,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           return { pId, variationName, realProduct }
         }
 
-        const runAdjustForSingle = async ({ pId, delta, variationName, realProduct, reason, description }) => {
+        const runAdjustForSingle = async ({ pId, delta, variationName, realProduct, reason, description, referenceNumber }) => {
           if (!pId || delta === 0) return null
           let adjustResult = null
           try {
@@ -963,9 +980,10 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               variationName: variationName || null,
               type,
               quantity: qtyAbs,
-              reason: reason || (isEdit ? 'adjustment' : 'sale'),
+              reason: reason || 'sale',
               referenceId: orderId,
-              description: description || (isEdit ? 'Ajuste edição venda' : `Venda para ${payload.client}`),
+              referenceNumber: referenceNumber || null,
+              description: description || (isEdit ? `Ajuste edição venda ${sale?.number || orderId || ''}` : `Venda para ${payload.client}`),
               userId: user?.id,
               userName: user?.name
             })
@@ -991,7 +1009,8 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               variationName: meta.variationName,
               realProduct: meta.realProduct,
               reason: 'sale',
-              description: `Venda para ${payload.client}`
+              description: `Venda para ${payload.client}`,
+              referenceNumber: saleRefNumber
             })
           }
         } else if (nowDeducted && wasDeducted) {
@@ -1041,8 +1060,9 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               delta: txDelta,
               variationName: vName || null,
               realProduct,
-              reason: 'adjustment',
-              description: `Edição venda ${sale?.number || sale?.id || ''} (${origQty} → ${newQty})`
+              reason: 'sale',
+              description: `Edição venda ${sale?.number || sale?.id || ''} (${origQty} → ${newQty})`,
+              referenceNumber: saleRefNumber
             })
           }
         } else if (!nowDeducted && wasDeducted) {
@@ -1064,7 +1084,8 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               variationName: meta.variationName,
               realProduct: meta.realProduct,
               reason: 'cancel',
-              description: `Edição venda: status deixou de ser faturado (${sale?.number || sale?.id || ''})`
+              description: `Edição venda: status deixou de ser faturado (${sale?.number || sale?.id || ''})`,
+              referenceNumber: saleRefNumber
             })
           }
         }
@@ -1242,7 +1263,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 >
                   <div className="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2 leading-tight">{p.name}</div>
                   <div className="flex items-end justify-between mt-2">
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Estoque: <span className={p.stock > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-red-500'}>{p.stock}</span></div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Estoque: <span className={getStockTextColorClass(p.stock, p.stockMin, { light: true })}>{p.stock}</span></div>
                     <div className="font-bold text-green-600 dark:text-green-400">
                       {(() => {
                         if (p.variations > 0 && p.variationsData && p.variationsData.length > 0) {

@@ -104,6 +104,38 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
     a.getDate() === b.getDate()
   )
 
+  const getOrderStatusFlags = (o) => {
+    const s = (o?.status || '').toLowerCase()
+    const isSale = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
+    const isOS = isOsFinalizadaFaturada(o?.status)
+    const isBilled = (isSale || isOS) && !s.includes('cancelad')
+    return { s, isSale, isOS, isBilled }
+  }
+
+  const getBillingDate = (o) => {
+    if (!o) return null
+    const pays = Array.isArray(o.payments) && o.payments.filter(p => Number(p?.amount||0) > 0)
+    if (pays && pays.length) {
+      const lastPay = pays[pays.length - 1]
+      const dt = toDate(lastPay.date)
+      if (dt) return dt
+    }
+    const u = toDate(o.updatedAt)
+    if (u) return u
+    const c = toDate(o.createdAt)
+    if (c) return c
+    return toDate(o.date)
+  }
+
+  const isBilledInSameMonth = (o, refDate) => {
+    if (!refDate) return false
+    const { isBilled } = getOrderStatusFlags(o)
+    if (!isBilled) return false
+    const d = getBillingDate(o)
+    if (!d) return false
+    return d.getFullYear() === refDate.getFullYear() && d.getMonth() === refDate.getMonth()
+  }
+
   const orderPaymentsOnDay = (o, day) => {
     const pays = Array.isArray(o?.payments) ? o.payments : []
     if (!pays.length) return 0
@@ -187,10 +219,7 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
   // Metas do mês (separadas por tipo)
   const currentMonthStr = `${String(today.getMonth()+1).padStart(2,'0')}/${today.getFullYear()}`
   
-  const monthOrders = useMemo(() => orders.filter(o => {
-    const d = toDate(o.createdAt)
-    return d ? d.getMonth()===today.getMonth() && d.getFullYear()===today.getFullYear() : false
-  }), [orders])
+  const monthOrders = useMemo(() => orders.filter(o => isBilledInSameMonth(o, today)), [orders, today])
 
   const monthSalesValue = useMemo(() => monthOrders
     .filter(o => {
@@ -305,18 +334,17 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
       const d = new Date(today)
       d.setDate(today.getDate() - i)
       const daySales = orders.filter(o => {
-        const created = toDate(o.createdAt)
-        const s = (o.status || '').toLowerCase()
-        const isVenda = s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
-        const isOs = isOsFinalizadaFaturada(o.status)
-        return !!created && (isVenda || isOs) && isSameDay(created, d)
+        const { isSale, isOS } = getOrderStatusFlags(o)
+        if (!(isSale || isOS)) return false
+        const billing = getBillingDate(o)
+        return !!billing && isSameDay(billing, d)
       })
       const sales = daySales.reduce((acc, o) => acc + getOrderRevenue(o), 0)
       const profit = daySales.reduce((acc, o) => acc + Math.max(0, getOrderRevenue(o) - getOrderCost(o)), 0)
       days.push({ date: d, sales, profit })
     }
     return days
-  }, [orders])
+  }, [orders, today])
   const maxBarValue = useMemo(() => {
     const all = last5DaysSalesProfit.flatMap(d => [d.sales, d.profit])
     const m = Math.max(0, ...all)

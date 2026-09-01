@@ -7,6 +7,7 @@ import { listenCatalogProducts } from '../services/products'
 import { listenCategories } from '../services/categories'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import { ArrowRight, ChevronRight, Package, TrendingUp, DollarSign } from 'lucide-react'
+import { getStockTextColorClass } from '../lib/datacache'
 
 // ============================================================================
 // 🔒 FLAGS DE SEGURANÇA DO CÁLCULO DE CUSTOS (ANTI-INFLAÇÃO)
@@ -468,11 +469,35 @@ function isSale(order: Order, includeCancelled = false): boolean {
   return s === 'venda' || s === 'cliente final' || s === 'cliente lojista'
 }
 
+function toDateField(ts: any): Date | null {
+  if (!ts) return null
+  if (typeof ts.toDate === 'function') return ts.toDate()
+  const d = new Date(ts)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
 function getOrderDate(order: Order): Date | null {
   const ts: any = (order as any).createdAt
   if (!ts) return null
   if (typeof ts.toDate === 'function') return ts.toDate()
   return new Date(ts)
+}
+
+function getOrderBillingDate(order: Order): Date | null {
+  const billed = isBilledSale(order) || isBilledServiceOrder(order)
+  if (billed) {
+    const pays = Array.isArray(order.payments)
+      ? order.payments.filter((p: any) => Number(p?.amount || 0) > 0)
+      : []
+    if (pays.length) {
+      const lastPay = pays[pays.length - 1]
+      const dt = toDateField((lastPay as any).date)
+      if (dt) return dt
+    }
+    const u = toDateField((order as any).updatedAt)
+    if (u) return u
+  }
+  return toDateField((order as any).date) || getOrderDate(order)
 }
 
 function normalizeCategory(name?: string | null): string {
@@ -876,7 +901,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   const salesInPeriod = useMemo(() => {
     return ordersReady.filter(o => {
       if (!isBilledSale(o)) return false
-      const d = getOrderDate(o)
+      const d = getOrderBillingDate(o)
       if (!d) return false
       const { start, end } = dateRange
       if (!start || !end) return true
@@ -899,7 +924,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   const serviceOrdersInPeriod = useMemo(() => {
     return ordersReady.filter(o => {
       if (!isBilledServiceOrder(o)) return false
-      const d = getOrderDate(o)
+      const d = getOrderBillingDate(o)
       if (!d) return false
       const { start, end } = dateRange
       if (!start || !end) return true
@@ -2982,7 +3007,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
                           {item.product.name}
                         </td>
                         <td className="py-3 px-2 text-center text-gray-700">{item.soldQty}</td>
-                        <td className="py-3 px-2 text-center text-red-500 font-medium">{item.product.stock}</td>
+                        <td className={`py-3 px-2 text-center font-medium ${getStockTextColorClass(item.product.stock, (item.product as any).stockMin)}`}>{item.product.stock}</td>
                         <td className="py-3 px-2 text-center text-gray-700">{Math.round(item.days)}</td>
                         <td className="py-3 px-2 text-center text-gray-700">{item.times.toFixed(2)}</td>
                         <td className="py-3 px-2 text-right text-gray-800 font-medium">{formatCurrency(item.soldValue)}</td>

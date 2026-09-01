@@ -325,6 +325,39 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   const toDate = (ts) => ts?.toDate?.() ? ts.toDate() : (ts ? new Date(ts) : null)
   const isSameDay = (a, b) => a && b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate()
 
+  function isOsFinalizadaFaturada(status){
+    const s = (status || '').toLowerCase()
+    if (s.includes('faturada') || s.includes('faturado')) return true
+    if (s.includes('finalizada') || s.includes('finalizado')) return true
+    const exacts = [
+      'os finalizada e faturada cliente final',
+      'os finalizada e faturada cliente logista',
+      'os faturada cliente final',
+      'os faturada cliente lojista'
+    ]
+    if (exacts.includes(s)) return true
+    return false
+  }
+
+  const getSaleFilterDate = (o) => {
+    const statusLow = (o?.status || '').toLowerCase()
+    const isSale = statusLow === 'venda' || statusLow === 'cliente final' || statusLow === 'cliente lojista'
+    const isOS = isOsFinalizadaFaturada(o?.status)
+    const isBilled = (isSale || isOS) && !statusLow.includes('cancelad')
+
+    if (isBilled) {
+      const pays = Array.isArray(o?.payments) ? o.payments.filter(p => Number(p?.amount||0) > 0) : null
+      if (pays && pays.length) {
+        const lastPay = pays[pays.length - 1]
+        const dt = toDate(lastPay.date)
+        if (dt) return dt
+      }
+      const u = toDate(o.updatedAt)
+      if (u) return u
+    }
+    return toDate(o.createdAt) || toDate(o.date)
+  }
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     
@@ -378,9 +411,9 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         )
       })
       .filter(o => {
-        // Date Range
+        // Date Range (usa data de faturamento para vendas fechadas, criação para abertas/canceladas)
         if (!dateRange.start && !dateRange.end) return true
-        const d = toDate(o.createdAt)
+        const d = getSaleFilterDate(o)
         if (!d) return false
         if (dateRange.start && d < dateRange.start) return false
         if (dateRange.end && d > dateRange.end) return false
