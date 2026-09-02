@@ -50,6 +50,16 @@ export default function AccountsPayablePage({ storeId, user, store }) {
   const [openMenuId, setOpenMenuId] = useState(null)
   const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
 
+  // Modal Visualização
+  const [viewingAccount, setViewingAccount] = useState(null)
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false)
+
+  // Modal Pagamento (individual ou em lote)
+  const [isPayModalOpen, setIsPayModalOpen] = useState(false)
+  const [payTargets, setPayTargets] = useState([]) // array de contas a pagar
+  const [payAmounts, setPayAmounts] = useState({}) // { [accId]: 'valor como string' }
+  const [payError, setPayError] = useState('')
+
   useEffect(() => {
     const handleClose = () => setOpenMenuId(null)
     window.addEventListener('scroll', handleClose, true)
@@ -238,6 +248,133 @@ export default function AccountsPayablePage({ storeId, user, store }) {
   const handleCloseModal = () => {
     setIsModalOpen(false)
     setEditingAccount(null)
+  }
+
+  // === Modal Visualização ===
+  const handleView = (account) => {
+    setViewingAccount(account)
+    setIsViewModalOpen(true)
+  }
+  const closeViewModal = () => {
+    setIsViewModalOpen(false)
+    setViewingAccount(null)
+  }
+
+  // === Pagamento ===
+  const parseMoney = (str) => {
+    if (!str) return 0
+    const cleaned = String(str).replace(/[^\d,]/g, '').replace(',', '.')
+    const n = parseFloat(cleaned)
+    return isNaN(n) ? 0 : n
+  }
+  const formatMoneyInput = (val) => {
+    const n = Math.round(parseMoney(val) * 100) / 100
+    return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  }
+
+  const openPaySingle = (acc) => {
+    const targets = [acc]
+    const amounts = {}
+    amounts[acc.id] = formatMoneyInput(Number(acc.remainingValue || 0))
+    setPayTargets(targets)
+    setPayAmounts(amounts)
+    setPayError('')
+    setIsPayModalOpen(true)
+  }
+
+  const openPaySelected = () => {
+    if (selectedIds.size === 0) return
+    const targets = []
+    const amounts = {}
+    for (const id of selectedIds) {
+      const acc = accounts.find(a => a.id === id)
+      if (acc && acc.status === 'pending') {
+        targets.push(acc)
+        amounts[acc.id] = formatMoneyInput(Number(acc.remainingValue || 0))
+      }
+    }
+    if (targets.length === 0) {
+      alert('Nenhuma conta pendente selecionada para pagamento.')
+      return
+    }
+    setPayTargets(targets)
+    setPayAmounts(amounts)
+    setPayError('')
+    setIsPayModalOpen(true)
+  }
+
+  const closePayModal = () => {
+    setIsPayModalOpen(false)
+    setPayTargets([])
+    setPayAmounts({})
+    setPayError('')
+  }
+
+  const totalPay = payTargets.reduce((s, a) => s + parseMoney(payAmounts[a.id] || 0), 0)
+  const totalRemaining = payTargets.reduce((s, a) => {
+    const original = Number(a.remainingValue || 0)
+    const pay = parseMoney(payAmounts[a.id] || 0)
+    const left = Math.max(0, original - pay)
+    return s + left
+  }, 0)
+
+  const confirmPayments = async () => {
+    setPayError('')
+    if (payTargets.length === 0) return
+
+    let hasValid = false
+    for (const acc of payTargets) {
+      const pay = parseMoney(payAmounts[acc.id] || 0)
+      const max = Number(acc.remainingValue || 0)
+      if (Math.round(pay * 100) <= 0) {
+        setPayError(`Informe um valor válido para "${acc.supplierName || acc.description || 'Conta'}".`)
+        return
+      }
+      if (Math.round(pay * 100) > Math.round(max * 100)) {
+        setPayError(`Valor pago não pode exceder o saldo de "${acc.supplierName || acc.description || 'Conta'}" (${money(max)}).`)
+        return
+      }
+      hasValid = true
+    }
+    if (!hasValid) { setPayError('Nenhum pagamento válido informado.'); return }
+
+    try {
+      setIsLoading(true)
+      await Promise.all(payTargets.map(async (acc) => {
+        const payAmount = parseMoney(payAmounts[acc.id] || 0)
+        const previousPaid = Number(acc.paidValue || 0)
+        const original = Number(acc.originalValue || 0)
+        const newPaid = previousPaid + payAmount
+        let newRemaining = Math.max(0, original - newPaid)
+        const isFullyPaid = Math.round(newRemaining * 100) <= 0
+
+        const patch = {
+          paidValue: newPaid,
+          remainingValue: newRemaining
+        }
+        if (isFullyPaid) {
+          patch.status = 'paid'
+          patch.paymentDate = new Date().toISOString().split('T')[0]
+        } else {
+          patch.status = 'pending'
+        }
+        await updateAccountPayable(acc.id, patch)
+      }))
+
+      const paidIds = new Set(payTargets.map(a => a.id))
+      setSelectedIds(prev => {
+        const next = new Set(prev)
+        paidIds.forEach(id => next.delete(id))
+        return next
+      })
+      closePayModal()
+      alert('Pagamento(s) registrado(s) com sucesso!')
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao registrar pagamento.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const escapeHtml = (str) => {
@@ -509,10 +646,10 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                 </div>
 
                 {/* Filtros Botões */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2 w-full">
                    <button 
                      onClick={() => setIsDateFilterOpen(true)}
-                     className={`px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 ${
+                     className={`flex-1 min-w-[140px] px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center justify-center gap-2 ${
                        dateFilterLabel !== 'Todos' 
                          ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700' 
                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -522,7 +659,7 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                    </button>
                    <button 
                      onClick={() => setIsFilterModalOpen(true)}
-                     className={`px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center gap-2 ${
+                     className={`flex-1 min-w-[140px] px-3 py-2 border rounded-lg text-sm font-medium shadow-sm flex items-center justify-center gap-2 ${
                        (filterSupplierId || filterCategoryId)
                          ? 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border-green-200 dark:border-green-700' 
                          : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -575,13 +712,13 @@ export default function AccountsPayablePage({ storeId, user, store }) {
               </div>
 
               <div className="flex gap-3 w-full md:w-auto justify-end">
-                <button className="px-4 py-2 bg-white dark:bg-gray-800 border border-green-600 dark:border-green-500 text-green-600 dark:text-green-500 rounded-lg text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 shadow-sm">
+                <button className="flex-1 md:flex-none px-4 py-2 bg-white dark:bg-gray-800 border border-green-600 dark:border-green-500 text-green-600 dark:text-green-500 rounded-lg text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/20 shadow-sm">
                   Exportar
                 </button>
                 {(isOwner || perms.payables?.create) && (
                   <button 
                     onClick={() => setIsModalOpen(true)}
-                    className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm flex items-center gap-2"
+                    className="flex-1 md:flex-none px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm flex items-center gap-2 justify-center"
                   >
                     + Novo
                   </button>
@@ -628,7 +765,7 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                          Valor a pagar: <span className="font-bold text-gray-800 dark:text-white">{money(selectedTotal)}</span>
                        </span>
                        <button 
-                         onClick={handlePaySelected}
+                         onClick={openPaySelected}
                          disabled={isLoading}
                          className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded shadow-sm transition-colors"
                        >
@@ -654,8 +791,150 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                )}
             </div>
 
-            {/* Table */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+            {/* Cards (mobile) + Table (desktop) */}
+            <div className="space-y-3 md:hidden">
+              {filtered.length === 0 ? (
+                <div className="px-6 py-10 text-center text-gray-500 dark:text-gray-400 text-sm bg-white dark:bg-gray-800 rounded-lg">
+                  Nenhuma conta encontrada.
+                </div>
+              ) : (
+                sorted.map((acc) => {
+                  const statusColor =
+                    acc.status === 'pending' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+                    acc.status === 'paid'    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                                               'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                  const statusLabel =
+                    acc.status === 'pending' ? 'A Pagar' :
+                    acc.status === 'paid'    ? 'Pago'    : 'Cancelado'
+                  const isChecked = selectedIds.has(acc.id)
+                  return (
+                    <div
+                      key={acc.id}
+                      className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border transition-colors ${isChecked ? 'border-green-300 dark:border-green-700 bg-green-50/40 dark:bg-green-900/10' : 'border-gray-100 dark:border-gray-700'}`}
+                      onClick={(e) => {
+                        if (e.target.type === 'checkbox') return
+                        handleView(acc)
+                      }}
+                    >
+                      {/* Linha topo: checkbox | status | menu */}
+                      <div className="flex items-start justify-between gap-3 p-3">
+                        <label className="flex items-start gap-3 flex-1 cursor-pointer select-none" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="mt-1 rounded border-gray-300 text-green-600 focus:ring-green-500 dark:bg-gray-700 dark:border-gray-600 shrink-0"
+                            checked={isChecked}
+                            onChange={() => toggleSelect(acc.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 justify-between">
+                              <div className="text-sm font-semibold text-gray-900 dark:text-white uppercase truncate pr-2">
+                                {acc.supplierName || 'Fornecedor Desconhecido'}
+                              </div>
+                              <span className={`shrink-0 px-2 py-0.5 text-[10px] font-bold rounded-full ${statusColor}`}>
+                                {statusLabel}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                              {acc.description || 'Sem descrição'}
+                              {(acc.categoryName && acc.categoryName !== '-') ? ` • ${acc.categoryName}` : ''}
+                            </div>
+                          </div>
+                        </label>
+                        <div className="relative" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              if (openMenuId === acc.id) {
+                                setOpenMenuId(null)
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setMenuPos({ top: rect.bottom + window.scrollY, left: rect.left - 100 + window.scrollX })
+                                setOpenMenuId(acc.id)
+                              }
+                            }}
+                            className="p-1.5 -mr-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md"
+                          >
+                            ⋮
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Valores */}
+                      <div className="px-3 pb-3 grid grid-cols-3 gap-2 text-center border-t border-gray-100 dark:border-gray-700/70 pt-2">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Original</div>
+                          <div className="text-xs font-semibold text-gray-700 dark:text-gray-200">{money(acc.originalValue)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Pago</div>
+                          <div className="text-xs font-semibold text-green-600 dark:text-green-400">{money(acc.paidValue)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">A Pagar</div>
+                          <div className={`text-xs font-bold ${acc.status === 'pending' && Number(acc.remainingValue||0) > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-800 dark:text-white'}`}>{money(acc.remainingValue)}</div>
+                        </div>
+                      </div>
+
+                      {/* Datas */}
+                      <div className="px-3 pb-3 grid grid-cols-2 gap-2 text-xs border-t border-gray-100 dark:border-gray-700/70 pt-2">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Vencimento</div>
+                          <div className={`text-[12px] font-semibold ${acc.status === 'pending' ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-gray-400'}`}>
+                            {dateStr(acc.dueDate) || '-'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Pagamento</div>
+                          <div className="text-[12px] font-semibold text-gray-500 dark:text-gray-400">
+                            {dateStr(acc.paymentDate) || '-'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {openMenuId === acc.id && (
+                        <div
+                          className="fixed bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-100 dark:border-gray-600 z-[100] py-1 w-36"
+                          style={{ top: menuPos.top, left: menuPos.left }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {acc.status === 'pending' && (
+                            <button onClick={(e) => { e.stopPropagation(); openPaySingle(acc); setOpenMenuId(null); }}
+                              className="w-full text-left px-4 py-2 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                              Pagar
+                            </button>
+                          )}
+                          <button onClick={(e) => { e.stopPropagation(); handlePrintPayable(acc); setOpenMenuId(null); }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                            Imprimir
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); handleEdit(acc); setOpenMenuId(null); }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                            Editar
+                          </button>
+                          {canDelete && (
+                            <button onClick={(e) => {
+                              e.stopPropagation()
+                              if (window.confirm('Tem certeza que deseja excluir esta conta a pagar?')) handleDelete(acc.id)
+                              setOpenMenuId(null)
+                            }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                              Excluir
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+
+            {/* Table (somente md+) */}
+            <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
@@ -691,7 +970,7 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
                         onClick={(e) => {
                           if (e.target.type === 'checkbox') return
-                          handleEdit(acc)
+                          handleView(acc)
                         }}
                       >
                         <td className="px-4 py-4 whitespace-nowrap">
@@ -751,10 +1030,23 @@ export default function AccountsPayablePage({ storeId, user, store }) {
                           
                           {openMenuId === acc.id && (
                             <div 
-                              className="fixed bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-100 dark:border-gray-600 z-[100] py-1 w-32"
+                              className="fixed bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-100 dark:border-gray-600 z-[100] py-1 w-36"
                               style={{ top: menuPos.top, left: menuPos.left }}
                               onClick={(e) => e.stopPropagation()}
                             >
+                              {acc.status === 'pending' && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    openPaySingle(acc)
+                                    setOpenMenuId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2 text-sm text-green-700 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 flex items-center gap-2"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                                  Pagar
+                                </button>
+                              )}
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
@@ -842,6 +1134,266 @@ export default function AccountsPayablePage({ storeId, user, store }) {
           onDelete={handleDelete}
           isLoading={isLoading}
         />
+      )}
+
+      {/* Modal Visualização */}
+      {isViewModalOpen && viewingAccount && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+          onClick={closeViewModal}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between shrink-0">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs text-gray-400 dark:text-gray-500 font-semibold uppercase tracking-wide mb-1">Conta a Pagar</div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white uppercase truncate">
+                  {viewingAccount.supplierName || 'Fornecedor Desconhecido'}
+                </h3>
+                {(viewingAccount.description || viewingAccount.categoryName) && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
+                    {viewingAccount.description}
+                    {viewingAccount.categoryName ? ` • ${viewingAccount.categoryName}` : ''}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={closeViewModal}
+                className="ml-3 p-1.5 -mr-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4 overflow-y-auto">
+              {/* Status */}
+              <div className="flex justify-center">
+                {(() => {
+                  const sc =
+                    viewingAccount.status === 'pending' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 border-orange-200 dark:border-orange-800' :
+                    viewingAccount.status === 'paid'    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800' :
+                                                           'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800'
+                  const sl = viewingAccount.status === 'pending' ? 'A Pagar' : viewingAccount.status === 'paid' ? 'Pago' : 'Cancelado'
+                  return (
+                    <span className={`px-3 py-1 text-xs font-bold rounded-full border ${sc}`}>{sl}</span>
+                  )
+                })()}
+              </div>
+
+              {/* Valores */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-bold mb-1">Original</div>
+                  <div className="text-sm font-bold text-gray-800 dark:text-white">{money(viewingAccount.originalValue)}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-green-50 dark:bg-green-900/20">
+                  <div className="text-[10px] uppercase tracking-wide text-green-600 dark:text-green-400 font-bold mb-1">Pago</div>
+                  <div className="text-sm font-bold text-green-700 dark:text-green-400">{money(viewingAccount.paidValue)}</div>
+                </div>
+                <div className={`p-3 rounded-lg ${viewingAccount.status === 'pending' && Number(viewingAccount.remainingValue || 0) > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                  <div className={`text-[10px] uppercase tracking-wide font-bold mb-1 ${viewingAccount.status === 'pending' && Number(viewingAccount.remainingValue || 0) > 0 ? 'text-red-500 dark:text-red-400' : 'text-gray-400 dark:text-gray-500'}`}>A Pagar</div>
+                  <div className={`text-sm font-bold ${viewingAccount.status === 'pending' && Number(viewingAccount.remainingValue || 0) > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-white'}`}>{money(viewingAccount.remainingValue)}</div>
+                </div>
+              </div>
+
+              {/* Datas */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-bold mb-1">Vencimento</div>
+                  <div className={`text-sm font-bold ${viewingAccount.status === 'pending' ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                    {dateStr(viewingAccount.dueDate) || '-'}
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg border border-gray-100 dark:border-gray-700">
+                  <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-bold mb-1">Pagamento</div>
+                  <div className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                    {dateStr(viewingAccount.paymentDate) || '-'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Ações */}
+            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row gap-2 justify-end shrink-0 bg-gray-50/50 dark:bg-gray-800/50 rounded-b-xl">
+              <button
+                onClick={closeViewModal}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
+              >
+                Fechar
+              </button>
+              <div className="flex gap-2 justify-end flex-1">
+                <button
+                  onClick={() => { closeViewModal(); handleEdit(viewingAccount) }}
+                  className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                  Editar
+                </button>
+                {viewingAccount.status === 'pending' && (
+                  <button
+                    onClick={() => { closeViewModal(); openPaySingle(viewingAccount) }}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5 shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>
+                    Pagar
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Pagamento */}
+      {isPayModalOpen && (
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !isLoading && closePayModal()}
+        >
+          <div
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Registrar Pagamento</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {payTargets.length === 1 ? '1 conta selecionada' : `${payTargets.length} contas selecionadas`}
+                </p>
+              </div>
+              <button
+                onClick={closePayModal}
+                disabled={isLoading}
+                className="p-1.5 -mr-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-5 py-4 space-y-4 overflow-y-auto">
+              {payError && (
+                <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-400 font-medium flex items-start gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                  {payError}
+                </div>
+              )}
+
+              {/* Lista de contas */}
+              <div className="space-y-3">
+                {payTargets.map((acc) => {
+                  const remaining = Number(acc.remainingValue || 0)
+                  const paying = parseMoney(payAmounts[acc.id] || 0)
+                  const after = Math.max(0, remaining - paying)
+                  return (
+                    <div key={acc.id} className="p-3 rounded-lg border border-gray-100 dark:border-gray-700 space-y-3 bg-gray-50/50 dark:bg-gray-700/30">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-bold text-gray-900 dark:text-white uppercase truncate">
+                            {acc.supplierName || 'Fornecedor'}
+                          </div>
+                          {(acc.description || acc.categoryName) && (
+                            <div className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
+                              {acc.description || ''}{acc.categoryName ? ` • ${acc.categoryName}` : ''}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-bold">Saldo</div>
+                          <div className="text-sm font-bold text-red-600 dark:text-red-400">{money(remaining)}</div>
+                        </div>
+                      </div>
+
+                      {/* Input valor */}
+                      <div>
+                        <label className="block text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400 font-bold mb-1">Valor a pagar</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={payAmounts[acc.id] || ''}
+                            onChange={(e) => {
+                              setPayAmounts(prev => ({ ...prev, [acc.id]: e.target.value }))
+                              setPayError('')
+                            }}
+                            onBlur={(e) => {
+                              const formatted = formatMoneyInput(e.target.value)
+                              setPayAmounts(prev => ({ ...prev, [acc.id]: formatted }))
+                            }}
+                            className="flex-1 px-3 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg text-sm font-bold text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-all"
+                            placeholder="0,00"
+                            disabled={isLoading}
+                          />
+                          <button
+                            onClick={() => {
+                              setPayAmounts(prev => ({ ...prev, [acc.id]: formatMoneyInput(remaining) }))
+                              setPayError('')
+                            }}
+                            type="button"
+                            disabled={isLoading}
+                            className="px-3 py-2 text-xs font-bold bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition-colors whitespace-nowrap disabled:opacity-50"
+                          >
+                            Total
+                          </button>
+                        </div>
+                        {paying > 0 && (
+                          <div className="mt-2 flex items-center justify-between text-[11px]">
+                            <span className="text-gray-500 dark:text-gray-400">
+                              Restará a quitar:
+                            </span>
+                            <span className={`font-bold ${Math.round(after * 100) <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                              {Math.round(after * 100) <= 0 ? '✓ Saldo quitado' : money(after)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Resumo */}
+              <div className="pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Total pago nesta operação:</span>
+                  <span className="font-bold text-gray-900 dark:text-white text-lg">{money(totalPay)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600 dark:text-gray-400 font-medium">Saldo remanescente após:</span>
+                  <span className={`font-bold text-base ${Math.round(totalRemaining * 100) <= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                    {money(totalRemaining)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-100 dark:border-gray-700 flex gap-2 justify-end shrink-0 bg-gray-50/50 dark:bg-gray-800/50 rounded-b-xl">
+              <button
+                onClick={closePayModal}
+                disabled={isLoading}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmPayments}
+                disabled={isLoading || Math.round(totalPay * 100) <= 0}
+                className="px-5 py-2 text-sm font-bold text-white bg-green-600 rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center gap-2"
+              >
+                {isLoading ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                ) : null}
+                {isLoading ? 'Processando...' : 'Confirmar Pagamento'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

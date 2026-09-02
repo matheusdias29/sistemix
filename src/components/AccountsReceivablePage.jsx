@@ -842,9 +842,9 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
       <div className="flex flex-col gap-6">
         {/* Toolbar */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mt-6">
-          <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto flex-1 items-center">
+          <div className="flex flex-wrap gap-3 w-full md:w-auto flex-1 items-center">
              {/* Search Bar */}
-             <div className="relative w-full md:max-w-xs bg-gray-100 dark:bg-gray-700 rounded-lg">
+             <div className="relative w-full md:max-w-xs bg-gray-100 dark:bg-gray-700 rounded-lg flex-1 min-w-[200px]">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-gray-400 dark:text-gray-500">🔍</span>
                 </div>
@@ -860,7 +860,7 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
               {/* Date Filter */}
               <button 
                 onClick={() => setDateFilterOpen(true)}
-                className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`flex-1 min-w-[160px] flex items-center justify-center gap-2 px-3 py-2 border rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   dateRange.label !== 'Todos' 
                     ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800' 
                     : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600'
@@ -872,15 +872,15 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
 
           {/* Action Buttons */}
           <div className="flex gap-3 w-full md:w-auto justify-end items-center relative">
-             <button className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600">
+             <button className="flex-1 md:flex-none px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600 flex items-center justify-center">
                Opções
              </button>
              
              {/* Dropdown Button */}
-             <div className="relative" onClick={e => e.stopPropagation()}>
+             <div className="relative flex-1 md:flex-none" onClick={e => e.stopPropagation()}>
                <button 
                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                 className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm flex items-center gap-2"
+                 className="w-full md:w-auto px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm flex items-center justify-center gap-2"
                >
                  + Novo
                </button>
@@ -948,8 +948,89 @@ export default function AccountsReceivablePage({ storeId, user, store }) {
            </div>
         </div>
 
-        {/* Table */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        {/* Cards (mobile) + Table (desktop) */}
+        <div className="space-y-3 md:hidden">
+          {grouped.length === 0 ? (
+            <div className="px-6 py-10 text-center text-gray-500 dark:text-gray-400 text-sm bg-white dark:bg-gray-800 rounded-lg">
+              Nenhuma conta encontrada.
+            </div>
+          ) : (
+            grouped.map((group, idx) => {
+              const groupKey = group.groupKey || idx
+              const showOverdue = group.nextOverdueRaw != null
+              const showNext = group.nextDueDateRaw != null
+              const dueRaw = showOverdue ? group.nextOverdueRaw : (showNext ? group.nextDueDateRaw : null)
+              const dueLabel = showOverdue ? 'Vencido' : 'A vencer'
+              return (
+                <div
+                  key={groupKey}
+                  className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                  onClick={() => {
+                    setDetailGroup(group)
+                    setDetailTab('receivable')
+                  }}
+                >
+                  {/* Topo: Cliente + badges status */}
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div className="text-sm font-semibold text-gray-900 dark:text-white uppercase truncate pr-2">
+                        {group.clientName || 'Cliente Desconhecido'}
+                      </div>
+                    </div>
+                    {dueRaw && (
+                      <div className="mb-3 pb-3 border-b border-gray-100 dark:border-gray-700/70 flex flex-col gap-0.5">
+                        <span className={`text-sm font-semibold ${showOverdue ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>
+                          {dateStr(dueRaw)}
+                        </span>
+                        <span className={`text-[10px] uppercase tracking-wide ${showOverdue ? 'text-red-500 dark:text-red-500/80' : 'text-orange-500 dark:text-orange-500/80'}`}>
+                          {dueLabel}
+                        </span>
+                      </div>
+                    )}
+                    {/* Valores grid */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Débito</div>
+                        <div className="text-xs font-semibold text-red-500 dark:text-red-400">{money(group.totalDebit)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Vencido</div>
+                        <div className={`text-xs font-semibold ${group.totalOverdue > 0 ? 'text-red-500' : 'text-gray-400 dark:text-gray-500'}`}>{group.totalOverdue > 0 ? money(group.totalOverdue) : '-'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 font-semibold mb-0.5">Crédito</div>
+                        <div className={`text-xs font-semibold ${group.totalCredit > 0 ? 'text-green-600' : 'text-gray-400 dark:text-gray-500'}`}>{group.totalCredit > 0 ? money(group.totalCredit) : '-'}</div>
+                      </div>
+                    </div>
+                    {/* Badges status */}
+                    {(group.countOverdue > 0 || group.countReceivable > 0 || group.countCredit > 0) && (
+                      <div className="flex flex-wrap gap-2 justify-center pt-3 mt-3 border-t border-gray-100 dark:border-gray-700/70">
+                        {group.countOverdue > 0 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-800">
+                            Vencido <span className="ml-1 bg-red-200 text-red-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{group.countOverdue}</span>
+                          </span>
+                        )}
+                        {group.countReceivable > 0 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-orange-100 text-orange-800">
+                            A Receber <span className="ml-1 bg-orange-200 text-orange-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{group.countReceivable}</span>
+                          </span>
+                        )}
+                        {group.countCredit > 0 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-green-100 text-green-800">
+                            Crédito <span className="ml-1 bg-green-200 text-green-800 rounded-full w-4 h-4 flex items-center justify-center text-[10px]">{group.countCredit}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Table (desktop) */}
+        <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
            <table className="min-w-full divide-y divide-gray-100 dark:divide-gray-700">
              <thead className="bg-gray-50 dark:bg-gray-700/50">
                <tr>
