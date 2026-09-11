@@ -113,11 +113,6 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
           {!isFullyPaid && (
             <h2 className="text-sm font-medium mt-2 text-center dark:text-gray-300">Selecionar forma de pagamento:</h2>
           )}
-          {isFullyPaid && payments && payments.length > 0 && onRemovePayment && (
-            <h2 className="text-sm font-medium mt-2 text-center text-blue-700 dark:text-blue-400">
-              ✎ Remova um pagamento abaixo para trocar a forma, ou selecione uma nova forma para pagamento adicional:
-            </h2>
-          )}
           {isFullyPaid && (
             <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-center">
               <div className="flex items-center justify-center mb-1">
@@ -134,10 +129,7 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
             </div>
           )}
         </div>
-        {/* 🛡️ CORREÇÃO: SEMPRE permitir escolher NOVA forma de pagamento (remover e adicionar)
-            SE estiver em MODO EDITÁVEL (onRemovePayment existe), mesmo que isFullyPaid.
-            Antes: se R$0, escondia grid. Loop vicioso - não dava para remover e re-adicionar. */}
-        {(!isFullyPaid || (payments && payments.length > 0 && onRemovePayment)) && (
+        {!isFullyPaid && (
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {paymentMethods.map((method) => (
