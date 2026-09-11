@@ -1004,9 +1004,9 @@ export default function POSPage({ storeId, user }){
 
                   {/* Additions */}
                   {financials.moneyAdded > 0 && (
-                    <div className="flex items-center justify-between py-2 border-b border-gray-100 bg-green-50/50 px-2 rounded">
-                      <span className="text-green-700 font-bold">Dinheiro Adicionado</span>
-                      <span className="font-bold text-green-700">{money(financials.moneyAdded)}</span>
+                    <div className="flex items-center justify-between py-2 border-b border-gray-100 bg-blue-50/60 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 px-2 rounded">
+                      <span className="text-blue-700 dark:text-blue-300 font-bold">Dinheiro Adicionado</span>
+                      <span className="font-bold text-blue-700 dark:text-blue-300">{money(financials.moneyAdded)}</span>
                     </div>
                   )}
 

@@ -1058,7 +1058,7 @@ export default function ProductLabelsPage({
       <ProductsFilterModal 
         open={filterOpen}
         onClose={() => setFilterOpen(false)}
-        onApply={filters => {
+        onFilter={filters => {
           setActiveFilters(filters)
           setFilterOpen(false)
         }}

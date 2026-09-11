@@ -1567,6 +1567,48 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     setSelected(next)
   }
 
+  // 🔗 Selecionar TODOS os produtos visíveis (lista após busca + filtros + paginação)
+  // Tríplice estado: nenhum = vazio | parcial = indeterminado | todos = marcado
+  const selectAllCheckboxRef = useRef(null)
+  const visibleSelection = useMemo(() => {
+    const list = paginatedResults || []
+    const ids = list.map(p => String(p.id))
+    const totalVisible = ids.length
+    let selectedCount = 0
+    for (const id of ids) if (selected.has(id)) selectedCount++
+    const allVisible = totalVisible > 0 && selectedCount === totalVisible
+    const noneVisible = selectedCount === 0
+    return {
+      totalVisible,
+      selectedCount,
+      allVisible,
+      noneVisible,
+      indeterminate: totalVisible > 0 && !allVisible && !noneVisible,
+      ids
+    }
+  }, [paginatedResults, selected])
+
+  useEffect(() => {
+    // Atualiza estado nativo "indeterminate" (React não suporta via atributo declarativo)
+    if (selectAllCheckboxRef.current) {
+      selectAllCheckboxRef.current.indeterminate = visibleSelection.indeterminate
+    }
+  }, [visibleSelection.indeterminate])
+
+  const toggleSelectAllVisible = () => {
+    const { ids, allVisible } = visibleSelection
+    if (ids.length === 0) return
+    const next = new Set(selected)
+    if (allVisible) {
+      // Todos marcados → desmarca SÓ os visíveis (mantém seleções de outras páginas/aba)
+      for (const id of ids) next.delete(id)
+    } else {
+      // Parcial ou nenhum → marca todos visíveis
+      for (const id of ids) next.add(id)
+    }
+    setSelected(next)
+  }
+
   const toggleMobileRow = (id) => {
     const next = new Set(mobileOpenRows)
     if(next.has(id)) next.delete(id); else next.add(id)
@@ -3036,8 +3078,38 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             className="grid gap-x-2 min-w-full"
             style={gridCols ? { gridTemplateColumns: gridCols } : {}}
           >
-            <div></div>
-            <div>Produto ({totalResults})</div>
+            <div className="flex items-center gap-2 select-none">
+              <input
+                ref={selectAllCheckboxRef}
+                type="checkbox"
+                disabled={visibleSelection.totalVisible === 0}
+                checked={visibleSelection.totalVisible > 0 && visibleSelection.allVisible}
+                onChange={toggleSelectAllVisible}
+                className="dark:bg-gray-700 dark:border-gray-600 disabled:opacity-40"
+                title={(() => {
+                  const { totalVisible, selectedCount } = visibleSelection
+                  if (totalVisible === 0) return 'Sem produtos visíveis'
+                  if (selectedCount === totalVisible) return `Desmarcar ${totalVisible} produto(s) visíveis (filtro atual + página)`
+                  if (selectedCount === 0) return `Selecionar todos os ${totalVisible} produto(s) visíveis (filtro atual + página)`
+                  return `Selecionar ${totalVisible - selectedCount} produto(s) restante(s) do filtro atual (já marcado ${selectedCount}/${totalVisible})`
+                })()}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span>Produto ({totalResults})</span>
+              {visibleSelection.totalVisible > 0 && (
+                <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700/50 whitespace-nowrap">
+                  {(() => {
+                    const { selectedCount, totalVisible } = visibleSelection
+                    const globalSelected = selected.size
+                    if (globalSelected === 0 || globalSelected === selectedCount) {
+                      return `${selectedCount}/${totalVisible} pág.`
+                    }
+                    return `${selectedCount}/${totalVisible} pág. · ${globalSelected} total`
+                  })()}
+                </span>
+              )}
+            </div>
           {showExtras && (isOwner || perms.products?.viewCost) && <div className="text-right pr-2">Custo</div>}
           {showExtras && <div>Código</div>}
           {showExtras && <div className="text-center">Atualizado </div>}

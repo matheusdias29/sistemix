@@ -1710,67 +1710,77 @@ const canEditService = isOwner || perms.services?.edit
               const oldStatus = String(statusTargetOrder.status || '').toLowerCase()
               
               if (newStatus.includes('cancelad') && !oldStatus.includes('cancelad')) {
-                const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
-                const byProduct = new Map()
-                for (const it of items) {
-                  const pid = String(it.productId || '').trim()
-                  if (!pid) continue
-                  const vname = String(it.variationName || '').trim()
-                  const qty = Math.max(0, parseFloat(it.quantity) || 0)
-                  if (qty <= 0) continue
-                  if (!byProduct.has(pid)) byProduct.set(pid, new Map())
-                  const m = byProduct.get(pid)
-                  m.set(vname, (m.get(vname) || 0) + qty)
-                }
+                // 🛡️ IDEMPOTÊNCIA: Se estoque já foi devolvido anteriormente (por cancelamento de Venda/PV associada ou cancelamento duplicado),
+                // NÃO devolver NOVAMENTE para não gerar entradas falsas e inflar o estoque.
+                const alreadyReturned =
+                  statusTargetOrder.stockReturned === true ||
+                  statusTargetOrder.stockReversed === true
 
-                const patchesForCache = []
-                for (const [productId, vmap] of byProduct.entries()) {
-                  const p =
-                    (await getProductById(productId).catch(() => null)) ||
-                    (cachedProducts || productsAll).find(pr => pr.id === productId)
-                  if (!p) continue
+                if (!alreadyReturned) {
+                  const items = Array.isArray(statusTargetOrder.products) ? statusTargetOrder.products : []
+                  const byProduct = new Map()
+                  for (const it of items) {
+                    const pid = String(it.productId || '').trim()
+                    if (!pid) continue
+                    const vname = String(it.variationName || '').trim()
+                    const qty = Math.max(0, parseFloat(it.quantity) || 0)
+                    if (qty <= 0) continue
+                    if (!byProduct.has(pid)) byProduct.set(pid, new Map())
+                    const m = byProduct.get(pid)
+                    m.set(vname, (m.get(vname) || 0) + qty)
+                  }
 
-                  const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
+                  const patchesForCache = []
+                  for (const [productId, vmap] of byProduct.entries()) {
+                    const p =
+                      (await getProductById(productId).catch(() => null)) ||
+                      (cachedProducts || productsAll).find(pr => pr.id === productId)
+                    if (!p) continue
 
-                  let adjustResult = null
-                  try {
-                    adjustResult = await adjustProductStockTransactionally(p.id, +totalQty)
-                  } catch (txErr) {
-                    console.error('Erro transação cancelamento OS produto', p.id, txErr)
+                    const totalQty = Array.from(vmap.values()).reduce((s, q) => s + q, 0)
+
+                    let adjustResult = null
                     try {
-                      const fb = (await getProductById(p.id).catch(() => null)) || p
-                      const cur = Number(fb.stock ?? 0)
-                      const next = cur + totalQty
-                      const updateData = { stock: next }
-                      if (Array.isArray(fb.variationsData) && fb.variationsData.length > 0) {
-                        updateData.variationsData = fb.variationsData.map(v => ({ ...v, stock: next }))
-                      }
-                      await updateProduct(fb.id, updateData)
-                      await syncUnifiedStockAcrossStores(fb, storeId, updateData)
-                      patchesForCache.push({ productId: p.id, patch: updateData })
-                    } catch (fallbackErr) { console.error('Fallback cancelamento OS falhou:', fallbackErr) }
-                  }
+                      adjustResult = await adjustProductStockTransactionally(p.id, +totalQty)
+                    } catch (txErr) {
+                      console.error('Erro transação cancelamento OS produto', p.id, txErr)
+                      try {
+                        const fb = (await getProductById(p.id).catch(() => null)) || p
+                        const cur = Number(fb.stock ?? 0)
+                        const next = cur + totalQty
+                        const updateData = { stock: next }
+                        if (Array.isArray(fb.variationsData) && fb.variationsData.length > 0) {
+                          updateData.variationsData = fb.variationsData.map(v => ({ ...v, stock: next }))
+                        }
+                        await updateProduct(fb.id, updateData)
+                        await syncUnifiedStockAcrossStores(fb, storeId, updateData)
+                        patchesForCache.push({ productId: p.id, patch: updateData })
+                      } catch (fallbackErr) { console.error('Fallback cancelamento OS falhou:', fallbackErr) }
+                    }
 
-                  const patch = adjustResult?.patch
-                  if (patch) {
-                    try { await syncUnifiedStockAcrossStores(p, storeId, patch) } catch (e) { console.warn('syncUnified cancel OS falhou (nao-fatal):', e) }
-                    patchesForCache.push({ productId: p.id, patch })
-                  }
+                    const patch = adjustResult?.patch
+                    if (patch) {
+                      try { await syncUnifiedStockAcrossStores(p, storeId, patch) } catch (e) { console.warn('syncUnified cancel OS falhou (nao-fatal):', e) }
+                      patchesForCache.push({ productId: p.id, patch })
+                    }
 
-                  await recordStockMovement({
-                    productId: p.id,
-                    productName: p.name,
-                    type: 'in',
-                    quantity: totalQty,
-                    reason: 'cancel',
-                    referenceId: statusTargetOrder.id,
-                    referenceNumber: formattedNumber,
-                    description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
-                    userId: ownerId
-                  })
-                }
-                if (patchesForCache.length > 0) {
-                  applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
+                    await recordStockMovement({
+                      productId: p.id,
+                      productName: p.name,
+                      type: 'in',
+                      quantity: totalQty,
+                      reason: 'cancel',
+                      referenceId: statusTargetOrder.id,
+                      referenceNumber: formattedNumber,
+                      description: `Cancelamento OS ${statusTargetOrder.number || statusTargetOrder.id}`,
+                      userId: ownerId
+                    })
+                  }
+                  if (patchesForCache.length > 0) {
+                    applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
+                  }
+                } else {
+                  console.warn(`[idempotencia-OS-cancel] Estoque já estornado anteriormente para OS ${statusTargetOrder.number || statusTargetOrder.id}. Ignorando devolução duplicada.`)
                 }
 
                 if (currentCash) {
@@ -1779,9 +1789,51 @@ const canEditService = isOwner || perms.services?.edit
                     cashLaunched: false,
                     cashLaunchCashId: null,
                     payments: [],
+                    stockReturned: true,
+                    stockReversed: true,
                     updatedAt: new Date(),
                     updatedBy: user?.name || attendant || 'Sistema'
                   })
+                } else {
+                  await updateOrder(statusTargetOrder.id, {
+                    stockReturned: true,
+                    stockReversed: true
+                  })
+                }
+
+                // 🛡️ PROPAGAÇÃO INVERSA O.S. → P.V.:
+                // Ao cancelar uma O.S., propagar stockReturned=true para TODAS as
+                // Vendas (PV) vinculadas (campos de ligação: originalOrderId,
+                // serviceOrderId ou orderId apontando para a O.S.).
+                // Evita cenário: cancelou O.S. devolve 1 → depois cancelou P.V.
+                // devolve 1 OUTRA VEZ (duplicado).
+                try {
+                  const osId = String(statusTargetOrder.id).trim()
+                  const linkedSales = (orders || []).filter(o => {
+                    if (!o || o.type !== 'sale') return false
+                    const orig = String(o.originalOrderId || '').trim()
+                    const svc = String(o.serviceOrderId || '').trim()
+                    const ord = String(o.orderId || '').trim()
+                    return orig === osId || svc === osId || ord === osId
+                  })
+                  for (const pv of linkedSales) {
+                    try {
+                      // Atualiza apenas se já não estiver marcado (reduz writes).
+                      if (pv.stockReturned !== true || pv.stockReversed !== true) {
+                        await updateOrder(pv.id, {
+                          stockReturned: true,
+                          stockReversed: true,
+                          updatedAt: new Date(),
+                          updatedBy: user?.name || attendant || 'Sistema'
+                        })
+                        console.warn(`[idempotencia-OS→PV] O.S. ${statusTargetOrder.number || osId} cancelada → propagado stockReturned=true para P.V. ${pv.number || pv.id}`)
+                      }
+                    } catch (pvErr) {
+                      console.warn(`[idempotencia-OS→PV] Falha ao atualizar P.V. ${pv.id} (nao-fatal):`, pvErr)
+                    }
+                  }
+                } catch (propagErr) {
+                  console.warn('[idempotencia-OS→PV] Falha geral na propagação OS→PV (nao-fatal):', propagErr)
                 }
               } else if (oldStatus.includes('cancelad') && !newStatus.includes('cancelad')) {
                 // Lógica inversa: Cancelado -> status ativo (baixa no estoque novamente)
@@ -1847,6 +1899,40 @@ const canEditService = isOwner || perms.services?.edit
                 }
                 if (patchesForCache.length > 0) {
                   applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
+                }
+                // Resetar flag pois reabriu a OS (estoque foi baixado novamente, se cancelar de novo precisa estornar)
+                try {
+                  await updateOrder(statusTargetOrder.id, { stockReturned: false, stockReversed: false })
+                } catch (e) { console.warn('updateOrder stockReturned=false falhou (nao-fatal):', e) }
+
+                // 🛡️ PROPAGAÇÃO INVERSA (reabertura): resetar flags nas PVs vinculadas
+                // também (senão elas pensam que estoque já voltou mesmo após reabertura).
+                try {
+                  const osId = String(statusTargetOrder.id).trim()
+                  const linkedSales = (orders || []).filter(o => {
+                    if (!o || o.type !== 'sale') return false
+                    const orig = String(o.originalOrderId || '').trim()
+                    const svc = String(o.serviceOrderId || '').trim()
+                    const ord = String(o.orderId || '').trim()
+                    return orig === osId || svc === osId || ord === osId
+                  })
+                  for (const pv of linkedSales) {
+                    try {
+                      if (pv.stockReturned !== false || pv.stockReversed !== false) {
+                        await updateOrder(pv.id, {
+                          stockReturned: false,
+                          stockReversed: false,
+                          updatedAt: new Date(),
+                          updatedBy: user?.name || attendant || 'Sistema'
+                        })
+                        console.warn(`[idempotencia-OS→PV-reabrir] O.S. ${statusTargetOrder.number || osId} REABERTA → reset flags em P.V. ${pv.number || pv.id}`)
+                      }
+                    } catch (pvErr) {
+                      console.warn(`[idempotencia-OS→PV-reabrir] Falha PV ${pv.id} (nao-fatal):`, pvErr)
+                    }
+                  }
+                } catch (propagErr) {
+                  console.warn('[idempotencia-OS→PV-reabrir] Falha geral (nao-fatal):', propagErr)
                 }
               }
 

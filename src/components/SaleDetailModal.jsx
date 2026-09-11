@@ -114,16 +114,22 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
               if (!window.confirm('Tem certeza que deseja cancelar esta venda? O estoque dos produtos será devolvido.')) return
               try {
                 const currentStatus = (sale.status || '').toLowerCase()
-                // Somente devolve estoque se o status atual for um que reservou/descontou estoque
-                // De acordo com NewSaleModal.jsx, esses são: Venda, Pedido, Cliente Final, Cliente Lojista
-                const statusesThatDeductStock = ['venda', 'pedido', 'cliente final', 'cliente lojista', 'finalizado', 'pago']
+                const statusesThatDeductStock = ['venda', 'pedido', 'cliente final', 'cliente lojista', 'finalizado', 'pago', 'os finalizada e faturada cliente final', 'os faturada cliente final', 'os faturada cliente lojista']
                 const shouldRestock = statusesThatDeductStock.includes(currentStatus)
 
-                if (shouldRestock) {
-                  // Restock products - Grouping by product/variation to avoid race conditions
+                const alreadyReturned =
+                  sale.stockReturned === true ||
+                  sale.stockReversed === true
+
+                const isLinkedToOs =
+                  sale.type === 'service_order' ||
+                  sale.orderType === 'service_order' ||
+                  (sale.orderType && String(sale.orderType).toLowerCase().includes('service')) ||
+                  /OS|Ordem|Serv/i.test(sale.number || '')
+
+                if (shouldRestock && !alreadyReturned) {
                   const items = Array.isArray(sale.products) ? sale.products : []
 
-                // key: productId + (variationName || '')
                 const restockingMap = new Map()
 
                 for (const it of items) {
@@ -153,7 +159,6 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                     const { productId, variationName, quantity, originalName } = entry
                     let pidToLookup = productId
 
-                    // Fallback composite IDs (BaseID-VariationName) — pega a parte base
                     if (String(pidToLookup).includes('-') && !(products || []).some(p => p.id === pidToLookup)) {
                       pidToLookup = String(pidToLookup).split('-')[0]
                     }
@@ -178,7 +183,6 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                     if (prod) {
                       console.log('Restocking product (transacional):', prod.name, 'Qty:', quantity)
 
-                      // 💠 Usa runTransaction ATÔMICA (sem race condition em cancelamento concorrente!)
                       let adjustResult = null
                       try {
                         adjustResult = await adjustProductStockTransactionally(prod.id, +quantity, { variationName: variationName || undefined })
@@ -191,7 +195,6 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                       } catch (txErr) {
                         console.error('Erro transação restock produto', prod.id, txErr)
                         try {
-                          // Fallback: read do firestore + updateProduto
                           const fbProd = (await getProductById(prod.id).catch(() => null)) || prod
                           const cur = Number(fbProd.stock ?? 0)
                           const next = cur + quantity
@@ -213,7 +216,8 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                         if (sale.number) {
                           const digits = String(sale.number).replace(/\D/g, '')
                           const n = parseInt(digits, 10)
-                          const isOS = sale.type === 'os' || sale.type === 'service_order'
+                          const isOS = isLinkedToOs
+                            || sale.type === 'os' || sale.type === 'service_order'
                             || (sale.orderType && String(sale.orderType).toLowerCase().includes('service'))
                             || /OS|Ordem|Serv/i.test(sale.number || '')
                           return isOS ? `O.S.${String(n).padStart(4, '0')}` : `P.V.${String(n).padStart(4, '0')}`
@@ -237,7 +241,6 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                     }
                   }
 
-                  // Atualiza cache em disco NA HORA (ProdutosPage reflete imediatamente)
                   if (patchesForCache.length > 0) {
                     applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
                   }
@@ -247,12 +250,36 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                   } else {
                       alert('Venda cancelada. Nenhum produto foi devolvido ao estoque (produtos não encontrados ou serviço).')
                   }
+                } else if (alreadyReturned) {
+                  alert('Venda cancelada. Estoque já havia sido devolvido anteriormente, não foi devolvido novamente.')
+                  console.warn(`[idempotencia-sale-cancel] Estoque já estornado para ${sale.number || sale.id}. Ignorando devolução duplicada.`)
                 } else {
-                  // Se o status era orçamento/condicional, apenas cancela sem mexer no estoque
                   alert('Venda cancelada com sucesso.')
                 }
                 
-                await updateOrder(sale.id, { status: 'Cancelada' })
+                await updateOrder(sale.id, {
+                  status: 'Cancelada',
+                  stockReturned: true,
+                  stockReversed: true
+                })
+
+                if (isLinkedToOs) {
+                  try {
+                    const possibleOrderIds = new Set()
+                    if (sale.originalOrderId) possibleOrderIds.add(String(sale.originalOrderId))
+                    if (sale.orderId) possibleOrderIds.add(String(sale.orderId))
+                    if (sale.serviceOrderId) possibleOrderIds.add(String(sale.serviceOrderId))
+                    possibleOrderIds.add(String(sale.id))
+
+                    for (const oid of possibleOrderIds) {
+                      try {
+                        await updateOrder(oid, { stockReturned: true, stockReversed: true })
+                        console.log(`[idempotencia-link PV→OS] marcado stockReturned=true em order ${oid}`)
+                      } catch (e) { /* não fatal: doc não existe */ }
+                    }
+                  } catch (linkErr) { console.warn('Não foi possível propagar stockReturned para OS (nao-fatal):', linkErr) }
+                }
+
                 onClose && onClose()
               } catch (e) {
                 console.error('Erro ao cancelar venda', e)

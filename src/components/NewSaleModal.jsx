@@ -406,14 +406,36 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
             })
           : []
         setCart(initialCart)
-        setPayments(Array.isArray(sale.payments) ? sale.payments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0) })) : [])
-        setPlannedPayments(
+
+        // 🛡️ CORREÇÃO BOTÃO EDITAR PAGAMENTO (R$0 restante):
+        // Para vendas NÃO faturadas (Pedido / Condicional / Orçamento / outros status
+        // não finais), NÃO podemos ter valores no array `payments` (pagamentos definitivos
+        // recebidos em caixa). Se `payments` tiver conteúdo mas venda NÃO foi faturada:
+        //    (a) se NÃO existe plannedPayments → migramos para lá como pagamento planejado;
+        //    (b) depois ZERAMOS `payments` para não poluir o cálculo de remainingToPay.
+        // Sem isso: ao reabrir um pedido, payments tinha R$145,00, paidSum=145, remaining=0,
+        // e o usuário via "Pagamento total realizado" na modal ao invés de "Faturar pedido".
+        const loadedStatus = String(sale.status || '').toLowerCase().trim()
+        const isSaleBilled = ['venda','pedido','cliente final','cliente lojista','cliente logista','finalizado','pago'].some(s => loadedStatus.includes(s))
+          && (Array.isArray(sale.payments) && sale.payments.length > 0)
+        let rawPayments = Array.isArray(sale.payments) ? sale.payments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0), subtractFromCash: p.subtractFromCash })) : []
+        let rawPlanned =
           Array.isArray(sale.plannedPayments)
             ? sale.plannedPayments.map(p => ({ method: p.method, methodCode: p.methodCode, amount: Number(p.amount || 0), subtractFromCash: p.subtractFromCash }))
             : (sale.plannedPayment && typeof sale.plannedPayment === 'object' && sale.plannedPayment.method
               ? [{ method: sale.plannedPayment.method, methodCode: sale.plannedPayment.methodCode, amount: Number(sale.total || sale.valor || 0) }]
               : [])
-        )
+
+        const NON_FINAL_STATUS = ['pedido','condicional','orçamento','cotação','proposta']
+        const nonFinal = NON_FINAL_STATUS.some(s => loadedStatus.includes(s)) || (!isSaleBilled && rawPayments.length > 0 && rawPlanned.length === 0)
+        if (nonFinal && rawPayments.length > 0) {
+          if (rawPlanned.length === 0) rawPlanned = rawPayments.map(p => ({ ...p }))
+          rawPayments = []
+          console.warn('[carregamento-venda] Movido payments → plannedPayments (venda não faturada). Status:', loadedStatus)
+        }
+        setPayments(rawPayments)
+        setPlannedPayments(rawPlanned)
+
         setSelectedClient(sale.clientId || sale.client ? { id: sale.clientId || null, name: sale.client || 'Consumidor Final' } : null)
         setNotesText(sale.receiptNotes || '')
         setWarrantyText(String(sale.warrantyInfo || '').trim() ? String(sale.warrantyInfo) : (String(store?.warrantyTerms || '').trim() ? String(store.warrantyTerms) : DEFAULT_WARRANTY_INFO))
@@ -822,20 +844,35 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         valor: total,
         receiptNotes: notesText,
         warrantyInfo: warrantyText,
+        // 🛡️ CORREÇÃO RAIZ: payments (DEFINITIVOS, recebidos em caixa) SÓ existe
+        // para vendas FATURADAS (status finais). Para Pedido/Condicional/Orçamento,
+        // APENAS plannedPayments é preenchido; payments fica vazio!
+        //
+        // BUG ANTERIOR (causava Restante a pagar R$0 + Total pago):
+        //   Linha antiga "status === 'Pedido' ? [] : paymentsToUse"
+        //   → Condicional/Orçamento GRAVAVAM payments = valor_total,
+        //   → ao reabrir edição: paidSum=145, remaining=0 → mostrava "Total pago".
         plannedPayments: isFinalSale ? [] : (plannedPaymentsOverride !== undefined ? (plannedPaymentsOverride || []) : plannedPayments),
         plannedPayment: null,
-        payments: (status === 'Pedido' ? [] : paymentsToUse).map(p => ({
-          method: p.method,
-          amount: p.amount,
-          methodCode: p.methodCode || null,
-          subtractFromCash: p.subtractFromCash !== undefined ? p.subtractFromCash : true,
-          date: new Date()
-        })),
+        payments: (() => {
+          const normStatus = String(status || '').toLowerCase().trim()
+          const FINAL_SAVE = ['venda','cliente final','cliente lojista','cliente logista','finalizado','pago']
+          const isFinalNow = FINAL_SAVE.some(s => normStatus.includes(s)) || isFinalSale
+          if (isFinalNow) return (paymentsToUse || []).map(p => ({
+            method: p.method,
+            amount: p.amount,
+            methodCode: p.methodCode || null,
+            subtractFromCash: p.subtractFromCash !== undefined ? p.subtractFromCash : true,
+            date: new Date()
+          }))
+          return []
+        })(),
         status,
         createdAt: new Date()
       }
 
       let orderId = isEdit ? sale?.id : null
+      let _stockFlags = null
 
       if (isEdit && sale?.id) {
         const partial = { 
@@ -860,6 +897,16 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         }
         await updateOrder(sale.id, partial)
       } else {
+        // 🛡️ Se nova venda veio de uma O.S. (!isEdit mas sale != null), gravar
+        // campos de vínculo no NOVO documento PV (em orders collection) para
+        // permitir propagação cruzada de flags (cancelamento OS → PV e vice-versa).
+        if (sale && sale?.id) {
+          payload.originalOrderId = sale.id
+          payload.serviceOrderId = sale.id
+          // Copiar também campos de vínculo da OS caso existam
+          if (sale?.originalOrderId) payload.originalOrderId = sale.originalOrderId
+          if (sale?.serviceOrderId) payload.serviceOrderId = sale.serviceOrderId
+        }
         orderId = await addOrder(payload, storeId)
       }
 
@@ -898,12 +945,36 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       {
         const FINAL_STATUSES = ['venda','pedido','cliente final','cliente lojista','finalizado','pago']
         const normNew = String(status || '').toLowerCase().trim()
-        const nowDeducted = FINAL_STATUSES.includes(normNew)
+        let nowDeducted = FINAL_STATUSES.includes(normNew)
 
         let wasDeducted = false
         if (isEdit && sale) {
           const normOrig = String(sale.status || '').toLowerCase().trim()
           wasDeducted = FINAL_STATUSES.includes(normOrig)
+        }
+
+        // 🛡️ BLOQUEIO BAIXA DUPLICADA OS → PV:
+        // Se for NOVA venda (isEdit=false) MAS recebeu `sale` prop (fonte: O.S. existente)
+        // e essa fonte é do tipo Ordem de Serviço, significa que o ESTOQUE JÁ FOI BAIXADO
+        // na criação da O.S. — NÃO podemos dar baixa NOVA no faturamento do PV.
+        // (caso contrário teríamos 2 saídas para 1 produto, como no bug do estoque 3x).
+        let isNewFromAlreadyDeductedOs = false
+        if (!isEdit && sale) {
+          const saleType = String(sale?.type || sale?.orderType || '').toLowerCase().trim()
+          const saleNum = String(sale?.number || '').toLowerCase().trim()
+          const looksLikeOs =
+            saleType.includes('service') ||
+            saleType.includes('ordem') ||
+            saleNum.startsWith('o.s') ||
+            saleNum.startsWith('os')
+          if (looksLikeOs) {
+            const osStatus = String(sale?.status || '').toLowerCase()
+            if (!osStatus.includes('cancelad')) {
+              isNewFromAlreadyDeductedOs = true
+              nowDeducted = false
+              console.warn(`[idempotencia-PV-de-OS] Nova venda originada de O.S. ${sale?.number || sale?.id}. Baixa de estoque SKIPADA (já aplicada na criação da O.S.).`)
+            }
+          }
         }
 
         const sourceList = cachedProducts || products
@@ -1013,6 +1084,11 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               referenceNumber: saleRefNumber
             })
           }
+          // 🔁 RESET FLAG IDEMPOTÊNCIA: Uma baixa NOVA de estoque aconteceu AGORA,
+          // então um cancelamento FUTURO desta venda DEVE devolver estoque normalmente.
+          // Sem isso: se venda já tinha sido cancelada antes (flag=true),
+          // re-faturar com os mesmos produtos → flag continuava true → 2º cancel NÃO devolvia.
+          _stockFlags = { stockReturned: false, stockReversed: false }
         } else if (nowDeducted && wasDeducted) {
           // =========================================================
           // CASO 2: Edição de venda JÁ FATURADA → delta por produto
@@ -1065,34 +1141,91 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               referenceNumber: saleRefNumber
             })
           }
+          // 🔁 RESET FLAG IDEMPOTÊNCIA: Como venda continua faturada (ou recebeu novas baixas por delta),
+          // qualquer cancelamento FUTURO deve devolver novamente → flags false.
+          _stockFlags = { stockReturned: false, stockReversed: false }
         } else if (!nowDeducted && wasDeducted) {
           // =========================================================
           // CASO 3: Status deixou de ser faturado (estorno TOTAL)
           // (raro em edição, mas cobre caso usuário mude para orçamento)
           // =========================================================
-          const items = Array.isArray(sale?.products) ? sale.products : []
-          for (const it of items) {
-            const qty = Number(it.quantity || 0)
-            if (qty <= 0) continue
-            const pIdRaw = String(it.originalId || it.productId || it.id || '').trim()
-            const vName = String(it.variationName || '').trim()
-            const meta = resolveMetaFromItem(pIdRaw, vName)
-            if (!meta) continue
-            await runAdjustForSingle({
-              pId: meta.pId,
-              delta: +qty,  // devolve ao estoque
-              variationName: meta.variationName,
-              realProduct: meta.realProduct,
-              reason: 'cancel',
-              description: `Edição venda: status deixou de ser faturado (${sale?.number || sale?.id || ''})`,
-              referenceNumber: saleRefNumber
-            })
+          // 🛡️ IDEMPOTÊNCIA: Se já foi devolvido (por outra ação cancelamento SaleDetail, OS cancel etc),
+          // NÃO devolver NOVAMENTE para não gerar estoque falso.
+          const alreadyReturned =
+            sale?.stockReturned === true ||
+            sale?.stockReversed === true
+          if (!alreadyReturned) {
+            const items = Array.isArray(sale?.products) ? sale.products : []
+            for (const it of items) {
+              const qty = Number(it.quantity || 0)
+              if (qty <= 0) continue
+              const pIdRaw = String(it.originalId || it.productId || it.id || '').trim()
+              const vName = String(it.variationName || '').trim()
+              const meta = resolveMetaFromItem(pIdRaw, vName)
+              if (!meta) continue
+              await runAdjustForSingle({
+                pId: meta.pId,
+                delta: +qty,  // devolve ao estoque
+                variationName: meta.variationName,
+                realProduct: meta.realProduct,
+                reason: 'cancel',
+                description: `Edição venda: status deixou de ser faturado (${sale?.number || sale?.id || ''})`,
+                referenceNumber: saleRefNumber
+              })
+            }
+            // Marcar no documento (posteriormente é enviado no updateDoc payload do save)
+            _stockFlags = { stockReturned: true, stockReversed: true }
+          } else {
+            console.warn(`[idempotencia-editSale-cancel] Estoque já estornado para ${sale?.number || sale?.id}. Ignorando caso3 duplicado.`)
+            _stockFlags = { stockReturned: true, stockReversed: true }
           }
         }
 
         // Atualiza cache em disco NA HORA (ProductsPage reflete imediatamente)
         if (patchesForCache.length > 0) {
           applyProductsPatchesToDiskCache(storeId, uid, patchesForCache).catch(() => {})
+        }
+      }
+
+      // 🛡️ PERSISTÊNCIA DE FLAGS DE IDEMPOTÊNCIA (pós-lógica de estoque):
+      // O primeiro updateOrder / addOrder (linha ~862/864) acontece ANTES da lógica
+      // de estoque que seta _stockFlags no CASO 3. Então precisamos de uma 2a gravação
+      // para não perder as flags.
+      if (_stockFlags) {
+        try {
+          if (isEdit && sale?.id) {
+            await updateOrder(sale.id, { ..._stockFlags, updatedAt: new Date(), updatedBy: user?.name || 'Sistema' })
+          } else if (orderId) {
+            // Em tese CASO 3 não dispara para !isEdit, mas garantimos para futuros cenários.
+            await updateOrder(orderId, { ..._stockFlags, updatedAt: new Date(), updatedBy: user?.name || 'Sistema' })
+          }
+
+          // 🔁 PROPAGAÇÃO CRUZADA PV ↔ OS (reset também):
+          // Se estamos RESETANDO flags (stockReturned=false) porque houve re-faturamento / reabertura,
+          // também propagamos false para OS associada. Assim cancelamento FUTURO de qualquer um dos
+          // dois (PV ou OS) devolve estoque normalmente, sem trava residual.
+          if (_stockFlags.stockReturned === false && isEdit && sale) {
+            const ids = new Set()
+            if (sale.originalOrderId) ids.add(String(sale.originalOrderId))
+            if (sale.orderId) ids.add(String(sale.orderId))
+            if (sale.serviceOrderId) ids.add(String(sale.serviceOrderId))
+            if (orderId) ids.add(String(orderId))
+            const selfId = sale.id || orderId
+            for (const oid of ids) {
+              if (!oid || oid === selfId) continue
+              try {
+                await updateOrder(oid, {
+                  stockReturned: false,
+                  stockReversed: false,
+                  updatedAt: new Date(),
+                  updatedBy: user?.name || 'Sistema'
+                })
+                console.log(`[idempotencia-link PV→OS RESET] marcado stockReturned=false em order ${oid}`)
+              } catch (e) { /* não fatal: doc não existe ou não tem permissão */ }
+            }
+          }
+        } catch (e) {
+          console.warn('[idempotencia] Falha ao persistir flags stockReturned no documento (nao-fatal, mas estorno pode duplicar):', e)
         }
       }
 
@@ -1463,18 +1596,66 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               {(isOwner || perms.sales?.finalize || (isEdit && perms.sales?.edit)) && (
               <button
                 onClick={() => {
-                  const isPedido = String(sale?.status || '').toLowerCase() === 'pedido'
-                  if (isEdit && isPedido && (!payments || payments.length === 0) && plannedPayments && plannedPayments.length > 0) {
-                    setConfirmPedidoOpen(true)
-                    return
+                  // 🛡️ CORREÇÃO: Botão Faturar deve abrir modal CORRETO dependendo
+                  // do status da venda (faturado vs não-faturado / planejado vs definitivo).
+                  // BUG ANTERIOR: condição MUITO restrita (só status === "pedido")
+                  // fazia com que Condicional/Orçamento/Pedido sem payments [length=0]
+                  // caíssem no payMethodsOpen (definitivo) que mostra R$0 e "Total pago".
+                  const statusLow = String(sale?.status || '').toLowerCase().trim()
+                  const FINAL_STATUSES = ['venda','cliente final','cliente lojista','cliente logista','finalizado','pago']
+                  const isBilled = FINAL_STATUSES.some(s => statusLow.includes(s)) || (payments && payments.length > 0)
+                  const NON_FINAL = ['pedido','condicional','orçamento','cotação','proposta']
+                  const isNonFinal = NON_FINAL.some(s => statusLow.includes(s))
+                  const hasPlanned = Array.isArray(plannedPayments) && plannedPayments.length > 0
+                  const hasDefinitive = Array.isArray(payments) && payments.length > 0
+
+                  if (isEdit && !isBilled) {
+                    // Caso A: Editando venda NÃO faturada (Pedido/Condicional/Orçamento/etc).
+                    if (hasPlanned) {
+                      // A1: Tem pagamentos planejados salvos → abrir modal "Faturar pedido"
+                      // com Cliente Final/Lojista + botão "Editar forma de pagamento".
+                      setConfirmPedidoOpen(true)
+                      return
+                    } else if (!hasDefinitive) {
+                      // A2: Não tem pagamento NENHUM ainda → abrir modal de PLANEJAMENTO
+                      // (planningPayMethodsOpen) invés do definitivo. O usuário define a
+                      // forma de pagamento e depois fatura.
+                      setEditingPlannedForConfirm(false)
+                      setPlanningPayMethodsOpen(true)
+                      return
+                    }
                   }
+
+                  // Caso B: Venda nova, ou venda EDIT mas já faturada (pagamentos definitivos),
+                  // ou qualquer outro cenário → abrir modal de pagamentos definitivos.
                   setPayMethodsOpen(true)
                 }}
                 disabled={cart.length === 0}
                 className="flex-[2] py-3 bg-green-600 text-white rounded font-medium hover:bg-green-700 transition-colors disabled:opacity-50 shadow-sm flex flex-col items-center justify-center leading-tight"
               >
-                <span>{(isEdit && String(sale?.status || '').toLowerCase() !== 'pedido') ? 'Salvar' : 'Faturar'}</span>
-                <span className="text-xs opacity-90">{remainingToPay > 0 ? `Restante: ${money(remainingToPay)}` : 'Pago'}</span>
+                <span>{(() => {
+                  // Label do botão:
+                  // Venda NOVA ou status NÃO-faturado → "Faturar"
+                  // Venda faturada em edição → "Salvar" (pois não está faturando do zero)
+                  const statusLow = String(sale?.status || '').toLowerCase().trim()
+                  const FINAL = ['venda','cliente final','cliente lojista','cliente logista','finalizado','pago']
+                  if (!isEdit) return 'Faturar'
+                  if (FINAL.some(s => statusLow.includes(s))) return 'Salvar'
+                  return 'Faturar'
+                })()}</span>
+                <span className="text-xs opacity-90">{(() => {
+                  // Exibir restante correto:
+                  // Se tem pagamentos PLANEJADOS e status não faturado → usar remainingToPlan
+                  // Senão usar remainingToPay (definitivo)
+                  const statusLow = String(sale?.status || '').toLowerCase().trim()
+                  const NON_FINAL = ['pedido','condicional','orçamento','cotação','proposta']
+                  const hasPlanned = Array.isArray(plannedPayments) && plannedPayments.length > 0
+                  const isNonFinal = NON_FINAL.some(s => statusLow.includes(s))
+                  if ((isNonFinal || !isEdit) && hasPlanned && remainingToPlan > 0) {
+                    return `Restante: ${money(remainingToPlan)}`
+                  }
+                  return remainingToPay > 0 ? `Restante: ${money(remainingToPay)}` : 'Pago'
+                })()}</span>
               </button>
               )}
             </div>

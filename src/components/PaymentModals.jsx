@@ -98,9 +98,9 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
                       <span className="text-gray-700 dark:text-gray-200">{p.method}</span>
                     </div>
                     <div className="flex items-center">
-                      <span className="mr-3 font-medium dark:text-white">{p.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
-                      {onRemovePayment && !isFullyPaid && (
-                        <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400">✕</button>
+                      <span className="mr-3 font-medium dark:text-white">{Number(p.amount||0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>
+                      {onRemovePayment && (
+                        <button type="button" onClick={() => onRemovePayment(idx)} className="text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="Remover este pagamento (editar forma de pagamento)">✕</button>
                       )}
                     </div>
                   </div>
@@ -113,6 +113,11 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
           {!isFullyPaid && (
             <h2 className="text-sm font-medium mt-2 text-center dark:text-gray-300">Selecionar forma de pagamento:</h2>
           )}
+          {isFullyPaid && payments && payments.length > 0 && onRemovePayment && (
+            <h2 className="text-sm font-medium mt-2 text-center text-blue-700 dark:text-blue-400">
+              ✎ Remova um pagamento abaixo para trocar a forma, ou selecione uma nova forma para pagamento adicional:
+            </h2>
+          )}
           {isFullyPaid && (
             <div className="mt-4 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-center">
               <div className="flex items-center justify-center mb-1">
@@ -121,11 +126,18 @@ export function PaymentMethodsModal({ open, onClose, onChoose, onChooseMethod, o
                 </svg>
                 <span className="text-sm font-semibold text-green-700 dark:text-green-300">Pagamento total realizado</span>
               </div>
-              <p className="text-xs text-green-600 dark:text-green-400">Confirme abaixo para finalizar a operação.</p>
+              <p className="text-xs text-green-600 dark:text-green-400">
+                {onRemovePayment && payments && payments.length > 0
+                  ? 'Use o ✕ ao lado do pagamento para removê-lo e trocar a forma, ou confirme abaixo para finalizar.'
+                  : 'Confirme abaixo para finalizar a operação.'}
+              </p>
             </div>
           )}
         </div>
-        {!isFullyPaid && (
+        {/* 🛡️ CORREÇÃO: SEMPRE permitir escolher NOVA forma de pagamento (remover e adicionar)
+            SE estiver em MODO EDITÁVEL (onRemovePayment existe), mesmo que isFullyPaid.
+            Antes: se R$0, escondia grid. Loop vicioso - não dava para remover e re-adicionar. */}
+        {(!isFullyPaid || (payments && payments.length > 0 && onRemovePayment)) && (
         <div className="p-4 overflow-y-auto flex-1 min-h-0">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {paymentMethods.map((method) => (
