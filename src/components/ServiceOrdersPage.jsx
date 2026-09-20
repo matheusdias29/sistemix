@@ -15,6 +15,7 @@ import { listenSubUsers, getOwner } from '../services/users'
 import SalesDateFilterModal from './SalesDateFilterModal'
 import SelectColumnsModal from './SelectColumnsModal'
 import { listenCurrentCash, addCashTransaction, removeCashTransactionsByOrder } from '../services/cash'
+import pixIcon from '../assets/pix.svg'
 
 const CLIENTS_CACHE_SCHEMA_VERSION = 3
 const CLIENTS_CACHE_TTL_MS = 60 * 60 * 1000
@@ -458,6 +459,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
   const osDefaultColumns = [
     { id: 'number', label: 'O.S.', width: '0.5fr', visible: true, align: 'left' },
     { id: 'client', label: 'Cliente', width: '2.5fr', visible: true, align: 'left' },
+    { id: 'payment', label: 'Pgto.', width: '5.5rem', visible: true, align: 'center' },
     { id: 'attendant', label: 'Atendente', width: '1fr', visible: true, align: 'left' },
     { id: 'technician', label: 'Técnico', width: '1fr', visible: true, align: 'left' },
     { id: 'model', label: 'Modelo', width: '1fr', visible: true, align: 'left' },
@@ -1412,6 +1414,34 @@ const canEditService = isOwner || perms.services?.edit
       return `O.S:${String(n).padStart(4, '0')}`
     }
     return `O.S:${String(order.id).slice(-4)}`
+  }
+
+  // ========================================================================
+  // 💳 Ícones de Forma de Pagamento (idêntico à página de Vendas)
+  // ========================================================================
+  const paymentIcon = (label) => {
+    const m = String(label || '').toLowerCase()
+    if (m.includes('pix')) {
+      return <img src={pixIcon} alt="PIX" className="w-4 h-4 inline-block" />
+    }
+    if (m.includes('dinheiro')) {
+      return <span className="inline-block">💵</span>
+    }
+    if (m.includes('débito') || m.includes('debito') || m.includes('crédito') || m.includes('credito')) {
+      return (
+        <svg className="w-4 h-4 text-gray-700 inline-block" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6A2,2 0 0,0 20,4M20,8H4V6H20V8Z"/>
+        </svg>
+      )
+    }
+    if (m.includes('boleto')) return <span className="inline-block">🧾</span>
+    if (m.includes('transfer')) return <span className="inline-block">🔁</span>
+    if (m.includes('voucher')) return <span className="inline-block">🎟️</span>
+    return (
+      <svg className="w-4 h-4 text-gray-700 inline-block" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M20,4H4A2,2 0 0,0 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V6A2,2 0 0,0 20,4M20,8H4V6H20V8Z"/>
+      </svg>
+    )
   }
 
   const isOrderLocked = useMemo(() => {
@@ -2423,6 +2453,19 @@ const canEditService = isOwner || perms.services?.edit
                           <div className="">{o.client}</div>
                         </div>
                       )
+                      case 'payment': {
+                        const isFaturada = String(o.status || '').toLowerCase().includes('faturada') ||
+                                           String(o.status || '').toLowerCase().includes('finalizada') ||
+                                           String(o.status || '').toLowerCase().includes('finalizado')
+                        const payments = Array.isArray(o.payments) ? o.payments : []
+                        const showPay = isFaturada && payments.length > 0
+                        const icons = showPay
+                          ? payments.map((p, idx) => (
+                              <span key={`${o.id}-pay-${idx}`} className="mx-0.5">{paymentIcon(p.method)}</span>
+                            ))
+                          : null
+                        return <div key={`${o.id}-payment`} className="text-center">{icons || '-'}</div>
+                      }
                       case 'attendant': return <div key={`${o.id}-attendant`}>{o.attendant}</div>
                       case 'technician': return <div key={`${o.id}-technician`}>{o.technician}</div>
                       case 'model': return <div key={`${o.id}-model`}>{o.model}</div>
@@ -2610,6 +2653,22 @@ const canEditService = isOwner || perms.services?.edit
                         <span className="font-semibold text-[11px] text-gray-800 dark:text-gray-100 break-all">{o.client || '-'}</span>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        {(() => {
+                          const isFaturada = String(o.status || '').toLowerCase().includes('faturada') ||
+                                             String(o.status || '').toLowerCase().includes('finalizada') ||
+                                             String(o.status || '').toLowerCase().includes('finalizado')
+                          const payments = Array.isArray(o.payments) ? o.payments : []
+                          if (!isFaturada || payments.length === 0) return null
+                          const icons = payments.slice(0, 3).map((p, idx) => (
+                            <span key={`${o.id}-mpay-${idx}`} className="inline-flex items-center">{paymentIcon(p.method)}</span>
+                          ))
+                          const extra = payments.length > 3 ? `+${payments.length - 3}` : null
+                          return (
+                            <span className="inline-flex items-center gap-0.5 text-[11px] text-gray-600 dark:text-gray-300" title={payments.map(p => p.method).filter(Boolean).join(', ')}>
+                              {icons}{extra && <span className="text-[10px] ml-0.5">{extra}</span>}
+                            </span>
+                          )
+                        })()}
                         <span className="font-bold text-[11px] text-green-700 dark:text-green-500 whitespace-nowrap">
                           {osTotal.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
                         </span>

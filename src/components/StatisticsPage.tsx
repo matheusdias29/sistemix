@@ -103,6 +103,128 @@ function hasProductNameMatch(aRaw: any, bRaw: any, minPct: number = 0.65): boole
   return false
 }
 
+// ============================================================================
+// 🧩 HELPERS COMPARTILHADOS (nível módulo) — usados em VÁRIOS locais:
+//    - calcItemsRealCost
+//    - costByOrderIdMap useMemo
+//    - costByOrderIdFn fallback
+//
+// Removeram erro TS "Cannot redeclare block-scoped variable":
+// antes essas const/fn eram declaradas 2x internamente (duplicadas).
+// ============================================================================
+const QTY_KEYS_SHARED: readonly string[] = [
+  'quantity', 'quantidade', 'qty', 'amount', 'qtd',
+  'qtde', 'quant', 'count', 'units', 'unit'
+] as const
+
+/** Retorna qtd do item (máxima compatibilidade de campos). Fallback = 1. */
+function readQtyShared(o: any): number {
+  if (!o || typeof o !== 'object') return 1
+  for (const k of QTY_KEYS_SHARED) {
+    const v = (o as any)[k]
+    if (v === null || v === undefined || v === '') continue
+    const n = Number(v)
+    if (Number.isFinite(n)) return Math.max(0, n)
+  }
+  return 1
+}
+
+/** Retorna preço UNITÁRIO do item (NÃO total). Fallback = 0. */
+function readPriceShared(o: any): number {
+  if (!o || typeof o !== 'object') return 0
+  const candidates = [o.price, o.unitPrice, o.salePrice, o.valor, o.value, o.total, o.vlr, o.preco]
+  for (const c of candidates) {
+    const n = Number(c)
+    if (Number.isFinite(n) && n > 0) return n
+  }
+  return 0
+}
+
+/**
+ * Cria um Map<productId, produto real> a partir de productsLookup,
+ * com suporte a p.id e p.originalId (duas entradas por produto se existir).
+ */
+function buildProductLookup(productsLookup: any[] | null | undefined, allow: boolean): Map<string, any> | null {
+  if (!allow || !Array.isArray(productsLookup) || productsLookup.length === 0) return null
+  return new Map(
+    productsLookup
+      .map((p: any) => {
+        const entries: (readonly [string, any])[] = []
+        if (p && p.id != null && hasProductIdFormat(p.id)) entries.push([String(p.id), p] as const)
+        if (p && p.originalId != null && hasProductIdFormat(p.originalId)) entries.push([String(p.originalId), p] as const)
+        return entries
+      })
+      .flat()
+  )
+}
+
+/** Encontra produto real no lookup por id / originalId. */
+function findRealProductInLookup(productMap: Map<string, any> | null, it: any): any | null {
+  if (!productMap) return null
+  const ids = [it?.id, it?.originalId].filter(x => x != null && hasProductIdFormat(x)).map(x => String(x))
+  for (const id of ids) {
+    const f = productMap.get(id)
+    if (f) return f
+  }
+  return null
+}
+
+// ============================================================================
+// 🛡️ DEDUPLICADOR DE ITENS DO PEDIDO (3 camadas de segurança)
+// ============================================================================
+// Corrige o bug "custos = 2× vendas → lucro -100%".
+//
+// CAUSA RAIZ MAIS PROVÁVEL: em gravações antigas do Firestore,
+// `order.services === order.products` POR REFERÊNCIA (mesmo ponteiro),
+// ou o item foi adicionado 2x (uma em products, outra em services).
+// Quando o StatisticsPage executava `items = [...prods, ...svcs]`,
+// SOMAVA CADA ITEM 2 VEZES → custo exatamente o dobro.
+//
+// CAMADA 1 → se arrays products === services POR REFERÊNCIA: apaga services.
+// CAMADA 2 → remove duplicatas POR REFERÊNCIA (Set de objetos JS).
+// CAMADA 3 → remove duplicatas POR FINGERPRINT (id+nome+qty+preço+custoTotal).
+// ============================================================================
+function buildUniqueItemFingerprint(it: any, idx: number): string {
+  if (!it || typeof it !== 'object') return `__null_${idx}__`
+  const ids = [it.id, it.originalId, it.service_price_id, it.serviceId, it.service_id]
+    .filter(x => x != null && String(x).trim() !== '')
+    .map(x => String(x))
+  if (ids.length > 0) return `id:${ids.join('|')}`
+  const qty = readQtyShared(it)
+  const price = readPriceShared(it)
+  const ct = Number(it?.costTotal || 0)
+  const nameKey = normalizeForNameMatch(it?.name || it?.nome || `__idx_${idx}__`)
+  return `nf:${nameKey}|${qty}|${price.toFixed(4)}|${ct.toFixed(4)}`
+}
+
+function dedupeOrderItems(prodsRaw: any[], svcsRaw: any[]): any[] {
+  const prods = Array.isArray(prodsRaw) ? prodsRaw : []
+  const svcs = Array.isArray(svcsRaw) ? svcsRaw : []
+
+  // 🚨 CAMADA 1 — MESMA REFERÊNCIA (bug clássico do ponteiro duplicado)
+  if (svcs.length > 0 && prods.length > 0 && svcs === prods) {
+    return Array.from(new Set(prods))
+  }
+
+  const concat = [...prods, ...svcs]
+  if (concat.length === 0) return []
+
+  // CAMADA 2 — Remove itens com mesmo objeto JS (ref duplicada)
+  const deRefLayer = Array.from(new Set(concat))
+
+  // CAMADA 3 — Remove duplicatas funcionais (mesmo item em arrays diferentes)
+  const seen = new Set<string>()
+  const out: any[] = []
+  for (let i = 0; i < deRefLayer.length; i++) {
+    const it = deRefLayer[i]
+    const fp = buildUniqueItemFingerprint(it, i)
+    if (seen.has(fp)) continue
+    seen.add(fp)
+    out.push(it)
+  }
+  return out
+}
+
 type StatisticsPageProps = {
   storeId?: string
   user?: any
@@ -288,9 +410,12 @@ function extractCostDeep(o: any, depth = 0): number {
   const direct = extractCost(o)
   if (direct > 0) return direct
   if (!o || typeof o !== 'object') return 0
+  // 🔒 ANTI-INFLAÇÃO: NÃO percorrer fields de PREÇO / venda / valor total
+  // (antes tinha 'price','prices','precificacao','pricing' aqui e pegava
+  //  salePrice do produto como se fosse custo → bug custo = 2×Vendas)
   const candidateFields = [
-    'precificacao','precificacoes','especificacao','especificacoes','variacao','variacoes',
-    'variation','variations','pricing','price','prices','custos','custoInfo','custoDetalhe',
+    'precificacoes','especificacao','especificacoes','variacao','variacoes',
+    'variation','variations','custos','custoInfo','custoDetalhe',
     'detalhes','info','dados','attributes','attrs','meta','metadata','props','properties',
     'spec','specs','data','produto','product','item','compra','compraInfo','fornecedor','supplier'
   ]
@@ -322,50 +447,9 @@ function calcItemsRealCost(items: any[] | null | undefined, productsLookup?: any
   const list = Array.isArray(items) ? items : []
   if (list.length === 0) return { totalCost: 0 }
   let totalCost = 0
-  const QTY_KEYS = [
-    'quantity', 'quantidade', 'qty', 'amount', 'qtd',
-    'qtde', 'quant', 'count', 'units', 'unit'
-  ]
-  const readQty = (o: any): number => {
-    if (!o || typeof o !== 'object') return 1
-    for (const k of QTY_KEYS) {
-      const v = (o as any)[k]
-      if (v === null || v === undefined || v === '') continue
-      const n = Number(v)
-      if (Number.isFinite(n)) return Math.max(0, n)
-    }
-    return 1
-  }
-
-  const readPrice = (o: any): number => {
-    if (!o || typeof o !== 'object') return 0
-    const candidates = [o.price, o.unitPrice, o.salePrice, o.valor, o.value, o.total, o.vlr, o.preco]
-    for (const c of candidates) {
-      const n = Number(c)
-      if (Number.isFinite(n) && n > 0) return n
-    }
-    return 0
-  }
 
   // Monta mapa de produtos UMA VEZ (se recebemos a lista para lookup E a flag permitir fallback)
-  const productMap: Map<string, any> | null = (ENABLE_FALLBACK_FROM_CURRENT_PRODUCTS && Array.isArray(productsLookup) && productsLookup.length > 0)
-    ? new Map(productsLookup.map((p: any) => {
-        const ids: string[] = []
-        if (p && (p.id != null) && hasProductIdFormat(p.id)) ids.push(String(p.id))
-        if (p && (p.originalId != null) && hasProductIdFormat(p.originalId)) ids.push(String(p.originalId))
-        return ids.map(id => [id, p] as const)
-      }).flat())
-    : null
-
-  const findRealProduct = (it: any): any | null => {
-    if (!productMap) return null
-    const ids = [it.id, it.originalId].filter(x => x != null && hasProductIdFormat(x)).map(x => String(x))
-    for (const id of ids) {
-      const found = productMap.get(id)
-      if (found) return found
-    }
-    return null
-  }
+  const productMap: Map<string, any> | null = buildProductLookup(productsLookup, ENABLE_FALLBACK_FROM_CURRENT_PRODUCTS)
 
   const periodCap = typeof salesTotalForPeriod === 'number' && salesTotalForPeriod > 0
     ? salesTotalForPeriod * MAX_SALES_MULTIPLIER_PERIOD_CAP
@@ -373,26 +457,35 @@ function calcItemsRealCost(items: any[] | null | undefined, productsLookup?: any
 
   for (const raw of list) {
     const it = raw || {}
+    const ip = readPriceShared(it)
+    const qty = readQtyShared(it)
+    const itemTotalValue = Math.max(0, ip * qty, Number(it?.total || it?.valor || 0))
+    const isExplCost = hasExplicitCostSaved(it) || (Number(it?.costTotal || 0) > 0)
+    // 🔒 CAP por item (heurístico só): max 99.99% do valor do item
+    const perItemCap = isExplCost ? Infinity : Math.max(0.01, itemTotalValue * 0.9999)
+
     const costTotalSaved = Number(it.costTotal || 0)
     if (costTotalSaved > 0) {
-      totalCost += costTotalSaved
-      if (periodCap != null && totalCost > periodCap) return { totalCost: periodCap }
-      continue
-    }
-
-    const qty = readQty(it)
-    const unitCost = extractCostDeep(it, 2)
-    const itemPrice = readPrice(it)
-    const itemValue = itemPrice * qty || 0
-
-    if (qty > 0 && unitCost > 0) {
-      const add = Math.min(MAX_COST_PER_ITEM_FALLBACK, unitCost * qty)
+      const add = isExplCost ? costTotalSaved : Math.min(costTotalSaved, perItemCap)
       totalCost += add
       if (periodCap != null && totalCost > periodCap) return { totalCost: periodCap }
       continue
     }
 
-    // Item tem custo salvo EXPLICITAMENTE (mesmo que 0)? → NÃO PEGA FALLBACK
+    const unitRaw = extractCostDeep(it, 2)
+    const unitBase = isExplCost
+      ? unitRaw
+      : (unitRaw > 0 ? Math.min(unitRaw, Math.max(0, ip * 0.9999)) : 0)
+    const itemValue = ip * qty || 0
+
+    if (qty > 0 && unitBase > 0) {
+      const add = Math.min(perItemCap, Math.min(MAX_COST_PER_ITEM_FALLBACK, unitBase * qty))
+      totalCost += add
+      if (periodCap != null && totalCost > periodCap) return { totalCost: periodCap }
+      continue
+    }
+
+    // Item tem custo salvo EXPLÍCITO (mesmo que 0)? → NÃO PEGA FALLBACK
     if (hasExplicitCostSaved(it)) continue
 
     // Item é SERVIÇO (não produto físico)? → NÃO PEGA FALLBACK
@@ -405,27 +498,27 @@ function calcItemsRealCost(items: any[] | null | undefined, productsLookup?: any
     if (qty <= 0 || !productMap) continue
     if (!hasProductShape(it)) continue
 
-    const realProduct = findRealProduct(it)
+    const realProduct = findRealProductInLookup(productMap, it)
     if (!realProduct) continue
 
     const nameMatch = hasProductNameMatch(it.name || it.nome, realProduct.name)
     if (!nameMatch) continue
 
-    let unit = 0
+    let fallbackUnit = 0
     const variationName = String(it.variationName || it.variation || it.variacao || '').trim()
     if (variationName && Array.isArray(realProduct.variationsData)) {
       const v = realProduct.variationsData.find((v: any) => String(v?.name || v?.label || '').trim() === variationName)
       const vCost = v ? extractCostDeep(v, 2) : 0
-      if (vCost > 0) unit = vCost
+      if (vCost > 0) fallbackUnit = vCost
     }
-    if (!(unit > 0)) {
+    if (!(fallbackUnit > 0)) {
       const pCost = extractCostDeep(realProduct, 2)
-      if (pCost > 0) unit = pCost
+      if (pCost > 0) fallbackUnit = pCost
     }
-    if (!(unit > 0)) continue
+    if (!(fallbackUnit > 0)) continue
 
-    if (unit > MAX_COST_PER_ITEM_FALLBACK) continue
-    const fallbackCost = unit * qty
+    if (fallbackUnit > MAX_COST_PER_ITEM_FALLBACK) continue
+    const fallbackCost = fallbackUnit * qty
     const maxAllowed = Math.max(itemValue * 5, itemValue + 500, 20)
     if (fallbackCost > maxAllowed) continue
 
@@ -955,49 +1048,9 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
 
     // ==========================================================================
     // 🔒 MAPA DE PRODUTOS SÓ É CRIADO SE A FLAG PERMITIR FALLBACK!
-    //
-    // COMO ENABLE_FALLBACK_FROM_CURRENT_PRODUCTS = false (padrão agora),
     // productMap SEMPRE É NULL AQUI. Fallback NUNCA roda → NÃO HÁ MAIS BUG 2k→88k.
     // ==========================================================================
-    const productMap: Map<string, any> | null = (ENABLE_FALLBACK_FROM_CURRENT_PRODUCTS && Array.isArray(products) && products.length > 0)
-      ? new Map(products.map((p: any) => {
-          const ids: string[] = []
-          if (p && (p.id != null) && hasProductIdFormat(p.id)) ids.push(String(p.id))
-          if (p && (p.originalId != null) && hasProductIdFormat(p.originalId)) ids.push(String(p.originalId))
-          return ids.map(id => [id, p] as const)
-        }).flat())
-      : null
-
-    const findRealProduct = (it: any): any | null => {
-      if (!productMap) return null
-      const ids = [it.id, it.originalId].filter(x => x != null && hasProductIdFormat(x)).map(x => String(x))
-      for (const id of ids) {
-        const found = productMap.get(id)
-        if (found) return found
-      }
-      return null
-    }
-
-    const QTY_KEYS = ['quantity', 'quantidade', 'qty', 'amount', 'qtd', 'qtde', 'quant', 'count', 'units', 'unit']
-    const readQty = (o: any): number => {
-      if (!o || typeof o !== 'object') return 1
-      for (const k of QTY_KEYS) {
-        const v = (o as any)[k]
-        if (v === null || v === undefined || v === '') continue
-        const n = Number(v)
-        if (Number.isFinite(n)) return Math.max(0, n)
-      }
-      return 1
-    }
-    const readPrice = (o: any): number => {
-      if (!o || typeof o !== 'object') return 0
-      const cands = [o.price, o.unitPrice, o.salePrice, o.valor, o.value, o.total, o.vlr, o.preco]
-      for (const c of cands) {
-        const n = Number(c)
-        if (Number.isFinite(n) && n > 0) return n
-      }
-      return 0
-    }
+    const productMap: Map<string, any> | null = buildProductLookup(products, ENABLE_FALLBACK_FROM_CURRENT_PRODUCTS)
 
     let globalCostAccumulator = 0
     for (let i = 0; i < all.length; i++) {
@@ -1006,19 +1059,41 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
       if (map.has(o.id)) continue
       const prods = Array.isArray(o.products) ? o.products : []
       const svcs = Array.isArray(o.services) ? o.services : []
-      const items = [...prods, ...svcs]
+      // 🔒 3 camadas de dedupe: evita `custos = 2× vendas` quando services === products (mesma ref)
+      const items = dedupeOrderItems(prods, svcs)
       if (items.length === 0) { map.set(o.id, 0); continue }
 
       let sum = 0
       for (let j = 0; j < items.length; j++) {
         const it = items[j] || {}
         const ct = Number(it?.costTotal || 0)
-        if (ct > 0) { sum += ct; continue }
+        const ip = readPriceShared(it)
+        const qty = readQtyShared(it)
+        // Valor TOTAL do item na venda (preço × qtd)
+        const itemTotalValue = Math.max(0, ip * qty, Number(it?.total || it?.valor || 0))
+        // 🔒 CAP POR ITEM: custo TOTAL nunca pode ser > valor total do item
+        // (senao lucro fica negativo por erro de extracao de campo price=custo).
+        // Excecao: se custo foi salvo EXPLICITAMENTE (it.costTotal > 0 e e usuario
+        // salvou de verdade, ai mantem mesmo que maior — porque pode ser uma promocao / prejuizo
+        // intencional). Aqui o CAP so aplica se o custo veio de extracao heuristica.
+        const isExplCost = hasExplicitCostSaved(it) || (ct > 0)
+        const perItemCap = (() => {
+          if (isExplCost) return Infinity
+          const pc = Math.max(0.01, itemTotalValue * 0.9999)
+          return pc
+        })()
 
-        const unit = (Number(it?.cost || 0) || Number(it?.unitCost || 0) || Number(it?.purchasePrice || 0) || Number(it?.precoCusto || 0) || Number(it?.custo || 0) || extractCostDeep(it, 2))
-        const qty = readQty(it)
+        if (ct > 0) {
+          sum += Math.min(ct, isExplCost ? Infinity : Math.max(ct, Math.min(itemTotalValue, itemTotalValue)))
+          continue
+        }
+
+        const unitRaw = (Number(it?.cost || 0) || Number(it?.unitCost || 0) || Number(it?.purchasePrice || 0) || Number(it?.precoCusto || 0) || Number(it?.custo || 0) || extractCostDeep(it, 2))
+        const unit = isExplCost ? unitRaw : (unitRaw > 0 ? Math.min(unitRaw, Math.max(0, ip * 0.9999)) : 0)
         if (unit > 0 && qty > 0) {
-          sum += Math.min(MAX_COST_PER_ITEM_FALLBACK, unit * qty)
+          const rawAdd = unit * qty
+          const capped = Math.min(MAX_COST_PER_ITEM_FALLBACK, rawAdd)
+          sum += Math.min(perItemCap, capped)
           continue
         }
 
@@ -1036,7 +1111,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
         if (qty <= 0 || !productMap) continue
         if (!hasProductShape(it)) continue
 
-        const realProduct = findRealProduct(it)
+        const realProduct = findRealProductInLookup(productMap, it)
         if (!realProduct) continue
 
         const nameMatch = hasProductNameMatch(it.name || it.nome, realProduct.name)
@@ -1057,7 +1132,6 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
         if (u > MAX_COST_PER_ITEM_FALLBACK) continue
 
         const fallbackCost = u * qty
-        const ip = readPrice(it)
         const iv = ip * qty
         const maxAllowed = Math.max(iv * 5, iv + 500, 20)
         if (fallbackCost > maxAllowed) continue
@@ -1091,7 +1165,8 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
     // Caso extremo raro (venda ainda não está no map): calcula SEM fallback
     const prods = Array.isArray(o.products) ? o.products : []
     const svcs = Array.isArray(o.services) ? o.services : []
-    const items = [...prods, ...svcs]
+    // 🔒 dedupe idêntico ao map principal (evita custos 2x também aqui)
+    const items = dedupeOrderItems(prods, svcs)
     return calcItemsRealCost(items, undefined).totalCost
   }
 

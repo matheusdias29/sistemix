@@ -28,31 +28,67 @@ export default function StockMovementsModal({ open, onClose, product }) {
   const getReasonLabel = (mov) => {
     const r = String(mov.reason || '').toLowerCase()
     const ref = String(mov.referenceNumber || '').trim()
+    const desc = String(mov.description || '').trim()
 
     const normalizeNum = (s) => String(s || '').replace(/\D/g, '')
     const pad = (n) => String(n || '0').padStart(4, '0')
 
+    // ================================================================
+    // 1) PRIORIDADE ALTA: Detectar explicitamente se refere a OS ou PV
+    //    (olha referenceNumber E description, em qualquer reason)
+    // ================================================================
     const osMatch = ref.match(/(OS|O\.S|o\.s|ordem)[^\d]*(\d+)/i)
+    const pvMatch = ref.match(/(PV|P\.V|pv|venda)[^\d]*(\d+)/i)
+    const osDescMatch = /(OS|O\.S|Ordem de Serviço|Ordem de Servico|Ordem)/i.test(desc)
+    const pvDescMatch = /(PV|P\.V|Venda|Pedido de Venda)/i.test(desc)
+
     const digits = normalizeNum(ref)
 
-    const isOSLike = r === 'service_order' || r === 'cancel'
-      ? (osMatch || /(os|o\.s|ordem)/i.test(ref) || (mov.description && /OS|Ordem/.test(mov.description)))
-      : (osMatch || /(os|o\.s|ordem)/i.test(ref))
+    const isOS = !!(osMatch || osDescMatch)
+    const isPV = !!(pvMatch || pvDescMatch)
 
-    const isSaleLike = r === 'sale' || (!isOSLike && /(pv|venda)/i.test(ref))
-      || (mov.description && /(venda|PV)/i.test(mov.description))
-
-    if (ref && (isOSLike || (r === 'cancel' && mov.description && /OS|Ordem/.test(mov.description)))) {
-      const n = pad(osMatch ? osMatch[2] : digits)
-      if (r === 'cancel') return `Cancelamento/Estorno O.S.${n}`
-      return `O.S.${n}`
+    // CASO ESPECIAL: reason === 'cancel' (estorno) → decidir OS vs PV antes
+    if (r === 'cancel') {
+      // Prioriza o que foi explicitamente detectado
+      if (isOS && !isPV) {
+        const n = pad(osMatch ? osMatch[2] : digits)
+        return `Cancelamento/Estorno O.S.${n}`
+      }
+      if (isPV && !isOS) {
+        const n = pad(pvMatch ? pvMatch[2] : digits)
+        return `Cancelamento/Estorno P.V.${n}`
+      }
+      // Ambos detectados ou nenhum → usa conteúdo de referenceNumber primeiro
+      if (ref) {
+        const lref = ref.toLowerCase()
+        if (lref.includes('os') || lref.includes('o.s') || lref.includes('ordem')) {
+          return `Cancelamento/Estorno O.S.${pad(osMatch ? osMatch[2] : digits)}`
+        }
+        if (lref.includes('pv') || lref.includes('p.v') || lref.includes('venda')) {
+          return `Cancelamento/Estorno P.V.${pad(pvMatch ? pvMatch[2] : digits)}`
+        }
+      }
+      // Nada detectado → usar description ou fallback genérico
+      if (digits) {
+        if (isOS) return `Cancelamento/Estorno O.S.${pad(digits)}`
+        if (isPV) return `Cancelamento/Estorno P.V.${pad(digits)}`
+        return `Cancelamento/Estorno ${pad(digits)}`
+      }
+      return desc ? desc.slice(0, 40) : 'Cancelamento/Estorno'
     }
 
-    if (ref && (isSaleLike || (r === 'adjustment' && /PV|venda/i.test(mov.description || '')))) {
-      const pvMatch = ref.match(/(PV|P\.V|pv)[^\d]*(\d+)/i)
-      const n = pad(pvMatch ? pvMatch[2] : digits)
-      if (r === 'cancel') return `Cancelamento/Estorno P.V.${n}`
-      return `P.V.${n}`
+    // ================================================================
+    // 2) Demais reasons (sale / service_order / adjustment etc)
+    // ================================================================
+    if (ref || isOS || isPV) {
+      if (isOS) {
+        const n = pad(osMatch ? osMatch[2] : digits)
+        return `O.S.${n}`
+      }
+      if (isPV || r === 'sale' || (r === 'adjustment' && /PV|venda/i.test(desc))) {
+        const n = pad(pvMatch ? pvMatch[2] : digits)
+        return `P.V.${n}`
+      }
     }
 
     const map = {
@@ -65,7 +101,7 @@ export default function StockMovementsModal({ open, onClose, product }) {
     }
 
     if (r === 'adjustment') {
-      if (mov.description) return String(mov.description).slice(0, 40)
+      if (desc) return desc.slice(0, 40)
       return 'Ajuste do Sistema'
     }
 

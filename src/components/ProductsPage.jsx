@@ -769,6 +769,18 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [reportOpen, setReportOpen] = useState(false)
   const [reportFormat, setReportFormat] = useState('A4')
   const reportContentRef = useRef(null)
+
+  const initialReportFilters = {
+    status: 'all',     // 'all' | 'active' | 'inactive'
+    categoryId: null,  // id categoria | null = todas
+    supplier: null,    // nome fornecedor | null = todos
+    stock: 'all',      // 'all' | 'with' | 'none'
+    promo: 'all',      // 'all' | 'yes' | 'no'
+    search: '',        // texto busca por nome/ref
+  }
+  const [reportFilters, setReportFilters] = useState(initialReportFilters)
+  const setRf = (patch) => setReportFilters(prev => ({ ...prev, ...patch }))
+  const resetReportFilters = () => setReportFilters(initialReportFilters)
   const [pricingConfig, setPricingConfig] = useState({ groups: [] })
   const [activePricingGroupIdx, setActivePricingGroupIdx] = useState(0)
   const [bulkCategory, setBulkCategory] = useState(null)
@@ -791,6 +803,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
 
   const openReport = async () => {
     setOptionsOpen(false)
+    resetReportFilters()
     setReportOpen(true)
     if (!storeId) return
     if (cachedProducts || isCaching) return
@@ -812,10 +825,51 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
     return out
   }, [categories])
 
+  const uniqueSuppliers = useMemo(() => {
+    const s = new Set()
+    ;(cachedProducts || []).forEach(p => {
+      const v = String(p?.supplier || '').trim()
+      if (v) s.add(v)
+    })
+    return [...s].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [cachedProducts])
+
   const reportProducts = useMemo(() => {
     const list = (cachedProducts && cachedProducts.length) ? cachedProducts : []
-    return [...list].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'))
-  }, [cachedProducts])
+    const { status, categoryId, supplier, stock, promo, search } = reportFilters
+    const q = String(search || '').trim().toLowerCase()
+    const filtered = list.filter(p => {
+      // 1) Status
+      const isActive = p?.active !== false
+      if (status === 'active' && !isActive) return false
+      if (status === 'inactive' && isActive) return false
+      // 2) Categoria
+      if (categoryId && p?.categoryId !== categoryId) return false
+      // 3) Fornecedor
+      if (supplier && String(p?.supplier || '').trim() !== supplier) return false
+      // 4) Estoque
+      const stk = Number(p?.stock || 0)
+      if (stock === 'with' && !(stk > 0)) return false
+      if (stock === 'none' && !(stk <= 0)) return false
+      // 5) Promoção
+      const hasPromo = p?.promoPrice != null && !isNaN(Number(p.promoPrice))
+      if (promo === 'yes' && !hasPromo) return false
+      if (promo === 'no' && hasPromo) return false
+      // 6) Busca por nome / referência / código / barras
+      if (q) {
+        const hay = [
+          p?.name,
+          p?.reference,
+          p?.code,
+          p?.barcode,
+          p?.id
+        ].map(x => String(x || '').toLowerCase()).join(' ')
+        if (!hay.includes(q)) return false
+      }
+      return true
+    })
+    return [...filtered].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'))
+  }, [cachedProducts, reportFilters])
 
   const reportSummary = useMemo(() => {
     const total = reportProducts.length
@@ -2675,6 +2729,161 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             </div>
 
             <div className="p-4 overflow-y-auto bg-gray-50 dark:bg-gray-900/30">
+              {/* Barra de Filtros do Relatório */}
+              <div className="mb-4 p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+                  <div className="text-sm font-semibold text-gray-800 dark:text-white flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="text-green-600 dark:text-green-400 shrink-0">
+                      <path d="M3 5h18M6 12h12M10 19h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    Filtros do Relatório
+                  </div>
+                  <button
+                    onClick={resetReportFilters}
+                    className="text-xs font-medium px-3 py-1.5 rounded border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shrink-0"
+                  >
+                    Limpar filtros
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {/* Busca */}
+                  <div className="lg:col-span-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Buscar produto
+                    </label>
+                    <input
+                      value={reportFilters.search}
+                      onChange={e => setRf({ search: e.target.value })}
+                      placeholder="Nome, referência, código, barras…"
+                      className="w-full text-sm border rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-green-500"
+                    />
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={reportFilters.status}
+                      onChange={e => setRf({ status: e.target.value })}
+                      className="w-full text-sm border rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="active">Somente Ativos</option>
+                      <option value="inactive">Somente Inativos</option>
+                    </select>
+                  </div>
+
+                  {/* Categoria */}
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Categoria
+                    </label>
+                    <select
+                      value={reportFilters.categoryId || ''}
+                      onChange={e => setRf({ categoryId: e.target.value || null })}
+                      className="w-full text-sm border rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="">Todas as categorias</option>
+                      {(categories || [])
+                        .filter(c => c?.id)
+                        .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''), 'pt-BR'))
+                        .map(c => (
+                          <option key={c.id} value={c.id}>{c.name || c.id}</option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Fornecedor */}
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Fornecedor
+                    </label>
+                    <select
+                      value={reportFilters.supplier || ''}
+                      onChange={e => setRf({ supplier: e.target.value || null })}
+                      className="w-full text-sm border rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="">Todos os fornecedores</option>
+                      {uniqueSuppliers.map(s => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Estoque */}
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Estoque
+                    </label>
+                    <select
+                      value={reportFilters.stock}
+                      onChange={e => setRf({ stock: e.target.value })}
+                      className="w-full text-sm border rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="with">Com estoque</option>
+                      <option value="none">Sem estoque</option>
+                    </select>
+                  </div>
+
+                  {/* Promoção */}
+                  <div>
+                    <label className="block text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
+                      Em promoção
+                    </label>
+                    <select
+                      value={reportFilters.promo}
+                      onChange={e => setRf({ promo: e.target.value })}
+                      className="w-full text-sm border rounded px-3 py-2 bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500"
+                    >
+                      <option value="all">Todos</option>
+                      <option value="yes">Somente com promoção</option>
+                      <option value="no">Sem promoção</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Resumo filtros ativos */}
+                {(reportFilters.status !== 'all' || reportFilters.categoryId || reportFilters.supplier || reportFilters.stock !== 'all' || reportFilters.promo !== 'all' || reportFilters.search.trim()) && (
+                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex flex-wrap gap-2 text-[11px]">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium shrink-0">Filtros ativos:</span>
+                    {reportFilters.search.trim() && (
+                      <span className="px-2 py-1 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-medium">
+                        Busca: "{reportFilters.search}"
+                      </span>
+                    )}
+                    {reportFilters.status !== 'all' && (
+                      <span className="px-2 py-1 rounded bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 font-medium">
+                        {reportFilters.status === 'active' ? 'Apenas ativos' : 'Apenas inativos'}
+                      </span>
+                    )}
+                    {reportFilters.categoryId && (
+                      <span className="px-2 py-1 rounded bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 font-medium">
+                        Categoria: {categoriesById[reportFilters.categoryId] || reportFilters.categoryId}
+                      </span>
+                    )}
+                    {reportFilters.supplier && (
+                      <span className="px-2 py-1 rounded bg-yellow-50 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 font-medium">
+                        Fornecedor: {reportFilters.supplier}
+                      </span>
+                    )}
+                    {reportFilters.stock !== 'all' && (
+                      <span className="px-2 py-1 rounded bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 font-medium">
+                        {reportFilters.stock === 'with' ? 'Com estoque' : 'Sem estoque'}
+                      </span>
+                    )}
+                    {reportFilters.promo !== 'all' && (
+                      <span className="px-2 py-1 rounded bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 font-medium">
+                        {reportFilters.promo === 'yes' ? 'Em promoção' : 'Sem promoção'}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div ref={reportContentRef} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
                 <h1 className="text-xl font-bold text-gray-900 dark:text-white">Relatório de Produtos</h1>
                 <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">

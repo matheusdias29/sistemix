@@ -44,16 +44,30 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
 
   const birthDayBoys = useMemo(() => {
     const currentMonth = today.getMonth() // 0-11
-    return teamMembers.filter(m => {
-      if (!m.birthDate) return false
-      const [year, month, day] = m.birthDate.split('-').map(Number)
-      return (month - 1) === currentMonth
+    return clients.filter(c => {
+      if (!c.birthDate) return false
+      // Aceita 2 formatos: (a) YYYY-MM-DD (padrão ISO / campo Firestore) OU (b) DD/MM/YYYY (digitado manualmente)
+      let monthNum = null
+      const s = String(c.birthDate || '').trim()
+      if (s.includes('-')) {
+        const [year, month, day] = s.split('-').map(Number)
+        monthNum = month - 1
+      } else if (s.includes('/')) {
+        const [day, month, year] = s.split('/').map(Number)
+        monthNum = month - 1
+      }
+      return monthNum === currentMonth
     }).sort((a, b) => {
-      const dayA = Number(a.birthDate.split('-')[2])
-      const dayB = Number(b.birthDate.split('-')[2])
-      return dayA - dayB
+      // Extrai dia do birthDate para ordenação
+      const getDay = (x) => {
+        const s = String(x.birthDate || '').trim()
+        if (s.includes('-')) return Number(s.split('-')[2])
+        if (s.includes('/')) return Number(s.split('/')[0])
+        return 31
+      }
+      return getDay(a) - getDay(b)
     })
-  }, [teamMembers, today])
+  }, [clients, today])
 
   useEffect(() => {
     const unsub = listenOrders(items => setOrders(items), storeId)
@@ -941,12 +955,22 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
 
         {birthDayBoys.length === 0 ? (
           <div className="text-center py-6 text-gray-500 dark:text-gray-400 text-sm">
-            Nenhum membro da equipe faz aniversário este mês.
+            Nenhum cliente faz aniversário este mês.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {birthDayBoys.map((m, i) => {
-              const [y, month, day] = m.birthDate.split('-')
+              // Extrai dia/mês com suporte a YYYY-MM-DD e DD/MM/YYYY
+              const s = String(m.birthDate || '').trim()
+              let day = '01'
+              let month = '01'
+              if (s.includes('-')) {
+                const [y, mm, dd] = s.split('-')
+                day = dd; month = mm
+              } else if (s.includes('/')) {
+                const [dd, mm, y] = s.split('/')
+                day = dd; month = mm
+              }
               const isToday = today.getDate() === Number(day) && today.getMonth() === (Number(month) - 1)
               
               return (

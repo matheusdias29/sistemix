@@ -4,7 +4,10 @@ import { listenCategories } from '../services/categories'
 import { listenStore } from '../services/stores'
 import { Search, Menu, ShoppingBag, Phone, MapPin, Grid, List, ChevronRight, ShoppingCart, MessageCircle } from 'lucide-react'
 import logoWhite from '../assets/logofundobranco.png'
-import { getStockState } from '../lib/datacache'
+import { getStockState, storageGet, storageSet } from '../lib/datacache'
+
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hora de TTL
+const CACHE_KEY_PREFIX = 'sistemix:catalog:v1'
 
 export default function PublicCatalogPage({ storeId, store, loading }) {
   const [products, setProducts] = useState([])
@@ -21,9 +24,13 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   const [productModalOpen, setProductModalOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [copiedLink, setCopiedLink] = useState(false)
+  const [isProductsLoading, setIsProductsLoading] = useState(true)
+  const [areCategoriesLoading, setAreCategoriesLoading] = useState(true)
+  const usedCachedSnapshotRef = useRef(false)
 
   const outOfStockSetting = storeData?.catalogOutOfStock || 'show'
   const banners = Array.isArray(storeData?.catalogBanners) ? storeData.catalogBanners.filter(b => !!b?.url) : []
+  const isAnythingLoading = loading || isProductsLoading
 
   useEffect(() => {
     setStoreData(store)
@@ -36,13 +43,119 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
 
   useEffect(() => {
     if (!storeId) return
-    const unsubProd = listenCatalogProducts(items => setProducts(items), storeId)
-    const unsubCat = listenCategories(items => setCategoriesData(items), storeId)
-    const unsubStore = listenStore(storeId, (s) => setStoreData(s))
-    return () => { 
-      unsubProd && unsubProd()
-      unsubCat && unsubCat()
-      unsubStore && unsubStore()
+    usedCachedSnapshotRef.current = false
+    const CACHE_KEY_PROD = `${CACHE_KEY_PREFIX}:u0:s${storeId}:products`
+    const CACHE_KEY_CAT = `${CACHE_KEY_PREFIX}:u0:s${storeId}:categories`
+
+    // 🚀 PASSO 1 (INSTANTÂNEO): Carregar CACHE do LocalStorage primeiro.
+    // Isso evita a tela "0 produtos encontrados" que assusta os clientes.
+    // IMPORTANTE: rodar em microtask separada (setTimeout) para NÃO travar a
+    // subscrição do Firestore (async storageGet pode atrasar o on() inicial).
+    const loadCacheTimer = setTimeout(() => {
+      (async () => {
+        try {
+          const [cachedProdRaw, cachedCatRaw] = await Promise.all([
+            storageGet(CACHE_KEY_PROD),
+            storageGet(CACHE_KEY_CAT)
+          ])
+          const now = Date.now()
+          if (cachedProdRaw && cachedProdRaw.data && Array.isArray(cachedProdRaw.data) && cachedProdRaw.data.length > 0) {
+            const stale = !cachedProdRaw.savedAt || (now - cachedProdRaw.savedAt > CACHE_TTL_MS)
+            const offline = typeof window !== 'undefined' && window.navigator && window.navigator.onLine === false
+            if (!stale || offline) {
+              setProducts(cachedProdRaw.data)
+              setIsProductsLoading(false)
+            }
+          }
+          if (cachedCatRaw && cachedCatRaw.data && Array.isArray(cachedCatRaw.data) && cachedCatRaw.data.length > 0) {
+            const stale = !cachedCatRaw.savedAt || (now - cachedCatRaw.savedAt > CACHE_TTL_MS)
+            const offline = typeof window !== 'undefined' && window.navigator && window.navigator.onLine === false
+            if (!stale || offline) {
+              setCategoriesData(cachedCatRaw.data)
+              setAreCategoriesLoading(false)
+            }
+          }
+          usedCachedSnapshotRef.current = true
+        } catch (e) {
+          // Não é fatal: continuar com carregamento Firestore normal
+          console.warn('[catalog-cache] Erro cache read (non-fatal):', e?.message || e)
+        }
+      })()
+    }, 0)
+
+    // PASSO 2 (REAL TIME): Buscar dados do Firestore.
+    // O onSnapshot do Firestore chama o callback PRIMEIRO com os dados,
+    // NÃO bloqueia, e então nas próximas vezes se houver mudanças.
+    let prodFirstShot = false
+    let catFirstShot = false
+    let unsubProd
+    let unsubCat
+    let unsubStore
+
+    try {
+      unsubProd = listenCatalogProducts(items => {
+        const arr = Array.isArray(items) ? items : []
+        prodFirstShot = true
+        setProducts(arr)
+        // 🛟 Forçar desligar o loading IMEDIATAMENTE no primeiro disparo.
+        setIsProductsLoading(false)
+        // Persistir cache em background (NÃO esperar, não bloquear).
+        setTimeout(() => {
+          const payload = { savedAt: Date.now(), totalCount: arr.length, data: arr }
+          storageSet(CACHE_KEY_PROD, payload).catch(() => {})
+        }, 0)
+      }, storeId)
+    } catch (e) {
+      console.error('[catalog] listenCatalogProducts falhou:', e)
+      setIsProductsLoading(false)
+    }
+
+    try {
+      unsubCat = listenCategories(items => {
+        const arr = Array.isArray(items) ? items : []
+        catFirstShot = true
+        setCategoriesData(arr)
+        setAreCategoriesLoading(false)
+        setTimeout(() => {
+          const payload = { savedAt: Date.now(), totalCount: arr.length, data: arr }
+          storageSet(CACHE_KEY_CAT, payload).catch(() => {})
+        }, 0)
+      }, storeId)
+    } catch (e) {
+      console.error('[catalog] listenCategories falhou:', e)
+      setAreCategoriesLoading(false)
+    }
+
+    try {
+      unsubStore = listenStore(storeId, (s) => setStoreData(s))
+    } catch (e) {
+      console.error('[catalog] listenStore falhou:', e)
+    }
+
+    // 🚨 TIMEOUT DE SEGURANÇA MÁXIMO (4 segundos):
+    // Se o Firebase NÃO responder até 4s, desligar os skeleton de qualquer jeito.
+    // Isso impede o catálogo de ficar parado infinitamente em loading caso exista
+    // bloqueio de rede/extensão/erro security rules do Firestore.
+    const forceTimers = []
+    forceTimers.push(setTimeout(() => {
+      if (!prodFirstShot) {
+        setIsProductsLoading(false)
+        console.warn('[catalog] FORCE-OFF loading produtos (4s timeout) — Firestore nao respondeu')
+      }
+    }, 4000))
+    forceTimers.push(setTimeout(() => {
+      if (!catFirstShot) {
+        setAreCategoriesLoading(false)
+        console.warn('[catalog] FORCE-OFF loading categorias (4s timeout) — Firestore nao respondeu')
+      }
+    }, 4000))
+
+    return () => {
+      clearTimeout(loadCacheTimer)
+      forceTimers.forEach(clearTimeout)
+      try { unsubProd && unsubProd() } catch (e) {}
+      try { unsubCat && unsubCat() } catch (e) {}
+      try { unsubStore && unsubStore() } catch (e) {}
     }
   }, [storeId])
 
@@ -165,13 +278,18 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
         .map(p => p.categoryName)
         .filter(Boolean)
     )
-    return ['Todos', ...Array.from(cats).sort()]
-  }, [productsWithCategory])
+    const list = ['Todos', ...Array.from(cats).sort()]
+    if (areCategoriesLoading && list.length <= 1) {
+      // Não mostra nada além de "Todos" enquanto categorias carregam, evita UI vazia
+      return list
+    }
+    return list
+  }, [productsWithCategory, areCategoriesLoading])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     let list = productsWithCategory.filter(p => (p.active !== false) && p.showInCatalog === true)
-    
+
     if (selectedCategory !== 'Todos') {
       list = list.filter(p => p.categoryName === selectedCategory)
     }
@@ -186,11 +304,11 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
         const ref = String(p.reference || '').toLowerCase()
         const code = String(p.code || '').toLowerCase()
         const barcode = String(p.barcode || '').toLowerCase()
-        
+
         return name.includes(q) || ref.includes(q) || code.includes(q) || barcode.includes(q)
       })
     }
-    
+
     // Ordenar por destaque primeiro
     list.sort((a, b) => {
       if (!!a.featured && !b.featured) return -1
@@ -207,6 +325,8 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
   }, [filtered, currentPage, ITEMS_PER_PAGE])
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1
+  const hasCacheOrProducts = paginatedResults.length > 0
+  const showSkeleton = isAnythingLoading && !hasCacheOrProducts
 
   if (loading) {
     return (
@@ -396,17 +516,47 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
              <div>
                <h2 className="text-2xl font-bold text-gray-900">{selectedCategory}</h2>
                <p className="text-sm text-gray-500 mt-1">
-                 {filtered.length} {filtered.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
-                 {totalPages > 1 && ` - Exibindo página ${currentPage} de ${totalPages}`}
+                 {showSkeleton ? (
+                   <span className="inline-flex items-center gap-2">
+                     <span className="inline-block w-40 h-4 bg-gray-100 dark:bg-gray-200 rounded-full animate-pulse"></span>
+                   </span>
+                 ) : (
+                   <>
+                     {filtered.length} {filtered.length === 1 ? 'produto encontrado' : 'produtos encontrados'}
+                     {totalPages > 1 && ` - Exibindo página ${currentPage} de ${totalPages}`}
+                   </>
+                 )}
                </p>
              </div>
           </div>
 
           {/* Product Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-            {paginatedResults.map(p => {
+            {showSkeleton && (
+              [...Array(ITEMS_PER_PAGE)].map((_, i) => (
+                <div key={`sk-${i}`} className="group bg-white rounded-xl shadow-sm flex flex-col overflow-hidden relative border border-gray-100 animate-pulse">
+                  <div className="aspect-square bg-gray-100 w-full"></div>
+                  <div className="p-3 sm:p-4 space-y-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="h-3 w-16 bg-gray-100 rounded"></div>
+                      <div className="h-5 w-24 bg-gray-100 rounded-md"></div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="h-3 w-full bg-gray-100 rounded"></div>
+                      <div className="h-3 w-3/4 bg-gray-100 rounded"></div>
+                    </div>
+                    <div className="pt-3 border-t border-dashed border-gray-100 space-y-2">
+                      <div className="h-3 w-16 bg-gray-100 rounded"></div>
+                      <div className="h-5 w-28 bg-gray-100 rounded"></div>
+                      <div className="h-10 w-full bg-gray-100 rounded-lg mt-2"></div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            {!showSkeleton && paginatedResults.map(p => {
               const variations = Array.isArray(p.variationsData) ? p.variationsData : []
-              
+
               // Pricing Logic
               const findVarPriceBySlot = (slot) => {
                 const slotRegex = new RegExp(`^${slot}\\s*-`)
@@ -631,7 +781,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
           )}
 
           {/* Pagination Controls */}
-          {totalPages > 1 && (
+          {totalPages > 1 && paginatedResults.length > 0 && !showSkeleton && (
             <div className="flex items-center justify-center gap-2 py-10">
               <button 
                 onClick={() => {
@@ -690,7 +840,9 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
             </div>
           )}
 
-          {filtered.length === 0 && (
+          {/* Empty State: SÓ MOSTRA se realmente carregou E TEM 0 produtos.
+               Enquanto carrega, ou se tem cache antigo, não aparece (mostra skeleton ou os dados do cache). */}
+          {!isAnythingLoading && !showSkeleton && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                 <Search className="text-gray-400" size={24} />
@@ -699,7 +851,7 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
               <p className="text-gray-500 max-w-sm mt-1">
                 Tente buscar por outro termo ou navegue por outras categorias.
               </p>
-              <button 
+              <button
                 onClick={() => { setQuery(''); setSelectedCategory('Todos'); }}
                 className="mt-4 text-green-600 font-medium hover:underline"
               >

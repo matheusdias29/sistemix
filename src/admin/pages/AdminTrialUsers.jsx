@@ -67,9 +67,10 @@ export default function AdminTrialUsers() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-800">Contas em Teste (7 dias)</h2>
+    <div className="p-3 sm:p-4 md:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Contas em Teste (7 dias)</h2>
+        <div className="text-sm text-gray-500">{trialUsers.length} {trialUsers.length === 1 ? 'usuário' : 'usuários'}</div>
       </div>
       {loading ? (
         <div className="text-gray-500">Carregando...</div>
@@ -79,21 +80,27 @@ export default function AdminTrialUsers() {
         <div className="space-y-3">
           {trialUsers.map(u => (
             <div key={u.id} className="bg-white p-4 rounded border border-gray-200 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium text-gray-800">{u.name || 'Sem nome'}</div>
-                  <div className="text-sm text-gray-500">{u.email}</div>
-                  <div className="text-xs text-gray-500">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="font-medium text-gray-800 truncate">{u.name || 'Sem nome'}</div>
+                  <div className="text-sm text-gray-500 truncate">{u.email}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
                     Expira: {formatDateTime(getTrialValidUntil(u.id))}
                   </div>
                 </div>
-                <div className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">Em teste</div>
+                <div className="shrink-0 self-start sm:self-center">
+                  <span className="text-xs px-2.5 py-1 rounded bg-blue-100 text-blue-700 font-medium">Em teste</span>
+                </div>
               </div>
-              <div className="mt-3">
-                <div className="text-xs font-semibold text-gray-600">Lojas</div>
-                <div className="mt-1 space-y-1">
-                  {getUserStores(u.id).map(s => (
-                    <div key={s.id} className="text-sm text-gray-700">• {s.name}</div>
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <div className="text-xs font-semibold text-gray-600 mb-1.5">
+                  Lojas ({getUserStores(u.id).length})
+                </div>
+                <div className="space-y-1">
+                  {getUserStores(u.id).length === 0 ? (
+                    <div className="text-xs text-gray-400">Nenhuma loja criada</div>
+                  ) : getUserStores(u.id).map(s => (
+                    <div key={s.id} className="text-sm text-gray-700 truncate">• {s.name}</div>
                   ))}
                 </div>
               </div>

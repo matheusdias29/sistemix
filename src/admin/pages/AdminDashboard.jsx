@@ -237,49 +237,49 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Dashboard</h2>
+      <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6 text-gray-800 dark:text-gray-100">Dashboard</h2>
 
       {/* Indicadores de Status de Usuários */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="relative overflow-hidden rounded-xl border border-green-100 bg-gradient-to-br from-green-50 to-white p-6 shadow-sm">
-          <div className="absolute -right-6 -top-6 w-28 h-28 bg-green-100 rounded-full opacity-60"></div>
-          <div className="flex items-center gap-4 relative">
-            <div className="p-3 bg-green-200 text-green-800 rounded-xl">
-              <UserCheck size={28} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 mb-6 sm:mb-8">
+        <div className="relative overflow-hidden rounded-xl border border-green-100 dark:border-green-900/50 bg-gradient-to-br from-green-50 to-white dark:from-green-950/40 dark:to-gray-900 p-4 sm:p-6 shadow-sm">
+          <div className="absolute -right-6 -top-6 w-20 sm:w-28 h-20 sm:h-28 bg-green-100 dark:bg-green-900/50 rounded-full opacity-60"></div>
+          <div className="flex items-center gap-3 sm:gap-4 relative">
+            <div className="p-2 sm:p-3 bg-green-200 dark:bg-green-800 text-green-800 dark:text-green-100 rounded-xl">
+              <UserCheck size={22} />
             </div>
             <div>
-              <div className="text-sm text-green-800 font-medium">Usuários Ativos</div>
-              <div className="text-4xl font-extrabold text-green-900 leading-none">
+              <div className="text-sm text-green-800 dark:text-green-200 font-medium">Usuários Ativos</div>
+              <div className="text-2xl sm:text-4xl font-extrabold text-green-900 dark:text-green-100 leading-none">
                 {users.filter(u => (u.status || (u.active === false ? 'cancelado' : 'ativo')) === 'ativo').length}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-xl border border-amber-100 bg-gradient-to-br from-amber-50 to-white p-6 shadow-sm">
-          <div className="absolute -right-6 -top-6 w-28 h-28 bg-amber-100 rounded-full opacity-60"></div>
-          <div className="flex items-center gap-4 relative">
-            <div className="p-3 bg-amber-200 text-amber-800 rounded-xl">
-              <Clock size={28} />
+        <div className="relative overflow-hidden rounded-xl border border-amber-100 dark:border-amber-900/50 bg-gradient-to-br from-amber-50 to-white dark:from-amber-950/40 dark:to-gray-900 p-4 sm:p-6 shadow-sm">
+          <div className="absolute -right-6 -top-6 w-20 sm:w-28 h-20 sm:h-28 bg-amber-100 dark:bg-amber-900/50 rounded-full opacity-60"></div>
+          <div className="flex items-center gap-3 sm:gap-4 relative">
+            <div className="p-2 sm:p-3 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-100 rounded-xl">
+              <Clock size={22} />
             </div>
             <div>
-              <div className="text-sm text-amber-800 font-medium">Usuários Pendentes</div>
-              <div className="text-4xl font-extrabold text-amber-900 leading-none">
+              <div className="text-sm text-amber-800 dark:text-amber-200 font-medium">Usuários Pendentes</div>
+              <div className="text-2xl sm:text-4xl font-extrabold text-amber-900 dark:text-amber-100 leading-none">
                 {users.filter(u => (u.status || (u.active === false ? 'cancelado' : 'ativo')) === 'em_atraso').length}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="relative overflow-hidden rounded-xl border border-red-100 bg-gradient-to-br from-red-50 to-white p-6 shadow-sm">
-          <div className="absolute -right-6 -top-6 w-28 h-28 bg-red-100 rounded-full opacity-60"></div>
-          <div className="flex items-center gap-4 relative">
-            <div className="p-3 bg-red-200 text-red-800 rounded-xl">
-              <Ban size={28} />
+        <div className="relative overflow-hidden rounded-xl border border-red-100 dark:border-red-900/50 bg-gradient-to-br from-red-50 to-white dark:from-red-950/40 dark:to-gray-900 p-4 sm:p-6 shadow-sm sm:col-span-2 md:col-span-1">
+          <div className="absolute -right-6 -top-6 w-20 sm:w-28 h-20 sm:h-28 bg-red-100 dark:bg-red-900/50 rounded-full opacity-60"></div>
+          <div className="flex items-center gap-3 sm:gap-4 relative">
+            <div className="p-2 sm:p-3 bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-100 rounded-xl">
+              <Ban size={22} />
             </div>
             <div>
-              <div className="text-sm text-red-800 font-medium">Usuários Cancelados</div>
-              <div className="text-4xl font-extrabold text-red-900 leading-none">
+              <div className="text-sm text-red-800 dark:text-red-200 font-medium">Usuários Cancelados</div>
+              <div className="text-2xl sm:text-4xl font-extrabold text-red-900 dark:text-red-100 leading-none">
                 {users.filter(u => (u.status || (u.active === false ? 'cancelado' : 'ativo')) === 'cancelado').length}
               </div>
             </div>
@@ -289,45 +289,91 @@ export default function AdminDashboard() {
 
       {/* (Resumo antigo removido conforme solicitação) */}
 
-      <h3 className="text-lg font-semibold mb-4 text-gray-700">Usuários e Lojas</h3>
+      <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-gray-700 dark:text-gray-200">Usuários e Lojas</h3>
 
-      <div className="bg-white rounded-lg shadow border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-gray-900 rounded-lg shadow border border-gray-100 dark:border-gray-800 overflow-hidden">
         {usersWithStores.map(user => {
           const statusInfo = getStatusInfo(user)
           const expiryInfo = getExpiryInfo(user)
+          const nStores = user.stores?.length || 0
           return (
-            <div key={user.id} className="border-b border-gray-100 last:border-0">
+            <div key={user.id} className="border-b border-gray-100 dark:border-gray-800 last:border-0">
               <div 
                 onClick={() => toggleExpand(user.id)}
-                className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 transition-colors relative"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-3 sm:p-4 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors relative"
               >
-                <div className="flex items-center gap-3">
-                  <button className="text-gray-400">
+                <div className="flex items-start gap-3 min-w-0 w-full">
+                  <button className="text-gray-400 shrink-0 mt-1">
                     {expandedUsers[user.id] ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                   </button>
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                  <div className="shrink-0 w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-300">
                     <User size={20} />
                   </div>
-                  <div>
-                    <h4 className="font-medium text-gray-900">{user.name}</h4>
-                    <p className="text-sm text-gray-500">{user.email}</p>
-                    <div className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${expiryInfo.className}`}>
-                      {expiryInfo.label}
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-medium text-gray-900 dark:text-gray-100 truncate">{user.name}</h4>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${expiryInfo.className}`}>
+                        {expiryInfo.label}
+                      </span>
+                      <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-medium ${statusInfo.className}`}>
+                        {statusInfo.label}
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                        <Store size={12} />
+                        {nStores} {nStores === 1 ? 'loja' : 'lojas'}
+                      </span>
                     </div>
                   </div>
                 </div>
                 
-                <div className="flex items-center gap-4">
-                  <div className="text-sm text-right">
-                    <span className="block font-medium text-gray-900">{user.stores.length}</span>
-                    <span className="text-xs text-gray-500">Lojas</span>
+                <div className="flex sm:hidden items-center justify-between w-full gap-2">
+                  <div className="relative w-full">
+                    <button
+                      className="w-full p-2 rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-xs font-medium"
+                      onClick={e => {
+                        e.stopPropagation()
+                        setOpenMenuUserId(openMenuUserId === user.id ? null : user.id)
+                      }}
+                    >
+                      Ações
+                    </button>
+                    {openMenuUserId === user.id && (
+                      <div
+                        className="absolute left-0 right-0 bottom-full mb-2 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <button
+                          className="w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
+                          onClick={() => {
+                            handleOpenStatusModal(user)
+                            setOpenMenuUserId(null)
+                          }}
+                        >
+                          Mudar status
+                        </button>
+                        <button
+                          className="w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left border-t border-gray-100 dark:border-gray-700"
+                          onClick={() => {
+                            openEditModal(user)
+                            setOpenMenuUserId(null)
+                          }}
+                        >
+                          Editar
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.className}`}>
-                    {statusInfo.label}
+                </div>
+
+                <div className="hidden sm:flex items-center gap-4 shrink-0">
+                  <div className="text-sm text-right">
+                    <span className="block font-medium text-gray-900 dark:text-gray-100">{nStores}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Lojas</span>
                   </div>
                   <div className="relative">
                     <button
-                      className="p-2 rounded-full hover:bg-gray-100 text-gray-500"
+                      className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-300"
                       onClick={e => {
                         e.stopPropagation()
                         setOpenMenuUserId(openMenuUserId === user.id ? null : user.id)
@@ -337,11 +383,11 @@ export default function AdminDashboard() {
                     </button>
                     {openMenuUserId === user.id && (
                       <div
-                        className="absolute right-0 mt-2 w-40 bg-white border border-gray-200 rounded-md shadow-lg z-10"
+                        className="absolute right-0 mt-2 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg z-10"
                         onClick={e => e.stopPropagation()}
                       >
                         <button
-                          className="w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                          className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
                           onClick={() => {
                             handleOpenStatusModal(user)
                             setOpenMenuUserId(null)
@@ -350,7 +396,7 @@ export default function AdminDashboard() {
                           Mudar status
                         </button>
                         <button
-                          className="w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 text-left"
+                          className="w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 text-left"
                           onClick={() => {
                             openEditModal(user)
                             setOpenMenuUserId(null)
@@ -366,28 +412,28 @@ export default function AdminDashboard() {
 
             {/* Lista de Lojas (Expandido) */}
             {expandedUsers[user.id] && (
-              <div className="bg-gray-50 p-4 pl-16 border-t border-gray-100">
+              <div className="bg-gray-50 dark:bg-gray-800/30 p-3 sm:p-4 sm:pl-14 sm:pr-4 border-t border-gray-100 dark:border-gray-800">
                 {user.stores.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
                     {user.stores.map(store => (
-                      <div key={store.id} className="bg-white p-4 rounded border border-gray-200 shadow-sm flex justify-between items-center">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-50 text-blue-600 rounded">
+                      <div key={store.id} className="bg-white dark:bg-gray-900 p-3 sm:p-4 rounded border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                        <div className="flex items-start sm:items-center gap-3 min-w-0">
+                          <div className="shrink-0 p-2 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-300 rounded">
                             <Store size={18} />
                           </div>
-                          <div>
-                            <h5 className="font-medium text-gray-800">{store.name}</h5>
-                            <p className="text-xs text-gray-500">{store.city || 'Sem cidade definida'}</p>
+                          <div className="min-w-0">
+                            <h5 className="font-medium text-gray-800 dark:text-gray-100 truncate">{store.name}</h5>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{store.city || 'Sem cidade definida'}</p>
                           </div>
                         </div>
-                        <span className="text-xs text-gray-400">
+                        <span className="text-[11px] sm:text-xs text-gray-400 dark:text-gray-500 sm:text-right w-full sm:w-auto">
                           Criada em {store.createdAt?.seconds ? new Date(store.createdAt.seconds * 1000).toLocaleDateString() : '-'}
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-500 italic">Nenhuma loja vinculada a este usuário.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 italic">Nenhuma loja vinculada a este usuário.</p>
                 )}
               </div>
             )}
@@ -395,44 +441,44 @@ export default function AdminDashboard() {
         )})}
         
         {usersWithStores.length === 0 && !loading && (
-          <div className="p-8 text-center text-gray-500">
+          <div className="p-6 sm:p-8 text-center text-gray-500 dark:text-gray-400">
             Nenhum usuário encontrado.
           </div>
         )}
       </div>
 
       {editModalUser && (
-        <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center p-4">
-          <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden">
-            <div className="p-5 border-b flex items-center justify-between">
-              <div>
-                <div className="text-lg font-bold text-gray-900">Editar</div>
-                <div className="text-sm text-gray-600">{editModalUser.name} • {editModalUser.email}</div>
+        <div className="fixed inset-0 z-[200] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="w-full max-w-5xl bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden max-h-[92vh] sm:max-h-[95vh] flex flex-col">
+            <div className="p-4 sm:p-5 border-b flex items-start sm:items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="text-lg font-bold text-gray-900 dark:text-gray-100">Editar</div>
+                <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 truncate">{editModalUser.name} • {editModalUser.email}</div>
               </div>
               <button
-                className="p-2 rounded-full hover:bg-gray-100 text-gray-600"
+                className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-300 shrink-0"
                 onClick={() => setEditModalUser(null)}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div className="p-5 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-xl border border-gray-100">
-                <div className="p-4 border-b bg-gray-50">
-                  <div className="font-semibold text-gray-800">Lojas do usuário</div>
-                  <div className="text-xs text-gray-500 mt-1">Edite a data de criação da loja.</div>
+            <div className="flex-1 overflow-y-auto p-3 sm:p-5 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-6">
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800">
+                <div className="p-3 sm:p-4 border-b bg-gray-50 dark:bg-gray-800/40">
+                  <div className="font-semibold text-gray-800 dark:text-gray-100">Lojas do usuário</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Edite a data de criação da loja.</div>
                 </div>
-                <div className="p-4 space-y-3">
-                  <div className="p-4 rounded-xl border border-gray-100 bg-white">
-                    <div className="text-sm font-semibold text-gray-900">Data que expira</div>
-                    <div className="text-xs text-gray-500 mt-1">Referência do teste/vencimento da assinatura.</div>
+                <div className="p-3 sm:p-4 space-y-3">
+                  <div className="p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900">
+                    <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Data que expira</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Referência do teste/vencimento da assinatura.</div>
                     <div className="mt-3 flex flex-col sm:flex-row gap-2 sm:items-end">
-                      <div className="flex-1">
-                        <label className="text-[11px] font-semibold text-gray-600">Expira em</label>
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">Expira em</label>
                         <input
                           type="date"
-                          className="mt-1 px-3 py-2 border rounded-lg text-sm w-full"
+                          className="mt-1 px-3 py-2 border rounded-lg text-sm w-full dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                           value={expiryEdit}
                           onChange={(e) => setExpiryEdit(e.target.value)}
                         />
@@ -448,23 +494,23 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   {currentEditStores.length === 0 ? (
-                    <div className="text-sm text-gray-500">Nenhuma loja vinculada.</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Nenhuma loja vinculada.</div>
                   ) : (
                     currentEditStores.map(s => {
                       const value = storeDateEdits[s.id] !== undefined ? storeDateEdits[s.id] : toDateInputValue(s.createdAt)
                       return (
-                        <div key={s.id} className="p-4 rounded-xl border border-gray-100">
-                          <div className="flex items-start justify-between gap-4">
+                        <div key={s.id} className="p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="font-semibold text-gray-900 truncate">{s.name || s.id}</div>
-                              <div className="text-xs text-gray-500 truncate">{s.city || '—'} {s.state ? `• ${s.state}` : ''}</div>
-                              <div className="text-[11px] text-gray-400 mt-1 truncate">ID: {s.id}</div>
+                              <div className="font-semibold text-gray-900 dark:text-gray-100 truncate">{s.name || s.id}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{s.city || '—'} {s.state ? `• ${s.state}` : ''}</div>
+                              <div className="text-[11px] text-gray-400 dark:text-gray-500 mt-1 truncate break-all">ID: {s.id}</div>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                              <label className="text-[11px] font-semibold text-gray-600">Criada em</label>
+                            <div className="flex flex-col sm:items-end gap-2 w-full sm:w-auto">
+                              <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-300 sm:text-right">Criada em</label>
                               <input
                                 type="date"
-                                className="px-3 py-2 border rounded-lg text-sm"
+                                className="px-3 py-2 border rounded-lg text-sm w-full sm:w-auto dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100"
                                 value={value}
                                 onChange={(e) => setStoreDateEdits(prev => ({ ...prev, [s.id]: e.target.value }))}
                               />
@@ -472,7 +518,7 @@ export default function AdminDashboard() {
                                 type="button"
                                 disabled={!!savingStoreDate[s.id]}
                                 onClick={() => saveStoreCreatedAt(s.id)}
-                                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold"
+                                className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-xs font-semibold w-full sm:w-auto"
                               >
                                 {savingStoreDate[s.id] ? 'Salvando...' : 'Salvar'}
                               </button>
@@ -485,27 +531,27 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-gray-100">
-                <div className="p-4 border-b bg-gray-50">
-                  <div className="font-semibold text-gray-800">Faturas</div>
-                  <div className="text-xs text-gray-500 mt-1">Histórico de cobranças da assinatura.</div>
+              <div className="rounded-xl border border-gray-100 dark:border-gray-800">
+                <div className="p-3 sm:p-4 border-b bg-gray-50 dark:bg-gray-800/40">
+                  <div className="font-semibold text-gray-800 dark:text-gray-100">Faturas</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">Histórico de cobranças da assinatura.</div>
                 </div>
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   {editLoading ? (
-                    <div className="text-sm text-gray-500">Carregando faturas...</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Carregando faturas...</div>
                   ) : editInvoices.length === 0 ? (
-                    <div className="text-sm text-gray-500">Nenhuma fatura encontrada.</div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">Nenhuma fatura encontrada.</div>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto -mx-3 px-3">
                       <table className="min-w-full text-sm">
                         <thead>
-                          <tr className="text-left text-gray-600">
-                            <th className="px-3 py-2">Nº</th>
-                            <th className="px-3 py-2">Vencimento</th>
-                            <th className="px-3 py-2 text-right">Valor</th>
-                            <th className="px-3 py-2">Status</th>
-                            <th className="px-3 py-2">Dias</th>
-                            <th className="px-3 py-2 text-right">Ações</th>
+                          <tr className="text-left text-gray-600 dark:text-gray-300">
+                            <th className="px-3 py-2 whitespace-nowrap">Nº</th>
+                            <th className="px-3 py-2 whitespace-nowrap">Vencimento</th>
+                            <th className="px-3 py-2 text-right whitespace-nowrap">Valor</th>
+                            <th className="px-3 py-2 whitespace-nowrap">Status</th>
+                            <th className="px-3 py-2 whitespace-nowrap">Dias</th>
+                            <th className="px-3 py-2 text-right whitespace-nowrap">Ações</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -519,25 +565,25 @@ export default function AdminDashboard() {
                             .map(inv => {
                               const st = invoiceComputedStatus(inv)
                               const badge = st === 'paid'
-                                ? 'bg-green-100 text-green-700'
+                                ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-200'
                                 : st === 'overdue'
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-gray-100 text-gray-700'
+                                  ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-200'
+                                  : 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200'
                               const label = st === 'paid' ? 'Paga' : st === 'overdue' ? 'Em atraso' : 'Pendente'
                               return (
-                                <tr key={inv.id} className="border-t">
-                                  <td className="px-3 py-2">{inv.number || '-'}</td>
-                                  <td className="px-3 py-2">{normalizeDate(inv.dueDate)?.toLocaleDateString() || '-'}</td>
-                                  <td className="px-3 py-2 text-right">R$ {Number(inv.amount || 0).toFixed(2)}</td>
-                                  <td className="px-3 py-2">
+                                <tr key={inv.id} className="border-t dark:border-gray-800">
+                                  <td className="px-3 py-2 whitespace-nowrap">{inv.number || '-'}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap">{normalizeDate(inv.dueDate)?.toLocaleDateString() || '-'}</td>
+                                  <td className="px-3 py-2 text-right whitespace-nowrap">R$ {Number(inv.amount || 0).toFixed(2)}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap">
                                     <span className={`px-2 py-1 rounded text-xs ${badge}`}>{label}</span>
                                   </td>
-                                  <td className="px-3 py-2">{st === 'overdue' ? daysOverdue(inv.dueDate) : 0}</td>
-                                  <td className="px-3 py-2 text-right">
+                                  <td className="px-3 py-2 whitespace-nowrap">{st === 'overdue' ? daysOverdue(inv.dueDate) : 0}</td>
+                                  <td className="px-3 py-2 text-right whitespace-nowrap">
                                     <button
                                       type="button"
                                       disabled={!!deletingInvoice[inv.id]}
-                                      className="px-3 py-1.5 rounded-lg border border-red-200 text-red-700 text-xs font-semibold hover:bg-red-50 disabled:opacity-60"
+                                      className="px-3 py-1.5 rounded-lg border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-60"
                                       onClick={() => handleDeleteInvoice(inv)}
                                     >
                                       {deletingInvoice[inv.id] ? 'Excluindo...' : 'Excluir'}
@@ -554,9 +600,9 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className="p-4 border-t flex justify-end">
+            <div className="p-3 sm:p-4 border-t flex justify-end sticky bottom-0 bg-white dark:bg-gray-900">
               <button
-                className="px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 font-semibold text-gray-700"
+                className="px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 font-semibold text-gray-700 dark:text-gray-200"
                 onClick={() => setEditModalUser(null)}
               >
                 Fechar
@@ -567,24 +613,24 @@ export default function AdminDashboard() {
       )}
 
       {statusModalUser && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
-            <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center">
-              <div>
-                <h4 className="font-semibold text-gray-900">Mudar status</h4>
-                <p className="text-xs text-gray-500 mt-0.5">{statusModalUser.email}</p>
+        <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-t-lg sm:rounded-lg shadow-xl w-full max-w-sm max-h-[92vh] overflow-y-auto">
+            <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center gap-3">
+              <div className="min-w-0">
+                <h4 className="font-semibold text-gray-900 dark:text-gray-100">Mudar status</h4>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{statusModalUser.email}</p>
               </div>
             </div>
             <div className="px-4 py-4 space-y-3">
-              <p className="text-sm text-gray-600">Selecione o novo status deste usuário:</p>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Selecione o novo status deste usuário:</p>
               <div className="space-y-2">
                 <button
                   type="button"
                   onClick={() => setSelectedStatus('ativo')}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded border text-sm ${
                     selectedStatus === 'ativo'
-                      ? 'border-green-500 bg-green-50 text-green-700'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'border-green-500 bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-300'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200'
                   }`}
                 >
                   <span>Ativo</span>
@@ -594,8 +640,8 @@ export default function AdminDashboard() {
                   onClick={() => setSelectedStatus('em_atraso')}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded border text-sm ${
                     selectedStatus === 'em_atraso'
-                      ? 'border-yellow-500 bg-yellow-50 text-yellow-700'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/40 text-yellow-700 dark:text-yellow-300'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200'
                   }`}
                 >
                   <span>Em atraso</span>
@@ -605,18 +651,18 @@ export default function AdminDashboard() {
                   onClick={() => setSelectedStatus('cancelado')}
                   className={`w-full flex items-center justify-between px-3 py-2 rounded border text-sm ${
                     selectedStatus === 'cancelado'
-                      ? 'border-red-500 bg-red-50 text-red-700'
-                      : 'border-gray-200 hover:bg-gray-50 text-gray-700'
+                      ? 'border-red-500 bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300'
+                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200'
                   }`}
                 >
                   <span>Cancelado</span>
                 </button>
               </div>
             </div>
-            <div className="px-4 py-3 border-t border-gray-100 flex justify-end gap-3">
+            <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 flex flex-col-reverse sm:flex-row justify-end gap-2 sticky bottom-0 bg-white dark:bg-gray-900">
               <button
                 type="button"
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded"
+                className="w-full sm:w-auto px-4 py-2 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded"
                 onClick={() => setStatusModalUser(null)}
                 disabled={savingStatus}
               >
@@ -624,7 +670,7 @@ export default function AdminDashboard() {
               </button>
               <button
                 type="button"
-                className="px-4 py-2 text-sm rounded text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
+                className="w-full sm:w-auto px-4 py-2 text-sm rounded text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60"
                 onClick={handleSaveStatus}
                 disabled={savingStatus}
               >

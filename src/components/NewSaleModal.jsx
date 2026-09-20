@@ -911,18 +911,30 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       }
 
       const saleRefNumber = (() => {
-        const raw = sale?.number || (isEdit ? null : null)
+        // Prioridade 1: número da venda EXISTENTE (edição / OS associada etc)
+        const raw = sale?.number
         if (raw) {
           const d = String(raw).replace(/\D/g, '')
           const n = parseInt(d, 10)
-          if (!isNaN(n)) return `P.V.${String(n).padStart(4, '0')}`
+          if (!isNaN(n) && n > 0) {
+            const isOS =
+              sale?.type === 'service_order' || sale?.type === 'os' ||
+              (sale?.orderType && String(sale.orderType).toLowerCase().includes('service')) ||
+              /OS|Ordem|Serv/i.test(raw)
+            return isOS ? `O.S.${String(n).padStart(4, '0')}` : `P.V.${String(n).padStart(4, '0')}`
+          }
         }
-        if (orderId) {
-          const d = String(orderId).replace(/\D/g, '').slice(-4)
+        // Prioridade 2: NOVA venda — addOrder retorna { id, number } acima
+        if (orderId && typeof orderId === 'object' && orderId.number) {
+          const d = String(orderId.number).replace(/\D/g, '')
           const n = parseInt(d, 10)
-          if (!isNaN(n)) return `P.V.${String(n).padStart(4, '0')}`
-          const tail = String(orderId).slice(-4)
-          return `PV:${tail}`
+          if (!isNaN(n) && n > 0) return `P.V.${String(n).padStart(4, '0')}`
+        }
+        const oidString = typeof orderId === 'object' ? String(orderId.id || '') : String(orderId || '')
+        if (oidString) {
+          const d = oidString.replace(/\D/g, '').slice(-4)
+          const n = parseInt(d, 10)
+          if (!isNaN(n) && n > 0) return `P.V.${String(n).padStart(4, '0')}`
         }
         return null
       })()

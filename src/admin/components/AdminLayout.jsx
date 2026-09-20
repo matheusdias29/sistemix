@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { LayoutDashboard, Users, Store, LogOut, Bell } from 'lucide-react'
+import { LayoutDashboard, Users, Store, LogOut, Bell, Menu, X } from 'lucide-react'
 import { listenUsers } from '../../services/users'
 import { listenAllSubscriptions } from '../../services/subscriptions'
 
@@ -7,6 +7,7 @@ export default function AdminLayout({ children, user, onViewChange, currentView,
   const [trialUsersCount, setTrialUsersCount] = useState(0)
   const [users, setUsers] = useState([])
   const [subs, setSubs] = useState([])
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const toDate = (d) => {
     if (!d) return null
@@ -42,6 +43,17 @@ export default function AdminLayout({ children, user, onViewChange, currentView,
     setTrialUsersCount(count)
   }, [users, subs])
 
+  useEffect(() => {
+    if (!sidebarOpen) return
+    const onKey = (e) => { if (e.key === 'Escape') setSidebarOpen(false) }
+    window.addEventListener('keydown', onKey)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = ''
+    }
+  }, [sidebarOpen])
+
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'stores', label: 'Lojas', icon: Store },
@@ -50,60 +62,110 @@ export default function AdminLayout({ children, user, onViewChange, currentView,
     { id: 'trials', label: 'Em teste', icon: Bell, badge: trialUsersCount },
   ]
 
-  return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col">
-        <div className="p-6 border-b border-slate-800">
-          <h1 className="text-xl font-bold">Admin Panel</h1>
-          <p className="text-xs text-slate-400 mt-1">Bem-vindo, {user.name}</p>
-        </div>
+  const closeSidebarAndGo = (id) => {
+    onViewChange(id)
+    setSidebarOpen(false)
+  }
 
-        <nav className="flex-1 p-4 space-y-2">
-          {menuItems.map(item => {
-            const Icon = item.icon
-            return (
-              <button
-                key={item.id}
-                onClick={() => onViewChange(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                  currentView === item.id 
-                    ? 'bg-blue-600 text-white' 
-                    : 'text-slate-300 hover:bg-slate-800'
-                }`}
-              >
-                <Icon size={20} />
-                <span className="flex-1 text-left">{item.label}</span>
-                {!!item.badge && item.badge > 0 && (
-                  <span className="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{item.badge}</span>
-                )}
-              </button>
-            )
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-slate-800">
+  const SidebarNav = () => (
+    <>
+      <div className="p-6 border-b border-slate-800">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-xl font-bold">Admin Panel</h1>
+            <p className="text-xs text-slate-400 mt-1">Bem-vindo, {user.name}</p>
+          </div>
           <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 transition-colors"
+            type="button"
+            aria-label="Fechar menu"
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden -mt-1 -mr-1 p-1.5 rounded-md text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
           >
-            <LogOut size={20} />
-            <span>Sair</span>
+            <X size={20} />
           </button>
         </div>
+      </div>
+
+      <nav className="flex-1 p-4 space-y-2">
+        {menuItems.map(item => {
+          const Icon = item.icon
+          const isActive = currentView === item.id
+          return (
+            <button
+              key={item.id}
+              onClick={() => closeSidebarAndGo(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              }`}
+            >
+              <Icon size={20} />
+              <span className="flex-1 text-left">{item.label}</span>
+              {!!item.badge && item.badge > 0 && (
+                <span className="ml-auto text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">{item.badge}</span>
+              )}
+            </button>
+          )
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-slate-800">
+        <button
+          onClick={() => { onLogout?.(); setSidebarOpen(false) }}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-slate-800 transition-colors"
+        >
+          <LogOut size={20} />
+          <span>Sair</span>
+        </button>
+      </div>
+    </>
+  )
+
+  return (
+    <div className="flex min-h-screen md:h-screen w-full bg-gray-50 text-gray-900 dark:text-gray-100">
+      {/* Sidebar DESKTOP (md+) — sempre visível */}
+      <aside className="hidden md:flex w-64 shrink-0 bg-slate-900 text-white flex-col">
+        <SidebarNav />
+      </aside>
+
+      {/* Sidebar MOBILE (<md) — drawer off-canvas + overlay */}
+      {sidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+          onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`md:hidden fixed top-0 left-0 h-full w-72 z-50 bg-slate-900 text-white flex flex-col shadow-2xl transition-transform duration-200 ease-out ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        aria-hidden={!sidebarOpen}
+      >
+        <SidebarNav />
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-          <h2 className="text-xl font-semibold text-gray-800">
-            {menuItems.find(i => i.id === currentView)?.label || 'Dashboard'}
-          </h2>
+      <main className="flex-1 min-w-0 w-full">
+        <header className="sticky top-0 z-30 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 shadow-sm">
+          <div className="px-3 sm:px-4 py-3 flex items-center gap-3 min-h-[60px]">
+            <button
+              type="button"
+              aria-label="Abrir menu"
+              onClick={() => setSidebarOpen(true)}
+              className="md:hidden shrink-0 inline-flex items-center justify-center h-10 w-10 rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Menu size={20} />
+            </button>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
+              {menuItems.find(i => i.id === currentView)?.label || 'Dashboard'}
+            </h2>
+          </div>
         </header>
-        <div className="p-6">
+        <div className="p-3 sm:p-4 md:p-6">
           {children}
         </div>
       </main>
     </div>
   )
 }
+

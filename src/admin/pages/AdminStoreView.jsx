@@ -124,13 +124,13 @@ export default function AdminStoreView({ storeId, onExit }) {
   return (
     <div className="min-h-screen bg-[#f7faf9] dark:bg-[#0b1320] overflow-x-hidden">
       {/* Top Bar with "Back to Admin" */}
-      <div className="bg-blue-900 text-white px-4 py-2 flex justify-between items-center text-sm shadow-md z-50 relative">
-        <div className="font-semibold">Modo de Administração: {store.name}</div>
+      <div className="bg-blue-900 text-white px-3 sm:px-4 py-2.5 sm:py-2 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 text-sm shadow-md z-50 relative">
+        <div className="font-semibold truncate min-w-0">Modo Admin: {store.name}</div>
         <button 
             onClick={onExit}
-            className="bg-white/10 hover:bg-white/20 px-3 py-1 rounded transition-colors"
+            className="bg-white/10 hover:bg-white/20 px-3 py-1.5 sm:py-1 rounded transition-colors shrink-0 self-start sm:self-auto w-full sm:w-auto text-center"
         >
-            ← Voltar para Painel Admin
+            ← Voltar Painel
         </button>
       </div>
 
@@ -157,7 +157,7 @@ export default function AdminStoreView({ storeId, onExit }) {
         )}
 
         {/* Main Content */}
-        <div className="flex-1 p-4 md:p-6 w-full max-w-full overflow-x-hidden md:ml-64">
+        <div className="flex-1 p-3 sm:p-4 md:p-6 w-full max-w-full overflow-x-hidden md:ml-64">
           <Header
             user={{ name: 'Admin (Super)' }}
             userData={user}
