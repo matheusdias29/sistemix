@@ -124,6 +124,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
   const [serialNumber, setSerialNumber] = useState('')
   const [condition, setCondition] = useState('')
   const [warrantyMonths, setWarrantyMonths] = useState(null)
+  const [warrantyCoversSup, setWarrantyCoversSup] = useState(false)
 
   const buildSyncedVariations = (incomingVariations, stockData) => {
     if (!Array.isArray(incomingVariations) || incomingVariations.length === 0) return incomingVariations
@@ -365,6 +366,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         setSerialNumber(product.serialNumber || '')
         setCondition(product.condition || '')
         setWarrantyMonths(product.warrantyMonths ?? null)
+        setWarrantyCoversSup(!!product.warrantyCoversSup)
         setIsParts(!!product.isParts)
         setIsAccessories(!!product.isAccessories)
         setIsSundries(!!product.isSundries)
@@ -592,6 +594,7 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
         serialNumber: serialNumber.trim(),
         condition: condition || '',
         warrantyMonths: warrantyMonths != null ? Number(warrantyMonths) : null,
+        warrantyCoversSup: !!warrantyCoversSup,
         isParts: !!isParts,
         isAccessories: !!isAccessories,
         isSundries: !!isSundries,
@@ -1338,18 +1341,46 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
                 </div>
                 <div>
                   <div className="text-xs text-gray-600 dark:text-gray-300 mb-1">Garantia</div>
-                  <div className="flex items-center gap-4 text-sm dark:text-gray-300">
+                  <div className="flex items-center gap-4 flex-wrap text-sm dark:text-gray-300">
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="garantia" checked={warrantyMonths===3} onChange={()=>setWarrantyMonths(3)} className="dark:bg-gray-700 dark:border-gray-600" />
+                      <input
+                        type="radio"
+                        name="garantia"
+                        checked={!warrantyCoversSup && warrantyMonths===3}
+                        onChange={()=>{ setWarrantyMonths(3); setWarrantyCoversSup(false); }}
+                        className="dark:bg-gray-700 dark:border-gray-600"
+                      />
                       <span>3m</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="garantia" checked={warrantyMonths===6} onChange={()=>setWarrantyMonths(6)} className="dark:bg-gray-700 dark:border-gray-600" />
+                      <input
+                        type="radio"
+                        name="garantia"
+                        checked={!warrantyCoversSup && warrantyMonths===6}
+                        onChange={()=>{ setWarrantyMonths(6); setWarrantyCoversSup(false); }}
+                        className="dark:bg-gray-700 dark:border-gray-600"
+                      />
                       <span>6m</span>
                     </label>
                     <label className="flex items-center gap-2">
-                      <input type="radio" name="garantia" checked={warrantyMonths===12} onChange={()=>setWarrantyMonths(12)} className="dark:bg-gray-700 dark:border-gray-600" />
+                      <input
+                        type="radio"
+                        name="garantia"
+                        checked={!warrantyCoversSup && warrantyMonths===12}
+                        onChange={()=>{ setWarrantyMonths(12); setWarrantyCoversSup(false); }}
+                        className="dark:bg-gray-700 dark:border-gray-600"
+                      />
                       <span>12m</span>
+                    </label>
+                    <label className="flex items-center gap-2 ml-2">
+                      <input
+                        type="radio"
+                        name="garantia"
+                        checked={!!warrantyCoversSup}
+                        onChange={()=>{ setWarrantyCoversSup(true); setWarrantyMonths(null); }}
+                        className="dark:bg-gray-700 dark:border-gray-600"
+                      />
+                      <span>Cobre riscos sup</span>
                     </label>
                   </div>
                 </div>

@@ -700,13 +700,17 @@ export default function PublicCatalogPage({ storeId, store, loading }) {
                         </div>
                       )}
 
-                      {((!!storeData?.catalogShowWarranty && Number(p.warrantyMonths || 0) > 0) || (!!storeData?.catalogShowCondition && String(p.condition || '').trim())) && (
+                      {((!!storeData?.catalogShowWarranty && (Number(p.warrantyMonths || 0) > 0 || !!p.warrantyCoversSup)) || (!!storeData?.catalogShowCondition && String(p.condition || '').trim())) && (
                         <div className="mb-3 border-t border-dashed border-gray-100 pt-3 space-y-2">
-                          {!!storeData?.catalogShowWarranty && Number(p.warrantyMonths || 0) > 0 && (
+                          {!!storeData?.catalogShowWarranty && (Number(p.warrantyMonths || 0) > 0 || !!p.warrantyCoversSup) && (
                             <div className="flex items-center gap-2 text-[11px] text-gray-700">
                               <span className="font-bold text-gray-500 uppercase">Garantia:</span>
                               <span className="font-medium">
-                                {Number(p.warrantyMonths) === 1 ? '1 mês' : `${Number(p.warrantyMonths)} meses`}
+                                {Number(p.warrantyMonths || 0) > 0
+                                  ? (Number(p.warrantyMonths) === 1 ? '1 mês' : `${Number(p.warrantyMonths)} meses`)
+                                  : (!!p.warrantyCoversSup ? 'Cobre riscos sup' : '')
+                                }
+                                {Number(p.warrantyMonths || 0) > 0 && !!p.warrantyCoversSup && <span className="ml-2 text-green-700 font-semibold">• Cobre riscos sup</span>}
                               </span>
                             </div>
                           )}
@@ -1038,15 +1042,19 @@ function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSet
                 </div>
               )}
 
-              {((!!storeData?.catalogShowWarranty && Number(product.warrantyMonths || 0) > 0) || (!!storeData?.catalogShowCondition && String(product.condition || '').trim())) && (
+              {((!!storeData?.catalogShowWarranty && (Number(product.warrantyMonths || 0) > 0 || !!product.warrantyCoversSup)) || (!!storeData?.catalogShowCondition && String(product.condition || '').trim())) && (
                 <div className="border border-gray-100 dark:border-gray-700/80 rounded-xl p-4 bg-gray-50/60 dark:bg-slate-700/40">
                   <div className="text-sm font-bold text-gray-900 dark:text-gray-50 mb-3">Destaques</div>
                   <div className="space-y-2 text-sm">
-                    {!!storeData?.catalogShowWarranty && Number(product.warrantyMonths || 0) > 0 && (
+                    {!!storeData?.catalogShowWarranty && (Number(product.warrantyMonths || 0) > 0 || !!product.warrantyCoversSup) && (
                       <div className="flex items-center gap-2">
                         <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase">Garantia</div>
                         <div className="font-medium text-gray-900 dark:text-gray-100">
-                          {Number(product.warrantyMonths) === 1 ? '1 mês' : `${Number(product.warrantyMonths)} meses`}
+                          {Number(product.warrantyMonths || 0) > 0
+                            ? (Number(product.warrantyMonths) === 1 ? '1 mês' : `${Number(product.warrantyMonths)} meses`)
+                            : (!!product.warrantyCoversSup ? 'Cobre riscos sup' : '')
+                          }
+                          {Number(product.warrantyMonths || 0) > 0 && !!product.warrantyCoversSup && <span className="ml-2 text-green-700 dark:text-green-400 font-semibold">• Cobre riscos sup</span>}
                         </div>
                       </div>
                     )}

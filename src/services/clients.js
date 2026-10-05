@@ -1,5 +1,6 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs, limit, startAfter, endAt, startAt, getDoc, getCountFromServer, deleteDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs, limit, startAfter, endAt, startAt, getDoc, getCountFromServer, deleteDoc, writeBatch } from 'firebase/firestore'
 import { db } from '../lib/firebase'
+import { getStoreById, listStoresByOwner } from './stores'
 
 const colRef = collection(db, 'clients')
 
@@ -8,6 +9,72 @@ function normalize(val) {
 }
 function digits(val) {
   return String(val || '').replace(/\D/g, '')
+}
+
+// ============================================================
+// SINCRONIZAÇÃO CLIENTES ENTRE LOJAS DO MESMO DONO
+// ============================================================
+// Chave determinística para identificar a MESMA PESSOA entre lojas diferentes.
+// Baseada em CPF/CNPJ (melhor), depois WhatsApp/telefone (2º melhor), depois nome.
+// SEMPRE igual para a mesma pessoa, nunca aleatória → não cria duplicatas.
+export function buildOwnerClientKey(clientData) {
+  const c = clientData || {}
+  const cpf = digits(c.cpf)
+  const cnpj = digits(c.cnpj)
+  const wa = digits(c.whatsapp)
+  const ph = digits(c.phone)
+  const nm = normalize(c.name)
+  // Prioridade: documento > whatsapp > telefone > nome
+  const parts = [
+    cpf || cnpj || '',
+    wa || ph || '',
+    !cpf && !cnpj && !wa && !ph ? nm : '',
+  ].filter(Boolean)
+  if (parts.length === 0) return ''
+  return `cli:${parts.join('|')}`
+}
+
+// Deduplicação em outra loja: existe cliente com MESMO ownerClientKey OU MESMO CPF/WhatsApp igual?
+async function findExistingClientInStore({ storeId, ownerId, ownerClientKey, cpf, cnpj, whatsapp, phone }) {
+  if (!storeId) return null
+  const cpfD = digits(cpf)
+  const cnpjD = digits(cnpj)
+  const waD = digits(whatsapp)
+  const phD = digits(phone)
+
+  const hasOwnerKey = ownerClientKey && ownerId
+  if (hasOwnerKey) {
+    // Primeiro: procura exato por ownerId + ownerClientKey (match garantido)
+    try {
+      const q1 = query(
+        colRef,
+        where('ownerId', '==', ownerId),
+        where('ownerClientKey', '==', ownerClientKey),
+        where('storeId', '==', storeId),
+        limit(1)
+      )
+      const snap1 = await getDocs(q1)
+      if (!snap1.empty) return { id: snap1.docs[0].id, ...snap1.docs[0].data() }
+    } catch {
+      // índice composto não existe ainda — fallback para queries individuais
+    }
+  }
+
+  // Fallback: procura por CPF/CNPJ/WhatsApp individualmente (queries já existem sem índice)
+  const ors = []
+  if (cpfD) ors.push({ field: 'cpfDigits', value: cpfD })
+  if (cnpjD) ors.push({ field: 'cnpjDigits', value: cnpjD })
+  if (waD) ors.push({ field: 'whatsappDigits', value: waD })
+  if (phD) ors.push({ field: 'phoneDigits', value: phD })
+
+  for (const c of ors) {
+    try {
+      const q = query(colRef, where('storeId', '==', storeId), where(c.field, '==', c.value), limit(1))
+      const snap = await getDocs(q)
+      if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() }
+    } catch { /* continue */ }
+  }
+  return null
 }
 
 export function listenClients(callback, storeId){
@@ -197,10 +264,22 @@ export async function searchClientsByPage(storeId, searchTerm, page, pageSize) {
   return { clients, total }
 }
 
-export async function addClient(client, storeId){
+export async function addClient(client, storeId, opts = {}){
   if (!storeId) throw new Error('storeId é obrigatório ao criar cliente')
+  // Resolve ownerId: pode ser passado via opts.ownerId ou buscar na loja
+  let ownerId = opts.ownerId || client.ownerId || ''
+  if (!ownerId) {
+    try {
+      const store = await getStoreById(storeId)
+      ownerId = store?.ownerId || ''
+    } catch {}
+  }
+  const ownerClientKey = buildOwnerClientKey(client)
+
   const data = {
     storeId,
+    ownerId: ownerId || '',
+    ownerClientKey: ownerClientKey || '',
     name: client.name ?? 'Novo Cliente',
     whatsapp: client.whatsapp ?? '',
     phone: client.phone ?? '',
@@ -235,7 +314,205 @@ export async function addClient(client, storeId){
   data.cpfDigits = digits(data.cpf)
   data.cnpjDigits = digits(data.cnpj)
   const res = await addDoc(colRef, data)
-  return { id: res.id, ...data, createdAt: new Date(), updatedAt: new Date() }
+  const createdClient = { id: res.id, ...data, createdAt: new Date(), updatedAt: new Date() }
+
+  // ----------------------------------------------------------
+  // AUTO-SYNC: espelha cliente nas outras lojas do MESMO DONO
+  // (background sem await no caller — retorna void Promise)
+  // ----------------------------------------------------------
+  if (ownerId && opts.autoSync !== false) {
+    // Fire-and-forget: não bloqueia fluxo de criação do cliente
+    syncClientToOwnerStores(createdClient, storeId, ownerId, { isNew: true }).catch(() => {})
+  }
+  return createdClient
+}
+
+// ============================================================
+// SINCRONIZA 1 CLIENTE INDIVIDUAL -> OUTRAS LOJAS DO DONO
+// (usa ownerId + ownerClientKey para não duplicar / conflitar IDs)
+// Retorna: { copied: 0, skipped: 0, targetStores: [...] }
+// ============================================================
+export async function syncClientToOwnerStores(client, currentStoreId, ownerId, opts = {}) {
+  if (!client || !ownerId) return { copied: 0, skipped: 0, targetStores: [] }
+  const ownerKey = client.ownerClientKey || buildOwnerClientKey(client)
+  const stores = await listStoresByOwner(ownerId).catch(() => [])
+  const otherStores = stores.filter(s => String(s.id) !== String(currentStoreId))
+  if (otherStores.length === 0) return { copied: 0, skipped: 0, targetStores: [] }
+
+  let copied = 0
+  let skipped = 0
+
+  for (const other of otherStores) {
+    // Verifica se já existe cliente com mesmo ownerClientKey/CPF/WhatsApp na outra loja
+    // (não copia 2x — evita conflito e duplicação)
+    const existing = await findExistingClientInStore({
+      storeId: other.id,
+      ownerId,
+      ownerClientKey: ownerKey,
+      cpf: client.cpf,
+      cnpj: client.cnpj,
+      whatsapp: client.whatsapp,
+      phone: client.phone,
+    })
+    if (existing) { skipped++; continue }
+
+    try {
+      // Cria novo documento com PRÓPRIO ID (addDoc gera aleatório novo) — NÃO conflita com o master.
+      // Os 2 documentos compartilham o MESMO ownerId + ownerClientKey.
+      const nextCode = opts.isNew ? (client.code || '') : client.code
+      const copyData = {
+        storeId: other.id,
+        ownerId,
+        ownerClientKey: ownerKey,
+        name: client.name ?? 'Novo Cliente',
+        whatsapp: client.whatsapp ?? '',
+        phone: client.phone ?? '',
+        cpf: client.cpf ?? '',
+        cnpj: client.cnpj ?? '',
+        allowCredit: !!client.allowCredit,
+        isCompany: !!client.isCompany,
+        cep: client.cep ?? '',
+        address: client.address ?? '',
+        number: client.number ?? '',
+        complement: client.complement ?? '',
+        neighborhood: client.neighborhood ?? '',
+        city: client.city ?? '',
+        state: client.state ?? '',
+        email: client.email ?? '',
+        notes: client.notes ?? '',
+        code: nextCode,
+        identity: client.identity ?? '',
+        stateRegistrationIndicator: client.stateRegistrationIndicator ?? '',
+        motherName: client.motherName ?? '',
+        birthDate: client.birthDate ?? '',
+        active: client.active === false ? false : true,
+        createdBy: client.createdBy || '',
+        lastEditedBy: client.lastEditedBy || '',
+        syncedFromStoreId: String(currentStoreId || ''),
+        syncedFromClientId: String(client.id || ''),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      }
+      copyData.nameLower = normalize(copyData.name)
+      copyData.codeLower = normalize(copyData.code)
+      copyData.phoneDigits = digits(copyData.phone)
+      copyData.whatsappDigits = digits(copyData.whatsapp)
+      copyData.cpfDigits = digits(copyData.cpf)
+      copyData.cnpjDigits = digits(copyData.cnpj)
+      await addDoc(colRef, copyData)
+      copied++
+    } catch { skipped++ }
+  }
+  return { copied, skipped, targetStores: otherStores.map(s => s.id) }
+}
+
+// ============================================================
+// SINCRONIZAÇÃO EM LOTE (botão Opções -> Sincronizar Clientes)
+// Percorre TODOS os clientes da loja atual e replica nas outras do mesmo dono
+// onProgress({ step, total, copied, skipped, currentClientName })
+// Retorna: { total, copied, skipped, errors }
+// ============================================================
+export async function bulkSyncAllClientsToOwnerStores(currentStoreId, onProgress) {
+  if (!currentStoreId) return { total: 0, copied: 0, skipped: 0, errors: 0 }
+
+  // 1. Resolve ownerId
+  let ownerId = ''
+  try {
+    const store = await getStoreById(currentStoreId)
+    ownerId = store?.ownerId || ''
+  } catch {}
+  if (!ownerId) return { total: 0, copied: 0, skipped: 0, errors: 0, noOwner: true }
+
+  // 2. Outras lojas do mesmo dono
+  const allStores = await listStoresByOwner(ownerId).catch(() => [])
+  const otherStores = allStores.filter(s => String(s.id) !== String(currentStoreId))
+  if (otherStores.length === 0) return { total: 0, copied: 0, skipped: 0, errors: 0, noOtherStores: true }
+
+  // 3. Carrega TODOS clientes da loja atual
+  const allCurrentClients = await getAllClients(currentStoreId).catch(() => [])
+  const total = allCurrentClients.length
+  let copied = 0, skipped = 0, errors = 0
+
+  // 4. Processa em lotes de 50 (writeBatch + pausas para não estourar limites Firestore)
+  const BATCH_SIZE = 50
+  for (let i = 0; i < total; i += BATCH_SIZE) {
+    const batch = allCurrentClients.slice(i, i + BATCH_SIZE)
+    for (let j = 0; j < batch.length; j++) {
+      const cli = batch[j]
+      const globalIdx = i + j + 1
+      onProgress && onProgress({
+        step: globalIdx,
+        total,
+        copied,
+        skipped,
+        errors,
+        currentClientName: cli.name || 'Cliente',
+      })
+      try {
+        // Para cada outra loja: verifica duplicata, cria cópia se faltar
+        for (const other of otherStores) {
+          const ownerKey = cli.ownerClientKey || buildOwnerClientKey(cli)
+          const existing = await findExistingClientInStore({
+            storeId: other.id,
+            ownerId,
+            ownerClientKey: ownerKey,
+            cpf: cli.cpf,
+            cnpj: cli.cnpj,
+            whatsapp: cli.whatsapp,
+            phone: cli.phone,
+          })
+          if (existing) { skipped++; continue }
+          try {
+            const copyData = {
+              storeId: other.id,
+              ownerId,
+              ownerClientKey: ownerKey,
+              name: cli.name ?? 'Novo Cliente',
+              whatsapp: cli.whatsapp ?? '',
+              phone: cli.phone ?? '',
+              cpf: cli.cpf ?? '',
+              cnpj: cli.cnpj ?? '',
+              allowCredit: !!cli.allowCredit,
+              isCompany: !!cli.isCompany,
+              cep: cli.cep ?? '',
+              address: cli.address ?? '',
+              number: cli.number ?? '',
+              complement: cli.complement ?? '',
+              neighborhood: cli.neighborhood ?? '',
+              city: cli.city ?? '',
+              state: cli.state ?? '',
+              email: cli.email ?? '',
+              notes: cli.notes ?? '',
+              code: cli.code || '',
+              identity: cli.identity ?? '',
+              stateRegistrationIndicator: cli.stateRegistrationIndicator ?? '',
+              motherName: cli.motherName ?? '',
+              birthDate: cli.birthDate ?? '',
+              active: cli.active === false ? false : true,
+              createdBy: cli.createdBy || '',
+              lastEditedBy: cli.lastEditedBy || '',
+              syncedFromStoreId: String(currentStoreId || ''),
+              syncedFromClientId: String(cli.id || ''),
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp(),
+            }
+            copyData.nameLower = normalize(copyData.name)
+            copyData.codeLower = normalize(copyData.code)
+            copyData.phoneDigits = digits(copyData.phone)
+            copyData.whatsappDigits = digits(copyData.whatsapp)
+            copyData.cpfDigits = digits(copyData.cpf)
+            copyData.cnpjDigits = digits(copyData.cnpj)
+            await addDoc(colRef, copyData)
+            copied++
+          } catch { errors++ }
+        }
+      } catch { errors++ }
+    }
+    // pausa 30ms entre lotes para não saturar
+    await new Promise(r => setTimeout(r, 30))
+  }
+  onProgress && onProgress({ step: total, total, copied, skipped, errors, done: true })
+  return { total, copied, skipped, errors, otherStoresCount: otherStores.length }
 }
 
 export async function updateClient(id, partial){

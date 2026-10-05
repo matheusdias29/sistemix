@@ -114,8 +114,19 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
               if (!window.confirm('Tem certeza que deseja cancelar esta venda? O estoque dos produtos será devolvido.')) return
               try {
                 const currentStatus = (sale.status || '').toLowerCase()
-                const statusesThatDeductStock = ['venda', 'pedido', 'cliente final', 'cliente lojista', 'finalizado', 'pago', 'os finalizada e faturada cliente final', 'os faturada cliente final', 'os faturada cliente lojista']
+                const statusesThatDeductStock = ['venda', 'pedido', 'condicional', 'cliente final', 'cliente lojista', 'finalizado', 'pago', 'os finalizada e faturada cliente final', 'os faturada cliente final', 'os faturada cliente lojista']
                 const shouldRestock = statusesThatDeductStock.includes(currentStatus)
+
+                const cancelTypeLabel = (() => {
+                  if (currentStatus === 'condicional') return 'Condicional'
+                  if (currentStatus === 'pedido') return 'Pedido'
+                  const isLinkedOs =
+                    sale.type === 'service_order' ||
+                    sale.orderType === 'service_order' ||
+                    (sale.orderType && String(sale.orderType).toLowerCase().includes('service')) ||
+                    /OS|Ordem|Serv/i.test(sale.number || '')
+                  return isLinkedOs ? 'OS' : 'Venda'
+                })()
 
                 const alreadyReturned =
                   sale.stockReturned === true ||
@@ -233,7 +244,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                         reason: 'cancel',
                         referenceId: sale.id,
                         referenceNumber: formattedNumber,
-                        description: `Cancelamento Venda/OS ${sale.number || sale.id}`,
+                        description: `Cancelamento ${cancelTypeLabel} ${sale.number || sale.id}`,
                         userId: user?.id || null
                       })
                     } else {

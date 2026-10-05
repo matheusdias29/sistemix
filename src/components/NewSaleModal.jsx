@@ -732,7 +732,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       return
     }
 
-    if (status === 'Pedido') {
+    if (status === 'Pedido' || status === 'Condicional') {
       const plannedToUse = plannedPaymentsOverride !== undefined ? plannedPaymentsOverride : plannedPayments
       const plannedPaid = (plannedToUse || []).reduce((acc, p) => {
         if (p.methodCode === 'valor_negativo' || p.methodCode === 'vale') return acc + Math.abs(Number(p.amount || 0))
@@ -955,9 +955,19 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       // (runTransaction Firestore → lê estoque REAL do servidor DENTRO da
       // transaction, sem race condition, reexecuta automaticamente a perdedora).
       {
-        const FINAL_STATUSES = ['venda','pedido','cliente final','cliente lojista','finalizado','pago']
+        const FINAL_STATUSES = ['venda','pedido','condicional','cliente final','cliente lojista','finalizado','pago']
         const normNew = String(status || '').toLowerCase().trim()
         let nowDeducted = FINAL_STATUSES.includes(normNew)
+
+        const buildSaleMovementDesc = (normStatus, clientName) => {
+          if (normStatus === 'pedido') return `Pedido para ${clientName || 'Consumidor Final'}`
+          if (normStatus === 'condicional') return `Condicional`
+          if (normStatus.includes('cliente final')) return `Venda para Cliente Final`
+          if (normStatus.includes('lojista') || normStatus.includes('logista')) return `Venda para Cliente Lojista`
+          if (normStatus === 'venda' || normStatus === 'finalizado' || normStatus === 'pago') return `Venda para ${clientName || 'Consumidor Final'}`
+          return `Venda para ${clientName || 'Consumidor Final'}`
+        }
+        const currentMovementDesc = buildSaleMovementDesc(normNew, payload.client)
 
         let wasDeducted = false
         if (isEdit && sale) {
@@ -1066,7 +1076,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               reason: reason || 'sale',
               referenceId: orderId,
               referenceNumber: referenceNumber || null,
-              description: description || (isEdit ? `Ajuste edição venda ${sale?.number || orderId || ''}` : `Venda para ${payload.client}`),
+              description: description || (isEdit ? `Ajuste edição venda ${sale?.number || orderId || ''}` : currentMovementDesc),
               userId: user?.id,
               userName: user?.name
             })
@@ -1092,7 +1102,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               variationName: meta.variationName,
               realProduct: meta.realProduct,
               reason: 'sale',
-              description: `Venda para ${payload.client}`,
+              description: currentMovementDesc,
               referenceNumber: saleRefNumber
             })
           }

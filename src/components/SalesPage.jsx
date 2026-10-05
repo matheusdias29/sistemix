@@ -13,6 +13,7 @@ import { updateStore } from '../services/stores'
 const tabs = [
   { key: 'todos', label: 'Todos' },
   { key: 'pedido', label: 'Pedido' },
+  { key: 'condicional', label: 'Condicional' },
   { key: 'venda', label: 'Vendas' },
   { key: 'cancelada', label: 'Canceladas' },
 ]
@@ -424,6 +425,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         if(tab==='todos') return true
         const s = (o.status || '').toLowerCase()
         if(tab==='pedido') return s==='pedido'
+        if(tab==='condicional') return s==='condicional'
         if(tab==='venda') return s==='venda' || s==='finalizado' || s==='pago' || s === 'cliente final' || s === 'cliente lojista'
         if(tab==='cancelada') return s==='cancelada'
         return true
@@ -687,7 +689,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
         let colorClass = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
         if (s === 'venda' || s.includes('cliente final')) colorClass = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
         else if (s.includes('lojista') || s.includes('logista')) colorClass = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-        else if (s === 'pedido') colorClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+        if (s === 'pedido' || s === 'condicional') colorClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
         else if (s === 'cancelada') colorClass = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
 
         return (
@@ -972,7 +974,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                       const statusKey =
                         (s === 'venda' || s.includes('cliente final')) ? 'venda'
                         : (s.includes('lojista') || s.includes('logista')) ? 'lojista'
-                        : (s === 'pedido') ? 'pedido'
+                        : (s === 'pedido' || s === 'condicional') ? 'pedido'
                         : (s === 'cancelada') ? 'cancelada'
                         : 'outros'
                       const statusClass =

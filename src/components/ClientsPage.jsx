@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { getClientsByPage, searchClientsByPage, getTotalClientsCount, getTotalActiveClientsCount, removeClient, getAllClients, getActiveClients } from '../services/clients'
+import { getClientsByPage, searchClientsByPage, getTotalClientsCount, getTotalActiveClientsCount, removeClient, getAllClients, getActiveClients, bulkSyncAllClientsToOwnerStores } from '../services/clients'
 import { getClientOrderHistory } from '../services/orders'
 import NewClientModal from './NewClientModal'
 import ClientsFilterModal from './ClientsFilterModal'
@@ -199,6 +199,11 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyClient, setHistoryClient] = useState(null)
   const [historyItems, setHistoryItems] = useState([])
+
+  // Dropdown "Opções" topbar + Modal de sincronia entre lojas
+  const [optionsOpen, setOptionsOpen] = useState(false)
+  const [syncOpen, setSyncOpen] = useState(false)
+  const [syncState, setSyncState] = useState({ running:false, step:0, total:0, copied:0, skipped:0, errors:0, done:false, currentClientName:'', error:'' })
   
   // Filtros
   const [filterOpen, setFilterOpen] = useState(false)
@@ -304,6 +309,37 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const handleForceRefresh = () => {
     const includeInactive = cacheIncludesInactive === true
     refreshCacheFromServer(false, null, includeInactive).catch(() => {})
+  }
+
+  // ============================================================
+  // Handler: Sincronizar TODOS clientes -> outras lojas do DONO
+  // (Botão Opções > Sincronizar clientes entre lojas)
+  // ============================================================
+  const handleRunSyncAll = async () => {
+    setSyncState({ running:true, step:0, total:0, copied:0, skipped:0, errors:0, done:false, currentClientName:'Iniciando...', error:'' })
+    try {
+      const result = await bulkSyncAllClientsToOwnerStores(storeId, (progress) => {
+        setSyncState(s => ({ ...s, ...progress }))
+      })
+      if (result?.noOwner) {
+        setSyncState(s => ({ ...s, running:false, done:true, error:'Não foi possível identificar o dono da loja.' }))
+        return
+      }
+      if (result?.noOtherStores) {
+        setSyncState(s => ({ ...s, running:false, done:true, error:'Sua conta só tem 1 loja. Não há outras lojas para sincronizar os clientes.' }))
+        return
+      }
+      setSyncState(s => ({ ...s, running:false, done:true }))
+      // Invalida cache (força recarregar se os clientes sincronizados forem da outra loja)
+      setTimeout(() => refreshCacheFromServer(false, null, cacheIncludesInactive).catch(() => {}), 800)
+    } catch (e) {
+      setSyncState(s => ({ ...s, running:false, done:true, error:e?.message || 'Erro inesperado ao sincronizar.' }))
+    }
+  }
+  const openSyncModal = () => {
+    setSyncState({ running:false, step:0, total:0, copied:0, skipped:0, errors:0, done:false, currentClientName:'', error:'' })
+    setOptionsOpen(false)
+    setSyncOpen(true)
   }
 
   // includeInactive:
@@ -1070,9 +1106,45 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                   <span>Carregando…</span>
                 </div>
               )}
-              <button className="hidden md:inline-flex px-4 py-2 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded-md text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30">
-                Opções
-              </button>
+              {/* Botão Opções: visível para dono e membros com permissão suficiente */}
+              {(isOwner || perms.clients?.edit) && (
+                <div className="relative z-20">
+                  <button
+                    onClick={() => setOptionsOpen(v => !v)}
+                    className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 border border-green-600 text-green-600 dark:text-green-400 dark:border-green-400 rounded-md text-sm font-medium hover:bg-green-50 dark:hover:bg-green-900/30"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span className="hidden sm:inline">Opções</span>
+                  </button>
+                  {optionsOpen && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setOptionsOpen(false)} />
+                      <div className="absolute right-0 mt-2 w-72 rounded-lg border dark:border-gray-700 bg-white dark:bg-gray-800 shadow-xl z-30 py-1 text-sm overflow-hidden">
+                        <button
+                          onClick={openSyncModal}
+                          className="w-full text-left px-3.5 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3"
+                        >
+                          <div className="w-8 h-8 rounded-md bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 flex items-center justify-center shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <span className="font-medium text-gray-800 dark:text-gray-100">Sincronizar com outras lojas</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 truncate">Replica clientes em todas lojas do dono</span>
+                          </div>
+                        </button>
+                        <div className="h-px bg-gray-100 dark:bg-gray-700 my-1" />
+                        <button
+                          onClick={() => { setOptionsOpen(false); setFilterOpen(true) }}
+                          className="w-full text-left px-3.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-200"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                          Filtros avançados
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
               {(isOwner || perms.clients?.create) && (
               <button onClick={()=>setModalOpen(true)} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-md text-sm font-medium flex items-center gap-1">
                 <span>+</span> Novo
@@ -1268,6 +1340,155 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
         <Pagination />
 
       </div>
+
+      {/* ================================================================= */}
+      {/* Modal de Sincronização de Clientes entre lojas do DONO           */}
+      {/* ================================================================= */}
+      {syncOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg shadow-2xl w-full max-w-lg max-h-[92vh] overflow-y-auto">
+            <div className="flex items-start justify-between p-4 sm:p-5 border-b dark:border-gray-700 sticky top-0 bg-white dark:bg-gray-800 z-10 rounded-t-lg">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="w-10 h-10 shrink-0 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">Sincronizar Clientes</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">
+                    Replica os clientes desta loja nas outras lojas do mesmo dono. Nenhum cliente duplicado é criado.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSyncOpen(false)}
+                disabled={syncState.running}
+                className="p-1.5 -mr-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-300 disabled:opacity-50 shrink-0"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Antes de iniciar */}
+              {!syncState.running && !syncState.done && !syncState.error && (
+                <>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border border-blue-100 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/40">
+                    <div className="w-8 h-8 rounded-md bg-white dark:bg-blue-900/60 text-blue-600 dark:text-blue-300 flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    </div>
+                    <div className="text-sm text-blue-900 dark:text-blue-200 leading-relaxed">
+                      <div className="font-semibold mb-1">Como funciona?</div>
+                      Cada cliente recebe um <b>ID ÚNICO separado</b> em cada loja — não há conflito de IDs. Se uma pessoa física já existir na outra loja (mesmo CPF, CNPJ ou WhatsApp), ela é preservada e NÃO é duplicada.
+                    </div>
+                  </div>
+                  <ul className="text-sm text-gray-700 dark:text-gray-300 space-y-2">
+                    <li className="flex gap-2"><span className="text-green-600 dark:text-green-400">✓</span> Clientes novos aparecem em todas as lojas do dono automaticamente.</li>
+                    <li className="flex gap-2"><span className="text-green-600 dark:text-green-400">✓</span> Nenhum cliente já existente é sobrescrito.</li>
+                    <li className="flex gap-2"><span className="text-green-600 dark:text-green-400">✓</span> Pode levar alguns minutos dependendo da quantidade.</li>
+                  </ul>
+                </>
+              )}
+
+              {/* Em progresso */}
+              {syncState.running && (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                        {syncState.currentClientName || 'Processando...'}
+                      </div>
+                      <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 shrink-0 ml-2">
+                        {syncState.total > 0
+                          ? `${Math.round((syncState.step / syncState.total) * 100)}%`
+                          : '0%'}
+                      </div>
+                    </div>
+                    <div className="h-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
+                        style={{ width: `${syncState.total > 0 ? Math.min(100, Math.round((syncState.step / syncState.total) * 100)) : 0}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      {syncState.step.toLocaleString('pt-BR')} de {syncState.total.toLocaleString('pt-BR')} clientes
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm">
+                    <div className="p-2.5 rounded-md bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-900/60">
+                      <div className="text-green-700 dark:text-green-400 font-semibold">{syncState.copied.toLocaleString('pt-BR')}</div>
+                      <div className="text-green-700/80 dark:text-green-400/80">Copiados</div>
+                    </div>
+                    <div className="p-2.5 rounded-md bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-700">
+                      <div className="text-gray-700 dark:text-gray-200 font-semibold">{syncState.skipped.toLocaleString('pt-BR')}</div>
+                      <div className="text-gray-700/80 dark:text-gray-300/80">Já existiam</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Erro / mensagem informativa */}
+              {syncState.error && !syncState.running && (
+                <div className="flex items-start gap-3 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900/60 dark:bg-amber-950/40">
+                  <div className="w-8 h-8 rounded-md bg-white dark:bg-amber-900/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  </div>
+                  <div className="text-sm text-amber-900 dark:text-amber-200">{syncState.error}</div>
+                </div>
+              )}
+
+              {/* Concluído com sucesso */}
+              {syncState.done && !syncState.error && syncState.total > 0 && (
+                <>
+                  <div className="flex items-start gap-3 p-3 rounded-lg border border-green-200 bg-green-50 dark:border-green-900/50 dark:bg-green-950/30">
+                    <div className="w-8 h-8 rounded-md bg-white dark:bg-green-900/60 text-green-600 dark:text-green-400 flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div className="text-sm text-green-900 dark:text-green-200">
+                      <div className="font-semibold mb-0.5">Sincronização concluída!</div>
+                      <div className="text-green-800/90 dark:text-green-300/90">
+                        {syncState.total.toLocaleString('pt-BR')} clientes verificados.
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs sm:text-sm">
+                    <div className="p-3 rounded-md bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-900/60 text-center">
+                      <div className="text-green-700 dark:text-green-400 font-bold text-lg">{syncState.copied.toLocaleString('pt-BR')}</div>
+                      <div className="text-green-700/80 dark:text-green-400/80 mt-0.5">Novos</div>
+                    </div>
+                    <div className="p-3 rounded-md bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-700 text-center">
+                      <div className="text-gray-700 dark:text-gray-200 font-bold text-lg">{syncState.skipped.toLocaleString('pt-BR')}</div>
+                      <div className="text-gray-700/80 dark:text-gray-300/80 mt-0.5">Pulados</div>
+                    </div>
+                    <div className="p-3 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 text-center">
+                      <div className="text-red-700 dark:text-red-400 font-bold text-lg">{syncState.errors.toLocaleString('pt-BR')}</div>
+                      <div className="text-red-700/80 dark:text-red-400/80 mt-0.5">Erros</div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Botões rodapé */}
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-3 p-4 sm:p-5 border-t dark:border-gray-700 pt-3 sm:pt-4">
+              <button
+                onClick={() => setSyncOpen(false)}
+                disabled={syncState.running}
+                className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-md border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 font-medium"
+              >
+                {syncState.done || syncState.error ? 'Fechar' : 'Cancelar'}
+              </button>
+              {(!syncState.running && !syncState.done && !syncState.error) && (
+                <button
+                  onClick={handleRunSyncAll}
+                  className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-md bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:from-green-700 hover:to-emerald-700 disabled:opacity-60 font-semibold shadow-md shadow-green-500/20"
+                >
+                  Iniciar sincronização
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <NewClientModal 
         open={modalOpen} 

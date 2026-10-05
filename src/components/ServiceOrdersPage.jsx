@@ -1082,6 +1082,10 @@ const canEditService = isOwner || perms.services?.edit
   const handleSave = async () => {
     if (saving) return
     if (editingOrderId) {
+      if (isOrderLocked) {
+        showAlert('Esta O.S. está faturada/finalizada e não pode ser alterada. Para editar, antes cancele o faturamento / movimento de caixa dessa O.S.')
+        return
+      }
       if (!isOwner && !perms.serviceOrders?.edit) {
         alert('Sem permissão para editar ordens de serviço.')
         return
@@ -1448,6 +1452,8 @@ const canEditService = isOwner || perms.services?.edit
     const s = String(status || '').toLowerCase()
     return s.includes('faturada') || s.includes('finalizada') || s.includes('finalizado')
   }, [status])
+
+  const canEditSafe = canEdit && !isOrderLocked
 
   const handleDeleteOrder = async (order) => {
     setRowMenuOpenId(null)
@@ -2800,71 +2806,71 @@ const canEditService = isOwner || perms.services?.edit
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Cliente</label>
-                    <input disabled={!canEdit} readOnly value={client} onClick={()=>setClientSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Selecionar cliente" />
+                    <input disabled={!canEditSafe} readOnly value={client} onClick={()=>{ if (!canEditSafe) return; setClientSelectOpen(true) }} className={`mt-1 w-full border rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${canEditSafe ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-600' : 'opacity-80 cursor-not-allowed'}`} placeholder="Selecionar cliente" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Técnico</label>
-                    <input disabled={!canEdit} readOnly value={technician} onClick={()=>setTechSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Selecionar técnico" />
+                    <input disabled={!canEditSafe} readOnly value={technician} onClick={()=>{ if (!canEditSafe) return; setTechSelectOpen(true) }} className={`mt-1 w-full border rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${canEditSafe ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-600' : 'opacity-80 cursor-not-allowed'}`} placeholder="Selecionar técnico" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Atendente</label>
-                    <input disabled={!canEdit} readOnly value={attendant} onClick={()=>setAttendantSelectOpen(true)} className="mt-1 w-full border rounded px-3 py-2 text-sm cursor-pointer bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" placeholder="Selecionar atendente" />
+                    <input disabled={!canEditSafe} readOnly value={attendant} onClick={()=>{ if (!canEditSafe) return; setAttendantSelectOpen(true) }} className={`mt-1 w-full border rounded px-3 py-2 text-sm bg-gray-50 dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 ${canEditSafe ? 'cursor-pointer hover:bg-white dark:hover:bg-gray-600' : 'opacity-80 cursor-not-allowed'}`} placeholder="Selecionar atendente" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Data Entrada</label>
-                    <input disabled={!canEdit} type="datetime-local" value={dateIn} onChange={e=>setDateIn(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} type="datetime-local" value={dateIn} onChange={e=>setDateIn(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Previsão de entrega</label>
-                    <input disabled={!canEdit} type="datetime-local" value={expectedDate} onChange={e=>setExpectedDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} type="datetime-local" value={expectedDate} onChange={e=>setExpectedDate(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Marca</label>
-                    <input disabled={!canEdit} value={brand} onChange={e=>setBrand(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} value={brand} onChange={e=>setBrand(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Modelo</label>
-                    <input disabled={!canEdit} value={model} onChange={e=>setModel(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} value={model} onChange={e=>setModel(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Número de série</label>
-                    <input disabled={!canEdit} value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} value={serialNumber} onChange={e=>setSerialNumber(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">IMEI 1</label>
-                    <input disabled={!canEdit} value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} value={imei1} onChange={e=>setImei1(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">IMEI 2</label>
-                    <input disabled={!canEdit} value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <input disabled={!canEditSafe} value={imei2} onChange={e=>setImei2(e.target.value)} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Equipamento</label>
-                    <textarea disabled={!canEdit} value={equipment} onChange={e=>setEquipment(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <textarea disabled={!canEditSafe} value={equipment} onChange={e=>setEquipment(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Problema</label>
-                    <textarea disabled={!canEdit} value={problem} onChange={e=>setProblem(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <textarea disabled={!canEditSafe} value={problem} onChange={e=>setProblem(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                 </div>
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Obs entrada</label>
-                    <textarea disabled={!canEdit} value={receiptNotes} onChange={e=>setReceiptNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <textarea disabled={!canEditSafe} value={receiptNotes} onChange={e=>setReceiptNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 dark:text-gray-400">Observações internas</label>
-                    <textarea disabled={!canEdit} value={internalNotes} onChange={e=>setInternalNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
+                    <textarea disabled={!canEditSafe} value={internalNotes} onChange={e=>setInternalNotes(e.target.value)} rows={4} className="mt-1 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100" />
                   </div>
                 </div>
               </div>
 
               <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
                 <div className="font-semibold text-lg text-gray-900 dark:text-white">Outros</div>
-                {canEdit && (
-                <div className="mt-4 flex gap-3">
+                {canEditSafe && (
+                <div className="mt-4 flex gap-3 flex-wrap">
                   <button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Senha</button>
                   {!selectedChecklist && (
                     <button type="button" onClick={()=>setChecklistSelectOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Checklist</button>
@@ -2905,7 +2911,7 @@ const canEditService = isOwner || perms.services?.edit
                           <img src={f.url} alt={f.name} className="w-full h-full object-cover" />
                         </div>
                         <div className="px-2 py-1 text-xs text-gray-700 dark:text-gray-300 truncate">{f.name}</div>
-                        {canEdit && (
+                        {canEditSafe && (
                           <button
                             type="button"
                             onClick={async ()=>{
@@ -2961,8 +2967,8 @@ const canEditService = isOwner || perms.services?.edit
                       })}
                     </div>
                   </div>
-                  {canEdit && (
-                  <div className="flex gap-3">
+                  {canEditSafe && (
+                  <div className="flex gap-3 flex-wrap">
                     <button 
                       type="button" 
                       onClick={()=>setChecklistQuestionsOpen(true)} 
@@ -2991,14 +2997,14 @@ const canEditService = isOwner || perms.services?.edit
                   {unlockType === 'pattern' ? (
                     <div className="mt-3">
                       <PatternPreview pattern={unlockPattern} />
-                      {canEdit && <div className="mt-3"><button type="button" onClick={()=>setUnlockPattern([])} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Redefinir</button></div>}
+                      {canEditSafe && <div className="mt-3"><button type="button" onClick={()=>setUnlockPattern([])} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Redefinir</button></div>}
                     </div>
                   ) : (
                     <div className="mt-3">
                       <div className="text-sm text-gray-700 dark:text-gray-300">{unlockType === 'pin' ? `PIN: ${unlockPin}` : `Senha: ${unlockPassword}`}</div>
                     </div>
                   )}
-                  {canEdit && <div className="mt-3"><button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Editar Senha</button></div>}
+                  {canEditSafe && <div className="mt-3"><button type="button" onClick={()=>setUnlockTypeOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Editar Senha</button></div>}
                 </div>
               )}
 
@@ -3014,12 +3020,16 @@ const canEditService = isOwner || perms.services?.edit
                           <div className="font-medium">{sv.name}</div>
                         </div>
                         <div className="text-right">{(sv.price * (sv.quantity||1)).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                        <button type="button" onClick={()=>removeService(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+                        {canEditSafe ? (
+                          <button type="button" onClick={()=>removeService(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
+                        ) : <span aria-hidden />}
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="mt-3"><button type="button" onClick={()=>setServiceSelectOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Serviço</button></div>
+                {canEditSafe && (
+                  <div className="mt-3"><button type="button" onClick={()=>setServiceSelectOpen(true)} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Serviço</button></div>
+                )}
               </div>
 
               <div className="rounded-lg bg-white dark:bg-gray-800 p-6 shadow dark:shadow-none border dark:border-gray-700">
@@ -3036,7 +3046,7 @@ const canEditService = isOwner || perms.services?.edit
                         </div>
                         <div className="text-right">{p.quantity}</div>
                         <div className="text-right">{(p.price * p.quantity).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
-                        {!isOrderLocked && canEdit && (
+                        {canEditSafe && (
                           <div className="flex items-center justify-end gap-3">
                             <button type="button" onClick={()=>openEditProduct(idx)} className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Editar</button>
                             <button type="button" onClick={()=>removeProduct(idx)} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">✕</button>
@@ -3046,7 +3056,7 @@ const canEditService = isOwner || perms.services?.edit
                     ))}
                   </div>
                 )}
-                {!isOrderLocked && canEdit && (
+                {canEditSafe && (
                   <div className="mt-3"><button type="button" onClick={openAddProduct} className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Adicionar Produto</button></div>
                 )}
               </div>
@@ -3081,7 +3091,7 @@ const canEditService = isOwner || perms.services?.edit
                     />
                   </div>
                 </div>
-                {!isOrderLocked && canEdit && canChangeValues && (
+                {canEditSafe && canChangeValues && (
                   <div className="mt-4">
                     <button  
                       type="button" 
@@ -3150,6 +3160,7 @@ const canEditService = isOwner || perms.services?.edit
                     value={paymentInfo}
                     onChange={e => setPaymentInfo(e.target.value)}
                     rows={3}
+                    disabled={!canEditSafe}
                     className="w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
                     placeholder="Descreva o método de pagamento acordado..."
                   />
@@ -3160,7 +3171,7 @@ const canEditService = isOwner || perms.services?.edit
                 <div className="font-semibold text-lg text-gray-900 dark:text-white">Obs saida</div>
                 <textarea
                   rows={3}
-                  disabled={!canEdit}
+                  disabled={!canEditSafe}
                   value={observations}
                   onChange={e => setObservations(e.target.value)}
                   className="mt-3 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400"
@@ -3168,14 +3179,22 @@ const canEditService = isOwner || perms.services?.edit
                 />
                 <div className="mt-6">
                   <div className="text-sm text-gray-600 dark:text-gray-400">Informações de garantia</div>
-                  <textarea rows={6} value={warrantyInfo} onChange={e=>setWarrantyInfo(e.target.value)} className="mt-2 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
+                  <textarea rows={6} value={warrantyInfo} onChange={e=>setWarrantyInfo(e.target.value)} disabled={!canEditSafe} className="mt-2 w-full border rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400" />
                 </div>
-                <div className="mt-6 flex items-center justify-end gap-3">
-                  {canEdit && (
+                <div className="mt-6 flex items-center justify-end gap-3 flex-wrap">
+                  {canEditSafe && (
                     <>
                       <button type="button" className="px-3 py-2 border rounded text-sm text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Salvar e Imprimir</button>
                       <button disabled={saving} type="button" onClick={handleSave} className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 disabled:opacity-60">Salvar</button>
                     </>
+                  )}
+                  {isOrderLocked && editingOrderId && (
+                    <div className="flex-1 text-right">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-sm font-medium">
+                        <span>🔒</span>
+                        <span>O.S. faturada/finalizada. Para editar, antes cancele o faturamento / movimento de caixa.</span>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>

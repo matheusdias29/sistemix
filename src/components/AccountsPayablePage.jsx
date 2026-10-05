@@ -117,14 +117,28 @@ export default function AccountsPayablePage({ storeId, user, store }) {
   }, [accounts, search, statusFilter, dateFilterStart, dateFilterEnd, filterSupplierId, filterCategoryId])
 
   const totalValue = useMemo(() => {
-    return filtered.reduce((acc, curr) => acc + (curr.remainingValue || 0), 0)
-  }, [filtered])
+    return filtered.reduce((acc, curr) => {
+      if (statusFilter === 'paid') {
+        return acc + (Number(curr.paidValue) || 0)
+      } else if (statusFilter === 'cancelled') {
+        return acc + (Number(curr.originalValue) || 0)
+      }
+      return acc + (Number(curr.remainingValue) || 0)
+    }, 0)
+  }, [filtered, statusFilter])
 
   const selectedTotal = useMemo(() => {
     return filtered
       .filter(f => selectedIds.has(f.id))
-      .reduce((acc, curr) => acc + (curr.remainingValue || 0), 0)
-  }, [filtered, selectedIds])
+      .reduce((acc, curr) => {
+        if (statusFilter === 'paid') {
+          return acc + (Number(curr.paidValue) || 0)
+        } else if (statusFilter === 'cancelled') {
+          return acc + (Number(curr.originalValue) || 0)
+        }
+        return acc + (Number(curr.remainingValue) || 0)
+      }, 0)
+  }, [filtered, selectedIds, statusFilter])
 
   const sorted = useMemo(() => {
     const getDateValue = (d) => {
@@ -751,8 +765,20 @@ export default function AccountsPayablePage({ storeId, user, store }) {
             {/* Total Bar */}
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3 border border-gray-100 dark:border-gray-700">
                <div>
-                 <span className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1">Total</span>
-                 <span className={`text-xl font-bold ${statusFilter === 'pending' ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-white'}`}>
+                 <span className="text-xs text-gray-500 dark:text-gray-400 font-medium block mb-1">
+                   {statusFilter === 'pending'
+                     ? 'Total a Pagar'
+                     : statusFilter === 'paid'
+                       ? 'Total Pago'
+                       : 'Total Cancelado'}
+                 </span>
+                 <span className={`text-xl font-bold ${
+                   statusFilter === 'pending'
+                     ? 'text-green-600 dark:text-green-400'
+                     : statusFilter === 'paid'
+                       ? 'text-green-700 dark:text-green-500'
+                       : 'text-red-700 dark:text-red-500'
+                 }`}>
                    {money(totalValue)}
                  </span>
                </div>
