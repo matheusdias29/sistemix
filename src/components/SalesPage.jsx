@@ -298,7 +298,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
   }, [query, tab, dateRange, advFilters])
 
   useEffect(() => {
-    const unsub = listenOrders(items => setOrders(items), storeId)
+    const unsub = listenOrders(items => setOrders(items), storeId, 10000)
     const unsubP = listenProducts(items => setProducts(items), storeId)
     return () => { 
       unsub && unsub() 

@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase'
-import { collection, query, where, getDocs, addDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, runTransaction, arrayUnion, getDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, setDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, arrayUnion, getDoc, increment } from 'firebase/firestore'
 
 // Escuta o caixa aberto atual da loja
 export function listenCurrentCash(storeId, callback) {
@@ -40,35 +40,40 @@ export async function getOpenCashRegister(storeId) {
 export async function openCashRegister({ storeId, userId, userName, initialValue }) {
   if (!storeId) throw new Error('Loja não identificada')
 
-  // Verifica se já existe um aberto (segurança extra)
-  const q = query(
-    collection(db, 'cash_registers'),
-    where('storeId', '==', storeId),
-    where('status', '==', 'open'),
-    limit(1)
-  )
-  const existing = await getDocs(q)
-  if (!existing.empty) {
-    throw new Error('Já existe um caixa aberto.')
-  }
-
-  // Usar transação para garantir número sequencial
-  await runTransaction(db, async (transaction) => {
-    // Referência para o contador da loja
-    const counterRef = doc(db, 'stores', storeId, 'counters', 'cashRegisters')
-    const counterDoc = await transaction.get(counterRef)
-    
-    let nextNumber = 1
-    if (counterDoc.exists()) {
-      nextNumber = (counterDoc.data().current || 0) + 1
+  try {
+    // Verifica se já existe um aberto (segurança extra)
+    const q = query(
+      collection(db, 'cash_registers'),
+      where('storeId', '==', storeId),
+      where('status', '==', 'open'),
+      limit(1)
+    )
+    const existing = await getDocs(q)
+    if (!existing.empty) {
+      throw new Error('Já existe um caixa aberto.')
     }
-    
-    // Atualiza contador
-    transaction.set(counterRef, { current: nextNumber }, { merge: true })
-    
+
+    // Tenta obter o próximo número sequencial.
+    // Estratégia 1: contador atômico em stores/{storeId}/counters/cashRegisters
+    // Estratégia 2 (fallback): contar caixas existentes + 1
+    let nextNumber = 1
+    try {
+      const counterRef = doc(db, 'stores', storeId, 'counters', 'cashRegisters')
+      await setDoc(counterRef, { current: increment(1) }, { merge: true })
+      const counterSnap = await getDoc(counterRef)
+      nextNumber = counterSnap.exists() ? Number(counterSnap.data().current || 0) : 1
+    } catch (counterErr) {
+      console.warn('Falha ao usar contador de caixa, usando fallback:', counterErr)
+      const allCash = await getDocs(query(collection(db, 'cash_registers'), where('storeId', '==', storeId)))
+      const maxNum = allCash.docs.reduce((max, d) => {
+        const n = Number(d.data().number || 0)
+        return n > max ? n : max
+      }, 0)
+      nextNumber = maxNum + 1
+    }
+
     // Cria o novo caixa
-    const newCashRef = doc(collection(db, 'cash_registers'))
-    transaction.set(newCashRef, {
+    await addDoc(collection(db, 'cash_registers'), {
       storeId,
       number: nextNumber, // Número sequencial
       openedBy: userId,
@@ -77,11 +82,14 @@ export async function openCashRegister({ storeId, userId, userName, initialValue
       status: 'open',
       initialValue: Number(initialValue) || 0,
       currentBalance: Number(initialValue) || 0,
-      transactions: [], 
+      transactions: [],
       closedAt: null,
       closingValues: null
     })
-  })
+  } catch (err) {
+    console.error('openCashRegister error:', err)
+    throw err
+  }
 }
 
 // Busca caixas fechados anteriores

@@ -706,7 +706,12 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       setInitialCashValue('')
     } catch (err) {
       console.error(err)
-      alert('Erro ao abrir caixa: ' + err.message)
+      const msg = String(err?.message || err || '')
+      if (msg.toLowerCase().includes('quota')) {
+        alert('Limite de uso do Firebase atingido. Aguarde alguns minutos e tente novamente, ou entre em contato com o suporte.')
+      } else {
+        alert('Erro ao abrir caixa: ' + msg)
+      }
     } finally {
       setOpeningCash(false)
     }

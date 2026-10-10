@@ -74,7 +74,7 @@ export default function GoalsPage({ storeId, owner, viewParams }){
 
   useEffect(() => {
     const unsubG = listenGoals(items => setGoals(items), storeId)
-    const unsubO = listenOrders(items => setOrders(items), storeId)
+    const unsubO = listenOrders(items => setOrders(items), storeId, 20000)
     let unsubS = null
     if (owner?.id) {
       unsubS = listenSubUsers(owner.id, list => setSellers(list.filter(u => u.isSeller || /vendedor/i.test(String(u.name||'')))))

@@ -925,7 +925,7 @@ export default function StatisticsPage({ storeId, user }: StatisticsPageProps) {
   }
 
   useEffect(() => {
-    const unsub = listenOrders((items: Order[]) => setOrders(items), storeId)
+    const unsub = listenOrders((items: Order[]) => setOrders(items), storeId, 20000)
     return () => unsub && unsub()
   }, [storeId])
 

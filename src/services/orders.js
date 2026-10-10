@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc, limit as firestoreLimit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'orders')
@@ -46,10 +46,12 @@ async function getNextOrderNumber(storeId, type){
   }
 }
 
-export function listenOrders(callback, storeId){
-  const q = storeId
-    ? query(colRef, where('storeId','==',storeId))
-    : query(colRef, orderBy('createdAt', 'desc'))
+export function listenOrders(callback, storeId, maxItems = 5000){
+  const constraints = storeId
+    ? [where('storeId','==',storeId), orderBy('__name__', 'desc')]
+    : [orderBy('__name__', 'desc')]
+  if (maxItems && maxItems > 0) constraints.push(firestoreLimit(maxItems))
+  const q = query(colRef, ...constraints)
   return onSnapshot(q, (snap) => {
     const items = snap.docs
       .map(d => ({ id: d.id, ...d.data() }))

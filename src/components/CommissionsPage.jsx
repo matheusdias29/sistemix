@@ -9,7 +9,7 @@ export default function CommissionsPage({ storeId, store, onNavigate }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)) // YYYY-MM
 
   useEffect(() => {
-    const unsub = listenOrders((data) => setOrders(data), storeId)
+    const unsub = listenOrders((data) => setOrders(data), storeId, 20000)
     return () => unsub()
   }, [storeId])
 

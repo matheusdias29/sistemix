@@ -347,7 +347,7 @@ export default function ServiceOrdersPage({ storeId, store, ownerId, user, addNe
 
   const [orders, setOrders] = useState([])
   useEffect(() => {
-    const unsub = listenOrders(items => setOrders(items), storeId)
+    const unsub = listenOrders(items => setOrders(items), storeId, 10000)
     return () => unsub && unsub()
   }, [storeId])
 
