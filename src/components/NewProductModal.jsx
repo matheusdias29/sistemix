@@ -57,6 +57,67 @@ export const ensureSupplierInStore = async (supplierData, targetStoreId) => {
   }
 }
 
+// Redimensiona e comprime a imagem no navegador antes do upload.
+// Fotos de celular costumam ter 3-10MB; isso reduz para ~100KB-300KB,
+// acelerando drasticamente o carregamento nas listagens.
+const compressImage = (file, maxSize = 1000, quality = 0.8) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type?.startsWith('image/')) {
+      resolve(file)
+      return
+    }
+    try {
+      const img = new Image()
+      const objectUrl = URL.createObjectURL(file)
+      img.onload = () => {
+        try {
+          let { width, height } = img
+          if (width > maxSize || height > maxSize) {
+            if (width >= height) {
+              height = Math.round((height * maxSize) / width)
+              width = maxSize
+            } else {
+              width = Math.round((width * maxSize) / height)
+              height = maxSize
+            }
+          }
+          const canvas = document.createElement('canvas')
+          canvas.width = width
+          canvas.height = height
+          const ctx = canvas.getContext('2d')
+          // Fundo branco (evita áreas pretas ao converter PNG transparente p/ JPEG)
+          ctx.fillStyle = '#ffffff'
+          ctx.fillRect(0, 0, width, height)
+          ctx.drawImage(img, 0, 0, width, height)
+          canvas.toBlob(
+            (blob) => {
+              URL.revokeObjectURL(objectUrl)
+              if (blob && blob.size < file.size) {
+                const baseName = (file.name || 'imagem').replace(/\.[^.]+$/, '')
+                resolve(new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' }))
+              } else {
+                resolve(file)
+              }
+            },
+            'image/jpeg',
+            quality
+          )
+        } catch (e) {
+          URL.revokeObjectURL(objectUrl)
+          resolve(file)
+        }
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        resolve(file)
+      }
+      img.src = objectUrl
+    } catch (e) {
+      resolve(file)
+    }
+  })
+}
+
 export default function NewProductModal({ open, onClose, isEdit=false, product=null, categories=[], suppliers=[], storeId, user, syncProducts=false, syncStockTogether=false, canCreateCategory=true, canCreateSupplier=true, onSuccess }){
   // ==================================================================
   // REFs de snapshot ORIGINAL (exatamente o que apareceu para o usuário
@@ -498,8 +559,11 @@ export default function NewProductModal({ open, onClose, isEdit=false, product=n
       if (imageFile) {
         setUploading(true)
         try {
-          const storageRef = ref(storage, `products/${storeId}/${Date.now()}_${imageFile.name}`)
-          const snapshot = await uploadBytes(storageRef, imageFile)
+          // Comprime a imagem antes de enviar (evita subir fotos de 5MB+)
+          const fileToUpload = await compressImage(imageFile)
+          const safeName = (fileToUpload.name || 'imagem.jpg').replace(/[^\w.\-]/g, '_')
+          const storageRef = ref(storage, `products/${storeId}/${Date.now()}_${safeName}`)
+          const snapshot = await uploadBytes(storageRef, fileToUpload)
           finalImageUrl = await getDownloadURL(snapshot.ref)
         } catch (err) {
           console.error("Erro ao fazer upload da imagem", err)

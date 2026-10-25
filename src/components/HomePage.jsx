@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { listenOrders } from '../services/orders'
 import { listenClients } from '../services/clients'
-import { listenStore } from '../services/stores'
+import { listenStore, updateStore } from '../services/stores'
 import { listenCurrentCash } from '../services/cash'
 import { listenSubUsers, getOwner } from '../services/users'
 import CommissionsModal from './CommissionsModal'
@@ -22,8 +22,13 @@ import {
   Users,
   Briefcase,
   User,
-  Cake
+  Cake,
+  Settings,
+  MessageCircle
 } from 'lucide-react'
+
+// Mensagem padrão de parabéns (usada quando o usuário ainda não personalizou)
+const DEFAULT_BIRTHDAY_MESSAGE = 'Olá {nome}, feliz aniversário! A equipe da {loja} deseja a você muitas felicidades, saúde e sucesso!'
 
 export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
   const isOwner = !user?.memberId
@@ -39,6 +44,47 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
   const [showAllTeamGoals, setShowAllTeamGoals] = useState(false)
   const [currentCash, setCurrentCash] = useState(null)
   const [teamMembers, setTeamMembers] = useState([])
+  const [birthdayMsgOpen, setBirthdayMsgOpen] = useState(false)
+  const [birthdayMsgDraft, setBirthdayMsgDraft] = useState('')
+  const [savingBirthdayMsg, setSavingBirthdayMsg] = useState(false)
+
+  // Mensagem personalizada salva na loja (fallback para o texto padrão)
+  const birthdayTemplate = (store?.birthdayMessage && String(store.birthdayMessage).trim()) || DEFAULT_BIRTHDAY_MESSAGE
+  const canEditBirthdayMsg = isOwner || !!perms.clients?.edit || !!perms.storeSettings?.edit
+
+  // Monta a mensagem final substituindo os marcadores {nome} e {loja}
+  const buildBirthdayMessage = (clientName) => {
+    return String(birthdayTemplate)
+      .replace(/\{nome\}/gi, clientName || '')
+      .replace(/\{loja\}/gi, store?.name || '')
+  }
+
+  // Gera o link do WhatsApp com a mensagem já preenchida
+  const buildBirthdayWhatsUrl = (whatsapp, clientName) => {
+    const digits = String(whatsapp || '').replace(/\D/g, '')
+    if (!digits) return null
+    const withCountry = digits.startsWith('55') ? digits : `55${digits}`
+    return `https://wa.me/${withCountry}?text=${encodeURIComponent(buildBirthdayMessage(clientName))}`
+  }
+
+  const openBirthdayMsgEditor = () => {
+    setBirthdayMsgDraft(birthdayTemplate)
+    setBirthdayMsgOpen(true)
+  }
+
+  const handleSaveBirthdayMsg = async () => {
+    if (!storeId) return
+    setSavingBirthdayMsg(true)
+    try {
+      await updateStore(storeId, { birthdayMessage: String(birthdayMsgDraft).trim() })
+      setBirthdayMsgOpen(false)
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao salvar a mensagem de parabéns.')
+    } finally {
+      setSavingBirthdayMsg(false)
+    }
+  }
 
   const today = new Date()
 
@@ -946,11 +992,23 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
 
       {/* Aniversariantes do Mês */}
       <section className="rounded-xl bg-white dark:bg-gray-800 p-5 md:p-8 shadow-sm border border-gray-100 dark:border-gray-700">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 rounded-lg bg-pink-50 text-pink-600 dark:bg-pink-900/20 dark:text-pink-400">
-            <Cake size={24} />
+        <div className="flex items-center justify-between mb-6 gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-pink-50 text-pink-600 dark:bg-pink-900/20 dark:text-pink-400">
+              <Cake size={24} />
+            </div>
+            <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Aniversariantes do Mês</h3>
           </div>
-          <h3 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Aniversariantes do Mês</h3>
+          {canEditBirthdayMsg && (
+            <button
+              type="button"
+              onClick={openBirthdayMsgEditor}
+              title="Editar mensagem de parabéns"
+              className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Settings size={20} />
+            </button>
+          )}
         </div>
 
         {birthDayBoys.length === 0 ? (
@@ -999,6 +1057,17 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
                       {isToday && <span className="text-pink-600 dark:text-pink-400 font-bold ml-1">Parabéns!</span>}
                     </div>
                   </div>
+                  {buildBirthdayWhatsUrl(m.whatsapp, m.name) && (
+                    <a
+                      href={buildBirthdayWhatsUrl(m.whatsapp, m.name)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Enviar mensagem de aniversário no WhatsApp"
+                      className="flex-shrink-0 p-2 rounded-full bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm"
+                    >
+                      <MessageCircle size={18} />
+                    </a>
+                  )}
                 </div>
               )
             })}
@@ -1118,6 +1187,73 @@ export default function HomePage({ storeId, onNavigate, onOpenSalesDay, user }){
            </div>
         </div>
       </section>
+      )}
+
+      {/* MODAL: editar mensagem de parabéns */}
+      {birthdayMsgOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="p-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Mensagem de parabéns</h2>
+              <button
+                type="button"
+                onClick={() => setBirthdayMsgOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Use <span className="font-semibold">{'{nome}'}</span> para o nome do cliente e <span className="font-semibold">{'{loja}'}</span> para o nome da loja.
+              </p>
+              <textarea
+                rows={4}
+                value={birthdayMsgDraft}
+                onChange={(e) => setBirthdayMsgDraft(e.target.value)}
+                placeholder={DEFAULT_BIRTHDAY_MESSAGE}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg p-3 text-sm bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-gray-100 focus:ring-1 focus:ring-pink-500 outline-none resize-none"
+              />
+
+              <div className="mt-4">
+                <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">Pré-visualização</div>
+                <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50 border border-gray-100 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words">
+                  {String(birthdayMsgDraft || DEFAULT_BIRTHDAY_MESSAGE)
+                    .replace(/\{nome\}/gi, 'Maria')
+                    .replace(/\{loja\}/gi, store?.name || 'sua loja')}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => setBirthdayMsgDraft(DEFAULT_BIRTHDAY_MESSAGE)}
+                className="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-pink-600 dark:hover:text-pink-400 transition-colors"
+              >
+                Restaurar padrão
+              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBirthdayMsgOpen(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveBirthdayMsg}
+                  disabled={savingBirthdayMsg}
+                  className="px-5 py-2 bg-pink-500 hover:bg-pink-600 disabled:opacity-60 text-white rounded text-sm font-medium shadow-sm transition-colors"
+                >
+                  {savingBirthdayMsg ? 'Salvando...' : 'Salvar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <CommissionsModal 

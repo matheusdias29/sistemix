@@ -1584,7 +1584,12 @@ export default function POSPage({ storeId, user }){
 
                         return (
                           <tr key={c.id} onClick={()=>setSelectedPreviousCash(c)} className="hover:bg-gray-50 cursor-pointer">
-                            <td className="py-3 px-4 text-gray-800 font-medium">{c.number || '-'}</td>
+                            <td className="py-3 px-4 text-gray-800 font-medium">
+                              {c.number || '-'}
+                              {c.closingValues?.observations && String(c.closingValues.observations).trim() && (
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800" title={c.closingValues.observations}>Obs</span>
+                              )}
+                            </td>
                             <td className="py-3 px-4 text-gray-500">{dateStr(c.openedAt)}</td>
                             <td className="py-3 px-4 text-gray-500">{dateStr(c.closedAt)}</td>
                             <td className="py-3 px-4 text-right text-gray-900">{money(initial)}</td>
@@ -1655,6 +1660,13 @@ export default function POSPage({ storeId, user }){
                    <div className="text-xs text-gray-500 mb-6">
                      Caixa #{selectedPreviousCash.number || '-'} aberto em {dateStr(selectedPreviousCash.openedAt)}
                    </div>
+
+                   {selectedPreviousCash.closingValues?.observations && String(selectedPreviousCash.closingValues.observations).trim() && (
+                     <div className="mb-6 p-3 rounded border border-amber-300 bg-amber-50">
+                       <div className="text-xs font-semibold text-amber-800 mb-1">Observações do fechamento</div>
+                       <div className="text-sm text-amber-900 whitespace-pre-wrap break-words">{selectedPreviousCash.closingValues.observations}</div>
+                     </div>
+                   )}
                    
                    <div className="space-y-3 text-sm">
                      <div className="flex items-center justify-between">

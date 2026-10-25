@@ -956,7 +956,7 @@ function ProductDetailsModal({ product, storeData, categoriesData, outOfStockSet
             <div className="w-full">
               <div className="aspect-square bg-gray-50 dark:bg-slate-900 rounded-xl overflow-hidden border border-gray-100 dark:border-gray-700">
                 {product.imageUrl ? (
-                  <img src={product.imageUrl} alt={product.name} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
+                  <img src={product.imageUrl} alt={product.name} loading="lazy" decoding="async" className="w-full h-full object-cover" onError={(e) => { e.currentTarget.style.display = 'none' }} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-gray-300 dark:text-slate-600">
                     <ShoppingBag size={56} opacity={0.25} />
