@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs, limit, startAfter, endAt, startAt, getDoc, getCountFromServer, deleteDoc, writeBatch } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, getDocs, limit, startAfter, endAt, startAt, getDoc, getCountFromServer, deleteDoc, writeBatch, setDoc, increment } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { getStoreById, listStoresByOwner } from './stores'
 
@@ -73,6 +73,26 @@ async function findExistingClientInStore({ storeId, ownerId, ownerClientKey, cpf
       const snap = await getDocs(q)
       if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() }
     } catch { /* continue */ }
+  }
+  return null
+}
+
+// Verifica se já existe cliente com o MESMO CPF/CNPJ na loja (evita cadastro duplicado).
+// Retorna o cliente encontrado ou null.
+export async function findClientByDocument({ storeId, cpf, cnpj }) {
+  if (!storeId) return null
+  const checks = []
+  const cpfD = digits(cpf)
+  const cnpjD = digits(cnpj)
+  if (cpfD) checks.push({ field: 'cpfDigits', value: cpfD })
+  if (cnpjD) checks.push({ field: 'cnpjDigits', value: cnpjD })
+
+  for (const c of checks) {
+    try {
+      const q = query(colRef, where('storeId', '==', storeId), where(c.field, '==', c.value), limit(1))
+      const snap = await getDocs(q)
+      if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() }
+    } catch { /* índice ainda não existe — ignora */ }
   }
   return null
 }
@@ -336,7 +356,12 @@ export async function syncClientToOwnerStores(client, currentStoreId, ownerId, o
   if (!client || !ownerId) return { copied: 0, skipped: 0, targetStores: [] }
   const ownerKey = client.ownerClientKey || buildOwnerClientKey(client)
   const stores = await listStoresByOwner(ownerId).catch(() => [])
-  const otherStores = stores.filter(s => String(s.id) !== String(currentStoreId))
+  let otherStores = stores.filter(s => String(s.id) !== String(currentStoreId))
+  // Filtro opcional: sincronizar apenas para lojas específicas (ex: sincronização individual)
+  if (Array.isArray(opts.targetStoreIds) && opts.targetStoreIds.length > 0) {
+    const wanted = new Set(opts.targetStoreIds.map(String))
+    otherStores = otherStores.filter(s => wanted.has(String(s.id)))
+  }
   if (otherStores.length === 0) return { copied: 0, skipped: 0, targetStores: [] }
 
   let copied = 0
@@ -404,6 +429,48 @@ export async function syncClientToOwnerStores(client, currentStoreId, ownerId, o
     } catch { skipped++ }
   }
   return { copied, skipped, targetStores: otherStores.map(s => s.id) }
+}
+
+// ============================================================
+// LISTA OUTRAS LOJAS DO MESMO DONO (para o seletor de sync individual)
+// ============================================================
+export async function listOtherStoresOfOwner(currentStoreId) {
+  if (!currentStoreId) return []
+  let ownerId = ''
+  try {
+    const store = await getStoreById(currentStoreId)
+    ownerId = store?.ownerId || ''
+  } catch {}
+  if (!ownerId) return []
+  const all = await listStoresByOwner(ownerId).catch(() => [])
+  return all.filter(s => String(s.id) !== String(currentStoreId))
+}
+
+// ============================================================
+// SINCRONIZA 1 CLIENTE PARA 1 LOJA ESPECÍFICA DO MESMO DONO
+// (botão "Sincronizar cliente" no menu de 3 pontinhos)
+// Retorna: { ok, copied, skipped, alreadyExists, targetStore, error }
+// ============================================================
+export async function syncClientToTargetStore(client, currentStoreId, targetStoreId) {
+  if (!client || !targetStoreId) return { ok: false, copied: 0, skipped: 0 }
+  let ownerId = ''
+  try {
+    const store = await getStoreById(currentStoreId)
+    ownerId = store?.ownerId || ''
+  } catch {}
+  if (!ownerId) return { ok: false, copied: 0, skipped: 0, error: 'owner' }
+
+  const res = await syncClientToOwnerStores(client, currentStoreId, ownerId, {
+    isNew: true,
+    targetStoreIds: [targetStoreId],
+  })
+  return {
+    ok: true,
+    copied: res.copied,
+    skipped: res.skipped,
+    alreadyExists: res.copied === 0 && res.skipped > 0,
+    targetStore: targetStoreId,
+  }
 }
 
 // ============================================================
@@ -552,24 +619,45 @@ export async function removeClient(id){
   await deleteDoc(ref)
 }
 
+// Calcula o maior código já usado (usado apenas para inicializar o contador e como fallback)
+async function computeMaxClientCode(storeId) {
+  const q = query(colRef, where('storeId', '==', storeId))
+  const snapshot = await getDocs(q)
+  let maxCode = 0
+  snapshot.docs.forEach(doc => {
+    const data = doc.data()
+    if (data.code) {
+      const num = parseInt(data.code, 10)
+      if (!isNaN(num) && num > maxCode) maxCode = num
+    }
+  })
+  return maxCode
+}
+
+// Gera o próximo código sequencial usando contador atômico em
+// stores/{storeId}/counters/client_code, evitando full scan e códigos duplicados.
 export async function getNextClientCode(storeId) {
+  if (!storeId) return '1'
+  const counterRef = doc(db, 'stores', storeId, 'counters', 'client_code')
   try {
-    const q = query(colRef, where('storeId', '==', storeId))
-    const snapshot = await getDocs(q)
-    if (snapshot.empty) return '1'
-    let maxCode = 0
-    snapshot.docs.forEach(doc => {
-      const data = doc.data()
-      if (data.code) {
-        const num = parseInt(data.code, 10)
-        if (!isNaN(num) && num > maxCode) {
-          maxCode = num
-        }
-      }
-    })
-    return (maxCode + 1).toString()
+    const counterSnap = await getDoc(counterRef)
+    if (!counterSnap.exists()) {
+      // Inicializa a partir do maior código existente (executa uma única vez)
+      const max = await computeMaxClientCode(storeId)
+      await setDoc(counterRef, { current: max }, { merge: true })
+    }
+    await setDoc(counterRef, { current: increment(1) }, { merge: true })
+    const after = await getDoc(counterRef)
+    const next = after.exists() ? Number(after.data().current || 1) : 1
+    return next.toString()
   } catch (error) {
-    return '1'
+    console.error('Erro ao gerar próximo código de cliente:', error)
+    try {
+      const max = await computeMaxClientCode(storeId)
+      return (max + 1).toString()
+    } catch {
+      return '1'
+    }
   }
 }
 

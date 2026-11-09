@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter, getDoc, runTransaction } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, doc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, getDocs, getCountFromServer, limit, startAt, endAt, startAfter, getDoc, setDoc, increment, runTransaction } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { getStoreById, listStoresByOwner } from './stores'
 
@@ -437,24 +437,38 @@ export async function syncUnifiedStockAcrossStores(sourceProduct, storeId, parti
 
     if (!targetProduct) continue
 
-    const syncPayload = { rootId: activeRootId }
+    const targetRef = doc(db, 'products', targetProduct.id)
 
-    if (partial.stock !== undefined) {
-      syncPayload.stock = Number(partial.stock ?? 0)
-    }
-    if (partial.stockInitial !== undefined) {
-      syncPayload.stockInitial = Number(partial.stockInitial ?? 0)
-    }
-    if (partial.stockMin !== undefined) {
-      syncPayload.stockMin = Number(partial.stockMin ?? 0)
-    }
+    try {
+      // Transação: relê o doc fresco e grava atomicamente, evitando sobrescrever
+      // estoque alterado concorrentemente em outra loja (race condition).
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(targetRef)
+        if (!snap.exists()) return
+        const freshTarget = { id: snap.id, ...snap.data() }
 
-    if (partial.variationsData !== undefined || Array.isArray(targetProduct?.variationsData)) {
-      syncPayload.variationsData = buildUnifiedVariationsForTarget(targetProduct, sourceWithRootId, partial)
-    }
+        const syncPayload = { rootId: activeRootId, updatedAt: serverTimestamp() }
 
-    await updateProduct(targetProduct.id, syncPayload)
-    updatedStores += 1
+        if (partial.stock !== undefined) {
+          syncPayload.stock = Number(partial.stock ?? 0)
+        }
+        if (partial.stockInitial !== undefined) {
+          syncPayload.stockInitial = Number(partial.stockInitial ?? 0)
+        }
+        if (partial.stockMin !== undefined) {
+          syncPayload.stockMin = Number(partial.stockMin ?? 0)
+        }
+
+        if (partial.variationsData !== undefined || Array.isArray(freshTarget?.variationsData)) {
+          syncPayload.variationsData = buildUnifiedVariationsForTarget(freshTarget, sourceWithRootId, partial)
+        }
+
+        tx.update(targetRef, syncPayload)
+      })
+      updatedStores += 1
+    } catch (e) {
+      console.warn('syncUnifiedStockAcrossStores: falha ao atualizar loja', store.id, e)
+    }
   }
 
   return { synced: updatedStores > 0, updatedStores }
@@ -491,29 +505,45 @@ export async function getAvailableProductReference(storeId, desiredReference, ex
   return `${Date.now()}${baseReference}`
 }
 
+// Calcula a maior referência já usada (usada apenas para inicializar o contador e como fallback)
+async function computeMaxProductReference(storeId) {
+  const q = query(colRef, where('storeId', '==', storeId))
+  const snapshot = await getDocs(q)
+  let maxRef = 0
+  snapshot.docs.forEach(doc => {
+    const data = doc.data()
+    if (data.reference) {
+      const num = parseInt(data.reference, 10)
+      if (!isNaN(num) && num > maxRef) maxRef = num
+    }
+  })
+  return maxRef
+}
+
+// Gera a próxima referência sequencial usando contador atômico em
+// stores/{storeId}/counters/product_reference, evitando full scan e referências duplicadas.
 export async function getNextProductReference(storeId) {
+  if (!storeId) return '1'
+  const counterRef = doc(db, 'stores', storeId, 'counters', 'product_reference')
   try {
-    const q = query(colRef, where('storeId', '==', storeId))
-    const snapshot = await getDocs(q)
-    
-    if (snapshot.empty) return '1'
-
-    let maxRef = 0
-
-    snapshot.docs.forEach(doc => {
-      const data = doc.data()
-      if (data.reference) {
-        const num = parseInt(data.reference, 10)
-        if (!isNaN(num) && num > maxRef) {
-          maxRef = num
-        }
-      }
-    })
-
-    return (maxRef + 1).toString()
+    const counterSnap = await getDoc(counterRef)
+    if (!counterSnap.exists()) {
+      // Inicializa a partir da maior referência existente (executa uma única vez)
+      const max = await computeMaxProductReference(storeId)
+      await setDoc(counterRef, { current: max }, { merge: true })
+    }
+    await setDoc(counterRef, { current: increment(1) }, { merge: true })
+    const after = await getDoc(counterRef)
+    const next = after.exists() ? Number(after.data().current || 1) : 1
+    return next.toString()
   } catch (error) {
     console.error("Error getting next reference:", error)
-    return '1'
+    try {
+      const max = await computeMaxProductReference(storeId)
+      return (max + 1).toString()
+    } catch {
+      return '1'
+    }
   }
 }
 

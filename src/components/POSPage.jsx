@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction, updateCashTransaction, removeCashTransaction } from '../services/cash'
+import { listenCurrentCash, openCashRegister, closeCashRegister, getClosedCashRegisters, reopenCashRegister, addCashTransaction, updateCashTransaction, removeCashTransaction, deleteCashRegister } from '../services/cash'
 import { listenOrders } from '../services/orders'
 import { listenClients } from '../services/clients'
 import { updateAccountReceivable } from '../services/accountsReceivable'
 import SaleDetailModal from './SaleDetailModal'
 import CloseCashModal from './CloseCashModal'
 import pixIcon from '../assets/pix.svg'
+import { Trash2 } from 'lucide-react'
 import { doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
@@ -29,7 +30,7 @@ const parseCurrency = (val) => {
   return parseFloat(v)
 }
 
-export default function POSPage({ storeId, user }){
+export default function POSPage({ storeId, user, adminAccess = false }){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
 
@@ -199,6 +200,20 @@ export default function POSPage({ storeId, user }){
     } catch (err) {
       console.error(err)
       alert('Erro ao reabrir caixa')
+    }
+  }
+
+  const handleDeleteCashRegister = async (cash) => {
+    if (!adminAccess || !cash?.id) return
+    const label = cash.number ? `#${cash.number}` : ''
+    if (!window.confirm(`Excluir definitivamente o caixa ${label}? Esta ação não pode ser desfeita.`)) return
+    try {
+      await deleteCashRegister(cash.id)
+      setPreviousList(prev => prev.filter(c => c.id !== cash.id))
+      if (selectedPreviousCash?.id === cash.id) setSelectedPreviousCash(null)
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao excluir caixa')
     }
   }
 
@@ -1523,13 +1538,14 @@ export default function POSPage({ storeId, user }){
                       <th className="py-3 px-4 text-right">Saldo inicial</th>
                       <th className="py-3 px-4 text-right">Saldo Final</th>
                       <th className="py-3 px-4 text-right">Recebimentos</th>
+                      {adminAccess && <th className="py-3 px-4 text-center w-16">Ações</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {loadingPrev ? (
-                      <tr><td colSpan="6" className="py-8 text-center text-gray-500">Carregando...</td></tr>
+                      <tr><td colSpan={adminAccess ? '7' : '6'} className="py-8 text-center text-gray-500">Carregando...</td></tr>
                     ) : previousList.length === 0 ? (
-                      <tr><td colSpan="6" className="py-8 text-center text-gray-400">Nenhum histórico encontrado.</td></tr>
+                      <tr><td colSpan={adminAccess ? '7' : '6'} className="py-8 text-center text-gray-400">Nenhum histórico encontrado.</td></tr>
                     ) : (
                       previousList.map(c => {
                         const balance = c.closingValues?.finalBalance || 0
@@ -1595,6 +1611,19 @@ export default function POSPage({ storeId, user }){
                             <td className="py-3 px-4 text-right text-gray-900">{money(initial)}</td>
                             <td className="py-3 px-4 text-right text-gray-900 font-medium">{money(balance)}</td>
                             <td className="py-3 px-4 text-right text-green-600">{money(receipts)}</td>
+                            {adminAccess && (
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  type="button"
+                                  title="Excluir caixa (Admin)"
+                                  aria-label="Excluir caixa"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteCashRegister(c) }}
+                                  className="inline-flex items-center justify-center h-8 w-8 rounded text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         )
                       })

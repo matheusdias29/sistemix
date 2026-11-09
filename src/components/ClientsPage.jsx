@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { getClientsByPage, searchClientsByPage, getTotalClientsCount, getTotalActiveClientsCount, removeClient, getAllClients, getActiveClients, bulkSyncAllClientsToOwnerStores } from '../services/clients'
+import { getClientsByPage, searchClientsByPage, getTotalClientsCount, getTotalActiveClientsCount, removeClient, getAllClients, getActiveClients, bulkSyncAllClientsToOwnerStores, listOtherStoresOfOwner, syncClientToTargetStore } from '../services/clients'
 import { getClientOrderHistory } from '../services/orders'
 import NewClientModal from './NewClientModal'
 import ClientsFilterModal from './ClientsFilterModal'
@@ -204,6 +204,12 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const [optionsOpen, setOptionsOpen] = useState(false)
   const [syncOpen, setSyncOpen] = useState(false)
   const [syncState, setSyncState] = useState({ running:false, step:0, total:0, copied:0, skipped:0, errors:0, done:false, currentClientName:'', error:'' })
+
+  // Sincronização individual de cliente (menu de 3 pontinhos)
+  const [otherStores, setOtherStores] = useState([])
+  const [syncClientTarget, setSyncClientTarget] = useState(null)
+  const [syncClientStoreId, setSyncClientStoreId] = useState('')
+  const [syncingClient, setSyncingClient] = useState(false)
   
   // Filtros
   const [filterOpen, setFilterOpen] = useState(false)
@@ -309,6 +315,58 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
   const handleForceRefresh = () => {
     const includeInactive = cacheIncludesInactive === true
     refreshCacheFromServer(false, null, includeInactive).catch(() => {})
+  }
+
+  // ============================================================
+  // Carrega OUTRAS lojas do mesmo dono (para o seletor de sync individual).
+  // Se a conta tiver apenas 1 loja, a lista fica vazia e o botão NÃO aparece.
+  // ============================================================
+  useEffect(() => {
+    let active = true
+    listOtherStoresOfOwner(storeId)
+      .then(list => { if (active) setOtherStores(Array.isArray(list) ? list : []) })
+      .catch(() => { if (active) setOtherStores([]) })
+    return () => { active = false }
+  }, [storeId])
+
+  // ============================================================
+  // Handler: Sincronizar 1 cliente -> 1 loja selecionada do dono
+  // ============================================================
+  const openSyncClient = (c) => {
+    setOpenMenuId(null)
+    setSyncClientTarget(c)
+    setSyncClientStoreId(otherStores.length === 1 ? otherStores[0].id : '')
+  }
+
+  const closeSyncClient = () => {
+    if (syncingClient) return
+    setSyncClientTarget(null)
+    setSyncClientStoreId('')
+  }
+
+  const runSyncClient = async () => {
+    if (!syncClientTarget || !syncClientStoreId) return
+    setSyncingClient(true)
+    const storeName = otherStores.find(s => String(s.id) === String(syncClientStoreId))?.name || 'loja selecionada'
+    try {
+      const res = await syncClientToTargetStore(syncClientTarget, storeId, syncClientStoreId)
+      if (res?.error === 'owner') {
+        alert('Não foi possível identificar o dono da loja.')
+      } else if (res?.alreadyExists) {
+        alert(`Este cliente já existe em "${storeName}". Nada foi duplicado.`)
+      } else if (res?.copied > 0) {
+        alert(`Cliente sincronizado para "${storeName}" com sucesso.`)
+      } else {
+        alert('Não foi possível sincronizar o cliente.')
+      }
+      setSyncClientTarget(null)
+      setSyncClientStoreId('')
+    } catch (e) {
+      console.error(e)
+      alert('Erro ao sincronizar cliente.')
+    } finally {
+      setSyncingClient(false)
+    }
   }
 
   // ============================================================
@@ -1196,6 +1254,12 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                         <span>🕘</span>
                         <span>Historico</span>
                       </button>
+                      {otherStores.length > 0 && (
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> openSyncClient(c)}>
+                        <span>🔁</span>
+                        <span>Sincronizar cliente</span>
+                      </button>
+                      )}
                       {(isOwner || perms.clients?.edit) && (
                       <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
@@ -1283,6 +1347,12 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                         <span>🕘</span>
                         <span>Historico</span>
                       </button>
+                      {otherStores.length > 0 && (
+                      <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> openSyncClient(c)}>
+                        <span>🔁</span>
+                        <span>Sincronizar cliente</span>
+                      </button>
+                      )}
                       {(isOwner || perms.clients?.edit) && (
                       <button type="button" className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2" onClick={()=> startEdit(c)}>
                         <span>✏️</span>
@@ -1485,6 +1555,55 @@ export default function ClientsPage({ storeId, addNewSignal, user }){
                   Iniciar sincronização
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* Modal de Sincronização INDIVIDUAL de cliente (1 cliente -> 1 loja) */}
+      {/* ================================================================= */}
+      {syncClientTarget && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-t-lg sm:rounded-lg shadow-2xl w-full max-w-md max-h-[92vh] overflow-y-auto">
+            <div className="px-4 py-3 border-b dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-base font-bold text-gray-900 dark:text-white">Sincronizar cliente</h3>
+              <button onClick={closeSyncClient} disabled={syncingClient} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 disabled:opacity-50">✕</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                Enviar <span className="font-semibold text-gray-900 dark:text-white">{syncClientTarget.name}</span> para outra loja do mesmo dono.
+              </div>
+              <div>
+                <label className="text-xs text-gray-600 dark:text-gray-400">Loja de destino</label>
+                <select
+                  value={syncClientStoreId}
+                  onChange={e => setSyncClientStoreId(e.target.value)}
+                  disabled={syncingClient}
+                  className="mt-1 w-full border dark:border-gray-600 rounded px-3 py-2 text-sm bg-white dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-1 focus:ring-green-500 disabled:opacity-60"
+                >
+                  <option value="">Selecione a loja...</option>
+                  {otherStores.map(s => (
+                    <option key={s.id} value={s.id}>{s.name || s.id}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t dark:border-gray-700 flex justify-end gap-2">
+              <button
+                onClick={closeSyncClient}
+                disabled={syncingClient}
+                className="px-3 py-2 border dark:border-gray-600 rounded text-sm hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-gray-200 disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={runSyncClient}
+                disabled={!syncClientStoreId || syncingClient}
+                className="px-3 py-2 rounded text-sm bg-green-600 text-white hover:bg-green-700 disabled:opacity-60"
+              >
+                {syncingClient ? 'Sincronizando...' : 'Sincronizar'}
+              </button>
             </div>
           </div>
         </div>

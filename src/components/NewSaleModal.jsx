@@ -1073,6 +1073,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
           const qtyAbs = Math.abs(delta)
           try {
             await recordStockMovement({
+              storeId,
               productId: pId,
               productName: realProduct?.name || (adjustResult?.productId ? ('Produto ' + pId) : ''),
               variationName: variationName || null,

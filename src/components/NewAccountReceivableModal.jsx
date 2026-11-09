@@ -225,20 +225,26 @@ export default function NewAccountReceivableModal({ onClose, onSave, onDelete, i
           return
        }
 
-       const installmentValue = totalVal / count
+       // Arredondamento em centavos: a soma das parcelas deve fechar EXATAMENTE o total.
+       // O resto (centavos) é aplicado na última parcela.
+       const totalCents = Math.round(totalVal * 100)
+       const baseCents = Math.floor(totalCents / count)
+       const remainderCents = totalCents - (baseCents * count)
        const installments = []
        const baseDate = new Date()
 
        for (let i = 1; i <= count; i++) {
           const d = new Date(baseDate)
           d.setDate(baseDate.getDate() + (interval * i))
-          
+
+          const cents = i === count ? baseCents + remainderCents : baseCents
+
           installments.push({
             clientId: client.id,
             clientName: client.name,
             description: `${description || 'Conta a Receber'} (${i}/${count})`,
             details,
-            value: installmentValue,
+            value: cents / 100,
             dueDate: d.toISOString().split('T')[0],
             type
           })

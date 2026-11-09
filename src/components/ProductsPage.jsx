@@ -8,8 +8,8 @@ import NewSupplierModal from './NewSupplierModal'
 import ProductsFilterModal from './ProductsFilterModal'
 import ProductLabelsPage from './ProductLabelsPage'
 import { listenOrders } from '../services/orders'
-import { recordStockMovement } from '../services/stockMovements'
-import StockMovementsModal from './StockMovementsModal'
+import { recordStockMovement, listenStockMovementsByStore } from '../services/stockMovements'
+import StockMovementsModal, { getMovementReasonLabel, formatMovementDate } from './StockMovementsModal'
 import { getStoreById, listStoresByOwner, updateStore, listenStore } from '../services/stores'
 import { collection, query as firestoreQuery, where, getDocs, doc, getDoc } from 'firebase/firestore'
 import { db } from '../lib/firebase'
@@ -676,6 +676,36 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
   const [movementsModalOpen, setMovementsModalOpen] = useState(false)
   const [movementsTargetProduct, setMovementsTargetProduct] = useState(null)
   const [allOrders, setAllOrders] = useState([])
+
+  // Aba "Movimento De Estoque": todas as movimentações de estoque da loja
+  const [storeMovements, setStoreMovements] = useState([])
+  const [storeMovementsLoading, setStoreMovementsLoading] = useState(false)
+  const [movementsSearch, setMovementsSearch] = useState('')
+  const [movementsTypeFilter, setMovementsTypeFilter] = useState('all')
+
+  useEffect(() => {
+    if (tab !== 'movestoque' || !storeId) return
+    setStoreMovementsLoading(true)
+    const unsub = listenStockMovementsByStore(storeId, (items) => {
+      setStoreMovements(items)
+      setStoreMovementsLoading(false)
+    })
+    return () => unsub && unsub()
+  }, [tab, storeId])
+
+  const filteredStoreMovements = useMemo(() => {
+    const term = movementsSearch.trim().toLowerCase()
+    return storeMovements.filter((m) => {
+      if (movementsTypeFilter !== 'all' && m.type !== movementsTypeFilter) return false
+      if (!term) return true
+      return (
+        String(m.productName || '').toLowerCase().includes(term) ||
+        String(m.description || '').toLowerCase().includes(term) ||
+        String(m.referenceNumber || '').toLowerCase().includes(term) ||
+        String(m.userName || '').toLowerCase().includes(term)
+      )
+    })
+  }, [storeMovements, movementsSearch, movementsTypeFilter])
 
   // Categorias
   const [categories, setCategories] = useState([])
@@ -2116,6 +2146,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
       await syncUnifiedStockAcrossStores(p, storeId, finalUpdate)
 
       await recordStockMovement({
+        storeId,
         productId: p.id,
         productName: p.name,
         type: stockType === 'entrada' ? 'in' : 'out',
@@ -3917,6 +3948,90 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   </div>
                 </div>
               ))}
+            </div>
+          ) : tab === 'movestoque' ? (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="px-4 py-3 border-b dark:border-gray-700 flex flex-wrap items-center justify-between gap-2">
+                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                  Movimentações de Estoque ({filteredStoreMovements.length})
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={movementsSearch}
+                    onChange={(e) => setMovementsSearch(e.target.value)}
+                    placeholder="Buscar produto, obs ou nº..."
+                    className="h-9 w-44 sm:w-64 px-3 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white"
+                  />
+                  <select
+                    value={movementsTypeFilter}
+                    onChange={(e) => setMovementsTypeFilter(e.target.value)}
+                    className="h-9 px-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="in">Entradas</option>
+                    <option value="out">Saídas</option>
+                  </select>
+                </div>
+              </div>
+
+              {storeMovementsLoading ? (
+                <div className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">Carregando...</div>
+              ) : filteredStoreMovements.length === 0 ? (
+                <div className="px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {storeMovements.length === 0 ? 'Nenhuma movimentação registrada.' : 'Nenhuma movimentação encontrada para o filtro.'}
+                </div>
+              ) : (
+                <div>
+                  {/* Cabeçalho (desktop) */}
+                  <div className="hidden md:grid grid-cols-[9.5rem_1.4fr_5rem_3.5rem_10rem_8rem_1.4fr] items-center px-4 py-3 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
+                    <div>Data</div>
+                    <div>Produto</div>
+                    <div>Tipo</div>
+                    <div className="text-right">Qtd</div>
+                    <div>Motivo</div>
+                    <div>Usuário</div>
+                    <div>Obs</div>
+                  </div>
+                  {filteredStoreMovements.map((mov) => (
+                    <div
+                      key={mov.id}
+                      className="md:grid md:grid-cols-[9.5rem_1.4fr_5rem_3.5rem_10rem_8rem_1.4fr] md:items-center px-4 py-3 border-b dark:border-gray-700 last:border-0 text-sm"
+                    >
+                      <div className="flex items-center justify-between gap-2 md:block">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Data</span>
+                        <span className="text-gray-600 dark:text-gray-300 whitespace-nowrap">{formatMovementDate(mov.createdAt || mov.date)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Produto</span>
+                        <span className="font-medium text-gray-900 dark:text-white text-right md:text-left truncate" title={mov.productName}>{mov.productName || '-'}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Tipo</span>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold border ${mov.type === 'in' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800'}`}>
+                          {mov.type === 'in' ? 'Entrada' : 'Saída'}
+                        </span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block md:text-right">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Qtd</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{mov.quantity}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Motivo</span>
+                        <span className="text-gray-700 dark:text-gray-300 font-medium">{getMovementReasonLabel(mov)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Usuário</span>
+                        <span className="text-gray-500 dark:text-gray-400 truncate">{mov.userName || '-'}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                        <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Obs</span>
+                        <span className="text-gray-500 dark:text-gray-400 truncate" title={mov.description}>{mov.description || '-'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null)
         }

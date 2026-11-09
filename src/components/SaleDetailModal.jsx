@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { collection, doc, getDoc, getDocs, query, where } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, where, runTransaction } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { updateOrder, deleteOrder } from '../services/orders'
 import { updateProduct, getProductById, syncUnifiedStockAcrossStores, adjustProductStockTransactionally } from '../services/products'
@@ -128,17 +128,36 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                   return isLinkedOs ? 'OS' : 'Venda'
                 })()
 
-                const alreadyReturned =
-                  sale.stockReturned === true ||
-                  sale.stockReversed === true
-
                 const isLinkedToOs =
                   sale.type === 'service_order' ||
                   sale.orderType === 'service_order' ||
                   (sale.orderType && String(sale.orderType).toLowerCase().includes('service')) ||
                   /OS|Ordem|Serv/i.test(sale.number || '')
 
-                if (shouldRestock && !alreadyReturned) {
+                // RESERVA ATÔMICA: garante idempotência em cliques/abas concorrentes.
+                // Apenas o primeiro a reservar executa o estorno; os demais abortam.
+                const claim = await runTransaction(db, async (tx) => {
+                  const ref = doc(db, 'orders', sale.id)
+                  const snap = await tx.get(ref)
+                  if (!snap.exists()) return { already: true }
+                  const data = snap.data() || {}
+                  const already =
+                    data.stockReturned === true ||
+                    data.stockReversed === true ||
+                    String(data.status || '').toLowerCase() === 'cancelada'
+                  if (already) return { already: true }
+                  tx.update(ref, { status: 'Cancelada', stockReturned: true, stockReversed: true })
+                  return { already: false }
+                })
+
+                if (claim.already) {
+                  alert('Venda cancelada. Estoque já havia sido devolvido anteriormente, não foi devolvido novamente.')
+                  console.warn(`[idempotencia-sale-cancel] Estoque já estornado para ${sale.number || sale.id}. Ignorando devolução duplicada.`)
+                  onClose && onClose()
+                  return
+                }
+
+                if (shouldRestock) {
                   const items = Array.isArray(sale.products) ? sale.products : []
 
                 const restockingMap = new Map()
@@ -237,6 +256,7 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                       })()
 
                       await recordStockMovement({
+                        storeId,
                         productId: prod.id,
                         productName: prod.name,
                         type: 'in',
@@ -261,18 +281,9 @@ export default function SaleDetailModal({ open, onClose, sale, onEdit, onView, s
                   } else {
                       alert('Venda cancelada. Nenhum produto foi devolvido ao estoque (produtos não encontrados ou serviço).')
                   }
-                } else if (alreadyReturned) {
-                  alert('Venda cancelada. Estoque já havia sido devolvido anteriormente, não foi devolvido novamente.')
-                  console.warn(`[idempotencia-sale-cancel] Estoque já estornado para ${sale.number || sale.id}. Ignorando devolução duplicada.`)
                 } else {
                   alert('Venda cancelada com sucesso.')
                 }
-                
-                await updateOrder(sale.id, {
-                  status: 'Cancelada',
-                  stockReturned: true,
-                  stockReversed: true
-                })
 
                 if (isLinkedToOs) {
                   try {

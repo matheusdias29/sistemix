@@ -1,6 +1,97 @@
 import React, { useState, useEffect } from 'react'
 import { listenStockMovements } from '../services/stockMovements'
 
+// Rótulo legível do motivo da movimentação (detecta O.S./P.V. pelo número/descrição).
+// Exportado para reuso na aba "Movimento De Estoque" do ProductsPage.
+export function getMovementReasonLabel(mov) {
+  const r = String(mov.reason || '').toLowerCase()
+  const ref = String(mov.referenceNumber || '').trim()
+  const desc = String(mov.description || '').trim()
+
+  const normalizeNum = (s) => String(s || '').replace(/\D/g, '')
+  const pad = (n) => String(n || '0').padStart(4, '0')
+
+  // ================================================================
+  // 1) PRIORIDADE ALTA: Detectar explicitamente se refere a OS ou PV
+  //    (olha referenceNumber E description, em qualquer reason)
+  // ================================================================
+  const osMatch = ref.match(/(OS|O\.S|o\.s|ordem)[^\d]*(\d+)/i)
+  const pvMatch = ref.match(/(PV|P\.V|pv|venda)[^\d]*(\d+)/i)
+  const osDescMatch = /(OS|O\.S|Ordem de Serviço|Ordem de Servico|Ordem)/i.test(desc)
+  const pvDescMatch = /(PV|P\.V|Venda|Pedido de Venda)/i.test(desc)
+
+  const digits = normalizeNum(ref)
+
+  const isOS = !!(osMatch || osDescMatch)
+  const isPV = !!(pvMatch || pvDescMatch)
+
+  // CASO ESPECIAL: reason === 'cancel' (estorno) → decidir OS vs PV antes
+  if (r === 'cancel') {
+    // Prioriza o que foi explicitamente detectado
+    if (isOS && !isPV) {
+      const n = pad(osMatch ? osMatch[2] : digits)
+      return `Cancelamento/Estorno O.S.${n}`
+    }
+    if (isPV && !isOS) {
+      const n = pad(pvMatch ? pvMatch[2] : digits)
+      return `Cancelamento/Estorno P.V.${n}`
+    }
+    // Ambos detectados ou nenhum → usa conteúdo de referenceNumber primeiro
+    if (ref) {
+      const lref = ref.toLowerCase()
+      if (lref.includes('os') || lref.includes('o.s') || lref.includes('ordem')) {
+        return `Cancelamento/Estorno O.S.${pad(osMatch ? osMatch[2] : digits)}`
+      }
+      if (lref.includes('pv') || lref.includes('p.v') || lref.includes('venda')) {
+        return `Cancelamento/Estorno P.V.${pad(pvMatch ? pvMatch[2] : digits)}`
+      }
+    }
+    // Nada detectado → usar description ou fallback genérico
+    if (digits) {
+      if (isOS) return `Cancelamento/Estorno O.S.${pad(digits)}`
+      if (isPV) return `Cancelamento/Estorno P.V.${pad(digits)}`
+      return `Cancelamento/Estorno ${pad(digits)}`
+    }
+    return desc ? desc.slice(0, 40) : 'Cancelamento/Estorno'
+  }
+
+  // ================================================================
+  // 2) Demais reasons (sale / service_order / adjustment etc)
+  // ================================================================
+  if (ref || isOS || isPV) {
+    if (isOS) {
+      const n = pad(osMatch ? osMatch[2] : digits)
+      return `O.S.${n}`
+    }
+    if (isPV || r === 'sale' || (r === 'adjustment' && /PV|venda/i.test(desc))) {
+      const n = pad(pvMatch ? pvMatch[2] : digits)
+      return `P.V.${n}`
+    }
+  }
+
+  const map = {
+    'sale': 'Venda',
+    'manual_adjust': 'Ajuste Manual',
+    'purchase': 'Compra',
+    'correction': 'Correção',
+    'service_order': 'Ordem de Serviço',
+    'cancel': 'Cancelamento/Estorno'
+  }
+
+  if (r === 'adjustment') {
+    if (desc) return desc.slice(0, 40)
+    return 'Ajuste do Sistema'
+  }
+
+  return map[r] || (ref && (digits || ref)) || r || '-'
+}
+
+export function formatMovementDate(ts) {
+  if (!ts) return '-'
+  const d = ts.toDate ? ts.toDate() : new Date(ts)
+  return d.toLocaleString('pt-BR')
+}
+
 export default function StockMovementsModal({ open, onClose, product }) {
   const [movements, setMovements] = useState([])
   const [loading, setLoading] = useState(true)
@@ -18,95 +109,6 @@ export default function StockMovementsModal({ open, onClose, product }) {
   }, [open, product])
 
   if (!open || !product) return null
-
-  const formatDate = (ts) => {
-    if (!ts) return '-'
-    const d = ts.toDate ? ts.toDate() : new Date(ts)
-    return d.toLocaleString('pt-BR')
-  }
-
-  const getReasonLabel = (mov) => {
-    const r = String(mov.reason || '').toLowerCase()
-    const ref = String(mov.referenceNumber || '').trim()
-    const desc = String(mov.description || '').trim()
-
-    const normalizeNum = (s) => String(s || '').replace(/\D/g, '')
-    const pad = (n) => String(n || '0').padStart(4, '0')
-
-    // ================================================================
-    // 1) PRIORIDADE ALTA: Detectar explicitamente se refere a OS ou PV
-    //    (olha referenceNumber E description, em qualquer reason)
-    // ================================================================
-    const osMatch = ref.match(/(OS|O\.S|o\.s|ordem)[^\d]*(\d+)/i)
-    const pvMatch = ref.match(/(PV|P\.V|pv|venda)[^\d]*(\d+)/i)
-    const osDescMatch = /(OS|O\.S|Ordem de Serviço|Ordem de Servico|Ordem)/i.test(desc)
-    const pvDescMatch = /(PV|P\.V|Venda|Pedido de Venda)/i.test(desc)
-
-    const digits = normalizeNum(ref)
-
-    const isOS = !!(osMatch || osDescMatch)
-    const isPV = !!(pvMatch || pvDescMatch)
-
-    // CASO ESPECIAL: reason === 'cancel' (estorno) → decidir OS vs PV antes
-    if (r === 'cancel') {
-      // Prioriza o que foi explicitamente detectado
-      if (isOS && !isPV) {
-        const n = pad(osMatch ? osMatch[2] : digits)
-        return `Cancelamento/Estorno O.S.${n}`
-      }
-      if (isPV && !isOS) {
-        const n = pad(pvMatch ? pvMatch[2] : digits)
-        return `Cancelamento/Estorno P.V.${n}`
-      }
-      // Ambos detectados ou nenhum → usa conteúdo de referenceNumber primeiro
-      if (ref) {
-        const lref = ref.toLowerCase()
-        if (lref.includes('os') || lref.includes('o.s') || lref.includes('ordem')) {
-          return `Cancelamento/Estorno O.S.${pad(osMatch ? osMatch[2] : digits)}`
-        }
-        if (lref.includes('pv') || lref.includes('p.v') || lref.includes('venda')) {
-          return `Cancelamento/Estorno P.V.${pad(pvMatch ? pvMatch[2] : digits)}`
-        }
-      }
-      // Nada detectado → usar description ou fallback genérico
-      if (digits) {
-        if (isOS) return `Cancelamento/Estorno O.S.${pad(digits)}`
-        if (isPV) return `Cancelamento/Estorno P.V.${pad(digits)}`
-        return `Cancelamento/Estorno ${pad(digits)}`
-      }
-      return desc ? desc.slice(0, 40) : 'Cancelamento/Estorno'
-    }
-
-    // ================================================================
-    // 2) Demais reasons (sale / service_order / adjustment etc)
-    // ================================================================
-    if (ref || isOS || isPV) {
-      if (isOS) {
-        const n = pad(osMatch ? osMatch[2] : digits)
-        return `O.S.${n}`
-      }
-      if (isPV || r === 'sale' || (r === 'adjustment' && /PV|venda/i.test(desc))) {
-        const n = pad(pvMatch ? pvMatch[2] : digits)
-        return `P.V.${n}`
-      }
-    }
-
-    const map = {
-      'sale': 'Venda',
-      'manual_adjust': 'Ajuste Manual',
-      'purchase': 'Compra',
-      'correction': 'Correção',
-      'service_order': 'Ordem de Serviço',
-      'cancel': 'Cancelamento/Estorno'
-    }
-
-    if (r === 'adjustment') {
-      if (desc) return desc.slice(0, 40)
-      return 'Ajuste do Sistema'
-    }
-
-    return map[r] || (ref && (digits || ref)) || r || '-'
-  }
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
@@ -146,7 +148,7 @@ export default function StockMovementsModal({ open, onClose, product }) {
                 {movements.map((mov) => (
                   <tr key={mov.id} className="hover:bg-gray-50">
                     <td className="px-6 py-3 whitespace-nowrap text-gray-500">
-                      {formatDate(mov.createdAt || mov.date)}
+                      {formatMovementDate(mov.createdAt || mov.date)}
                     </td>
                     <td className="px-6 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
@@ -159,7 +161,7 @@ export default function StockMovementsModal({ open, onClose, product }) {
                       {mov.quantity}
                     </td>
                     <td className="px-6 py-3 text-gray-700 font-medium">
-                      {getReasonLabel(mov)}
+                      {getMovementReasonLabel(mov)}
                     </td>
                     <td className="px-6 py-3 text-gray-500">
                       {mov.variationName || '-'}

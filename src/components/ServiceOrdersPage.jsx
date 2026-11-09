@@ -1264,6 +1264,7 @@ const canEditService = isOwner || perms.services?.edit
             }
 
             await recordStockMovement({
+              storeId,
               productId: p.id,
               productName: p.name,
               type,
@@ -1344,6 +1345,7 @@ const canEditService = isOwner || perms.services?.edit
             }
 
             await recordStockMovement({
+              storeId,
               productId: p.id,
               productName: p.name,
               type: 'out',
@@ -1801,6 +1803,7 @@ const canEditService = isOwner || perms.services?.edit
                     }
 
                     await recordStockMovement({
+                      storeId,
                       productId: p.id,
                       productName: p.name,
                       type: 'in',
@@ -1922,6 +1925,7 @@ const canEditService = isOwner || perms.services?.edit
                   }
 
                   await recordStockMovement({
+                    storeId,
                     productId: p.id,
                     productName: p.name,
                     type: 'out',

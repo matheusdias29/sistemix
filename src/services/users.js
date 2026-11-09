@@ -1,8 +1,9 @@
-import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc, deleteDoc } from 'firebase/firestore'
+import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc, deleteDoc, limit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { addStore, deleteStoresByOwner } from './stores'
 import { computeStatusWithInvoices, getSubscription } from './subscriptions'
 import { getInvoicesByOwner } from './invoices'
+import { hashPassword, verifyPassword, isHashedPassword } from '../lib/password'
 
 const usersCol = collection(db, 'users')
 
@@ -32,10 +33,11 @@ export async function getOwner(ownerId) {
 
 // Criação de usuário sem obrigatoriedade de storeId
 export async function addUser(user){
+  const passwordHash = user.password ? await hashPassword(user.password) : ''
   const data = {
     name: user.name ?? 'Usuário',
     email: user.email ?? '',
-    password: user.password ?? '', // apenas para demo
+    password: passwordHash,
     whatsapp: user.whatsapp ?? '',
     isAdmin: user.isAdmin ?? false,
     isSeller: user.isSeller ?? false,
@@ -64,7 +66,12 @@ export async function addUser(user){
 
 export async function updateUser(id, partial){
   const ref = doc(db, 'users', id)
-  await updateDoc(ref, { ...partial, updatedAt: serverTimestamp() })
+  const payload = { ...partial }
+  // Nunca persiste senha em texto plano: se vier uma senha nova, grava o hash.
+  if (typeof payload.password === 'string' && payload.password && !isHashedPassword(payload.password)) {
+    payload.password = await hashPassword(payload.password)
+  }
+  await updateDoc(ref, { ...payload, updatedAt: serverTimestamp() })
 }
 
 // Escutar todos os usuários (sem filtro de loja)
@@ -111,8 +118,11 @@ export function listenUser(currentUser, callback) {
 }
 
 // Busca membro por email em subcoleções users/{ownerId}/members
+// LIMITAÇÃO: sem um índice global de membros, precisa varrer os owners (N+1).
+// Aplica um teto para não varrer a coleção inteira; a solução definitiva é
+// indexar os e-mails (ex.: coleção denormalizada / Cloud Function).
 export async function findMemberByEmail(email){
-  const ownersSnap = await getDocs(usersCol)
+  const ownersSnap = await getDocs(query(usersCol, orderBy('__name__', 'desc'), limit(2000)))
   for (const d of ownersSnap.docs){
     const ownerId = d.id
     const membersCol = collection(db, 'users', ownerId, 'members')
@@ -129,10 +139,11 @@ export async function findMemberByEmail(email){
 export async function addSubUser(ownerUserId, user){
   const membersCol = collection(db, 'users', ownerUserId, 'members')
   const role = user.role ?? (user.isAdmin ? 'admin' : (user.isSeller ? 'manager' : 'staff'))
+  const passwordHash = user.password ? await hashPassword(user.password) : ''
   const data = {
     name: user.name ?? 'Usuário',
     email: user.email ?? '',
-    password: user.password ?? '', // apenas para criação
+    password: passwordHash,
     whatsapp: user.whatsapp ?? '',
     isSeller: !!user.isSeller,
     isTech: !!user.isTech,
@@ -185,10 +196,10 @@ export async function changeOwnerPassword(userId, currentPassword, newPassword){
   if (snap.empty) throw new Error('Usuário não encontrado')
   const d = snap.docs[0]
   const data = d.data()
-  const cur = String(data?.password || '')
-  if (cur !== String(currentPassword || '')) throw new Error('Senha atual incorreta')
+  const ok = await verifyPassword(currentPassword, data?.password)
+  if (!ok) throw new Error('Senha atual incorreta')
   const ref = doc(db, 'users', userId)
-  await updateDoc(ref, { password: String(newPassword || ''), updatedAt: serverTimestamp() })
+  await updateDoc(ref, { password: await hashPassword(newPassword), updatedAt: serverTimestamp() })
 }
 
 // Alteração de senha para subusuário (member)
@@ -200,10 +211,10 @@ export async function changeMemberPassword(ownerUserId, memberId, currentPasswor
   if (snap.empty) throw new Error('Usuário não encontrado')
   const d = snap.docs[0]
   const data = d.data()
-  const cur = String(data?.password || '')
-  if (cur !== String(currentPassword || '')) throw new Error('Senha atual incorreta')
+  const ok = await verifyPassword(currentPassword, data?.password)
+  if (!ok) throw new Error('Senha atual incorreta')
   const ref = doc(db, 'users', ownerUserId, 'members', memberId)
-  await updateDoc(ref, { password: String(newPassword || ''), updatedAt: serverTimestamp() })
+  await updateDoc(ref, { password: await hashPassword(newPassword), updatedAt: serverTimestamp() })
 }
 
 export async function updateUserPresence(uid, ownerId, isMember) {
@@ -227,8 +238,12 @@ export async function login(email, password){
   if (owner) {
     const status = owner.status || (owner.active === false ? 'cancelado' : 'ativo')
     if (status === 'cancelado') throw new Error('Acesso cancelado')
-    const cur = String(owner.password || '')
-    if (cur !== pass) throw new Error('Senha incorreta')
+    const ok = await verifyPassword(pass, owner.password)
+    if (!ok) throw new Error('Senha incorreta')
+    // Migração silenciosa: senha legada em texto plano passa a ser armazenada como hash
+    if (owner.password && !isHashedPassword(owner.password)) {
+      try { await updateUser(owner.id, { password: await hashPassword(pass) }) } catch {}
+    }
     const billingStatus = await computeOwnerBillingStatus(owner.id)
     if (billingStatus === 'em_atraso') {
       if (owner.status !== 'em_atraso') {
@@ -240,14 +255,22 @@ export async function login(email, password){
       try { await updateUser(owner.id, { status: 'ativo', active: true }) } catch {}
       owner.status = 'ativo'
     }
-    return owner
+    const { password: _pw, ...safeOwner } = owner
+    return safeOwner
   }
   const member = await findMemberByEmail(emailTrim)
   if (member) {
     const status = member.status || (member.active === false ? 'cancelado' : 'ativo')
     if (status === 'cancelado') throw new Error('Acesso cancelado')
-    const cur = String(member.password || '')
-    if (cur !== pass) throw new Error('Senha incorreta')
+    const ok = await verifyPassword(pass, member.password)
+    if (!ok) throw new Error('Senha incorreta')
+    // Migração silenciosa do membro para senha hasheada
+    if (member.password && !isHashedPassword(member.password)) {
+      try {
+        const ref = doc(db, 'users', member.ownerId, 'members', member.id)
+        await updateDoc(ref, { password: await hashPassword(pass), updatedAt: serverTimestamp() })
+      } catch {}
+    }
     const billingStatus = await computeOwnerBillingStatus(member.ownerId)
     if (billingStatus === 'em_atraso') {
       try { await updateUser(member.ownerId, { status: 'em_atraso', active: true }) } catch {}

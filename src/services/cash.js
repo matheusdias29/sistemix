@@ -1,5 +1,5 @@
 import { db } from '../lib/firebase'
-import { collection, query, where, getDocs, addDoc, setDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, arrayUnion, getDoc, increment } from 'firebase/firestore'
+import { collection, query, where, getDocs, addDoc, setDoc, updateDoc, doc, onSnapshot, serverTimestamp, orderBy, limit, arrayUnion, getDoc, increment, deleteDoc, runTransaction } from 'firebase/firestore'
 
 // Escuta o caixa aberto atual da loja
 export function listenCurrentCash(storeId, callback) {
@@ -157,6 +157,12 @@ export async function reopenCashRegister(cashId) {
   })
 }
 
+// Exclui definitivamente um caixa (uso restrito: super admin)
+export async function deleteCashRegister(cashId) {
+  if (!cashId) throw new Error('Caixa não identificado')
+  await deleteDoc(doc(db, 'cash_registers', cashId))
+}
+
 // Fecha o caixa
 export async function closeCashRegister(cashId, closingData) {
   const ref = doc(db, 'cash_registers', cashId)
@@ -199,37 +205,35 @@ export async function addCashTransaction(cashId, transaction) {
 export async function removeCashTransactionsByOrder(cashId, orderId) {
   if (!cashId || !orderId) throw new Error('Parâmetros inválidos')
   const ref = doc(db, 'cash_registers', cashId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const data = snap.data()
-  const list = Array.isArray(data.transactions) ? data.transactions : []
-  const filtered = list.filter(t => !(t?.originalOrder?.id === orderId))
-  await updateDoc(ref, { transactions: filtered })
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) return
+    const list = Array.isArray(snap.data().transactions) ? snap.data().transactions : []
+    const filtered = list.filter(t => !(t?.originalOrder?.id === orderId))
+    tx.update(ref, { transactions: filtered })
+  })
 }
 
 export async function updateCashTransaction(cashId, transactionId, updates) {
   if (!cashId || !transactionId) return
   const ref = doc(db, 'cash_registers', cashId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const data = snap.data()
-  const list = Array.isArray(data.transactions) ? data.transactions : []
-  const newList = list.map(t => {
-    if (t.id === transactionId) {
-      return { ...t, ...updates }
-    }
-    return t
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) return
+    const list = Array.isArray(snap.data().transactions) ? snap.data().transactions : []
+    const newList = list.map(t => (t.id === transactionId ? { ...t, ...updates } : t))
+    tx.update(ref, { transactions: newList })
   })
-  await updateDoc(ref, { transactions: newList })
 }
 
 export async function removeCashTransaction(cashId, transactionId) {
   if (!cashId || !transactionId) return
   const ref = doc(db, 'cash_registers', cashId)
-  const snap = await getDoc(ref)
-  if (!snap.exists()) return
-  const data = snap.data()
-  const list = Array.isArray(data.transactions) ? data.transactions : []
-  const newList = list.filter(t => t.id !== transactionId)
-  await updateDoc(ref, { transactions: newList })
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists()) return
+    const list = Array.isArray(snap.data().transactions) ? snap.data().transactions : []
+    const newList = list.filter(t => t.id !== transactionId)
+    tx.update(ref, { transactions: newList })
+  })
 }

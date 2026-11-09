@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { addClient, updateClient, getNextClientCode } from '../services/clients'
+import { addClient, updateClient, getNextClientCode, findClientByDocument } from '../services/clients'
 import { searchCep } from '../services/cep'
 
 export default function NewClientModal({ open, onClose, isEdit=false, client=null, storeId, onSuccess, user }){
@@ -152,6 +152,20 @@ export default function NewClientModal({ open, onClose, isEdit=false, client=nul
     if (!isEdit && !canCreate) {
       setError('Sem permissão para cadastrar cliente.')
       return
+    }
+
+    // Evita cadastro duplicado pelo mesmo CPF/CNPJ na loja
+    if (!isEdit) {
+      try {
+        const dup = await findClientByDocument({ storeId, cpf: cpf.trim(), cnpj: cnpj.trim() })
+        if (dup) {
+          setError(`Já existe um cliente cadastrado com este ${isCompany ? 'CNPJ' : 'CPF'}${dup.name ? ` (${dup.name})` : ''}.`)
+          return
+        }
+      } catch (e) {
+        // Falha na checagem não deve bloquear o cadastro
+        console.warn('Falha ao verificar duplicidade de cliente:', e)
+      }
     }
 
     setSaving(true)

@@ -239,7 +239,7 @@ export default function AdminStoreView({ storeId, onExit }) {
             ) : view === 'dadosUsuario' ? (
                 <UserDataPage user={user} onBack={() => onNavigate('configuracoes')} />
             ) : view === 'caixa' ? (
-                <POSPage storeId={store.id} user={user} onView={onNavigate} setViewParams={setViewParams} />
+                <POSPage storeId={store.id} user={user} onView={onNavigate} setViewParams={setViewParams} adminAccess />
             ) : view === 'cpagar' ? (
                 <AccountsPayablePage storeId={store.id} user={user} store={store} />
             ) : view === 'creceber' ? (

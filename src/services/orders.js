@@ -1,4 +1,4 @@
-import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc, limit as firestoreLimit } from 'firebase/firestore'
+import { collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, orderBy, serverTimestamp, getDocs, where, getDoc, setDoc, increment, limit as firestoreLimit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 
 const colRef = collection(db, 'orders')
@@ -11,38 +11,51 @@ function normalizeClientText(value) {
     .toLowerCase()
 }
 
+// Calcula o maior número já usado (usado apenas para inicializar o contador e como fallback)
+async function computeMaxOrderNumber(storeId, type){
+  const q = query(colRef, where('storeId','==',storeId))
+  const snap = await getDocs(q)
+  let max = 0
+  snap.docs.forEach(d => {
+    const data = d.data()
+    const dType = data.type
+    const isMatch = (type === 'sale')
+      ? (dType === 'sale')
+      : (dType === 'service_order' || !dType)
+    if (isMatch) {
+      const n = parseInt(String(data.number || '').replace(/^#/, ''), 10)
+      if (!isNaN(n) && n > max) max = n
+    }
+  })
+  return max
+}
+
 // Gera número sequencial de 6 dígitos no formato #000001
+// Usa contador atômico em stores/{storeId}/counters/order_{type}, evitando
+// full scan a cada criação e números duplicados em concorrência.
 async function getNextOrderNumber(storeId, type){
+  if (!storeId) return `#${String(1).padStart(6, '0')}`
+  const key = type === 'sale' ? 'sales' : 'orders'
+  const counterRef = doc(db, 'stores', storeId, 'counters', `order_${key}`)
   try {
-    if (storeId) {
-      // Evita índice composto: filtra por storeId e calcula o maior número no cliente
-      const q = query(colRef, where('storeId','==',storeId))
-      const snap = await getDocs(q)
-      let max = 0
-      snap.docs.forEach(d => {
-        const data = d.data()
-        // Filter by type:
-        // If type is 'sale', only consider 'sale'.
-        // If type is 'service_order', consider 'service_order' OR undefined (legacy).
-        const dType = data.type
-        const isMatch = (type === 'sale') 
-          ? (dType === 'sale')
-          : (dType === 'service_order' || !dType)
-        
-        if (isMatch) {
-          const digits = String(data.number || '').replace(/^#/, '')
-          const n = parseInt(digits, 10)
-          if (!isNaN(n) && n > max) max = n
-        }
-      })
-      const next = max + 1
-      return `#${String(next).padStart(6, '0')}`
-    } else {
-      // Fallback
+    const counterSnap = await getDoc(counterRef)
+    if (!counterSnap.exists()) {
+      // Inicializa o contador a partir do maior número existente (executa uma única vez)
+      const max = await computeMaxOrderNumber(storeId, type)
+      await setDoc(counterRef, { current: max }, { merge: true })
+    }
+    await setDoc(counterRef, { current: increment(1) }, { merge: true })
+    const after = await getDoc(counterRef)
+    const next = after.exists() ? Number(after.data().current || 1) : 1
+    return `#${String(next).padStart(6, '0')}`
+  } catch (e) {
+    console.error('getNextOrderNumber error:', e)
+    try {
+      const max = await computeMaxOrderNumber(storeId, type)
+      return `#${String(max + 1).padStart(6, '0')}`
+    } catch {
       return `#${String(1).padStart(6, '0')}`
     }
-  } catch (e) {
-    return `#${String(1).padStart(6, '0')}`
   }
 }
 
@@ -137,7 +150,10 @@ export async function getClientOrderHistory(storeId, client){
 
   if (!clientId && !clientName) return []
 
-  const q = query(colRef, where('storeId','==',storeId))
+  // Evita índice composto: filtra por storeId e casa o cliente em memória.
+  // LIMITE: usa ordenação por __name__ (sempre existe) + teto para não varrer
+  // a loja inteira (risco de cota). Traz os registros mais recentes.
+  const q = query(colRef, where('storeId','==',storeId), orderBy('__name__','desc'), firestoreLimit(1000))
   const snap = await getDocs(q)
 
   return snap.docs
