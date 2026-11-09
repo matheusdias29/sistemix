@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Sidebar from './components/Sidebar'
 import Header from './components/Header'
 import ClientsPage from './components/ClientsPage'
@@ -34,6 +34,7 @@ import { updateUserPresence, listenUser, updateUser } from './services/users'
 import SubscriptionPage from './components/SubscriptionPage'
 import { listenSubscription, computeStatusWithInvoices } from './services/subscriptions'
 import { listenInvoices } from './services/invoices'
+import { isPageAllowed, getFirstAllowedPage } from './lib/permissions'
 
 const labels = {
   inicio: 'Início',
@@ -200,13 +201,30 @@ export default function App(){
     return () => unsub()
   }, [user?.id, user?.memberId]) // Recria listener apenas se mudar a identidade do usuário
 
+  // Página inicial do funcionário (aplicada uma vez por login, após escolher a loja):
+  //  1) Técnicos abrem direto na Área do técnico.
+  //  2) Sem acesso ao Início → primeira página que ele realmente pode acessar.
+  //  3) Caso contrário, mantém o Início.
+  const landingRef = useRef(null)
   useEffect(() => {
-    if (!user) return
+    if (!user) { landingRef.current = null; return }
     if (isOwner) return
-    if (view === 'inicio' && perms.home?.view === false) {
-      setView('vendas')
+    if (!store) return
+    const uid = user.memberId || user.id
+    if (landingRef.current === uid) return // já definiu a página inicial deste login
+
+    if (user.isTech && isPageAllowed(user, 'areaTecnico', store.sidebarPages)) {
+      landingRef.current = uid
+      if (view !== 'areaTecnico') setView('areaTecnico')
+      return
     }
-  }, [user, isOwner, view, perms.home?.view])
+    if (!isPageAllowed(user, 'inicio', store.sidebarPages)) {
+      landingRef.current = uid
+      setView(getFirstAllowedPage(user, store.sidebarPages))
+      return
+    }
+    landingRef.current = uid
+  }, [user, isOwner, store, view])
 
   // Lembrete de fatura próxima ao vencimento (sempre ao entrar no app)
   useEffect(() => {

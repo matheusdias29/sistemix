@@ -18,6 +18,7 @@ import {
   LogOut,
   ChevronDown
 } from 'lucide-react'
+import { isPageAllowed } from '../lib/permissions'
 
 
 export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages, locked=false}){
@@ -54,43 +55,10 @@ export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mo
       },
     ]
 
-    let base = all
-    
-    // Filter by permissions if not owner
-    if (!isOwner) {
-      base = base.filter(i => {
-        if (i.key === 'inicio') return perms.home?.view !== false
-        if (i.key === 'termos') return perms.terms?.view || perms.terms?.edit
-        if (i.key === 'catalogo') return perms.catalog?.view || perms.catalog?.view === undefined
-        
-        if (i.key === 'clientes') return perms.clients?.view || perms.clients?.create || perms.clients?.edit || perms.clients?.delete
-        if (i.key === 'produtos') return perms.products?.view || perms.products?.create || perms.products?.edit || perms.products?.delete || perms.sales?.viewAll || perms.sales?.finalize
-        if (i.key === 'vendas') return perms.sales?.viewAll || perms.sales?.finalize || perms.sales?.edit
-        if (i.key === 'caixa') return perms.cash?.view || perms.cash?.open || perms.cash?.close
-        if (i.key === 'notas') return false
-        if (i.key === 'os') return perms.serviceOrders?.view || perms.serviceOrders?.create || perms.serviceOrders?.edit || perms.serviceOrders?.delete || perms.serviceOrders?.changeStatus
-        if (i.key === 'areaTecnico') return !!user?.isTech
-        if (i.key === 'cpagar') return perms.payables?.view || perms.payables?.create || perms.payables?.edit
-        if (i.key === 'creceber') return perms.receivables?.view || perms.receivables?.create || perms.receivables?.edit
-        if (i.key === 'estatisticas') return perms.statistics?.view
-        if (i.key === 'marketplace') return perms.marketplace?.view || perms.marketplace?.view === undefined
-        return false
-      })
-    }
-
-    // Apply store-level allowed pages filter if provided (CRITICAL: apply to EVERYONE including owner)
-    if (allowedPages && typeof allowedPages === 'object' && Object.keys(allowedPages).length > 0) {
-      base = base.filter(i => {
-        // 'caixa' is mandatory for all stores
-        if (i.key === 'caixa') return true
-        
-        const flag = allowedPages[i.key]
-        // If explicitly false, hide. Otherwise show (default true)
-        return flag !== false
-      })
-    }
-    return base
-  }, [isOwner, perms, allowedPages, user?.isTech])
+    // Fonte única de verdade das permissões (papel do usuário + páginas da loja).
+    // 'caixa' é obrigatório em todas as lojas.
+    return all.filter(i => isPageAllowed(user, i.key, allowedPages))
+  }, [isOwner, perms, allowedPages, user?.isTech, user])
 
   // Auto-expand accordion if a sub-item is active
   useEffect(() => {

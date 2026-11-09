@@ -1,4 +1,4 @@
-import { collection, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc, deleteDoc, limit } from 'firebase/firestore'
+import { collection, collectionGroup, addDoc, query, where, getDocs, serverTimestamp, onSnapshot, orderBy, updateDoc, doc, getDoc, deleteDoc, limit } from 'firebase/firestore'
 import { db } from '../lib/firebase'
 import { addStore, deleteStoresByOwner } from './stores'
 import { computeStatusWithInvoices, getSubscription } from './subscriptions'
@@ -117,23 +117,21 @@ export function listenUser(currentUser, callback) {
   })
 }
 
-// Busca membro por email em subcoleções users/{ownerId}/members
-// LIMITAÇÃO: sem um índice global de membros, precisa varrer os owners (N+1).
-// Aplica um teto para não varrer a coleção inteira; a solução definitiva é
-// indexar os e-mails (ex.: coleção denormalizada / Cloud Function).
+// Busca funcionário por email em TODAS as subcoleções users/*/members de uma vez.
+// Antes: varria até 2000 donos e, para cada um, fazia outra query (N+1) — o que
+// exigia índice na coleção `users`. Agora: uma única query de grupo de coleções,
+// lê ~1 documento e não depende daquele índice.
 export async function findMemberByEmail(email){
-  const ownersSnap = await getDocs(query(usersCol, orderBy('__name__', 'desc'), limit(2000)))
-  for (const d of ownersSnap.docs){
-    const ownerId = d.id
-    const membersCol = collection(db, 'users', ownerId, 'members')
-    const q = query(membersCol, where('email', '==', email))
-    const snap = await getDocs(q)
-    if (!snap.empty){
-      const md = snap.docs[0]
-      return { id: md.id, ownerId, ...md.data() }
-    }
-  }
-  return null
+  const q = query(
+    collectionGroup(db, 'members'),
+    where('email', '==', email),
+    limit(1)
+  )
+  const snap = await getDocs(q)
+  if (snap.empty) return null
+  const md = snap.docs[0]
+  const ownerId = md.ref.parent.parent?.id || ''
+  return { id: md.id, ownerId, ...md.data() }
 }
 
 export async function addSubUser(ownerUserId, user){
