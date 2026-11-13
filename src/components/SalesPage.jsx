@@ -686,15 +686,15 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       case 'value': return <div className="text-xs lg:text-sm text-right whitespace-nowrap">{formatCurrency(Number(o.valor || o.total || 0))}</div>
       case 'status': {
         const s = (o.status ?? '').toLowerCase()
-        let colorClass = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-        if (s === 'venda' || s.includes('cliente final')) colorClass = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-        else if (s.includes('lojista') || s.includes('logista')) colorClass = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-        if (s === 'pedido' || s === 'condicional') colorClass = 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
-        else if (s === 'cancelada') colorClass = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+        let colorClass = 'text-gray-700 dark:text-gray-300'
+        if (s === 'venda' || s.includes('cliente final')) colorClass = 'text-green-700 dark:text-green-300'
+        else if (s.includes('lojista') || s.includes('logista')) colorClass = 'text-blue-700 dark:text-blue-300'
+        if (s === 'pedido' || s === 'condicional') colorClass = 'text-yellow-700 dark:text-yellow-300'
+        else if (s === 'cancelada') colorClass = 'text-red-700 dark:text-red-300'
 
         return (
           <div className="text-center">
-            <div className={`px-1.5 py-0.5 rounded text-[10px] lg:text-xs inline-block ${colorClass}`}>{o.status || 'Indef.'}</div>
+            <div className={`text-[10px] lg:text-xs inline-block font-medium ${colorClass}`}>{o.status || 'Indef.'}</div>
           </div>
         )
       }

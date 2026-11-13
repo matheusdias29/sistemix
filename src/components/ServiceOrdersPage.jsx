@@ -46,19 +46,6 @@ import ServiceOrderPrintModal from './ServiceOrderPrintModal'
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage'
 import { storage } from '../lib/firebase'
 
-const hexToRgba = (hex, alpha = 1) => {
-  let c;
-  if(/^#([A-Fa-f0-9]{3}){1,2}$/.test(hex)){
-    c= hex.substring(1).split('');
-    if(c.length== 3){
-      c= [c[0], c[0], c[1], c[1], c[2], c[2]];
-    }
-    c= '0x'+c.join('');
-    return 'rgba('+[(c>>16)&255, (c>>8)&255, c&255].join(',')+','+alpha+')';
-  }
-  return hex;
-}
-
 const darkenColor = (hex, percent) => {
   let r = 0, g = 0, b = 0;
   if (!hex) return '#000000';
@@ -2495,25 +2482,22 @@ const canEditService = isOwner || perms.services?.edit
               const s = String(o.status||'').trim()
               const color = statusColorMap[s]
               if (color) {
-                // In dark mode, we want the text to be lighter, not darker
+                // Apenas o texto colorido (sem fundo/sombra)
                 const textColor = isDark ? lightenColor(color, 60) : darkenColor(color, 40)
-                // In dark mode, maybe we want the background a bit more opaque or same? 
-                // 0.15 on dark bg is subtle. Let's keep it but maybe slightly higher alpha if needed.
-                // Actually 0.15 is fine.
-                return <span className="px-2 py-1 rounded text-xs font-medium" style={{ backgroundColor: hexToRgba(color, 0.15), color: textColor }}>{s || '-'}</span>
+                return <span className="text-xs font-medium" style={{ color: textColor }}>{s || '-'}</span>
               }
-              
-              const l = s.toLowerCase()
-              let cls = 'bg-gray-200 text-gray-700'
-              
-              if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-              else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-              else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-              else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-              else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-              else cls = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
 
-              return <span className={`px-2 py-1 rounded text-xs ${cls}`}>{s || '-'}</span>
+              const l = s.toLowerCase()
+              let cls = 'text-gray-700 dark:text-gray-300'
+
+              if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'text-blue-700 dark:text-blue-300'
+              else if (l.includes('finaliz') || l.includes('faturada')) cls = 'text-green-700 dark:text-green-300'
+              else if (l.includes('cancel')) cls = 'text-red-700 dark:text-red-300'
+              else if (l.includes('garantia')) cls = 'text-purple-700 dark:text-purple-300'
+              else if (l.includes('aguardando') || l.includes('peça')) cls = 'text-amber-700 dark:text-amber-300'
+              else cls = 'text-gray-700 dark:text-gray-300'
+
+              return <span className={`text-xs font-medium ${cls}`}>{s || '-'}</span>
             })()}
           </div>
         )
@@ -2639,16 +2623,16 @@ const canEditService = isOwner || perms.services?.edit
               let statusEl = null
               if (color) {
                 const textColor = isDark ? lightenColor(color, 60) : darkenColor(color, 40)
-                statusEl = <span className="px-2 py-1 rounded text-[10px] font-medium" style={{ backgroundColor: hexToRgba(color, 0.15), color: textColor }}>{statusS || '-'}</span>
+                statusEl = <span className="text-[10px] font-medium" style={{ color: textColor }}>{statusS || '-'}</span>
               } else {
                 const l = statusS.toLowerCase()
-                let cls = 'bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
-                if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                else if (l.includes('finaliz') || l.includes('faturada')) cls = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                else if (l.includes('cancel')) cls = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
-                else if (l.includes('garantia')) cls = 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-                else if (l.includes('aguardando') || l.includes('peça')) cls = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                statusEl = <span className={`px-2 py-1 rounded text-[10px] ${cls}`}>{statusS || '-'}</span>
+                let cls = 'text-gray-700 dark:text-gray-300'
+                if (l.includes('cliente lojista') && (l.includes('faturada') || l.includes('finalizada'))) cls = 'text-blue-700 dark:text-blue-300'
+                else if (l.includes('finaliz') || l.includes('faturada')) cls = 'text-green-700 dark:text-green-300'
+                else if (l.includes('cancel')) cls = 'text-red-700 dark:text-red-300'
+                else if (l.includes('garantia')) cls = 'text-purple-700 dark:text-purple-300'
+                else if (l.includes('aguardando') || l.includes('peça')) cls = 'text-amber-700 dark:text-amber-300'
+                statusEl = <span className={`text-[10px] font-medium ${cls}`}>{statusS || '-'}</span>
               }
               const osTotal = (o.total ?? o.totalProducts ?? o.valor ?? ((Array.isArray(o.products) ? o.products.reduce((s,p)=> s + ((parseFloat(p.price)||0)*(parseFloat(p.quantity)||0)), 0) : 0)))
               return (
