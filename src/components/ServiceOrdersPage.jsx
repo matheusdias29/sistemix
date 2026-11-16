@@ -2482,9 +2482,9 @@ const canEditService = isOwner || perms.services?.edit
               const s = String(o.status||'').trim()
               const color = statusColorMap[s]
               if (color) {
-                // Apenas o texto colorido (sem fundo/sombra)
-                const textColor = isDark ? lightenColor(color, 60) : darkenColor(color, 40)
-                return <span className="text-xs font-medium" style={{ color: textColor }}>{s || '-'}</span>
+                // Apenas o texto colorido (sem fundo/sombra) — usa a cor exata
+                // configurada, igual ao comportamento das Vendas.
+                return <span className="text-xs font-medium" style={{ color }}>{s || '-'}</span>
               }
 
               const l = s.toLowerCase()
@@ -2622,8 +2622,7 @@ const canEditService = isOwner || perms.services?.edit
               const color = statusColorMap[statusS]
               let statusEl = null
               if (color) {
-                const textColor = isDark ? lightenColor(color, 60) : darkenColor(color, 40)
-                statusEl = <span className="text-[10px] font-medium" style={{ color: textColor }}>{statusS || '-'}</span>
+                statusEl = <span className="text-[10px] font-medium" style={{ color }}>{statusS || '-'}</span>
               } else {
                 const l = statusS.toLowerCase()
                 let cls = 'text-gray-700 dark:text-gray-300'

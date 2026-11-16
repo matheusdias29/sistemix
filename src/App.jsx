@@ -127,28 +127,35 @@ export default function App(){
     try {
       const raw = localStorage.getItem('session')
       if (!raw) return
-      const { user: savedUser, store: savedStore, lastActivity } = JSON.parse(raw)
+      const { user: savedUser, store: savedStore, lastActivity, view: savedView, viewParams: savedViewParams } = JSON.parse(raw)
       const now = Date.now()
       if (savedUser && typeof lastActivity === 'number' && (now - lastActivity) < INACTIVITY_LIMIT_MS) {
         setUser(savedUser)
         setStore(savedStore || null)
+        // Restaura a última página acessada para que um recarregamento (F5/HMR)
+        // não devolva o usuário ao Início do nada.
+        if (savedStore && typeof savedView === 'string' && savedView) {
+          setView(savedView)
+          setViewParams(savedViewParams && typeof savedViewParams === 'object' ? savedViewParams : {})
+        }
       } else {
         localStorage.removeItem('session')
       }
     } catch {}
   }, [])
 
-  // Sincroniza no localStorage sempre que usuário/loja mudarem
+  // Sincroniza no localStorage sempre que usuário/loja/página mudarem.
+  // NÃO remove a sessão quando `user` ainda é null (primeiro render), senão
+  // apagaria a sessão antes de restaurá-la. O logout é quem limpa a sessão.
   useEffect(() => {
-    if (user) {
-      const raw = localStorage.getItem('session')
-      let sess = {}
-      try { sess = raw ? JSON.parse(raw) : {} } catch {}
-      localStorage.setItem('session', JSON.stringify({ ...sess, user, store, lastActivity: Date.now() }))
-    } else {
-      localStorage.removeItem('session')
-    }
-  }, [user, store])
+    if (!user) return
+    const raw = localStorage.getItem('session')
+    let sess = {}
+    try { sess = raw ? JSON.parse(raw) : {} } catch {}
+    try {
+      localStorage.setItem('session', JSON.stringify({ ...sess, user, store, view, viewParams, lastActivity: Date.now() }))
+    } catch {}
+  }, [user, store, view, viewParams])
 
   // =========================================================================
   // VALIDAÇÃO DE ACESSO A LOJA (Segurança extra para funcionários)
@@ -193,9 +200,16 @@ export default function App(){
     // Usa listenUser para ouvir mudanças no doc do usuário (dono ou membro)
     const unsub = listenUser(user, (updated) => {
       setUser(prev => {
-        // Evita loop se for idêntico
-        if (JSON.stringify(prev) === JSON.stringify(updated)) return prev
-        return updated
+        // Ignora mudanças que são APENAS de presença (lastSeen), gravadas pelo
+        // próprio app a cada ~60s. Sem isso, o app inteiro re-renderizava de
+        // minuto em minuto sem nenhuma mudança real de dados.
+        const relevant = (u) => {
+          if (!u) return u
+          const { lastSeen, ...rest } = u
+          return rest
+        }
+        if (JSON.stringify(relevant(prev)) === JSON.stringify(relevant(updated))) return prev
+        return { ...prev, ...updated }
       })
     })
     return () => unsub()
@@ -343,16 +357,24 @@ export default function App(){
 
     const markActivity = () => {
       try {
-        const raw = localStorage.getItem('session')
-        const sess = raw ? JSON.parse(raw) : {}
-        sess.lastActivity = Date.now()
-        sess.user = user
-        sess.store = store
-        localStorage.setItem('session', JSON.stringify(sess))
+        const now = Date.now()
+
+        // Grava a atividade no máximo a cada 10s. Antes, cada mousemove/scroll
+        // fazia um read+write síncrono de todo o objeto da sessão no
+        // localStorage — o que engasgava a página em telas pesadas (ex.: O.S.).
+        const lastWrite = Number(sessionStorage.getItem('lastActivityWrite') || 0)
+        if (now - lastWrite >= 10000) {
+          sessionStorage.setItem('lastActivityWrite', String(now))
+          const raw = localStorage.getItem('session')
+          const sess = raw ? JSON.parse(raw) : {}
+          sess.lastActivity = now
+          sess.user = user
+          sess.store = store
+          localStorage.setItem('session', JSON.stringify(sess))
+        }
 
         // Update presence (debounce 60s)
         const lastPresence = sessionStorage.getItem('lastPresenceUpdate')
-        const now = Date.now()
         if (!lastPresence || now - Number(lastPresence) > 60000) {
            sessionStorage.setItem('lastPresenceUpdate', String(now))
            const isMember = !!user.memberId
@@ -465,6 +487,7 @@ export default function App(){
             storeData={store}
             title={labels[view] || 'Início'}
             onUserClick={() => setStore(null)}
+            onStoreSelect={(s) => setStore(s)}
             onToggleChat={() => setChatOpen(v => !v)}
             onToggleCalculator={() => setCalculatorOpen(v => !v)}
             darkMode={darkMode}

@@ -29,7 +29,8 @@ const LOCKED_STATUSES = ['Iniciado', 'Finalizado', 'Os Faturada Cliente Final', 
 const STATUS_COLORS = [
   { label: 'Verde', value: '#22c55e', bg: 'bg-green-500' },
   { label: 'Vermelho', value: '#ef4444', bg: 'bg-red-500' },
-  { label: 'Azul', value: '#3b82f6', bg: 'bg-blue-500' },
+  { label: 'Azul', value: '#1d4ed8', bg: 'bg-blue-700' },
+  { label: 'Laranja', value: '#f97316', bg: 'bg-orange-500' },
   { label: 'Roxo', value: '#a855f7', bg: 'bg-purple-500' },
   { label: 'Cinza', value: '#6b7280', bg: 'bg-gray-500' },
   { label: 'Preto', value: '#000000', bg: 'bg-black' }
@@ -98,12 +99,25 @@ Volte sempre!`
 
     // Statuses
     if (saved.statuses && Array.isArray(saved.statuses) && saved.statuses.length > 0) {
-      setStatuses(saved.statuses)
+      // Normaliza cores dos status bloqueados para manter consistência com
+      // as cores usadas em Vendas (ex.: lojista sempre azul #1d4ed8).
+      const normalized = saved.statuses.map(st => {
+        const name = String(st.name || '').toLowerCase()
+        if (LOCKED_STATUSES.includes(st.name)) {
+          if (name.includes('lojista') || name.includes('logista')) return { ...st, color: '#1d4ed8' }
+          if (name.includes('final') || name.includes('faturada')) return { ...st, color: '#22c55e' }
+          if (name === 'cancelado') return { ...st, color: '#ef4444' }
+          if (name === 'iniciado') return { ...st, color: '#f97316' }
+        }
+        return st
+      })
+      setStatuses(normalized)
     } else {
       const init = DEFAULT_STATUSES_LIST.map((name, i) => {
         let color = '#a855f7' // Roxo default
-        if (name === 'Iniciado') color = '#000000'
+        if (name === 'Iniciado') color = '#f97316'
         if (name.includes('Finalizado') || name.includes('Faturada')) color = '#22c55e'
+        if (name.includes('lojista') || name.includes('logista')) color = '#1d4ed8'
         if (name === 'Cancelado') color = '#ef4444'
         
         return {

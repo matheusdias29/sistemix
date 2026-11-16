@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
 import { Bell, X, Info, CheckCircle, AlertTriangle, AlertCircle, Sun, Moon, LifeBuoy } from 'lucide-react'
 import { listenStoreNotifications } from '../services/notifications'
+import StoreSwitcher from './StoreSwitcher'
 
-export default function Header({user, userData, storeData, title, onUserClick, mobileControls, rightAction, onToggleChat, onToggleCalculator, chatUnreadCount = 0, chatOpen = false, calculatorOpen = false, darkMode = false, onToggleDarkMode}){
+export default function Header({user, userData, storeData, title, onUserClick, onStoreSelect, mobileControls, rightAction, onToggleChat, onToggleCalculator, chatUnreadCount = 0, chatOpen = false, calculatorOpen = false, darkMode = false, onToggleDarkMode}){
   const [showNotifications, setShowNotifications] = useState(false)
   const notificationRef = useRef(null)
+  // Popup de troca de loja (só usado quando onStoreSelect é fornecido)
+  const [showStoreSwitcher, setShowStoreSwitcher] = useState(false)
+  const storeSwitcherRef = useRef(null)
 
   const storeId = storeData?.id
   const userId = userData?.memberId || userData?.id || user?.memberId || user?.id || 'anon'
@@ -43,6 +47,9 @@ export default function Header({user, userData, storeData, title, onUserClick, m
     function handleClickOutside(event) {
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setShowNotifications(false)
+      }
+      if (storeSwitcherRef.current && !storeSwitcherRef.current.contains(event.target)) {
+        setShowStoreSwitcher(false)
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -89,7 +96,16 @@ export default function Header({user, userData, storeData, title, onUserClick, m
   const storeName = storeData?.name || (user?.name?.includes('—') ? user.name.split('—')[1]?.trim() : '')
   const initials = displayName?.[0]?.toUpperCase() || '?'
   
-  const handleClick = typeof onUserClick === 'function' ? onUserClick : () => {}
+  const handleClick = () => {
+    // Se o App forneceu onStoreSelect, abre o popup de troca de loja ali mesmo.
+    // Caso contrário, usa o comportamento legado (onUserClick).
+    if (typeof onStoreSelect === 'function') {
+      setShowStoreSwitcher(v => !v)
+      setShowNotifications(false)
+      return
+    }
+    if (typeof onUserClick === 'function') onUserClick()
+  }
   
   return (
     <header className="flex items-center justify-between">
@@ -271,29 +287,43 @@ export default function Header({user, userData, storeData, title, onUserClick, m
         </div>
 
         <div className="hidden md:flex items-center gap-4">
-          <div
-            className="group flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full pl-2 pr-6 py-2 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-900 transition-all duration-200"
-            onClick={handleClick}
-            title="Trocar de loja"
-          >
-            <div className="w-11 h-11 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold shadow-sm text-lg">
-              {initials}
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="text-base font-bold text-gray-800 dark:text-gray-100 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
-                {displayName}
-              </span>
-              {storeName && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 font-semibold tracking-wide uppercase truncate max-w-[180px]">
-                  {storeName}
+          <div className="relative" ref={storeSwitcherRef}>
+            <div
+              className={`group flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full pl-2 pr-6 py-2 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-900 transition-all duration-200 ${showStoreSwitcher ? 'ring-2 ring-green-500/40 border-green-400 dark:border-green-600' : ''}`}
+              onClick={handleClick}
+              title="Trocar de loja"
+            >
+              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold shadow-sm text-lg">
+                {initials}
+              </div>
+              <div className="flex flex-col leading-tight">
+                <span className="text-base font-bold text-gray-800 dark:text-gray-100 group-hover:text-green-600 dark:group-hover:text-green-400 transition-colors">
+                  {displayName}
                 </span>
-              )}
+                {storeName && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400 font-semibold tracking-wide uppercase truncate max-w-[180px]">
+                    {storeName}
+                  </span>
+                )}
+              </div>
+              <div className={`ml-2 text-gray-400 group-hover:text-green-500 transition-colors ${showStoreSwitcher ? 'rotate-180' : ''}`}>
+                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                   <path d="m6 9 6 6 6-6"/>
+                 </svg>
+              </div>
             </div>
-            <div className="ml-2 text-gray-400 group-hover:text-green-500 transition-colors">
-               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                 <path d="m6 9 6 6 6-6"/>
-               </svg>
-            </div>
+
+            {showStoreSwitcher && typeof onStoreSelect === 'function' && (
+              <StoreSwitcher
+                user={userData || user}
+                currentStoreId={storeData?.id}
+                onSelect={(s) => {
+                  setShowStoreSwitcher(false)
+                  onStoreSelect(s)
+                }}
+                onClose={() => setShowStoreSwitcher(false)}
+              />
+            )}
           </div>
         </div>
       </div>
