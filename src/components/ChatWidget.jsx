@@ -266,7 +266,7 @@ export default function ChatWidget({ user, open, onOpenChange, hideLauncher = fa
     if (typeof onUnreadChange === 'function') onUnreadChange(totalUnread)
   }, [totalUnread, onUnreadChange])
 
-  // Monitor unread count for sound
+  // Monitor unread count for sound AND auto-open chat on new message
   const prevUnreadRef = useRef(totalUnread)
   const mountedRef = useRef(false)
 
@@ -276,9 +276,21 @@ export default function ChatWidget({ user, open, onOpenChange, hideLauncher = fa
         prevUnreadRef.current = totalUnread
         return
     }
-    // Only play if unread count INCREASED
+    // Only act if unread count INCREASED (new message arrived)
     if (totalUnread > prevUnreadRef.current) {
         playNotificationSound()
+
+        // Abre o chat automaticamente e seleciona a conversa que tem mensagem não lida
+        const chatWithUnread = userChats.find(c => (c.unreadCounts?.[myUid] || 0) > 0)
+        if (chatWithUnread) {
+            // Extrai o ID do outro participante do chatId (formato: uid1_uid2 ordenado)
+            const otherId = chatWithUnread.id.split('_').find(id => id !== myUid)
+            const otherUser = colleagues.find(u => u.id === otherId) || sortedColleagues.find(u => u.id === otherId)
+            if (otherUser) {
+                setSelectedUser(otherUser)
+            }
+        }
+        setOpen(true)
     }
     prevUnreadRef.current = totalUnread
   }, [totalUnread, soundEnabled])

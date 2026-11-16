@@ -4,7 +4,7 @@ import Switch from './Switch'
 const defaultPermissions = {
   home: { view: true },
   products: { create: false, edit: false, delete: false, view: false, viewCost: false },
-  sales: { viewAll: false, finalize: false, cancel: false, delete: false, changePrice: false, edit: false, discount: false, fees: false },
+  sales: { viewAll: false, finalize: false, invoice: false, cancel: false, delete: false, changePrice: false, edit: false, discount: false, fees: false },
   serviceOrders: { view: false, create: false, edit: false, delete: false, changeStatus: false, changeValues: false, invoice: false },
   services: { create: false, edit: false },
   categories: { create: false, edit: false, delete: false, bulkPricing: false },
@@ -73,7 +73,8 @@ export default function PermissionsModal({ open, onClose, initialPermissions={},
 
           <Section title="Vendas">
             <Switch checked={perms.sales.viewAll} onChange={toggle('sales','viewAll')} label="Pode visualizar todas as vendas" />
-            <Switch checked={perms.sales.finalize} onChange={toggle('sales','finalize')} label="Pode finalizar venda" />
+            <Switch checked={perms.sales.finalize} onChange={toggle('sales','finalize')} label="Pode efetuar venda" />
+            <Switch checked={perms.sales.invoice} onChange={toggle('sales','invoice')} label="Pode faturar no caixa" />
             <Switch checked={perms.sales.edit} onChange={toggle('sales','edit')} label="Pode editar vendas (histórico)" />
             <Switch checked={perms.sales.cancel} onChange={toggle('sales','cancel')} label="Pode cancelar venda" />
             <Switch checked={perms.sales.changePrice} onChange={toggle('sales','changePrice')} label="Pode alterar o valor dos produtos" />

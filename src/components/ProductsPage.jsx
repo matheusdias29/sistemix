@@ -3986,12 +3986,12 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                   {/* Cabeçalho (desktop) */}
                   <div className="hidden md:grid grid-cols-[9.5rem_1.4fr_5rem_3.5rem_10rem_8rem_1.4fr] items-center px-4 py-3 text-xs text-gray-500 dark:text-gray-400 border-b dark:border-gray-700">
                     <div>Data</div>
-                    <div>Produto</div>
+                    <div className="min-w-0">Produto</div>
                     <div>Tipo</div>
                     <div className="text-right">Qtd</div>
-                    <div>Motivo</div>
-                    <div>Usuário</div>
-                    <div>Obs</div>
+                    <div className="min-w-0">Motivo</div>
+                    <div className="min-w-0">Usuário</div>
+                    <div className="min-w-0">Obs</div>
                   </div>
                   {filteredStoreMovements.map((mov) => (
                     <div
@@ -4002,7 +4002,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Data</span>
                         <span className="text-gray-600 dark:text-gray-300 whitespace-nowrap">{formatMovementDate(mov.createdAt || mov.date)}</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block min-w-0 overflow-hidden">
                         <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Produto</span>
                         <span className="font-medium text-gray-900 dark:text-white text-right md:text-left truncate" title={mov.productName}>{mov.productName || '-'}</span>
                       </div>
@@ -4016,15 +4016,15 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
                         <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Qtd</span>
                         <span className="font-semibold text-gray-900 dark:text-white">{mov.quantity}</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block min-w-0 overflow-hidden">
                         <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Motivo</span>
-                        <span className="text-gray-700 dark:text-gray-300 font-medium">{getMovementReasonLabel(mov)}</span>
+                        <span className="text-gray-700 dark:text-gray-300 font-medium truncate" title={getMovementReasonLabel(mov)}>{getMovementReasonLabel(mov)}</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block min-w-0 overflow-hidden">
                         <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Usuário</span>
                         <span className="text-gray-500 dark:text-gray-400 truncate">{mov.userName || '-'}</span>
                       </div>
-                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block">
+                      <div className="mt-1 flex items-center justify-between gap-2 md:mt-0 md:block min-w-0 overflow-hidden">
                         <span className="text-xs text-gray-500 dark:text-gray-400 md:hidden">Obs</span>
                         <span className="text-gray-500 dark:text-gray-400 truncate" title={mov.description}>{mov.description || '-'}</span>
                       </div>
@@ -4890,7 +4890,7 @@ export default function ProductsPage({ storeId, addNewSignal, user }){
             </div>
             <div className="p-4 space-y-4">
               <div className="flex items-center gap-2">
-                <div className="text-xs text-gray-600 dark:text-gray-300">Quantidade de Precificações:</div>
+                <div className="text-xs text-gray-600 dark:text-gray-300">Precificações:</div>
                 <div className="flex flex-wrap gap-2">
                   {pricingConfig.groups.map((g, idx) => (
                     <button

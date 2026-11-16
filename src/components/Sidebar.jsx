@@ -24,7 +24,7 @@ import { isPageAllowed } from '../lib/permissions'
 export default function Sidebar({onNavigate, onOpenNewSale, active, onLogout, mobileOpen=false, onMobileClose, darkMode, user, allowedPages, locked=false}){
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
-  const canSell = isOwner || perms.sales?.finalize
+  const canSell = isOwner || perms.sales?.finalize || perms.sales?.invoice
   const [expandedKey, setExpandedKey] = useState(null)
 
   const items = useMemo(() => {

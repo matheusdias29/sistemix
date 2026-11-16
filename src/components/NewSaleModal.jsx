@@ -82,6 +82,10 @@ export default function NewSaleModal({ open, onClose, storeId, user, isEdit = fa
   const uid = user?.id || user?.uid || user?.memberId || 'anon'
   const isOwner = !user?.memberId
   const perms = user?.permissions || {}
+  // "Pode efetuar venda" permite criar/salvar a venda (sem pagamento).
+  // "Pode faturar no caixa" permite concluir a venda com pagamento (faturar).
+  const canSell = isOwner || !!perms.sales?.finalize
+  const canInvoice = isOwner || !!perms.sales?.invoice
 
   const DEFAULT_WARRANTY_INFO = `TERMO DE GARANTIA DE PRODUTOS
 Para celulares 1* Ano / Prosutos e Serviços 3 meses
@@ -723,7 +727,19 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
       alert('Adicione produtos à venda.')
       return
     }
-    
+
+    // Bloqueio de segurança: só quem tem "Pode faturar no caixa" pode gravar a
+    // venda em status final (Venda/Cliente Final/Cliente Lojista/Finalizado).
+    // Sem isso, um usuário só com "Pode efetuar venda" conseguiria faturar.
+    // Exceção: venda que JÁ estava faturada e está sendo apenas editada/salva.
+    const FINAL_SAVE_GUARD = ['venda', 'finalizado', 'cliente final', 'cliente lojista', 'cliente logista', 'pago']
+    const targetStatusLow = String(status || '').toLowerCase().trim()
+    const alreadyFinal = isEdit && !!sale && FINAL_SAVE_GUARD.includes(String(sale?.status || '').toLowerCase().trim())
+    if (!canInvoice && !alreadyFinal && FINAL_SAVE_GUARD.includes(targetStatusLow)) {
+      alert('Você não tem permissão para faturar no caixa.')
+      return
+    }
+
     // Validate payment for final sales
     const isFinalSale = (status === 'Venda' || status === 'Finalizado' || status === 'Cliente Final' || status === 'Cliente Lojista')
     const paymentsToUse = Array.isArray(paymentsOverride) ? paymentsOverride : payments
@@ -1611,7 +1627,7 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 <div className="absolute bottom-full left-0 mb-2 w-48 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 z-30 overflow-hidden modal-card">
                   <button onClick={() => { setOptionsOpen(false); setWarrantyOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Termos de garantia</button>
                   <button onClick={() => { setOptionsOpen(false); setNotesOpen(true) }} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Adicionar observações</button>
-                  {(isOwner || perms.sales?.finalize || (isEdit && perms.sales?.edit)) && (
+                  {(canSell || (isEdit && perms.sales?.edit)) && (
                     <>
                     <button onClick={() => handleSave('Pedido')} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Salvar pedido</button>
                     <button onClick={() => handleSave('Condicional')} className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-sm border-b dark:border-gray-700 text-gray-700 dark:text-gray-200">Salvar condicional</button>
@@ -1621,9 +1637,15 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
                 </div>
               )}
 
-              {(isOwner || perms.sales?.finalize || (isEdit && perms.sales?.edit)) && (
+              {(canSell || canInvoice || (isEdit && perms.sales?.edit)) && (
               <button
                 onClick={() => {
+                  // Sem permissão de "faturar no caixa": apenas salva a venda
+                  // (pedido), sem abrir o fluxo de pagamento/faturamento.
+                  if (!canInvoice) {
+                    handleSave(isEdit ? (sale?.status || 'Pedido') : 'Pedido').catch(() => {})
+                    return
+                  }
                   // 🛡️ CORREÇÃO: Botão Faturar deve abrir modal CORRETO dependendo
                   // do status da venda (faturado vs não-faturado / planejado vs definitivo).
                   // BUG ANTERIOR: condição MUITO restrita (só status === "pedido")
@@ -1663,13 +1685,15 @@ Para defetio de fabricação Garantia Não Cobre Produto riscado,trincado,descas
               >
                 <span>{(() => {
                   // Label do botão:
-                  // Venda NOVA ou status NÃO-faturado → "Faturar"
-                  // Venda faturada em edição → "Salvar" (pois não está faturando do zero)
+                  // Sem permissão de faturar → "Salvar" (apenas salva a venda).
+                  // Com permissão de faturar:
+                  //   Venda NOVA ou status NÃO-faturado → "Faturar no caixa"
+                  //   Venda faturada em edição → "Salvar" (não está faturando do zero)
+                  if (!canInvoice) return 'Salvar'
                   const statusLow = String(sale?.status || '').toLowerCase().trim()
                   const FINAL = ['venda','cliente final','cliente lojista','cliente logista','finalizado','pago']
-                  if (!isEdit) return 'Faturar'
-                  if (FINAL.some(s => statusLow.includes(s))) return 'Salvar'
-                  return 'Faturar'
+                  if (isEdit && FINAL.some(s => statusLow.includes(s))) return 'Salvar'
+                  return 'Faturar no caixa'
                 })()}</span>
                 <span className="text-xs opacity-90">{(() => {
                   // Exibir restante correto:

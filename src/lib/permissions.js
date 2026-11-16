@@ -16,8 +16,8 @@ export function isPageAllowedByRole(user, key){
     case 'termos': return !!(perms.terms?.view || perms.terms?.edit)
     case 'catalogo': return perms.catalog?.view || perms.catalog?.view === undefined
     case 'clientes': return !!(perms.clients?.view || perms.clients?.create || perms.clients?.edit || perms.clients?.delete)
-    case 'produtos': return !!(perms.products?.view || perms.products?.create || perms.products?.edit || perms.products?.delete || perms.sales?.viewAll || perms.sales?.finalize)
-    case 'vendas': return !!(perms.sales?.viewAll || perms.sales?.finalize || perms.sales?.edit)
+    case 'produtos': return !!(perms.products?.view || perms.products?.create || perms.products?.edit || perms.products?.delete || perms.sales?.viewAll || perms.sales?.finalize || perms.sales?.invoice)
+    case 'vendas': return !!(perms.sales?.viewAll || perms.sales?.finalize || perms.sales?.invoice || perms.sales?.edit)
     case 'caixa': return !!(perms.cash?.view || perms.cash?.open || perms.cash?.close)
     case 'notas': return false
     case 'os': return !!(perms.serviceOrders?.view || perms.serviceOrders?.create || perms.serviceOrders?.edit || perms.serviceOrders?.delete || perms.serviceOrders?.changeStatus)
